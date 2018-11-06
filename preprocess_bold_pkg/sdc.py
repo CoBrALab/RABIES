@@ -3,7 +3,6 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
 from .utils import init_bold_reference_wf, Merge
-DEFAULT_MEMORY_MIN_GB = 0.01
 
 def init_sdc_wf(tool, name='sdc_wf'):
 

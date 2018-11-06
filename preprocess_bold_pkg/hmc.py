@@ -4,17 +4,15 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-DEFAULT_MEMORY_MIN_GB = 0.01
 
 
-def init_bold_hmc_wf(mem_gb, name='bold_hmc_wf'):
+
+def init_bold_hmc_wf(name='bold_hmc_wf'):
     """
     This workflow estimates the motion parameters to perform HMC over the BOLD image.
 
     **Parameters**
 
-        mem_gb : float
-            Size of BOLD file in GB
         name : str
             Name of workflow (default: ``bold_hmc_wf``)
 
@@ -40,7 +38,7 @@ def init_bold_hmc_wf(mem_gb, name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC', mem_gb=mem_gb * 3)
+    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC')
 
 
     workflow.connect([

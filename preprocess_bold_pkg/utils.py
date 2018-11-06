@@ -8,8 +8,6 @@ from nipype.interfaces.base import (
 from nipype.interfaces.base import CommandLine, CommandLineInputSpec
 
 
-DEFAULT_MEMORY_MIN_GB = 0.01
-
 def init_bold_reference_wf(name='gen_bold_ref'):
     """
     This workflow generates reference BOLD images for a series
@@ -65,9 +63,9 @@ def init_bold_reference_wf(name='gen_bold_ref'):
         This interface implements the `following logic
         <https://github.com/poldracklab/fmriprep/issues/873#issuecomment-349394544>
     '''
-    validate = pe.Node(ValidateImage(), name='validate', mem_gb=DEFAULT_MEMORY_MIN_GB)
+    validate = pe.Node(ValidateImage(), name='validate')
 
-    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref', mem_gb=1) # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
+    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref') # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
 
     workflow.connect([
         (inputnode, validate, [('bold_file', 'in_file')]),

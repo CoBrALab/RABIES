@@ -4,36 +4,20 @@ from nipype.interfaces import utility as niu
 from .utils import applyTransforms, init_bold_reference_wf, Merge
 
 
-DEFAULT_MEMORY_MIN_GB = 0.01
-
-def init_bold_preproc_trans_wf(mem_gb, omp_nthreads,
-                               name='bold_preproc_trans_wf',
-                               use_fieldwarp=False,
-                               interpolation='LanczosWindowedSinc'):
+def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
+                               use_fieldwarp=False):
     """
     This workflow resamples the input fMRI in its native (original)
     space in a "single shot" from the original BOLD series.
 
-    .. workflow::
-        :graph2use: colored
-        :simple_form: yes
-
-        from fmriprep.workflows.bold import init_bold_preproc_trans_wf
-        wf = init_bold_preproc_trans_wf(mem_gb=3, omp_nthreads=1)
 
     **Parameters**
 
-        mem_gb : float
-            Size of BOLD file in GB
-        omp_nthreads : int
-            Maximum number of threads an individual process may use
+
         name : str
             Name of workflow (default: ``bold_mni_trans_wf``)
         use_fieldwarp : bool
             Include SDC warp in single-shot transform from BOLD to MNI
-        interpolation : str
-            Interpolation type to be used by ANTs' ``applyTransforms``
-            (default ``'LanczosWindowedSinc'``)
 
     **Inputs**
 
@@ -73,12 +57,10 @@ def init_bold_preproc_trans_wf(mem_gb, omp_nthreads,
 
 
     bold_transform = pe.Node(
-        applyTransforms(use_fieldwarp=use_fieldwarp), name='bold_transform',
-        mem_gb=mem_gb * 3 * omp_nthreads, n_procs=omp_nthreads)
+        applyTransforms(use_fieldwarp=use_fieldwarp), name='bold_transform')
 
 
-    merge = pe.Node(Merge(), name='merge',
-                    mem_gb=mem_gb * 3)
+    merge = pe.Node(Merge(), name='merge')
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf()

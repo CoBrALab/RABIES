@@ -12,11 +12,8 @@ output_folder=sys.argv[8]
 
 from preprocess_bold_pkg.main_wf import init_func_preproc_wf
 
-# Unless otherwise specified each process should only use one thread - nipype
-# will handle parallelization
-omp_nthreads = 1
 
-workflow = init_func_preproc_wf(bold_file=bold_file, omp_nthreads=omp_nthreads, use_syn=True, TR='1.2s', iterative_N4=True,
+workflow = init_func_preproc_wf(bold_file=bold_file, use_syn=True, TR='1.2s', iterative_N4=True,
 				apply_GSR=True, name=name)
 
 
@@ -32,4 +29,4 @@ workflow.inputs.inputnode.WM_mask = WM_mask
 #Specify the base directory for the working directory
 workflow.base_dir = output_folder
 
-workflow.run()
+workflow.run(plugin='SGEGraph', plugin_args = {'dont_resubmit_completed_jobs': True})

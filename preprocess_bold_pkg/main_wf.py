@@ -19,7 +19,7 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_func_preproc_wf(bold_file, omp_nthreads, use_syn, TR, apply_STC=False, iterative_N4=True, apply_GSR=False, name='main_wf'):
+def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=True, apply_GSR=False, name='main_wf'):
 
     """
     This workflow controls the functional preprocessing stages of the pipeline.
@@ -29,8 +29,6 @@ def init_func_preproc_wf(bold_file, omp_nthreads, use_syn, TR, apply_STC=False, 
 
         bold_file
             BOLD series NIfTI file
-        omp_nthreads : int
-            Maximum number of threads an individual process may use
         use_syn : bool
             Use ANTs SyN-based susceptibility distortion correction (SDC) during
             EPI to anat coregistration.
@@ -66,11 +64,7 @@ def init_func_preproc_wf(bold_file, omp_nthreads, use_syn, TR, apply_STC=False, 
 
     """
 
-    DEFAULT_MEMORY_MIN_GB = 0.01
     LOGGER = logging.getLogger('workflow')
-
-
-    bold_tlen, mem_gb = _create_mem_gb(bold_file)
 
 
     '''setting the workflow'''
@@ -98,15 +92,12 @@ def init_func_preproc_wf(bold_file, omp_nthreads, use_syn, TR, apply_STC=False, 
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf',
-                                   mem_gb=mem_gb['filesize'])
+    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
     bold_reg_wf = init_bold_reg_wf(SyN_reg=use_syn)
 
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(
-        mem_gb=mem_gb['resampled'],
-        omp_nthreads=omp_nthreads,
         use_fieldwarp=True,
         name='bold_bold_trans_wf'
     )
@@ -200,15 +191,3 @@ def _get_series_len(bold_fname):
     skip_vols = _get_vols_to_discard(img)
 
     return img.shape[3] - skip_vols
-
-
-def _create_mem_gb(bold_fname):
-    bold_size_gb = os.path.getsize(bold_fname) / (1024**3)
-    bold_tlen = nb.load(bold_fname).shape[-1]
-    mem_gb = {
-        'filesize': bold_size_gb,
-        'resampled': bold_size_gb * 4,
-        'largemem': bold_size_gb * (max(bold_tlen / 100, 1.0) + 4),
-    }
-
-    return bold_tlen, mem_gb

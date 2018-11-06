@@ -15,9 +15,6 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, SimpleInterface
 )
-DEFAULT_MEMORY_MIN_GB = 0.01
-LOGGER = logging.getLogger('workflow')
-
 
 # pylint: disable=R0914
 def init_bold_stc_wf(TR, name='bold_stc_wf'):
@@ -63,7 +60,7 @@ def init_bold_stc_wf(TR, name='bold_stc_wf'):
         afni.TShift(outputtype='NIFTI_GZ', tr=TR),
         name='slice_timing_correction')
 
-    copy_xform = pe.Node(CopyXForm(), name='copy_xform', mem_gb=0.1)
+    copy_xform = pe.Node(CopyXForm(), name='copy_xform')
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
