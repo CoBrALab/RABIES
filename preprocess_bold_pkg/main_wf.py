@@ -6,20 +6,19 @@ Orchestrating the BOLD-preprocessing workflow
 import os
 
 import nibabel as nb
-from nipype import logging
 
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf
-from preprocess_bold_pkg.stc import init_bold_stc_wf
+from .stc import init_bold_stc_wf
 from .sdc import init_sdc_wf
 from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=True, apply_GSR=False, name='main_wf'):
+def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=True, motioncorr_24params=False, apply_GSR=False, name='main_wf'):
 
     """
     This workflow controls the functional preprocessing stages of the pipeline.
@@ -64,9 +63,6 @@ def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=T
 
     """
 
-    LOGGER = logging.getLogger('workflow')
-
-
     '''setting the workflow'''
     workflow = pe.Workflow(name=name)
 
@@ -86,7 +82,7 @@ def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=T
     bias_cor_wf = bias_correction_wf(iterative=iterative_N4)
 
     if apply_STC:
-        bold_stc_wf = init_bold_stc_wf(TR=TR)
+        bold_stc_wf = init_bold_stc_wf(TR=(str(TR)+'s'))
 
     # BOLD buffer: an identity used as a pointer to the STC data for further use.
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
@@ -102,7 +98,7 @@ def init_func_preproc_wf(bold_file, use_syn, TR, apply_STC=False, iterative_N4=T
         name='bold_bold_trans_wf'
     )
 
-    bold_confs_wf = init_bold_confs_wf(apply_GSR=apply_GSR, name="bold_confs_wf")
+    bold_confs_wf = init_bold_confs_wf(apply_GSR=apply_GSR, TR=TR, motioncorr_24params=motioncorr_24params, name="bold_confs_wf")
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################

@@ -65,7 +65,7 @@ class EPIBiasCorrection(BaseInterface):
         import os
         from nipype.interfaces.base import CommandLine
         from nipype.interfaces.ants import N4BiasFieldCorrection
-        from preprocess_bold_pkg.registration import setup_antsCoRegistration
+        from .registration import setup_antsCoRegistration
         from nipype.interfaces.ants.resampling import ApplyTransforms
 
         null_mask = os.path.abspath('tmp/null_mask.nii.gz')
@@ -76,8 +76,7 @@ class EPIBiasCorrection(BaseInterface):
         resampled_mask = os.path.abspath('iteration2/EPIMask_resample.nii.gz')
 
         if self.inputs.use_thresh_mask:
-            mk_tmp = CommandLine('mkdir', args='-p tmp')
-            mk_tmp.run()
+            os.makedirs('tmp', exist_ok=True)
 
             resample = CommandLine('ResampleImage', args='3 ' + self.inputs.input_ref_EPI + ' ' + resample_EPI + ' 0.4x0.4x0.4 [BSpline]')
             resample.run()
@@ -94,10 +93,10 @@ class EPIBiasCorrection(BaseInterface):
                                 output_image=n4_corrected)
             n4_correct.inputs.input_image=resample_EPI
             n4_res = n4_correct.run()
+            print('Executed bias field correction with threshold mask.')
 
         else:
-            mk_tmp = CommandLine('mkdir', args='-p tmp')
-            mk_tmp.run()
+            os.makedirs('tmp', exist_ok=True)
 
             resample = CommandLine('ResampleImage', args='3 ' + self.inputs.input_ref_EPI + ' tmp/resample.nii.gz 0.4x0.4x0.4 [BSpline]')
             resample.run()
@@ -120,8 +119,7 @@ class EPIBiasCorrection(BaseInterface):
 
             warped_EPI=res.outputs.warped_image
 
-            mk_tmp = CommandLine('mkdir', args='-p iteration2')
-            mk_tmp.run()
+            os.makedirs('iteration2', exist_ok=True)
 
             trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=res.outputs.inverse_composite_transform, reference_image=resample_EPI, output_image=resampled_mask)
             trans.run()
@@ -134,6 +132,7 @@ class EPIBiasCorrection(BaseInterface):
                                 output_image='iteration2/corrected.nii.gz')
             n4_correct.inputs.input_image=resample_EPI
             n4_res = n4_correct.run()
+            print('Executed bias field correction through registration with the structural image.')
 
         resample = CommandLine('ResampleImage', args='3 ' + n4_res.outputs.output_image + ' ' + resample_100iso_EPI + ' 0.1x0.1x0.1 [BSpline]')
         resample.run()

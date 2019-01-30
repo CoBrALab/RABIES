@@ -8,7 +8,12 @@ from nipype.interfaces.base import (
 from nipype import Function
 from .utils import Skullstrip
 
-def init_bold_confs_wf(apply_GSR=False, name="bold_confs_wf"):
+def init_bold_confs_wf(TR, motioncorr_24params=False, apply_GSR=False, name="bold_confs_wf"):
+    '''
+motioncorr_24params: Regression of 6 head motion parameters and autoregressive
+                        models of motion: 6 head motion parameters, 6 head motion parameters one time
+                        point before, and the 12 corresponding squared items (Friston et al., 1996)
+    '''
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
         name='inputnode')
@@ -22,10 +27,10 @@ def init_bold_confs_wf(apply_GSR=False, name="bold_confs_wf"):
     propagate_labels=pe.Node(MaskEPI(use_transforms=False), name='prop_labels_EPI')
     skullstrip=pe.Node(Skullstrip(), name='skullstrip')
 
-    confound_regression=pe.Node(ConfoundRegression(apply_GSR=False, motioncorr_24params=False), name='confound_regression')
+    confound_regression=pe.Node(ConfoundRegression(apply_GSR=False, motioncorr_24params=motioncorr_24params, TR=TR), name='confound_regression')
 
     if apply_GSR:
-        GSR_confound_regression=pe.Node(ConfoundRegression(apply_GSR=True, motioncorr_24params=False), name='GSR_confound_regression')
+        GSR_confound_regression=pe.Node(ConfoundRegression(apply_GSR=True, motioncorr_24params=motioncorr_24params, TR=TR), name='GSR_confound_regression')
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -93,7 +98,8 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
     WM_mask = File(exists=True, mandatory=True, desc="EPI-formated white matter mask")
     CSF_mask = File(exists=True, mandatory=True, desc="EPI-formated CSF mask")
     apply_GSR = traits.Bool(mandatory=True, desc="Use global signal regression or not")
-    motioncorr_24params = traits.Bool(mandatory=True, desc="Apply 24 parameters motion correction or not")
+    motioncorr_24params = traits.Bool(mandatory=True, desc="Apply 24 parameters motion correction or 6 rigid body correction only")
+    TR = traits.Float(mandatory=True, desc="Repetition time.")
 
 class ConfoundRegressionOutputSpec(TraitedSpec):
     cleaned_bold = traits.File(desc="The cleaned bold")
@@ -106,20 +112,28 @@ class ConfoundRegression(BaseInterface):
 
     def _run_interface(self, runtime):
         import numpy as np
-        num_confounds=9
+        if motioncorr_24params:
+            num_confounds=3+24
+        else:
+            num_confounds=3+6
         WM_signal=extract_mask_trace(self.inputs.bold, self.inputs.WM_mask)
         confounds=np.zeros([np.size(WM_signal,0), num_confounds])
         confounds[:,0]=WM_signal
         confounds[:,1]=extract_mask_trace(self.inputs.bold, self.inputs.CSF_mask)
         confounds[:,2]=extract_mask_trace(self.inputs.bold, self.inputs.brain_mask)
-        confounds[:,3:9]=extract_rigid_movpar(self.inputs.movpar_file)
-        csv_columns=['WM_signal', 'CSF_signal', 'global_signal', 'mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
+        if motioncorr_24params:
+            confounds[:,3:27]=motion_24_params(self.inputs.movpar_file)
+            csv_columns=['WM_signal', 'CSF_signal', 'global_signal', 'mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
+
+        else:
+            confounds[:,3:9]=extract_rigid_movpar(self.inputs.movpar_file)
+            csv_columns=['WM_signal', 'CSF_signal', 'global_signal', 'mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
 
         confounds_csv=write_confound_csv(confounds, csv_columns)
         if self.inputs.apply_GSR:
-            cleaned=clean_bold(self.inputs.bold, confounds)
+            cleaned=clean_bold(self.inputs.bold, confounds, self.inputs.TR)
         else:
-            cleaned=clean_bold(self.inputs.bold, confounds[:, np.r_[0:3,4:9]])
+            cleaned=clean_bold(self.inputs.bold, confounds[:, np.r_[0:3,4:]], self.inputs.TR)
 
         setattr(self, 'cleaned_bold', cleaned)
         setattr(self, 'confounds_csv', confounds_csv)
@@ -138,16 +152,29 @@ def write_confound_csv(confound_array, column_names):
     df.to_csv(csv_path)
     return csv_path
 
-def clean_bold(bold, confounds_array):
+def clean_bold(bold, confounds_array, TR):
     '''clean with nilearn'''
     import nilearn.image
     import os
-    regressed_bold = nilearn.image.clean_img(bold, detrend=True, standardize=True, high_pass=0.01, confounds=confounds_array, t_r=1.2)
+    regressed_bold = nilearn.image.clean_img(bold, detrend=True, standardize=True, high_pass=0.01, confounds=confounds_array, t_r=TR)
     cleaned = nilearn.image.smooth_img(regressed_bold, 0.3)
     cleaned_path=os.path.abspath('cleaned.nii.gz')
     cleaned.to_filename(cleaned_path)
     return cleaned_path
 
+def motion_24_params(movpar_csv):
+    import numpy as np
+    rigid_params=extract_rigid_movpar(movpar_csv)
+    movpar=np.zeros([np.size(rigid_params,0), 24])
+    movpar[:,:6]=rigid_params
+    for i in range(6):
+        #add the timepoint 1 TR before
+        movpar[0,6+i]=movpar[0,i]
+        movpar[1:,6+i]=movpar[:-1,i]
+        #add the squared coefficients
+        movpar[:,12+i]=movpar[:,i]**2
+        movpar[:,18+i]=movpar[:,6+i]**2
+    return movpar
 
 def extract_rigid_movpar(movpar_csv):
     import numpy as np
@@ -196,14 +223,19 @@ class MaskEPI(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import nibabel as nb
         from nipype.interfaces.base import CommandLine
+        resampled_mask_path=os.path.abspath('resampled_mask.nii.gz')
         new_mask_path=os.path.abspath('EPI_mask.nii.gz')
         if self.inputs.use_transforms:
-            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -t ' + self.inputs.EPI_to_anat_trans + ' -o ' + new_mask_path + ' -n GenericLabel')
+            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -t ' + self.inputs.EPI_to_anat_trans + ' -o ' + resampled_mask_path + ' -n GenericLabel')
             to_EPI.run()
         else:
-            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel')
+            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + resampled_mask_path + ' -n GenericLabel')
             to_EPI.run()
+
+        nb.Nifti1Image(nb.load(resampled_mask_path).dataobj, nb.load(self.inputs.ref_EPI).affine,
+                       nb.load(self.inputs.ref_EPI).header).to_filename(new_mask_path)
 
         setattr(self, 'EPI_mask', new_mask_path)
         return runtime

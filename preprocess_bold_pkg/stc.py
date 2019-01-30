@@ -110,6 +110,8 @@ class CopyXForm(SimpleInterface):
 def _copyxform(ref_image, out_image, message=None):
     # Read in reference and output
     # Use mmap=False because we will be overwriting the output image
+    import nibabel as nb
+    import numpy as np
     resampled = nb.load(out_image, mmap=False)
     orig = nb.load(ref_image)
 

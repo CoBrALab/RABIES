@@ -202,8 +202,8 @@ class antsMotionCorr(CommandLine):
             mk_tmp.run()
 
         #make a tmp directory to store the files
-        mk_tmp = CommandLine('mkdir', args='ants_mc_tmp')
-        mk_tmp.run()
+        import os
+        os.makedirs('ants_mc_tmp', exist_ok=True)
 
         # Run the command line as a natural CommandLine interface
         runtime = super(antsMotionCorr, self)._run_interface(runtime)
@@ -281,11 +281,8 @@ class applyTransforms(BaseInterface):
         [split_xform, num_volumes] = split_volumes(self.inputs.xforms, "xform_")
 
         from nipype.interfaces.ants.resampling import ApplyTransforms
-        at = ApplyTransforms()
-        at.inputs.reference_image = bold_volumes[0]
-        at.inputs.dimension = 3
-        at.inputs.interpolation = 'LanczosWindowedSinc'
-        at.inputs.float = True
+        at = ApplyTransforms(reference_image = bold_volumes[0], dimension=3,
+                                float = True, interpolation = 'LanczosWindowedSinc')
 
         warped_volumes = []
         for x in range(0, num_volumes):
@@ -409,21 +406,15 @@ class Skullstrip(BaseInterface):
 
         import os
         import nibabel as nb
-        import numpy as np
-
-        in_nii = nb.load(self.inputs.in_file)
-        mask = nb.load(self.inputs.brain_mask)
-        data_nii = in_nii.dataobj
-        data_mask = mask.dataobj
-        shape=data_nii.shape
-        extracted_brain=np.zeros(shape)
-        for x in range(0, shape[3]):
-            extracted_brain[:,:,:,x]=data_nii[:,:,:,x]*data_mask
-
         file_path=os.path.abspath("skullstrip.nii.gz")
-        nb.Nifti1Image(extracted_brain, in_nii.affine,
-                       in_nii.header).to_filename(file_path)
-
+        from nilearn.input_data import NiftiMasker
+        nifti_masker = NiftiMasker(
+            detrend=False,
+            standardize=False,
+            mask_img=self.inputs.brain_mask,
+            memory='nilearn_cache', memory_level=1)  # cache options
+        masked = nifti_masker.fit_transform(self.inputs.in_file)
+        nifti_masker.inverse_transform(masked).to_filename(file_path)
 
         setattr(self, 'skullstrip_brain', file_path)
 
