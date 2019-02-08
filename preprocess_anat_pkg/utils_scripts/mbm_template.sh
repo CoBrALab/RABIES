@@ -15,5 +15,5 @@ MBM.py --verbose --pipeline-name=mbm_atlasReg \
 --maget-mask \
 --common-space-model /opt/quarantine/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron.mnc \
 --run-maget \
---files $FILE_PATH \
+--csv-file $FILE_PATH \
 --output-dir $OUTDIR
