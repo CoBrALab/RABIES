@@ -75,12 +75,18 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
                               function=mnc2nii),
                      name='anat2nii')
 
+    joinnode_buffer = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='joinnode_buffer',
+                     joinsource='anat_selectfiles',
+                     joinfield=['file_list'])
+
     pydpiper_prep = pe.JoinNode(Function(input_names=['file_list'],
                               output_names=['csv_file'],
                               function=pydpiper_prep_func),
                      name='pydpiper_prep',
-                     joinsource='anat_preproc_wf',
+                     joinsource='infosource',
                      joinfield=['file_list'])
+
 
     if mbm_script=='default':
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -107,7 +113,8 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
         (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "pydpiper_inputs")]),
         (anat_preproc_wf, anat2nii, [("outputnode.preproc_anat", "mnc_file")]),
         (anat2nii, datasink, [("nii_file", 'anat_preproc')]),
-        (anat_preproc_wf, pydpiper_prep, [("outputnode.preproc_anat", "file_list")]),
+        (anat_preproc_wf, joinnode_buffer, [("outputnode.preproc_anat", "file_list")]),
+        (joinnode_buffer, pydpiper_prep, [("file_list", "file_list")]),
         (pydpiper_prep, pydpiper_wf, [("csv_file", "inputnode.csv_file")]),
         (file_info, pydpiper_selectfiles, [
             ("subject_id", "subject_id"),
@@ -181,7 +188,7 @@ def pydpiper_prep_func(file_list):
     csv_path=cwd+'/pydpiper_input_files.csv'
     anat_id=[]
     for file in file_list:
-        anat_id.append(file)
+        anat_id.append(file[0])
     df = pd.DataFrame(data={"file": anat_id})
     df.to_csv(csv_path, sep=',',index=False)
     return csv_path
