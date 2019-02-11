@@ -4,11 +4,12 @@ Orchestrating the BOLD-preprocessing workflow
 """
 
 import os
-
-import nibabel as nb
+from os.path import join as opj
 
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
+from nipype.interfaces.io import SelectFiles
+
 from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf
@@ -18,7 +19,8 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, motioncorr_24params=False, apply_GSR=False, name='main_wf'):
+def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, use_syn=True, apply_STC=False, iterative_N4=True,
+                        motioncorr_24params=False, apply_GSR=False, bold_preproc_only=False, name='main_wf'):
 
     """
     This workflow controls the functional preprocessing stages of the pipeline.
@@ -61,19 +63,37 @@ def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, moti
 
     """
 
-    '''setting the workflow'''
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file', 'anat_preproc', 'anat_mask',
-                'anat_labels', 'WM_mask', 'CSF_mask']),
-        name='inputnode')
-
-
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'session', 'run_iter', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels']),
+                      name="inputnode")
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file', 'bold_ref', 'skip_vols', 'hmc_xforms', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
+        fields=['input_bold', 'bold_ref', 'skip_vols', 'hmc_xforms', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
                 'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'cleaned_bold', 'GSR_cleaned_bold', 'EPI_labels', 'confounds_csv']),
         name='outputnode')
+
+    '''
+    if bold_preproc_only:
+        import pandas as pd
+        data_df=pd.read_csv(anat_files_csv, sep=',')
+        subject_list=data_df['subject_id'].values.tolist()
+        session=data_df['session'].values.tolist()
+        run_list=data_df['run_num'].values.tolist()
+        anat_preproc_list=data_df['anat_preproc'].values.tolist()
+        anat_mask_list=data_df['anat_mask'].values.tolist()
+        WM_mask_list=data_df['WM_mask'].values.tolist()
+        CSF_mask_list=data_df['CSF_mask'].values.tolist()
+        labels_list=data_df['labels'].values.tolist()
+
+        #create a dictionary with list of bold run numbers for each subject
+        run_iter={}
+        for i in range(len(subject_list)):
+            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+
+        inputnode.iterables = [('subject_id', subject_list), ('session', session), ('anat_preproc', anat_preproc_list),
+                                ('anat_mask', anat_mask_list), ('WM_mask', WM_mask_list), ('CSF_mask', CSF_mask_list), ('labels', labels_list)]
+        inputnode.synchronize = True
+    '''
 
 
     bold_reference_wf = init_bold_reference_wf()
@@ -101,7 +121,7 @@ def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, moti
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (inputnode, bold_reference_wf, [('bold_file', 'inputnode.bold_file')]),
+        (inputnode, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')]),
         (inputnode, bias_cor_wf, [
@@ -116,7 +136,6 @@ def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, moti
             ('outputnode.movpar_file', 'hmc_movpar_file')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
-        (inputnode, outputnode, [('bold_file', 'bold_file')]),
         (inputnode, bold_reg_wf, [
             ('anat_preproc', 'inputnode.anat_preproc'),
             ('anat_mask', 'inputnode.anat_mask')]),
@@ -126,7 +145,7 @@ def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, moti
             ('outputnode.output_warped_bold', 'output_warped_bold'),
             ]),
         (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
-        (inputnode, bold_bold_trans_wf, [('bold_file', 'inputnode.name_source')]),
+        (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
         (bold_bold_trans_wf, outputnode, [
             ('outputnode.bold_ref', 'resampled_ref_bold'),
@@ -135,7 +154,7 @@ def init_bold_main_wf(TR, use_syn=True, apply_STC=False, iterative_N4=True, moti
         (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
             ('WM_mask', 'inputnode.WM_mask'),
             ('CSF_mask', 'inputnode.CSF_mask'),
-            ('anat_labels', 'inputnode.t1_labels'),
+            ('labels', 'inputnode.t1_labels'),
             ]),
         (bold_bold_trans_wf, bold_confs_wf, [('outputnode.bold', 'inputnode.bold'),
             ('outputnode.bold_ref', 'inputnode.ref_bold'),

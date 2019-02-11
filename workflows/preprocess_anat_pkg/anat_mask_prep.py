@@ -5,7 +5,7 @@ from nipype.interfaces.utility import Function
 
 def init_anat_mask_prep_wf(csv_labels, name='anat_prep_mask_wf'):
     '''
-    This workflow will take the output masks and labels from pydpyper for each
+    This workflow will take the output masks and labels from pydpiper for each
     subject, the transform of each subject,
     '''
 

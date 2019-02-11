@@ -14,7 +14,7 @@ def init_anat_preproc_wf(name='anat_preproc_wf'):
     1-conversion of anat to minc format
     2-single scan anatomical preprocessing (N4 bias correction, brain mask, ...)
     with mouse-preprocessing-v3.sh script.
-    The inputs for pydpyper are then ready.
+    The inputs for pydpiper are then ready.
     '''
 
     workflow = pe.Workflow(name=name)
@@ -52,7 +52,7 @@ class AnatPreproc(BaseInterface):
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
         os.system('nii2mnc %s %s/mnc_anat/%s.mnc' % (self.inputs.nii_anat,cwd,anat_file))
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        os.system('bash %s/utils_scripts/mouse-preprocessing-v3.sh %s/mnc_anat/%s.mnc %s/anat_preproc/%s_preproc.mnc' % (dir_path,cwd,anat_file,cwd,anat_file))
+        os.system('bash %s/shell_scripts/mouse-preprocessing-v3.sh %s/mnc_anat/%s.mnc %s/anat_preproc/%s_preproc.mnc' % (dir_path,cwd,anat_file,cwd,anat_file))
 
         setattr(self, 'preproc_anat', '%s/anat_preproc/%s_preproc.mnc' % (cwd,anat_file))
         return runtime
