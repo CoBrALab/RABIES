@@ -96,10 +96,11 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
 
 
     labels = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','voted.mnc')
-    nlin_mask = opj('mbm_atlasReg_processed','DSURQE_40micron_mask','resampled','{subject_id}_ses-{session}_anat_preproc_I_lsq6_lsq12_and_nlin-resampled_mask.mnc')
+    lsq6_mask = opj('mbm_atlasReg_atlases','DSURQE_40micron_mask','tmp','{subject_id}_ses-{session}_anat_preproc_I_lsq6_max_mask.mnc')
+
     nlin_transform = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','transforms','{subject_id}_ses-{session}_anat_preproc__concat_lsq6_I_lsq6_lsq12_and_nlin.xfm')
 
-    pydpiper_templates = {'labels': labels, 'nlin_mask': nlin_mask, 'nlin_transform': nlin_transform}
+    pydpiper_templates = {'labels': labels, 'lsq6_mask': lsq6_mask, 'nlin_transform': nlin_transform}
 
     pydpiper_selectfiles = pe.Node(SelectFiles(pydpiper_templates),
                        name="pydpiper_selectfiles")
@@ -127,7 +128,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
         (anat_preproc_wf, anat_mask_prep_wf, [("outputnode.preproc_anat", "inputnode.anat_preproc")]),
         (pydpiper_selectfiles, anat_mask_prep_wf, [
             ("labels", "inputnode.labels"),
-            ("nlin_mask", "inputnode.nlin_mask"),
+            ("lsq6_mask", "inputnode.nlin_mask"),
             ("nlin_transform", "inputnode.nlin_transform"),
             ]),
         (anat_mask_prep_wf, datasink, [
