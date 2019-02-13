@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_only=True, mbm_script='default', name='main_wf'):
+def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=True, mbm_script='default', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -97,10 +97,9 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
 
     labels = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','voted.mnc')
     lsq6_mask = opj('mbm_atlasReg_atlases','DSURQE_40micron_mask','tmp','{subject_id}_ses-{session}_anat_preproc_I_lsq6_max_mask.mnc')
+    lsq6_transform = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','transforms','{subject_id}_ses-{session}_anat_preproc_lsq6.xfm')
 
-    nlin_transform = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','transforms','{subject_id}_ses-{session}_anat_preproc__concat_lsq6_I_lsq6_lsq12_and_nlin.xfm')
-
-    pydpiper_templates = {'labels': labels, 'lsq6_mask': lsq6_mask, 'nlin_transform': nlin_transform}
+    pydpiper_templates = {'labels': labels, 'lsq6_mask': lsq6_mask, 'lsq6_transform': lsq6_transform}
 
     pydpiper_selectfiles = pe.Node(SelectFiles(pydpiper_templates),
                        name="pydpiper_selectfiles")
@@ -108,6 +107,33 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
     anat_mask_prep_wf=init_anat_mask_prep_wf(csv_labels=csv_labels)
 
 
+    if keep_pydpiper_transforms:
+
+        #this join node buffer will allow both to merge iterables, and also to wait
+        #until the transforms from pydpiper have all been used
+        joinnode_buffer2 = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                         name='joinnode_buffer2',
+                         joinsource='anat_mask_prep_wf',
+                         joinfield=['file_list'])
+
+        keep_transforms = pe.JoinNode(Function(input_names=['file_list_buffer', 'pydpiper_directory', 'transform_csv', 'output_folder'],
+                                  output_names=[None],
+                                  function=move_pydpiper_transforms),
+                         name='move_pydpiper_transforms',
+                         joinsource='infosource',
+                         joinfield=['file_list_buffer'])
+        keep_transforms.inputs.output_folder = output_folder
+
+        workflow.connect([
+            (anat_mask_prep_wf, joinnode_buffer2, [("outputnode.resampled_mask", "file_list")]),
+            (joinnode_buffer2, keep_transforms, [("file_list", "file_list_buffer")]),
+            (pydpiper_wf, keep_transforms, [
+                ("outputnode.pydpiper_directory", "pydpiper_directory"),
+                ("outputnode.transform_csv", "transform_csv"),
+                ]),
+        ])
+
+    #connect the anat workflow
     workflow.connect([
         (anat_selectfiles, file_info, [("anat", "file_path")]),
         (anat_selectfiles, anat_preproc_wf, [("anat", "inputnode.anat_file")]),
@@ -128,8 +154,8 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, anat_on
         (anat_preproc_wf, anat_mask_prep_wf, [("outputnode.preproc_anat", "inputnode.anat_preproc")]),
         (pydpiper_selectfiles, anat_mask_prep_wf, [
             ("labels", "inputnode.labels"),
-            ("lsq6_mask", "inputnode.nlin_mask"),
-            ("nlin_transform", "inputnode.nlin_transform"),
+            ("lsq6_mask", "inputnode.lsq6_mask"),
+            ("lsq6_transform", "inputnode.lsq6_transform"),
             ]),
         (anat_mask_prep_wf, datasink, [
             ("outputnode.resampled_mask", "anat_mask"),
@@ -201,3 +227,10 @@ def mnc2nii(mnc_file):
     os.system('mnc2nii %s %s/%s.nii' % (mnc_file,cwd,basename))
     os.system('gzip *.nii')
     return '%s/%s.nii.gz' % (cwd,basename)
+
+def move_pydpiper_transforms(file_list_buffer, pydpiper_directory, transform_csv, output_folder, buffer_input):
+    import os
+    os.system('mkdir -p %s/datasink/pydpiper_transforms/' % (output_folder))
+    os.system('mv %s %s/datasink/pydpiper_transforms/' % (transform_csv, output_folder))
+    os.system('mv %s/mbm_atlasReg_processed %s/datasink/pydpiper_transforms/' % (pydpiper_directory, output_folder))
+    return None

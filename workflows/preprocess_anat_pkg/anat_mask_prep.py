@@ -10,7 +10,7 @@ def init_anat_mask_prep_wf(csv_labels, name='anat_prep_mask_wf'):
     '''
 
     workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(fields=["subject_id", "session", 'anat_preproc', 'nlin_transform', 'nlin_mask', 'labels']), name='inputnode')
+    inputnode = pe.Node(niu.IdentityInterface(fields=["subject_id", "session", 'anat_preproc', 'lsq6_transform', 'lsq6_mask', 'labels']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['resampled_mask', 'resampled_labels', 'WM_mask', 'CSF_mask', 'eroded_WM_mask', 'eroded_CSF_mask']), name='outputnode')
 
     apply_transform_mask = pe.Node(Function(input_names=["subject_id", "session", "reference_image",'transforms','input_image', 'file_spec'],
@@ -46,14 +46,14 @@ def init_anat_mask_prep_wf(csv_labels, name='anat_prep_mask_wf'):
             ("subject_id", "subject_id"),
             ("session", "session"),
             ("anat_preproc", "reference_image"),
-            ('nlin_transform', 'transforms'),
-            ('nlin_mask', 'input_image'),
+            ('lsq6_transform', 'transforms'),
+            ('lsq6_mask', 'input_image'),
             ]),
         (inputnode, apply_transform_labels, [
             ("subject_id", "subject_id"),
             ("session", "session"),
             ("anat_preproc", "reference_image"),
-            ('nlin_transform', 'transforms'),
+            ('lsq6_transform', 'transforms'),
             ('labels', 'input_image'),
             ]),
         (apply_transform_mask, mask2nii, [("output_image", "mnc_file")]),
