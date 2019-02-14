@@ -8,7 +8,7 @@ from nipype.interfaces.base import (
 from nipype import Function
 from .utils import Skullstrip
 
-def init_bold_confs_wf(TR, motioncorr_24params=False, apply_GSR=False, name="bold_confs_wf"):
+def init_bold_confs_wf(TR, aCompCor_method='50%', name="bold_confs_wf"):
     '''
 motioncorr_24params: Regression of 6 head motion parameters and autoregressive
                         models of motion: 6 head motion parameters, 6 head motion parameters one time
@@ -27,10 +27,7 @@ motioncorr_24params: Regression of 6 head motion parameters and autoregressive
     propagate_labels=pe.Node(MaskEPI(use_transforms=False), name='prop_labels_EPI')
     skullstrip=pe.Node(Skullstrip(), name='skullstrip')
 
-    confound_regression=pe.Node(ConfoundRegression(apply_GSR=False, motioncorr_24params=motioncorr_24params, TR=TR), name='confound_regression')
-
-    if apply_GSR:
-        GSR_confound_regression=pe.Node(ConfoundRegression(apply_GSR=True, motioncorr_24params=motioncorr_24params, TR=TR), name='GSR_confound_regression')
+    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method, TR=TR), name='confound_regression')
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -70,25 +67,6 @@ motioncorr_24params: Regression of 6 head motion parameters and autoregressive
             ]),
         ])
 
-    if apply_GSR:
-        workflow.connect([
-            (inputnode, GSR_confound_regression, [
-                ('movpar_file', 'movpar_file'),
-                ]),
-            (skullstrip, GSR_confound_regression, [
-                ('skullstrip_brain', 'bold'),
-                ]),
-            (WM_mask_to_EPI, GSR_confound_regression, [
-                ('EPI_mask', 'WM_mask')]),
-            (CSF_mask_to_EPI, GSR_confound_regression, [
-                ('EPI_mask', 'CSF_mask')]),
-            (brain_mask_to_EPI, GSR_confound_regression, [
-                ('EPI_mask', 'brain_mask')]),
-            (GSR_confound_regression, outputnode, [
-                ('cleaned_bold', 'GSR_cleaned_bold'),
-                ]),
-            ])
-
     return workflow
 
 class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
@@ -97,12 +75,10 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
     brain_mask = File(exists=True, mandatory=True, desc="EPI-formated whole brain mask")
     WM_mask = File(exists=True, mandatory=True, desc="EPI-formated white matter mask")
     CSF_mask = File(exists=True, mandatory=True, desc="EPI-formated CSF mask")
-    apply_GSR = traits.Bool(mandatory=True, desc="Use global signal regression or not")
-    motioncorr_24params = traits.Bool(mandatory=True, desc="Apply 24 parameters motion correction or 6 rigid body correction only")
     TR = traits.Float(mandatory=True, desc="Repetition time.")
+    aCompCor_method = traits.Str(desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
 
 class ConfoundRegressionOutputSpec(TraitedSpec):
-    cleaned_bold = traits.File(desc="The cleaned bold")
     confounds_csv = traits.File(desc="CSV file of confounds")
 
 class ConfoundRegression(BaseInterface):
@@ -112,36 +88,46 @@ class ConfoundRegression(BaseInterface):
 
     def _run_interface(self, runtime):
         import numpy as np
-        if motioncorr_24params:
-            num_confounds=3+24
-        else:
-            num_confounds=3+6
+
+        confounds=[]
+        csv_columns=[]
         WM_signal=extract_mask_trace(self.inputs.bold, self.inputs.WM_mask)
-        confounds=np.zeros([np.size(WM_signal,0), num_confounds])
-        confounds[:,0]=WM_signal
-        confounds[:,1]=extract_mask_trace(self.inputs.bold, self.inputs.CSF_mask)
-        confounds[:,2]=extract_mask_trace(self.inputs.bold, self.inputs.brain_mask)
-        if motioncorr_24params:
-            confounds[:,3:27]=motion_24_params(self.inputs.movpar_file)
-            csv_columns=['WM_signal', 'CSF_signal', 'global_signal', 'mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
+        confounds.append(WM_signal)
+        csv_columns+=['WM_signal']
+        [WM_aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.WM_mask, method=self.inputs.aCompCor_method)
+        for param in range(WM_aCompCor.shape[1]):
+            confounds.append(WM_aCompCor[:,param])
+        comp_column=[]
+        for comp in range(num_comp):
+            comp_column.append('WM_comp'+str(comp+1))
+        csv_columns+=comp_column
 
-        else:
-            confounds[:,3:9]=extract_rigid_movpar(self.inputs.movpar_file)
-            csv_columns=['WM_signal', 'CSF_signal', 'global_signal', 'mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
+        CSF_signal=extract_mask_trace(self.inputs.bold, self.inputs.CSF_mask)
+        confounds.append(CSF_signal)
+        csv_columns+=['CSF_signal']
+        [CSF_aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.CSF_mask, method=self.inputs.aCompCor_method)
+        for param in range(CSF_aCompCor.shape[1]):
+            confounds.append(CSF_aCompCor[:,param])
+        comp_column=[]
+        for comp in range(num_comp):
+            comp_column.append('CSF_comp'+str(comp+1))
+        csv_columns+=comp_column
 
-        confounds_csv=write_confound_csv(confounds, csv_columns)
-        if self.inputs.apply_GSR:
-            cleaned=clean_bold(self.inputs.bold, confounds, self.inputs.TR)
-        else:
-            cleaned=clean_bold(self.inputs.bold, confounds[:, np.r_[0:3,4:]], self.inputs.TR)
+        global_signal=extract_mask_trace(self.inputs.bold, self.inputs.brain_mask)
+        confounds.append(global_signal)
+        csv_columns+=['global_signal']
+        motion_24=motion_24_params(self.inputs.movpar_file)
+        for param in range(motion_24.shape[1]):
+            confounds.append(motion_24[:,param])
+        csv_columns+=['mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
 
-        setattr(self, 'cleaned_bold', cleaned)
+        confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns)
+
         setattr(self, 'confounds_csv', confounds_csv)
         return runtime
 
     def _list_outputs(self):
-        return {'cleaned_bold': getattr(self, 'cleaned_bold'),
-                'confounds_csv': getattr(self, 'confounds_csv')}
+        return {'confounds_csv': getattr(self, 'confounds_csv')}
 
 def write_confound_csv(confound_array, column_names):
     import pandas as pd
@@ -161,6 +147,38 @@ def clean_bold(bold, confounds_array, TR):
     cleaned_path=os.path.abspath('cleaned.nii.gz')
     cleaned.to_filename(cleaned_path)
     return cleaned_path
+
+def compute_aCompCor(bold, mask, method='50%'):
+    '''
+    Compute the anatomical comp corr through PCA over a defined ROI (mask) within
+    the EPI, and retain either the first 5 components' time series or up to 50% of
+    the variance explained as in Muschelli et al. 2014.
+    '''
+    import nibabel as nb
+    from sklearn.decomposition import PCA
+
+    from nilearn.input_data import NiftiMasker
+    masker=NiftiMasker(mask_img=nb.load(mask))
+    mask_timeseries=masker.fit_transform(nb.load(bold)) #shape n_timepoints x n_voxels
+
+    if method=='50%':
+        pca=PCA()
+        pca.fit(mask_timeseries)
+        explained_variance=pca.explained_variance_ratio_
+        cum_var=0
+        num_comp=0
+        #evaluate the # of components to explain 50% of the variance
+        while(cum_var<=0.5):
+            cum_var+=explained_variance[num_comp]
+            num_comp+=1
+    elif method=='first_5':
+        num_comp=5
+
+    pca=PCA(n_components=num_comp)
+    comp_timeseries=pca.fit_transform(mask_timeseries)
+    return comp_timeseries, num_comp
+
+
 
 def motion_24_params(movpar_csv):
     import numpy as np

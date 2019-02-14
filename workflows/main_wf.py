@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=True, mbm_script='default', name='main_wf'):
+def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=True, reg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -90,7 +90,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
 
     if mbm_script=='default':
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        pydpiper_wf=init_pydpiper_wf(model_script_path=dir_path+'/preprocess_anat_pkg/shell_scripts/mbm_template.sh')
+        pydpiper_wf=init_pydpiper_wf(model_script_path=dir_path+'/shell_scripts/mbm_template.sh')
     else:
         pydpiper_wf=init_pydpiper_wf(model_script_path=model_script_path)
 
@@ -168,7 +168,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
 
     ########BOLD PREPROCESSING WORKFLOW
     if not anat_only:
-        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, use_syn=True, apply_STC=True, iterative_N4=True, motioncorr_24params=True, apply_GSR=False)
+        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, reg_script=reg_script, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
 
         bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},

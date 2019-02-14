@@ -65,7 +65,7 @@ class EPIBiasCorrection(BaseInterface):
         import os
         from nipype.interfaces.base import CommandLine
         from nipype.interfaces.ants import N4BiasFieldCorrection
-        from .registration import setup_antsCoRegistration
+        from .registration import run_antsRegistration
         from nipype.interfaces.ants.resampling import ApplyTransforms
 
         null_mask = os.path.abspath('tmp/null_mask.nii.gz')
@@ -112,16 +112,13 @@ class EPIBiasCorrection(BaseInterface):
             resample = CommandLine('ResampleImage', args='3 ' + n4_corrected + ' ' + resample_100iso_EPI + ' 0.1x0.1x0.1 [BSpline]')
             resample.run()
 
-            reg = setup_antsCoRegistration(reg_type='Rigid', moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
-            reg.inputs.moving_image_masks = ['NULL']
-            reg.inputs.fixed_image_masks = ['NULL']
-            res=reg.run()
+            [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script='Rigid', moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
 
-            warped_EPI=res.outputs.warped_image
+            warped_EPI=warped_image
 
             os.makedirs('iteration2', exist_ok=True)
 
-            trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=res.outputs.inverse_composite_transform, reference_image=resample_EPI, output_image=resampled_mask)
+            trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=inverse_composite_transform, reference_image=resample_EPI, output_image=resampled_mask)
             trans.run()
 
             gen_mask = CommandLine('ImageMath', args='3 iteration2/null_mask.nii.gz ThresholdAtMean ' + resample_EPI + ' 0', terminal_output='stream')

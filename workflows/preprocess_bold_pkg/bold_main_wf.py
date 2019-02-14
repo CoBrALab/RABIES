@@ -19,8 +19,8 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, use_syn=True, apply_STC=False, iterative_N4=True,
-                        motioncorr_24params=False, apply_GSR=False, bold_preproc_only=False, name='main_wf'):
+def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg_script='SyN', apply_STC=False, iterative_N4=True,
+                        aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
     This workflow controls the functional preprocessing stages of the pipeline.
@@ -69,7 +69,7 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, use
                       name="inputnode")
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['input_bold', 'bold_ref', 'skip_vols', 'hmc_xforms', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
-                'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'cleaned_bold', 'GSR_cleaned_bold', 'EPI_labels', 'confounds_csv']),
+                'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_labels', 'confounds_csv']),
         name='outputnode')
 
     '''
@@ -108,15 +108,15 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, use
     # HMC on the BOLD
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
-    bold_reg_wf = init_bold_reg_wf(SyN_reg=use_syn)
+    bold_reg_wf = init_bold_reg_wf(reg_script=reg_script)
 
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(
         use_fieldwarp=True,
         name='bold_bold_trans_wf'
-    )
 
-    bold_confs_wf = init_bold_confs_wf(apply_GSR=apply_GSR, TR=TR, motioncorr_24params=motioncorr_24params, name="bold_confs_wf")
+    )
+    bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, TR=TR, name="bold_confs_wf")
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################
@@ -162,8 +162,6 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, use
         (bold_hmc_wf, bold_confs_wf, [('outputnode.movpar_file', 'inputnode.movpar_file'),
             ]),
         (bold_confs_wf, outputnode, [
-            ('outputnode.cleaned_bold', 'cleaned_bold'),
-            ('outputnode.GSR_cleaned_bold', 'GSR_cleaned_bold'),
             ('outputnode.EPI_labels', 'EPI_labels'),
             ('outputnode.confounds_csv', 'confounds_csv'),
             ]),
