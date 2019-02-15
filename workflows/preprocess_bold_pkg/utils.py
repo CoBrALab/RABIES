@@ -119,7 +119,12 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        out_ref_fname = os.path.abspath("bold_ref.nii.gz")
+        subject_id=os.path.basename(self.inputs.in_file).split('_ses-')[0]
+        session=os.path.basename(self.inputs.in_file).split('_ses-')[1][0]
+        run=os.path.basename(self.inputs.in_file).split('_run-')[1][0]
+        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
         if n_volumes_to_discard == 0:
             #if no dummy scans, will generate a median from a subset of max 40
@@ -365,6 +370,11 @@ class Merge(BaseInterface):
         import nibabel as nb
         import numpy as np
 
+        subject_id=os.path.basename(self.inputs.header_source).split('_ses-')[0]
+        session=os.path.basename(self.inputs.header_source).split('_ses-')[1][0]
+        run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
+        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+
         img = nb.load(self.inputs.in_files[0]).dataobj
         in_nii = nb.load(self.inputs.header_source)
         length = len(self.inputs.in_files)
@@ -377,7 +387,7 @@ class Merge(BaseInterface):
         if (i!=length):
             print("Error occured with Merge.")
             return None
-        combined_files = os.path.abspath("combined.nii.gz")
+        combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
         nb.Nifti1Image(combined, in_nii.affine,
                        in_nii.header).to_filename(combined_files)
 

@@ -53,7 +53,7 @@ def init_bold_reg_wf(reg_script='SyN', name='bold_reg_wf'):
         name='outputnode'
     )
 
-    
+
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
                                             "anat_mask"],
                    output_names=['itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold'],
@@ -82,6 +82,10 @@ def run_registration_interface(interface):
 
 def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
+    subject_id=os.path.basename(moving_image).split('_ses-')[0]
+    session=os.path.basename(moving_image).split('_ses-')[1][0]
+    run=os.path.basename(moving_image).split('_run-')[1][0]
+    filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
 
     if reg_script=='SyN':
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -90,9 +94,10 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         EPI=$1
         anat_file=$2
         mask=$3
+        filename_template=$4
 
         antsRegistration -d 3 \
-        --verbose -o [output_,output_warped_image.nii.gz] \
+        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
         -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
         -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
         -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
@@ -111,9 +116,10 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         EPI=$1
         anat_file=$2
         mask=$3
+        filename_template=$4
 
         antsRegistration -d 3 \
-        --verbose -o [output_,output_warped_image.nii.gz] \
+        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
         -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
         -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
         -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
@@ -130,9 +136,10 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         EPI=$1
         anat_file=$2
         mask=$3
+        filename_template=$4
 
         antsRegistration -d 3 \
-        --verbose -o [output_,output_warped_image.nii.gz] \
+        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
         -t Rigid[0.1] -m Mattes[$EPI,$anat_file,1,64,None] \
         -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
         --interpolation BSpline[5] -z 1 -u 0 -a 1
@@ -144,11 +151,11 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
         reg_script_path=reg_script
 
-    os.system('bash %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask))
+    os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
 
     cwd = os.getcwd()
-    warped_image=cwd+'/output_warped_image.nii.gz'
-    inverse_composite_transform=cwd+'/output_InverseComposite.h5'
-    composite_transform=cwd+'/output_Composite.h5'
+    warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
+    inverse_composite_transform='%s/%s_output_InverseComposite.h5' % (cwd, filename_template)
+    composite_transform='%s/%s_output_Composite.h5' % (cwd, filename_template)
 
     return [composite_transform, inverse_composite_transform, warped_image]

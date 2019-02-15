@@ -47,7 +47,7 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(exists=True, desc="input ref EPI corrected for bias fields")
-    warped_EPI = File(exists=True, desc="output warped image from antsRegistration")
+    warped_EPI = File(desc="output warped image from antsRegistration")
     resampled_mask = File(exists=True, desc="resampled EPI mask after registration")
 
 
@@ -68,12 +68,18 @@ class EPIBiasCorrection(BaseInterface):
         from .registration import run_antsRegistration
         from nipype.interfaces.ants.resampling import ApplyTransforms
 
+        subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
+        session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
+        run=os.path.basename(self.inputs.input_ref_EPI).split('_run-')[1][0]
+        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+
         null_mask = os.path.abspath('tmp/null_mask.nii.gz')
         thresh_mask = os.path.abspath('tmp/thresh_mask.nii.gz')
         resample_EPI = os.path.abspath('tmp/resampled.nii.gz')
-        resample_100iso_EPI = os.path.abspath('tmp/resampled_100iso.nii.gz')
+        resample_100iso_EPI = os.path.abspath('tmp/%s_resampled_100iso.nii.gz' % (filename_template))
         n4_corrected = os.path.abspath('tmp/n4_corrected.nii.gz')
-        resampled_mask = os.path.abspath('iteration2/EPIMask_resample.nii.gz')
+        resampled_mask = os.path.abspath('iteration2/%s_EPIMask_resample.nii.gz' % (filename_template))
+        warped_image = ''
 
         if self.inputs.use_thresh_mask:
             os.makedirs('tmp', exist_ok=True)
@@ -114,8 +120,6 @@ class EPIBiasCorrection(BaseInterface):
 
             [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script='Rigid', moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
 
-            warped_EPI=warped_image
-
             os.makedirs('iteration2', exist_ok=True)
 
             trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=inverse_composite_transform, reference_image=resample_EPI, output_image=resampled_mask)
@@ -135,7 +139,7 @@ class EPIBiasCorrection(BaseInterface):
         resample.run()
 
         setattr(self, 'corrected_EPI', resample_100iso_EPI)
-        setattr(self, 'warped_EPI', warped_EPI)
+        setattr(self, 'warped_EPI', warped_image)
         setattr(self, 'resampled_mask', resampled_mask)
 
         return runtime

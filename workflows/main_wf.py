@@ -11,9 +11,12 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=True, reg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
+def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=False, reg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
+    outputnode = pe.Node(niu.IdentityInterface(
+        fields=['anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'bold_labels', 'confounds_csv', 'itk_bold_to_anat', 'itk_anat_to_bold','boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold']),
+        name='outputnode')
 
 
     import pandas as pd
@@ -49,7 +52,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
     # Datasink - creates output folder for important outputs
     datasink = pe.Node(DataSink(base_directory=output_folder,
                              container="datasink"),
-                    name="input_datasink")
+                    name="anat_datasink")
 
 
     #connect the select files and iterables
@@ -163,12 +166,18 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
             ("outputnode.eroded_WM_mask", "WM_mask"),
             ("outputnode.eroded_CSF_mask", "CSF_mask"),
             ]),
+        (anat_mask_prep_wf, outputnode, [
+            ("outputnode.resampled_mask", "anat_mask"),
+            ("outputnode.resampled_labels", "anat_labels"),
+            ("outputnode.eroded_WM_mask", "WM_mask"),
+            ("outputnode.eroded_CSF_mask", "CSF_mask"),
+            ]),
     ])
 
 
     ########BOLD PREPROCESSING WORKFLOW
     if not anat_only:
-        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, reg_script=reg_script, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
+        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, reg_script=reg_script, SyN_SDC=True, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
 
         bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
@@ -177,13 +186,18 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
         bold_selectfiles.itersource = ('infosource', 'subject_id')
         bold_selectfiles.iterables = [('run', run_iter)]
 
+        # Datasink - creates output folder for important outputs
+        bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                 container="bold_datasink"),
+                        name="bold_datasink")
+
 
         workflow.connect([
             (file_info, bold_selectfiles, [
                 ("subject_id", "subject_id"),
                 ("session", "session"),
                 ]),
-            (bold_selectfiles, datasink, [
+            (bold_selectfiles, bold_datasink, [
                 ("bold", "input_bold"),
                 ]),
             (bold_selectfiles, bold_main_wf, [
@@ -196,9 +210,21 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
                 ("outputnode.eroded_WM_mask", "inputnode.WM_mask"),
                 ("outputnode.eroded_CSF_mask", "inputnode.CSF_mask"),
                 ]),
+            (bold_main_wf, outputnode, [
+                ("outputnode.bold_ref", "initial_bold_ref"),
+                ("outputnode.corrected_EPI", "bias_cor_bold"),
+                ("outputnode.EPI_labels", "bold_labels"),
+                ("outputnode.confounds_csv", "confounds_csv"),
+                ("outputnode.itk_bold_to_anat", "itk_bold_to_anat"),
+                ("outputnode.itk_anat_to_bold", "itk_anat_to_bold"),
+                ("outputnode.output_warped_bold", "boldref_warped2anat"),
+                ("outputnode.resampled_bold", "native_corrected_bold"),
+                ("outputnode.resampled_ref_bold", "corrected_ref_bold"),
+                ]),
         ])
 
     return workflow
+
 
 
 def file_reader(file_path):

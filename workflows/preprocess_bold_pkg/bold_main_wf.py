@@ -19,7 +19,7 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg_script='SyN', apply_STC=False, iterative_N4=True,
+def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -67,12 +67,15 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
 
     inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'session', 'run_iter', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels']),
                       name="inputnode")
+
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['input_bold', 'bold_ref', 'skip_vols', 'hmc_xforms', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
-                'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_labels', 'confounds_csv']),
-        name='outputnode')
+                fields=['input_bold', 'bold_ref', 'skip_vols','hmc_xforms', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
+                        'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_labels', 'confounds_csv']),
+                name='outputnode')
 
     '''
+
+
     if bold_preproc_only:
         import pandas as pd
         data_df=pd.read_csv(anat_files_csv, sep=',')
@@ -116,7 +119,7 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
         name='bold_bold_trans_wf'
 
     )
-    bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, TR=TR, name="bold_confs_wf")
+    bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, TR=TR, name="bold_confs_wf")
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################
@@ -139,11 +142,16 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
         (inputnode, bold_reg_wf, [
             ('anat_preproc', 'inputnode.anat_preproc'),
             ('anat_mask', 'inputnode.anat_mask')]),
+        (bias_cor_wf, bold_reg_wf, [
+              ('outputnode.corrected_EPI', 'inputnode.ref_bold_brain')]),
+        (bias_cor_wf, outputnode, [
+              ('outputnode.corrected_EPI', 'corrected_EPI')]),
         (bold_reg_wf, outputnode, [
             ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
             ('outputnode.itk_anat_to_bold', 'itk_anat_to_bold'),
             ('outputnode.output_warped_bold', 'output_warped_bold'),
             ]),
+        (bold_reg_wf, bold_bold_trans_wf, [('outputnode.itk_bold_to_anat', 'inputnode.fieldwarp')]),
         (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
@@ -180,14 +188,5 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
                 ('outputnode.bold_file', 'bold_file')]),
             ])
 
-    workflow.connect([
-        (bias_cor_wf, bold_reg_wf, [
-              ('outputnode.corrected_EPI', 'inputnode.ref_bold_brain')]),
-        ])
-
-
-    workflow.connect([
-        (bold_reg_wf, bold_bold_trans_wf, [('outputnode.itk_bold_to_anat', 'inputnode.fieldwarp')]),
-        ])
 
     return workflow
