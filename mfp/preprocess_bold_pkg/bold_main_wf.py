@@ -19,7 +19,7 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
+def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -100,7 +100,7 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
 
 
     bold_reference_wf = init_bold_reference_wf()
-    bias_cor_wf = bias_correction_wf(iterative=iterative_N4)
+    bias_cor_wf = bias_correction_wf(iterative=iterative_N4, bias_reg_script=bias_reg_script)
 
     if apply_STC:
         bold_stc_wf = init_bold_stc_wf(TR=TR)
@@ -111,7 +111,7 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, reg
     # HMC on the BOLD
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
-    bold_reg_wf = init_bold_reg_wf(reg_script=reg_script)
+    bold_reg_wf = init_bold_reg_wf(coreg_script=coreg_script)
 
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(

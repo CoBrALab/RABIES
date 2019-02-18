@@ -9,7 +9,7 @@ from nipype.interfaces.ants import N4BiasFieldCorrection
 from nipype.interfaces.ants.resampling import ApplyTransforms
 
 
-def bias_correction_wf(iterative=False, name='bias_correction_wf'):
+def bias_correction_wf(iterative=True, bias_reg_script='Rigid', name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -20,7 +20,7 @@ def bias_correction_wf(iterative=False, name='bias_correction_wf'):
         name='outputnode')
 
 
-    bias_correction = pe.Node(EPIBiasCorrection(use_thresh_mask=True, iterative_registration=iterative), name='bias_correction')
+    bias_correction = pe.Node(EPIBiasCorrection(use_thresh_mask=True, iterative_registration=iterative, bias_reg_script=bias_reg_script), name='bias_correction')
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
@@ -43,6 +43,7 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
     anat = File(exists=True, mandatory=True, desc="Anatomical reference image for registration")
     anat_mask = File(exists=True, mandatory=True, desc="Brain mask for the anatomical image")
     iterative_registration = traits.Bool(mandatory=True, desc="Use the iterative algorithm with registration and brain masks")
+    bias_reg_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
     use_thresh_mask = traits.Bool(mandatory=True, desc="Use threshold masks to mask the brain for correction")
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
@@ -71,7 +72,7 @@ class EPIBiasCorrection(BaseInterface):
         subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.input_ref_EPI).split('_run-')[1][0]
-        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         null_mask = os.path.abspath('tmp/null_mask.nii.gz')
         thresh_mask = os.path.abspath('tmp/thresh_mask.nii.gz')
@@ -118,11 +119,11 @@ class EPIBiasCorrection(BaseInterface):
             resample = CommandLine('ResampleImage', args='3 ' + n4_corrected + ' ' + resample_100iso_EPI + ' 0.1x0.1x0.1 [BSpline]')
             resample.run()
 
-            [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script='Rigid', moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
+            [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script=self.inputs.bias_reg_script, moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
 
             os.makedirs('iteration2', exist_ok=True)
 
-            trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=inverse_composite_transform, reference_image=resample_EPI, output_image=resampled_mask)
+            trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=[inverse_composite_transform], reference_image=resample_EPI, output_image=resampled_mask)
             trans.run()
 
             gen_mask = CommandLine('ImageMath', args='3 iteration2/null_mask.nii.gz ThresholdAtMean ' + resample_EPI + ' 0', terminal_output='stream')

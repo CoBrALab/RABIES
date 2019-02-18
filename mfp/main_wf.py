@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=False, reg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
+def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, anat_only=False, bias_reg_script='Rigid', coreg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
     outputnode = pe.Node(niu.IdentityInterface(
@@ -51,7 +51,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
 
     # Datasink - creates output folder for important outputs
     datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="datasink"),
+                             container="anat_datasink"),
                     name="anat_datasink")
 
 
@@ -116,7 +116,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
         #until the transforms from pydpiper have all been used
         joinnode_buffer2 = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
                          name='joinnode_buffer2',
-                         joinsource='anat_mask_prep_wf',
+                         joinsource='anat_selectfiles',
                          joinfield=['file_list'])
 
         keep_transforms = pe.JoinNode(Function(input_names=['file_list_buffer', 'pydpiper_directory', 'transform_csv', 'output_folder'],
@@ -177,7 +177,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
 
     ########BOLD PREPROCESSING WORKFLOW
     if not anat_only:
-        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, reg_script=reg_script, SyN_SDC=True, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
+        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, run_iter=run_iter, TR=TR, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
 
         bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
@@ -254,9 +254,9 @@ def mnc2nii(mnc_file):
     os.system('gzip *.nii')
     return '%s/%s.nii.gz' % (cwd,basename)
 
-def move_pydpiper_transforms(file_list_buffer, pydpiper_directory, transform_csv, output_folder, buffer_input):
+def move_pydpiper_transforms(file_list_buffer, pydpiper_directory, transform_csv, output_folder):
     import os
-    os.system('mkdir -p %s/datasink/pydpiper_transforms/' % (output_folder))
-    os.system('mv %s %s/datasink/pydpiper_transforms/' % (transform_csv, output_folder))
-    os.system('mv %s/mbm_atlasReg_processed %s/datasink/pydpiper_transforms/' % (pydpiper_directory, output_folder))
+    os.system('mkdir -p %s/anat_datasink/pydpiper_transforms/' % (output_folder))
+    os.system('mv %s %s/anat_datasink/pydpiper_transforms/' % (transform_csv, output_folder))
+    os.system('mv %s/mbm_atlasReg_processed %s/anat_datasink/pydpiper_transforms/' % (pydpiper_directory, output_folder))
     return None

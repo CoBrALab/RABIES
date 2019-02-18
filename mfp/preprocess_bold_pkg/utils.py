@@ -122,7 +122,7 @@ class EstimateReferenceImage(BaseInterface):
         subject_id=os.path.basename(self.inputs.in_file).split('_ses-')[0]
         session=os.path.basename(self.inputs.in_file).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.in_file).split('_run-')[1][0]
-        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
@@ -373,7 +373,7 @@ class Merge(BaseInterface):
         subject_id=os.path.basename(self.inputs.header_source).split('_ses-')[0]
         session=os.path.basename(self.inputs.header_source).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
-        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         img = nb.load(self.inputs.in_files[0]).dataobj
         in_nii = nb.load(self.inputs.header_source)

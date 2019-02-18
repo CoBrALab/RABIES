@@ -3,7 +3,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
 
-def init_bold_reg_wf(reg_script='SyN', name='bold_reg_wf'):
+def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
     """
     This workflow registers the reference BOLD image to anat-space, using
@@ -58,7 +58,7 @@ def init_bold_reg_wf(reg_script='SyN', name='bold_reg_wf'):
                                             "anat_mask"],
                    output_names=['itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold'],
                    function=run_antsRegistration), name='EPI_Coregistration')
-    run_reg.inputs.reg_script=reg_script
+    run_reg.inputs.reg_script=coreg_script
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -85,7 +85,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
     subject_id=os.path.basename(moving_image).split('_ses-')[0]
     session=os.path.basename(moving_image).split('_ses-')[1][0]
     run=os.path.basename(moving_image).split('_run-')[1][0]
-    filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+    filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
     if reg_script=='SyN':
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -140,7 +140,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
 
         antsRegistration -d 3 \
         --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$EPI,$anat_file,1,64,None] \
+        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
         -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
         --interpolation BSpline[5] -z 1 -u 0 -a 1
         '''
@@ -153,7 +153,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
 
     os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
 
-    cwd = os.getcwd()
+    cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
     inverse_composite_transform='%s/%s_output_InverseComposite.h5' % (cwd, filename_template)
     composite_transform='%s/%s_output_Composite.h5' % (cwd, filename_template)

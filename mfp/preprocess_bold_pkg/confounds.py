@@ -88,7 +88,7 @@ class ConfoundRegression(BaseInterface):
         subject_id=os.path.basename(self.inputs.bold).split('_ses-')[0]
         session=os.path.basename(self.inputs.bold).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.bold).split('_run-')[1][0]
-        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         confounds=[]
         csv_columns=[]
@@ -254,7 +254,7 @@ class MaskEPI(BaseInterface):
         subject_id=os.path.basename(moving_image).split('_ses-')[0]
         session=os.path.basename(moving_image).split('_ses-')[1][0]
         run=os.path.basename(moving_image).split('_run-')[1][0]
-        filename_template = os.path.abspath('%s_ses-%s_run-%s' % (subject_id, session, run))
+        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         resampled_mask_path=os.path.abspath('%s_resampled_mask.nii.gz' % (filename_template))
 
