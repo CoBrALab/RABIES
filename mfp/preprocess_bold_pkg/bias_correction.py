@@ -122,9 +122,7 @@ class EPIBiasCorrection(BaseInterface):
             [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script=self.inputs.bias_reg_script, moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
 
             os.makedirs('iteration2', exist_ok=True)
-
-            trans = ApplyTransforms(dimension=3, input_image=self.inputs.anat_mask, transforms=[inverse_composite_transform], reference_image=resample_EPI, output_image=resampled_mask)
-            trans.run()
+            os.system('antsApplyTransforms -d 3 -i %s -t %s -r %s -o %s --verbose -n GenericLabel' % (self.inputs.anat_mask,[inverse_composite_transform],resample_EPI,resampled_mask,))
 
             gen_mask = CommandLine('ImageMath', args='3 iteration2/null_mask.nii.gz ThresholdAtMean ' + resample_EPI + ' 0', terminal_output='stream')
             gen_mask.run()

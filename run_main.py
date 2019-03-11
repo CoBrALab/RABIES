@@ -3,38 +3,54 @@ import sys
 
 data_dir_path=os.path.abspath(sys.argv[1])
 output_folder=os.path.abspath(sys.argv[2])
-bias_reg_script=os.path.abspath(sys.argv[3])
-coreg_script=os.path.abspath(sys.argv[4])
-plugin=str(sys.argv[5])
-debug=bool(sys.argv[6])
+bold_preproc_only=str(sys.argv[3])
+#csv_labels=sys.argv[4] #file with the id# of each label in the atlas to compute WM and CSF masks
+bias_reg_script=sys.argv[4]
+coreg_script=sys.argv[5]
+plugin=str(sys.argv[6])
+debug=str(sys.argv[7])
+
+if bold_preproc_only=='true':
+    bold_preproc_only=True
+elif bold_preproc_only=='false':
+    bold_preproc_only=False
+else:
+    raise ValueError('bold_preproc_only must be true or false.')
+
 
 data_csv=data_dir_path+'/data_info.csv'
 csv_labels='/opt/quarantine/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/mappings/DSURQE_40micron_R_mapping.csv'
 
 from mfp.main_wf import init_main_wf
-workflow = init_main_wf(data_csv, data_dir_path, output_folder, TR=1.2, keep_pydpiper_transforms=True, anat_only=False, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, mbm_script='default')
+workflow = init_main_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, TR=1.2, keep_pydpiper_transforms=True, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, mbm_script='default')
 
 
 #Specify the base directory for the working directory
 workflow.base_dir = output_folder
 
-print(plugin)
-print(debug)
-#workflow.run()
-#workflow.run(plugin='SGEGraph', plugin_args = {'dont_resubmit_completed_jobs': True, qsub_args: '-l h_vmem=5G'})
+if debug=='true':
+    # Change execution parameters
+    workflow.config['execution'] = {'stop_on_first_crash' : 'true',
+                            'remove_unnecessary_outputs': 'false',
+                            'keep_inputs': 'true',
+                            'log_directory' : os.getcwd()}
 
-'''
-# Change execution parameters
-workflow.config['execution'] = {'stop_on_first_crash' : 'true',
-                        'remove_unnecessary_outputs': 'false',
-                        'keep_inputs': 'true',
-                        'log_directory' : os.getcwd()}
+    # Change logging parameters
+    workflow.config['logging'] = {'workflow_level' : 'DEBUG',
+                            'filemanip_level' : 'DEBUG',
+                            'interface_level' : 'DEBUG',
+                            'utils_level' : 'DEBUG',
+                            'log_to_file' : 'True',
+                            'log_directory' : os.getcwd()}
+    print('Debug ON')
 
-# Change logging parameters
-workflow.config['logging'] = {'workflow_level' : 'DEBUG',
-                        'filemanip_level' : 'DEBUG',
-                        'interface_level' : 'DEBUG',
-                        'utils_level' : 'DEBUG',
-                        'log_to_file' : 'True',
-                        'log_directory' : os.getcwd()}
-'''
+if plugin=='local':
+    print('Running locally.')
+    workflow.run()
+if plugin=='multiproc':
+    print('Running locally with multiproc.')
+    workflow.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
+if plugin=='parallel':
+    print('Running in parallel.')
+    workflow.run(plugin='SGEGraph', plugin_args = {'dont_resubmit_completed_jobs': True, 'qsub_args': '-l h_vmem=5G'})
+#plugin_args = {'qsub_args': '-l h_vmem=10G'}

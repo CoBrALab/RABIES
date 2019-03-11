@@ -81,15 +81,16 @@ def run_registration_interface(interface):
 
 
 def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
-    import os
+    import os, inspect
     subject_id=os.path.basename(moving_image).split('_ses-')[0]
     session=os.path.basename(moving_image).split('_ses-')[1][0]
     run=os.path.basename(moving_image).split('_run-')[1][0]
     filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
     if reg_script=='SyN':
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        reg_script_path=dir_path+'/../shell_scripts/SyN_registration.sh'
+        import mfp
+        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
         '''
         EPI=$1
         anat_file=$2
@@ -110,8 +111,9 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
 
     elif reg_script=='Affine':
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        reg_script_path=dir_path+'/../shell_scripts/Affine_registration.sh'
+        import mfp
+        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
         '''
         EPI=$1
         anat_file=$2
@@ -130,8 +132,9 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
 
     elif reg_script=='Rigid':
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        reg_script_path=dir_path+'/../shell_scripts/Rigid_registration.sh'
+        import mfp
+        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
         '''
         EPI=$1
         anat_file=$2
@@ -149,8 +152,10 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
         For user-provided antsRegistration command.
         '''
-        reg_script_path=reg_script
-
+        if os.path.isfile(reg_script):
+            reg_script_path=reg_script
+        else:
+            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
 
     cwd=os.getcwd()

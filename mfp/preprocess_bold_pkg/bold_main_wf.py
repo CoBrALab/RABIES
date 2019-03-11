@@ -19,7 +19,9 @@ from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 
-def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
+from nipype.interfaces.utility import Function
+
+def init_bold_main_wf(data_dir_path, TR, data_csv=None, bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -65,38 +67,13 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bia
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'session', 'run_iter', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
                 fields=['input_bold', 'bold_ref', 'skip_vols','hmc_xforms', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
                         'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_labels', 'confounds_csv']),
                 name='outputnode')
-
-    '''
-
-
-    if bold_preproc_only:
-        import pandas as pd
-        data_df=pd.read_csv(anat_files_csv, sep=',')
-        subject_list=data_df['subject_id'].values.tolist()
-        session=data_df['session'].values.tolist()
-        run_list=data_df['run_num'].values.tolist()
-        anat_preproc_list=data_df['anat_preproc'].values.tolist()
-        anat_mask_list=data_df['anat_mask'].values.tolist()
-        WM_mask_list=data_df['WM_mask'].values.tolist()
-        CSF_mask_list=data_df['CSF_mask'].values.tolist()
-        labels_list=data_df['labels'].values.tolist()
-
-        #create a dictionary with list of bold run numbers for each subject
-        run_iter={}
-        for i in range(len(subject_list)):
-            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
-
-        inputnode.iterables = [('subject_id', subject_list), ('session', session), ('anat_preproc', anat_preproc_list),
-                                ('anat_mask', anat_mask_list), ('WM_mask', WM_mask_list), ('CSF_mask', CSF_mask_list), ('labels', labels_list)]
-        inputnode.synchronize = True
-    '''
 
 
     bold_reference_wf = init_bold_reference_wf()
@@ -121,16 +98,56 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bia
     )
     bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, TR=TR, name="bold_confs_wf")
 
+    if bold_preproc_only:
+        #takes as input a csv file with the path to the bold file, the paths to the anatomical template, the brain/CSF/WM masks, and the associated label file
+        #the workflow will iterate simply through each subject
+
+        sub_setup = pe.Node(Function(input_names=['subject_id', 'data_csv'],
+                                  output_names=['bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels'],
+                                  function=get_sub_files),
+                         name='sub_setup')
+        sub_setup.inputs.data_csv=data_csv
+
+        workflow.connect([
+            (inputnode, sub_setup, [('subject_id', 'subject_id')]),
+            (sub_setup, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
+            (sub_setup, bias_cor_wf, [
+                ('anat_preproc', 'inputnode.anat'),
+                ('anat_mask', 'inputnode.anat_mask'),
+                ]),
+            (sub_setup, bold_reg_wf, [
+                ('anat_preproc', 'inputnode.anat_preproc'),
+                ('anat_mask', 'inputnode.anat_mask')]),
+            (sub_setup, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
+            (sub_setup, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
+                ('WM_mask', 'inputnode.WM_mask'),
+                ('CSF_mask', 'inputnode.CSF_mask'),
+                ('labels', 'inputnode.t1_labels'),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (inputnode, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
+            (inputnode, bias_cor_wf, [
+                ('anat_preproc', 'inputnode.anat'),
+                ('anat_mask', 'inputnode.anat_mask'),
+                ]),
+            (inputnode, bold_reg_wf, [
+                ('anat_preproc', 'inputnode.anat_preproc'),
+                ('anat_mask', 'inputnode.anat_mask')]),
+            (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
+            (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
+                ('WM_mask', 'inputnode.WM_mask'),
+                ('CSF_mask', 'inputnode.CSF_mask'),
+                ('labels', 'inputnode.t1_labels'),
+                ]),
+            ])
+
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (inputnode, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')]),
-        (inputnode, bias_cor_wf, [
-            ('anat_preproc', 'inputnode.anat'),
-            ('anat_mask', 'inputnode.anat_mask'),
-            ]),
         (bold_reference_wf, bold_hmc_wf, [
             ('outputnode.ref_image', 'inputnode.ref_image'),
             ('outputnode.bold_file', 'inputnode.bold_file')]),
@@ -139,9 +156,6 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bia
             ('outputnode.movpar_file', 'hmc_movpar_file')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
-        (inputnode, bold_reg_wf, [
-            ('anat_preproc', 'inputnode.anat_preproc'),
-            ('anat_mask', 'inputnode.anat_mask')]),
         (bias_cor_wf, bold_reg_wf, [
               ('outputnode.corrected_EPI', 'inputnode.ref_bold_brain')]),
         (bias_cor_wf, outputnode, [
@@ -153,16 +167,10 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bia
             ]),
         (bold_reg_wf, bold_bold_trans_wf, [('outputnode.itk_bold_to_anat', 'inputnode.fieldwarp')]),
         (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
-        (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
         (bold_bold_trans_wf, outputnode, [
             ('outputnode.bold_ref', 'resampled_ref_bold'),
             ('outputnode.bold', 'resampled_bold'),
-            ]),
-        (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
-            ('WM_mask', 'inputnode.WM_mask'),
-            ('CSF_mask', 'inputnode.CSF_mask'),
-            ('labels', 'inputnode.t1_labels'),
             ]),
         (bold_bold_trans_wf, bold_confs_wf, [('outputnode.bold', 'inputnode.bold'),
             ('outputnode.bold_ref', 'inputnode.ref_bold'),
@@ -190,3 +198,19 @@ def init_bold_main_wf(data_dir_path, TR, run_iter=None, anat_files_csv=None, bia
 
 
     return workflow
+
+
+
+def get_sub_files(subject_id, data_csv):
+    import os
+    import pandas as pd
+    import numpy as np
+    data_df=pd.read_csv(data_csv, sep=',')
+    subject_array=np.asarray(data_df['subject_id'].values)
+    idx=int(np.where(subject_array==subject_id)[0])
+
+    if os.path.isfile(data_df['bold_file'].values[idx]):
+        return [data_df['bold_file'].values[idx],data_df['anat_template'].values[idx],data_df['anat_mask'].values[idx],data_df['WM_mask'].values[idx],
+                    data_df['CSF_mask'].values[idx],data_df['labels'].values[idx]]
+    else:
+        raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')

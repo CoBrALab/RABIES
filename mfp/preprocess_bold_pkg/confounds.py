@@ -20,7 +20,7 @@ def init_bold_confs_wf(TR, SyN_SDC, aCompCor_method='50%', name="bold_confs_wf")
     WM_mask_to_EPI.inputs.name_spec='WM_mask'
 
     CSF_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='CSF_mask_EPI')
-    CSF_mask_to_EPI.inputs.name_spec='WM_mask'
+    CSF_mask_to_EPI.inputs.name_spec='CSF_mask'
 
     brain_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='Brain_mask_EPI')
     brain_mask_to_EPI.inputs.name_spec='brain_mask'
@@ -120,7 +120,7 @@ class ConfoundRegression(BaseInterface):
         motion_24=motion_24_params(self.inputs.movpar_file)
         for param in range(motion_24.shape[1]):
             confounds.append(motion_24[:,param])
-        csv_columns+=['mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
+        csv_columns+=['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
 
         confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_template)
 
@@ -177,6 +177,7 @@ def compute_aCompCor(bold, mask, method='50%'):
 
     pca=PCA(n_components=num_comp)
     comp_timeseries=pca.fit_transform(mask_timeseries)
+    print("Extracting "+str(num_comp)+" components for aCompCorr on the "+str(mask)+" mask.")
     return comp_timeseries, num_comp
 
 
@@ -251,9 +252,9 @@ class MaskEPI(BaseInterface):
         import nibabel as nb
         from nipype.interfaces.base import CommandLine
 
-        subject_id=os.path.basename(moving_image).split('_ses-')[0]
-        session=os.path.basename(moving_image).split('_ses-')[1][0]
-        run=os.path.basename(moving_image).split('_run-')[1][0]
+        subject_id=os.path.basename(self.inputs.ref_EPI).split('_ses-')[0]
+        session=os.path.basename(self.inputs.ref_EPI).split('_ses-')[1][0]
+        run=os.path.basename(self.inputs.ref_EPI).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         resampled_mask_path=os.path.abspath('%s_resampled_mask.nii.gz' % (filename_template))
