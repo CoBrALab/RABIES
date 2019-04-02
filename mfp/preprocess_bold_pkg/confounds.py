@@ -7,13 +7,13 @@ from nipype.interfaces.base import (
 )
 from nipype import Function
 
-def init_bold_confs_wf(TR, SyN_SDC, aCompCor_method='50%', name="bold_confs_wf"):
+def init_bold_confs_wf(SyN_SDC, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['cleaned_bold', 'GSR_cleaned_bold', 'EPI_labels', 'confounds_csv']),
+        fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv']),
         name='outputnode')
 
     WM_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='WM_mask_EPI')
@@ -28,7 +28,7 @@ def init_bold_confs_wf(TR, SyN_SDC, aCompCor_method='50%', name="bold_confs_wf")
     propagate_labels=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='anat_labels'
 
-    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method, TR=TR), name='confound_regression')
+    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression')
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -52,9 +52,15 @@ def init_bold_confs_wf(TR, SyN_SDC, aCompCor_method='50%', name="bold_confs_wf")
             ]),
         (WM_mask_to_EPI, confound_regression, [
             ('EPI_mask', 'WM_mask')]),
+        (WM_mask_to_EPI, outputnode, [
+            ('EPI_mask', 'WM_mask')]),
         (CSF_mask_to_EPI, confound_regression, [
             ('EPI_mask', 'CSF_mask')]),
+        (CSF_mask_to_EPI, outputnode, [
+            ('EPI_mask', 'CSF_mask')]),
         (brain_mask_to_EPI, confound_regression, [
+            ('EPI_mask', 'brain_mask')]),
+        (brain_mask_to_EPI, outputnode, [
             ('EPI_mask', 'brain_mask')]),
         (propagate_labels, outputnode, [
             ('EPI_mask', 'EPI_labels')]),
@@ -71,7 +77,6 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
     brain_mask = File(exists=True, mandatory=True, desc="EPI-formated whole brain mask")
     WM_mask = File(exists=True, mandatory=True, desc="EPI-formated white matter mask")
     CSF_mask = File(exists=True, mandatory=True, desc="EPI-formated CSF mask")
-    TR = traits.Float(mandatory=True, desc="Repetition time.")
     aCompCor_method = traits.Str(desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
 
 class ConfoundRegressionOutputSpec(TraitedSpec):
@@ -138,16 +143,6 @@ def write_confound_csv(confound_array, column_names, filename_template):
     csv_path=os.path.abspath("%s_confounds.csv" % filename_template)
     df.to_csv(csv_path)
     return csv_path
-
-def clean_bold(bold, confounds_array, TR):
-    '''clean with nilearn'''
-    import nilearn.image
-    import os
-    regressed_bold = nilearn.image.clean_img(bold, detrend=True, standardize=True, high_pass=0.01, confounds=confounds_array, t_r=TR)
-    cleaned = nilearn.image.smooth_img(regressed_bold, 0.3)
-    cleaned_path=os.path.abspath('cleaned.nii.gz')
-    cleaned.to_filename(cleaned_path)
-    return cleaned_path
 
 def compute_aCompCor(bold, mask, method='50%'):
     '''
@@ -268,7 +263,7 @@ class MaskEPI(BaseInterface):
             to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + resampled_mask_path + ' -n GenericLabel')
             to_EPI.run()
         else:
-            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -t ' + self.inputs.EPI_to_anat_trans + ' -o ' + resampled_mask_path + ' -n GenericLabel')
+            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -t ' + self.inputs.anat_to_EPI_trans + ' -o ' + resampled_mask_path + ' -n GenericLabel')
             to_EPI.run()
 
         nb.Nifti1Image(nb.load(resampled_mask_path).dataobj, nb.load(self.inputs.ref_EPI).affine,

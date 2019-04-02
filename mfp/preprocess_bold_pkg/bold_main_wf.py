@@ -21,7 +21,7 @@ from .confounds import init_bold_confs_wf
 
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, TR, data_csv=None, bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=False, iterative_N4=True,
+def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=True,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -72,15 +72,15 @@ def init_bold_main_wf(data_dir_path, TR, data_csv=None, bias_reg_script='Rigid',
 
     outputnode = pe.Node(niu.IdentityInterface(
                 fields=['input_bold', 'bold_ref', 'skip_vols','hmc_xforms', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
-                        'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_labels', 'confounds_csv']),
+                        'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv']),
                 name='outputnode')
 
 
     bold_reference_wf = init_bold_reference_wf()
-    bias_cor_wf = bias_correction_wf(iterative=iterative_N4, bias_reg_script=bias_reg_script)
+    bias_cor_wf = bias_correction_wf(bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script)
 
     if apply_STC:
-        bold_stc_wf = init_bold_stc_wf(TR=TR)
+        bold_stc_wf = init_bold_stc_wf()
 
     # BOLD buffer: an identity used as a pointer to the STC data for further use.
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
@@ -94,9 +94,9 @@ def init_bold_main_wf(data_dir_path, TR, data_csv=None, bias_reg_script='Rigid',
     bold_bold_trans_wf = init_bold_preproc_trans_wf(
         use_fieldwarp=True,
         name='bold_bold_trans_wf'
-
     )
-    bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, TR=TR, name="bold_confs_wf")
+
+    bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
     if bold_preproc_only:
         #takes as input a csv file with the path to the bold file, the paths to the anatomical template, the brain/CSF/WM masks, and the associated label file
@@ -178,10 +178,20 @@ def init_bold_main_wf(data_dir_path, TR, data_csv=None, bias_reg_script='Rigid',
         (bold_hmc_wf, bold_confs_wf, [('outputnode.movpar_file', 'inputnode.movpar_file'),
             ]),
         (bold_confs_wf, outputnode, [
+            ('outputnode.brain_mask', 'EPI_brain_mask'),
+            ('outputnode.WM_mask', 'EPI_WM_mask'),
+            ('outputnode.CSF_mask', 'EPI_CSF_mask'),
             ('outputnode.EPI_labels', 'EPI_labels'),
             ('outputnode.confounds_csv', 'confounds_csv'),
             ]),
         ])
+
+
+    workflow.connect([
+        (bold_reg_wf, bold_bold_trans_wf, [
+            ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
+        ])
+
 
     if apply_STC:
         workflow.connect([
@@ -214,3 +224,16 @@ def get_sub_files(subject_id, data_csv):
                     data_df['CSF_mask'].values[idx],data_df['labels'].values[idx]]
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+
+'''
+    if SyN_SDC:
+        workflow.connect([
+            (inputnode, bold_bold_trans_wf, [
+                ('anat_preproc', 'inputnode.ref_file')]),
+            ])
+    else:
+        workflow.connect([
+            (bold_reference_wf, bold_bold_trans_wf, [
+                ('outputnode.ref_image', 'inputnode.ref_file')]),
+            ])
+'''

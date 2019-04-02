@@ -4,11 +4,12 @@ import sys
 data_dir_path=os.path.abspath(sys.argv[1])
 output_folder=os.path.abspath(sys.argv[2])
 bold_preproc_only=str(sys.argv[3])
-#csv_labels=sys.argv[4] #file with the id# of each label in the atlas to compute WM and CSF masks
-bias_reg_script=sys.argv[4]
-coreg_script=sys.argv[5]
-plugin=str(sys.argv[6])
-debug=str(sys.argv[7])
+csv_labels=os.path.abspath(sys.argv[4]) #file with the id# of each label in the atlas to compute WM and CSF masks
+mbm_script=sys.argv[5]
+bias_reg_script=sys.argv[6]
+coreg_script=sys.argv[7]
+plugin=str(sys.argv[8])
+debug=str(sys.argv[9])
 
 if bold_preproc_only=='true':
     bold_preproc_only=True
@@ -19,10 +20,10 @@ else:
 
 
 data_csv=data_dir_path+'/data_info.csv'
-csv_labels='/opt/quarantine/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/mappings/DSURQE_40micron_R_mapping.csv'
+
 
 from mfp.main_wf import init_main_wf
-workflow = init_main_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, TR=1.2, keep_pydpiper_transforms=True, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, mbm_script='default')
+workflow = init_main_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, keep_pydpiper_transforms=True, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, mbm_script=mbm_script)
 
 
 #Specify the base directory for the working directory
@@ -52,5 +53,4 @@ if plugin=='multiproc':
     workflow.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
 if plugin=='parallel':
     print('Running in parallel.')
-    workflow.run(plugin='SGEGraph', plugin_args = {'dont_resubmit_completed_jobs': True, 'qsub_args': '-l h_vmem=5G'})
-#plugin_args = {'qsub_args': '-l h_vmem=10G'}
+    workflow.run(plugin='SGEGraph', plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})

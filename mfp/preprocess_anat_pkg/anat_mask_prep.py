@@ -85,29 +85,28 @@ def apply_transform(subject_id, session, reference_image,transforms,input_image,
 
 def compute_masks(atlas, csv_labels, subject_id, session):
     import numpy as np
-    import csv
+    import pandas as pd
     import os
     import nibabel as nb
     cwd = os.getcwd()
 
     '''extract rows from the csv file'''
-    temp = []
-    with open(csv_labels) as csvfile:
-        file_data = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in file_data:
-            temp.append(row)
+    label_info=pd.read_csv(csv_labels)
+    right_id=label_info['right label']
+    left_id=label_info['left label']
+    tissue_type=label_info['tissue type']
 
     '''create lists with the WM/CSF label numbers'''
     WM_labels=[]
     CSF_labels=[]
 
-    for x in range(1, len(temp)):
-        if temp[x][4]=='WM':
-            WM_labels.append(temp[x][1])
-            WM_labels.append(temp[x][2])
-        elif temp[x][4]=='CSF':
-            CSF_labels.append(temp[x][1])
-            CSF_labels.append(temp[x][2])
+    for x in range(1, len(tissue_type)):
+        if tissue_type[x]=='WM':
+            WM_labels.append(right_id[x])
+            WM_labels.append(left_id[x])
+        elif tissue_type[x]=='CSF':
+            CSF_labels.append(right_id[x])
+            CSF_labels.append(left_id[x])
 
     #generate a list of the atlas labels which correspond to WM or CSF regions
     WM_labels_list=np.zeros(len(WM_labels))

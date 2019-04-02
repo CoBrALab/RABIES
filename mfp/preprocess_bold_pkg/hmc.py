@@ -38,7 +38,8 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC')#, mem_gb=1)# plugin_args = {'qsub_args': '-l mem=10G'})
+    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC')
+    motion_estimation.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
 
 
     workflow.connect([

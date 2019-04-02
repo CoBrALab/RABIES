@@ -65,7 +65,7 @@ def init_bold_reference_wf(name='gen_bold_ref'):
     '''
     validate = pe.Node(ValidateImage(), name='validate')
 
-    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref') # OE: 128x128x128x50 * 64 / 8 ~ 900MB.
+    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref')
 
     workflow.connect([
         (inputnode, validate, [('bold_file', 'in_file')]),
@@ -127,6 +127,7 @@ class EstimateReferenceImage(BaseInterface):
         out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
         if n_volumes_to_discard == 0:
+            print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
             if in_nii.shape[-1] > 40:
@@ -153,6 +154,7 @@ class EstimateReferenceImage(BaseInterface):
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
             median_image_data = np.median(nb.load(res.outputs.mc_corrected_bold).get_data(), axis=3)
         else:
+            print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
                 data_slice[:, :, :, :n_volumes_to_discard], axis=3)
 
@@ -262,6 +264,7 @@ class antsGenerateTemplate(CommandLine):
 
 class applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
+    ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")
     use_fieldwarp = traits.Bool(mandatory=True, desc="determine whether fieldwarp is used")
     fieldwarp = File(exists=True, desc="file with the warp field for SDC")
     xforms = File(exists=True, mandatory=True, desc="xforms from head motion estimation in a 5D .nii.gz format")
@@ -281,13 +284,21 @@ class applyTransforms(BaseInterface):
 
     def _run_interface(self, runtime):
 
+        #resampling the reference image to the dimension of the EPI
+        import nibabel as nb
+        import os
+        img=nb.load(self.inputs.in_file)
+        shape=img.header.get_zooms()[:3]
+        cwd=os.getcwd()
+        os.system('ResampleImage 3 %s %s/resampled.nii.gz %sx%sx%s 0 4' % (self.inputs.ref_file, cwd, str(shape[0]),str(shape[1]),str(shape[2])))
+
+        from nipype.interfaces.ants.resampling import ApplyTransforms
+        at = ApplyTransforms(reference_image = os.path.abspath('resampled.nii.gz'), dimension=3,
+                                float = True, interpolation = 'LanczosWindowedSinc')
+
         print("Splitting bold and motion correction files into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
         [split_xform, num_volumes] = split_volumes(self.inputs.xforms, "xform_")
-
-        from nipype.interfaces.ants.resampling import ApplyTransforms
-        at = ApplyTransforms(reference_image = bold_volumes[0], dimension=3,
-                                float = True, interpolation = 'LanczosWindowedSinc')
 
         warped_volumes = []
         for x in range(0, num_volumes):
@@ -375,8 +386,9 @@ class Merge(BaseInterface):
         run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
-        img = nb.load(self.inputs.in_files[0]).dataobj
-        in_nii = nb.load(self.inputs.header_source)
+        img = nb.load(self.inputs.in_files[0])
+        affine = img.affine
+        header = nb.load(self.inputs.header_source).header
         length = len(self.inputs.in_files)
         combined = np.zeros((img.shape[0], img.shape[1], img.shape[2], length))
 
@@ -388,8 +400,8 @@ class Merge(BaseInterface):
             print("Error occured with Merge.")
             return None
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
-        nb.Nifti1Image(combined, in_nii.affine,
-                       in_nii.header).to_filename(combined_files)
+        nb.Nifti1Image(combined, affine,
+                       header).to_filename(combined_files)
 
         setattr(self, 'out_file', combined_files)
         return runtime

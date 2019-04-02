@@ -81,7 +81,7 @@ def run_registration_interface(interface):
 
 
 def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
-    import os, inspect
+    import os
     subject_id=os.path.basename(moving_image).split('_ses-')[0]
     session=os.path.basename(moving_image).split('_ses-')[1][0]
     run=os.path.basename(moving_image).split('_run-')[1][0]
@@ -90,7 +90,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
     if reg_script=='SyN':
         import mfp
         dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
+        reg_script_path=dir_path+'/shell_scripts/SyN_registration.sh'
         '''
         EPI=$1
         anat_file=$2
@@ -134,7 +134,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
     elif reg_script=='Rigid':
         import mfp
         dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
+        reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
         '''
         EPI=$1
         anat_file=$2

@@ -11,11 +11,13 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_pydpiper_transforms=True, bold_preproc_only=False, bias_reg_script='Rigid', coreg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
+def init_main_wf(data_csv, data_dir_path, output_folder, csv_labels, keep_pydpiper_transforms=True, bold_preproc_only=False,
+                bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', mbm_script='default', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'bold_labels', 'confounds_csv', 'itk_bold_to_anat', 'itk_anat_to_bold','boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold']),
+        fields=['anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'confounds_csv', 'itk_bold_to_anat',
+                'itk_anat_to_bold','boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels']),
         name='outputnode')
 
 
@@ -96,7 +98,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
             dir_path = os.path.dirname(os.path.realpath(__file__))
             pydpiper_wf=init_pydpiper_wf(model_script_path=dir_path+'/shell_scripts/mbm_template.sh')
         else:
-            pydpiper_wf=init_pydpiper_wf(model_script_path=model_script_path)
+            pydpiper_wf=init_pydpiper_wf(model_script_path=mbm_script)
 
 
         labels = opj('mbm_atlasReg_processed','{subject_id}_ses-{session}_anat_preproc','voted.mnc')
@@ -177,7 +179,7 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
 
 
         ########BOLD PREPROCESSING WORKFLOW
-        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, TR=TR, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
+        bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, aCompCor_method=aCompCor_method)
 
         bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
@@ -213,6 +215,9 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
             (bold_main_wf, outputnode, [
                 ("outputnode.bold_ref", "initial_bold_ref"),
                 ("outputnode.corrected_EPI", "bias_cor_bold"),
+                ("outputnode.EPI_brain_mask", "bold_brain_mask"),
+                ("outputnode.EPI_WM_mask", "bold_WM_mask"),
+                ("outputnode.EPI_CSF_mask", "bold_CSF_mask"),
                 ("outputnode.EPI_labels", "bold_labels"),
                 ("outputnode.confounds_csv", "confounds_csv"),
                 ("outputnode.itk_bold_to_anat", "itk_bold_to_anat"),
@@ -221,9 +226,24 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
                 ("outputnode.resampled_bold", "native_corrected_bold"),
                 ("outputnode.resampled_ref_bold", "corrected_ref_bold"),
                 ]),
+            (outputnode, bold_datasink, [
+                ("initial_bold_ref","initial_bold_ref"), #inspect initial bold ref
+                ("bias_cor_bold","bias_cor_bold"), #inspect bias correction
+                ("bold_brain_mask","bold_brain_mask"), #get the EPI labels
+                ("bold_WM_mask","bold_WM_mask"), #get the EPI labels
+                ("bold_CSF_mask","bold_CSF_mask"), #get the EPI labels
+                ("bold_labels","bold_labels"), #get the EPI labels
+                ("confounds_csv", "confounds_csv"), #confounds file
+                ("itk_bold_to_anat", "itk_bold_to_anat"),
+                ("itk_anat_to_bold", "itk_anat_to_bold"),
+                ("boldref_warped2anat","boldref_warped2anat"), #warped EPI to anat
+                ("native_corrected_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
+                ("corrected_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+                ]),
         ])
 
     elif bold_preproc_only:
+        print("BOLD preproc only!")
         import pandas as pd
         data_df=pd.read_csv(data_csv, sep=',')
         subject_list=data_df['subject_id'].values.tolist()
@@ -232,7 +252,12 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
                           name="infosource")
         infosource.iterables = [('subject_id', subject_list)]
 
-        bold_main_wf=init_bold_main_wf(bold_preproc_only=True, data_csv=data_csv, data_dir_path=data_dir_path, TR=TR, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, iterative_N4=True, aCompCor_method=aCompCor_method)
+        # Datasink - creates output folder for important outputs
+        bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                 container="bold_datasink"),
+                        name="bold_datasink")
+
+        bold_main_wf=init_bold_main_wf(bold_preproc_only=True, data_csv=data_csv, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, aCompCor_method=aCompCor_method)
 
         workflow.connect([
             (infosource, bold_main_wf, [
@@ -248,6 +273,20 @@ def init_main_wf(data_csv, data_dir_path, output_folder, TR, csv_labels, keep_py
                 ("outputnode.output_warped_bold", "boldref_warped2anat"),
                 ("outputnode.resampled_bold", "native_corrected_bold"),
                 ("outputnode.resampled_ref_bold", "corrected_ref_bold"),
+                ]),
+            (outputnode, bold_datasink, [
+                ("initial_bold_ref","initial_bold_ref"), #inspect initial bold ref
+                ("bias_cor_bold","bias_cor_bold"), #inspect bias correction
+                ("bold_brain_mask","bold_brain_mask"), #get the EPI labels
+                ("bold_WM_mask","bold_WM_mask"), #get the EPI labels
+                ("bold_CSF_mask","bold_CSF_mask"), #get the EPI labels
+                ("bold_labels","bold_labels"), #get the EPI labels
+                ("confounds_csv", "confounds_csv"), #confounds file
+                ("itk_bold_to_anat", "itk_bold_to_anat"),
+                ("itk_anat_to_bold", "itk_anat_to_bold"),
+                ("boldref_warped2anat","boldref_warped2anat"), #warped EPI to anat
+                ("native_corrected_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
+                ("corrected_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
                 ]),
         ])
 

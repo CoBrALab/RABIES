@@ -5,11 +5,12 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
+from nipype.interfaces.base import CommandLine
 from nipype.interfaces.ants import N4BiasFieldCorrection
 from nipype.interfaces.ants.resampling import ApplyTransforms
 
 
-def bias_correction_wf(iterative=True, bias_reg_script='Rigid', name='bias_correction_wf'):
+def bias_correction_wf(bias_cor_script='Default', bias_reg_script='Rigid', name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -20,7 +21,7 @@ def bias_correction_wf(iterative=True, bias_reg_script='Rigid', name='bias_corre
         name='outputnode')
 
 
-    bias_correction = pe.Node(EPIBiasCorrection(use_thresh_mask=True, iterative_registration=iterative, bias_reg_script=bias_reg_script), name='bias_correction')
+    bias_correction = pe.Node(EPIBiasCorrection(bias_cor_script=bias_cor_script, reg_script=bias_reg_script), name='bias_correction')
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
@@ -42,9 +43,8 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
     input_ref_EPI = File(exists=True, mandatory=True, desc="The input 3D ref EPI to correct for bias fields")
     anat = File(exists=True, mandatory=True, desc="Anatomical reference image for registration")
     anat_mask = File(exists=True, mandatory=True, desc="Brain mask for the anatomical image")
-    iterative_registration = traits.Bool(mandatory=True, desc="Use the iterative algorithm with registration and brain masks")
-    bias_reg_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
-    use_thresh_mask = traits.Bool(mandatory=True, desc="Use threshold masks to mask the brain for correction")
+    bias_cor_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
+    reg_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(exists=True, desc="input ref EPI corrected for bias fields")
@@ -64,80 +64,46 @@ class EPIBiasCorrection(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        from nipype.interfaces.base import CommandLine
-        from nipype.interfaces.ants import N4BiasFieldCorrection
-        from .registration import run_antsRegistration
-        from nipype.interfaces.ants.resampling import ApplyTransforms
 
         subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.input_ref_EPI).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
-        null_mask = os.path.abspath('tmp/null_mask.nii.gz')
-        thresh_mask = os.path.abspath('tmp/thresh_mask.nii.gz')
-        resample_EPI = os.path.abspath('tmp/resampled.nii.gz')
-        resample_100iso_EPI = os.path.abspath('tmp/%s_resampled_100iso.nii.gz' % (filename_template))
-        n4_corrected = os.path.abspath('tmp/n4_corrected.nii.gz')
-        resampled_mask = os.path.abspath('iteration2/%s_EPIMask_resample.nii.gz' % (filename_template))
-        warped_image = ''
-
-        if self.inputs.use_thresh_mask:
-            os.makedirs('tmp', exist_ok=True)
-
-            resample = CommandLine('ResampleImage', args='3 ' + self.inputs.input_ref_EPI + ' ' + resample_EPI + ' 0.4x0.4x0.4 [BSpline]')
-            resample.run()
-
-            gen_null_mask = CommandLine('ImageMath', args='3 ' + null_mask + ' ThresholdAtMean ' + resample_EPI + ' 0', terminal_output='stream')
-            gen_null_mask.run()
-
-            #thresholding at 2%
-            gen_thresh_mask = CommandLine('ImageMath', args='3 ' + thresh_mask + ' ThresholdAtMean ' + resample_EPI + ' 2', terminal_output='stream')
-            gen_thresh_mask.run()
-
-            n4_correct = N4BiasFieldCorrection(dimension=3, copy_header=True, bspline_fitting_distance=20,
-                                n_iterations=[200,200,200,200], convergence_threshold=1e-6 ,shrink_factor=1, weight_image=thresh_mask, mask_image=null_mask,
-                                output_image=n4_corrected)
-            n4_correct.inputs.input_image=resample_EPI
-            n4_res = n4_correct.run()
-            print('Executed bias field correction with threshold mask.')
-
+        if self.inputs.bias_cor_script=='Default':
+            import mfp
+            dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+            bias_cor_script_path=dir_path+'/shell_scripts/iter_bias_cor.sh'
         else:
-            os.makedirs('tmp', exist_ok=True)
+            '''
+            For user-provided bias correction command.
+            '''
+            if os.path.isfile(self.inputs.bias_cor_script):
+                bias_cor_script_path=self.inputs.bias_cor_script
+            else:
+                raise ValueError('REGISTRATION ERROR: THE BIASCOR SCRIPT FILE DOES NOT EXISTS')
 
-            resample = CommandLine('ResampleImage', args='3 ' + self.inputs.input_ref_EPI + ' tmp/resample.nii.gz 0.4x0.4x0.4 [BSpline]')
-            resample.run()
+        if self.inputs.reg_script=='Rigid':
+            import mfp
+            dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+            reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
+        else:
+            '''
+            For user-provided reg script.
+            '''
+            if os.path.isfile(self.inputs.reg_script):
+                reg_script_path=self.inputs.reg_script
+            else:
+                raise ValueError('REGISTRATION ERROR: THE BIASCOR SCRIPT FILE DOES NOT EXISTS')
 
-            n4_correct = N4BiasFieldCorrection(dimension=3, copy_header=True, bspline_fitting_distance=20,
-                                n_iterations=[200,200,200,200], convergence_threshold=1e-6 ,shrink_factor=1,
-                                output_image=n4_corrected)
-            n4_correct.inputs.input_image=resample_EPI
-            n4_res = n4_correct.run()
+        cwd=os.getcwd()
+        os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,self.inputs.input_ref_EPI, self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))
 
-        if self.inputs.iterative_registration:
+        warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
+        resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_template)
+        biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_template)
 
-            resample = CommandLine('ResampleImage', args='3 ' + n4_corrected + ' ' + resample_100iso_EPI + ' 0.1x0.1x0.1 [BSpline]')
-            resample.run()
-
-            [composite_transform, inverse_composite_transform, warped_image] = run_antsRegistration(reg_script=self.inputs.bias_reg_script, moving_image=resample_100iso_EPI, fixed_image=self.inputs.anat)
-
-            os.makedirs('iteration2', exist_ok=True)
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -r %s -o %s --verbose -n GenericLabel' % (self.inputs.anat_mask,[inverse_composite_transform],resample_EPI,resampled_mask,))
-
-            gen_mask = CommandLine('ImageMath', args='3 iteration2/null_mask.nii.gz ThresholdAtMean ' + resample_EPI + ' 0', terminal_output='stream')
-            gen_mask.run()
-
-            n4_correct = N4BiasFieldCorrection(dimension=3, copy_header=True, bspline_fitting_distance=20,
-                                n_iterations=[200,200,200,200], convergence_threshold=1e-6 ,shrink_factor=1, weight_image=resampled_mask, mask_image='iteration2/null_mask.nii.gz',
-                                output_image='iteration2/corrected.nii.gz')
-            n4_correct.inputs.input_image=resample_EPI
-            n4_res = n4_correct.run()
-            print('Executed bias field correction through registration with the structural image.')
-
-        resample = CommandLine('ResampleImage', args='3 ' + n4_res.outputs.output_image + ' ' + resample_100iso_EPI + ' 0.1x0.1x0.1 [BSpline]')
-        resample.run()
-
-        setattr(self, 'corrected_EPI', resample_100iso_EPI)
+        setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)
         setattr(self, 'resampled_mask', resampled_mask)
 

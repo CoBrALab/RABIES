@@ -5,7 +5,7 @@ from .utils import applyTransforms, init_bold_reference_wf, Merge
 
 
 def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
-                               use_fieldwarp=False):
+                               use_fieldwarp=True):
     """
     This workflow resamples the input fMRI in its native (original)
     space in a "single shot" from the original BOLD series.
@@ -47,12 +47,12 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
     """
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'name_source', 'bold_file', 'bold_mask', 'hmc_xforms', 'fieldwarp']),
+        'name_source', 'bold_file', 'hmc_xforms', 'fieldwarp','ref_file']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['bold', 'bold_mask', 'bold_ref', 'bold_ref_brain']),
+        niu.IdentityInterface(fields=['bold', 'bold_ref', 'bold_ref_brain']),
         name='outputnode')
 
 
@@ -82,6 +82,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
     if use_fieldwarp:
         workflow.connect([
             (inputnode, bold_transform, [('fieldwarp', 'fieldwarp')]),
+            (inputnode, bold_transform, [('ref_file', 'ref_file')]),
         ])
 
     return workflow
