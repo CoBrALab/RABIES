@@ -100,23 +100,17 @@ class ConfoundRegression(BaseInterface):
         WM_signal=extract_mask_trace(self.inputs.bold, self.inputs.WM_mask)
         confounds.append(WM_signal)
         csv_columns+=['WM_signal']
-        [WM_aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.WM_mask, method=self.inputs.aCompCor_method)
-        for param in range(WM_aCompCor.shape[1]):
-            confounds.append(WM_aCompCor[:,param])
-        comp_column=[]
-        for comp in range(num_comp):
-            comp_column.append('WM_comp'+str(comp+1))
-        csv_columns+=comp_column
 
         CSF_signal=extract_mask_trace(self.inputs.bold, self.inputs.CSF_mask)
         confounds.append(CSF_signal)
         csv_columns+=['CSF_signal']
-        [CSF_aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.CSF_mask, method=self.inputs.aCompCor_method)
-        for param in range(CSF_aCompCor.shape[1]):
-            confounds.append(CSF_aCompCor[:,param])
+
+        [aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.WM_mask, self.inputs.CSF_mask, method=self.inputs.aCompCor_method)
+        for param in range(aCompCor.shape[1]):
+            confounds.append(aCompCor[:,param])
         comp_column=[]
         for comp in range(num_comp):
-            comp_column.append('CSF_comp'+str(comp+1))
+            comp_column.append('aCompCor'+str(comp+1))
         csv_columns+=comp_column
 
         global_signal=extract_mask_trace(self.inputs.bold, self.inputs.brain_mask)
@@ -144,17 +138,23 @@ def write_confound_csv(confound_array, column_names, filename_template):
     df.to_csv(csv_path)
     return csv_path
 
-def compute_aCompCor(bold, mask, method='50%'):
+def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
     '''
     Compute the anatomical comp corr through PCA over a defined ROI (mask) within
     the EPI, and retain either the first 5 components' time series or up to 50% of
     the variance explained as in Muschelli et al. 2014.
     '''
     import nibabel as nb
+    import numpy as np
     from sklearn.decomposition import PCA
 
+    WM_data=nb.load(WM_mask).dataobj
+    CSF_data=nb.load(CSF_mask).dataobj
+    combined=(np.asarray(WM_data)+np.asarray(CSF_data))>0
+    noise_mask=nb.Nifti1Image(combined, nb.load(WM_mask).affine, nb.load(WM_mask).header)
+
     from nilearn.input_data import NiftiMasker
-    masker=NiftiMasker(mask_img=nb.load(mask), standardize=True, detrend=True) #detrend and standardize the voxel time series before PCA
+    masker=NiftiMasker(mask_img=noise_mask, standardize=True, detrend=True) #detrend and standardize the voxel time series before PCA
     mask_timeseries=masker.fit_transform(nb.load(bold)) #shape n_timepoints x n_voxels
 
     if method=='50%':
@@ -172,7 +172,7 @@ def compute_aCompCor(bold, mask, method='50%'):
 
     pca=PCA(n_components=num_comp)
     comp_timeseries=pca.fit_transform(mask_timeseries)
-    print("Extracting "+str(num_comp)+" components for aCompCorr on the "+str(mask)+" mask.")
+    print("Extracting "+str(num_comp)+" components for aCompCorr.")
     return comp_timeseries, num_comp
 
 

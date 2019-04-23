@@ -146,7 +146,7 @@ def compute_masks(atlas, csv_labels, subject_id, session):
 
     '''Erode the masks'''
     from scipy.ndimage.morphology import binary_erosion
-    eroded_WM_mask=binary_erosion(CSF_mask, iterations=1)
+    eroded_WM_mask=binary_erosion(WM_mask, iterations=1)
     eroded_CSF_mask=binary_erosion(CSF_mask, iterations=1)
 
     eroded_WM_mask_file='%s/%s_ses-%s_eroded_WM_mask.nii.gz' % (cwd, subject_id, session,)

@@ -223,7 +223,7 @@ def get_sub_files(subject_id, data_csv):
         return [data_df['bold_file'].values[idx],data_df['anat_template'].values[idx],data_df['anat_mask'].values[idx],data_df['WM_mask'].values[idx],
                     data_df['CSF_mask'].values[idx],data_df['labels'].values[idx]]
     else:
-        raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+        raise ValueError('Input bold file %s does not exist.' % (data_df['bold_file'].values[idx]))
 
 '''
     if SyN_SDC:

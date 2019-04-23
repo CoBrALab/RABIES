@@ -59,6 +59,7 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
                    output_names=['itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold'],
                    function=run_antsRegistration), name='EPI_Coregistration')
     run_reg.inputs.reg_script=coreg_script
+    run_reg.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -162,5 +163,7 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
     inverse_composite_transform='%s/%s_output_InverseComposite.h5' % (cwd, filename_template)
     composite_transform='%s/%s_output_Composite.h5' % (cwd, filename_template)
+    if not os.path.isfile(warped_image) or not os.path.isfile(inverse_composite_transform) or not os.path.isfile(composite_transform):
+        raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING.')
 
     return [composite_transform, inverse_composite_transform, warped_image]
