@@ -288,11 +288,8 @@ class slice_applyTransforms(BaseInterface):
         img=nb.load(self.inputs.in_file)
         shape=img.header.get_zooms()[:3]
 
-        #convert both files to .mnc for the sake of resampling to make the right transformations
-        os.system('nii2mnc %s ref_file.mnc' % (self.inputs.ref_file))
-        os.system('ResampleImage 3 ref_file.mnc resampled.mnc %sx%sx%s 0 4' % (str(shape[0]),str(shape[2]),str(shape[1]))) #invert the 2nd and 3rd dimensions to fit .mnc format
-        os.system('mnc2nii resampled.mnc resampled.nii')
-        os.system('gzip resampled.nii')
+        #resampling ref image to EPI dimensions
+        os.system('ResampleImage 3 %s resampled.nii.gz %sx%sx%s 0 4' % (self.inputs.ref_file, str(shape[0]),str(shape[1]),str(shape[2]))) #invert the 2nd and 3rd dimensions to fit .mnc format
 
         print("Splitting bold and motion correction files into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
