@@ -12,7 +12,7 @@ from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
-from .resampling import init_bold_preproc_trans_wf
+from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
 from .sdc import init_sdc_wf
 from .bias_correction import bias_correction_wf
@@ -21,7 +21,7 @@ from .confounds import init_bold_confs_wf
 
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=True,
+def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=True, commonspace_transform=False,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -67,12 +67,12 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'commonspace_affine', 'commonspace_warp', 'commonspace_template']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols','hmc_xforms', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold',
-                        'resampled_bold', 'resampled_ref_bold', 'hmc_movpar_file', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv']),
+                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold', 'commonspace_bold',
+                        'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
                 name='outputnode')
 
 
@@ -152,8 +152,7 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
             ('outputnode.ref_image', 'inputnode.ref_image'),
             ('outputnode.bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, outputnode, [
-            ('outputnode.xforms', 'hmc_xforms'),
-            ('outputnode.movpar_file', 'hmc_movpar_file')]),
+            ('outputnode.motcorr_params', 'motcorr_params')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
         (bias_cor_wf, bold_reg_wf, [
@@ -167,7 +166,7 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
             ]),
         (bold_reg_wf, bold_bold_trans_wf, [('outputnode.itk_bold_to_anat', 'inputnode.fieldwarp')]),
         (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
-        (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.xforms', 'inputnode.hmc_xforms')]),
+        (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (bold_bold_trans_wf, outputnode, [
             ('outputnode.bold_ref', 'resampled_ref_bold'),
             ('outputnode.bold', 'resampled_bold'),
@@ -175,7 +174,7 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
         (bold_bold_trans_wf, bold_confs_wf, [('outputnode.bold', 'inputnode.bold'),
             ('outputnode.bold_ref', 'inputnode.ref_bold'),
             ]),
-        (bold_hmc_wf, bold_confs_wf, [('outputnode.movpar_file', 'inputnode.movpar_file'),
+        (bold_hmc_wf, bold_confs_wf, [('outputnode.motcorr_params', 'inputnode.movpar_file'),
             ]),
         (bold_confs_wf, outputnode, [
             ('outputnode.brain_mask', 'EPI_brain_mask'),
@@ -183,9 +182,11 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
             ('outputnode.CSF_mask', 'EPI_CSF_mask'),
             ('outputnode.EPI_labels', 'EPI_labels'),
             ('outputnode.confounds_csv', 'confounds_csv'),
+            ('outputnode.FD_csv', 'FD_csv'),
+            ('outputnode.FD_voxelwise', 'FD_voxelwise'),
+            ('outputnode.pos_voxelwise', 'pos_voxelwise'),
             ]),
         ])
-
 
     workflow.connect([
         (bold_reg_wf, bold_bold_trans_wf, [
@@ -206,6 +207,21 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
                 ('outputnode.bold_file', 'bold_file')]),
             ])
 
+    if commonspace_transform:
+        bold_commonspace_trans_wf=init_bold_commonspace_trans_wf()
+        workflow.connect([
+            (inputnode, bold_commonspace_trans_wf, [
+                ('commonspace_affine', 'inputnode.commonspace_affine'),
+                ('commonspace_warp', 'inputnode.commonspace_warp'),
+                ('commonspace_template', 'inputnode.commonspace_template'),
+                ]),
+            (bold_bold_trans_wf, bold_commonspace_trans_wf, [
+                ('outputnode.bold', 'inputnode.bold_file'),
+                ]),
+            (bold_commonspace_trans_wf, outputnode, [
+                ('outputnode.commonspace_bold', 'commonspace_bold'),
+                ]),
+        ])
 
     return workflow
 

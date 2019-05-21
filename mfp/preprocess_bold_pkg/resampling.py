@@ -1,8 +1,8 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
-from .utils import applyTransforms, init_bold_reference_wf, Merge
-
+from .utils import slice_applyTransforms, init_bold_reference_wf, Merge
+from nipype.interfaces.utility import Function
 
 def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
                                use_fieldwarp=True):
@@ -47,7 +47,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
     """
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'name_source', 'bold_file', 'hmc_xforms', 'fieldwarp','ref_file']),
+        'name_source', 'bold_file', 'motcorr_params', 'fieldwarp','ref_file']),
         name='inputnode'
     )
 
@@ -57,8 +57,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
 
 
     bold_transform = pe.Node(
-        applyTransforms(use_fieldwarp=use_fieldwarp), name='bold_transform')
-
+        slice_applyTransforms(use_fieldwarp=use_fieldwarp), name='bold_transform')
 
     merge = pe.Node(Merge(), name='merge')
 
@@ -69,7 +68,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
         (inputnode, merge, [('name_source', 'header_source')]),
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
-            ('hmc_xforms', 'xforms'),
+            ('motcorr_params', 'motcorr_params'),
             ]),
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
@@ -86,3 +85,49 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf',
         ])
 
     return workflow
+
+
+def init_bold_commonspace_trans_wf(name='bold_commonspace_trans_wf'):
+    """
+    Apply transforms of the EPI to commonspace, resampling the resolution to the target template.
+    """
+    workflow = pe.Workflow(name=name)
+    inputnode = pe.Node(niu.IdentityInterface(fields=[
+        'bold_file', 'commonspace_affine', 'commonspace_warp', 'commonspace_template']),
+        name='inputnode'
+    )
+
+    outputnode = pe.Node(
+        niu.IdentityInterface(fields=['commonspace_bold']),
+        name='outputnode')
+
+    transform_commonspace = pe.Node(Function(input_names=["reference_image",'input_image','commonspace_affine', 'commonspace_warp'],
+                              output_names=["output_image"],
+                              function=apply_transform),
+                     name='transform_commonspace')
+
+    workflow.connect([
+        (inputnode, transform_commonspace, [
+            ('bold_file', 'input_image'),
+            ('commonspace_template', 'reference_image'),
+            ('commonspace_affine', 'commonspace_affine'),
+            ('commonspace_warp', 'commonspace_warp'),
+            ]),
+        (transform_commonspace, outputnode, [
+            ('output_image', 'commonspace_bold'),
+            ]),
+    ])
+
+    return workflow
+
+
+def apply_transform(reference_image,input_image,commonspace_affine,commonspace_warp):
+    import os
+    subject_id=os.path.basename(input_image).split('_ses-')[0]
+    session=os.path.basename(input_image).split('_ses-')[1][0]
+    run=os.path.basename(input_image).split('_run-')[1][0]
+    cwd = os.getcwd()
+    output_image='%s/%s_ses-%s_run-%s_commonspace.nii.gz' % (cwd, subject_id, session, run)
+    os.system('antsApplyTransforms -d 3 -i %s -t %s -t %s -r %s -o %s -e 3 --verbose' % (input_image,commonspace_warp,commonspace_affine,reference_image,output_image,))
+
+    return output_image

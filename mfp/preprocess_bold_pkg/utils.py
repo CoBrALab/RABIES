@@ -88,7 +88,6 @@ class EstimateReferenceImageOutputSpec(TraitedSpec):
                                            "state volumes in the beginning of "
                                            "the input file")
 
-
 class EstimateReferenceImage(BaseInterface):
     """
     Given an 4D EPI file estimate an optimal reference image that could be later
@@ -192,7 +191,7 @@ class antsMotionCorrInputSpec(CommandLineInputSpec):
 
 class antsMotionCorrOutputSpec(TraitedSpec):
     mc_corrected_bold = File(exists=True, desc="motion corrected time series")
-    motcorr_params = File(exists=True, desc="motion estimation of the time series")
+    motcorr_warp = File(exists=True, desc="motion estimation of the time series")
     avg_image = File(exists=True, desc="average image of the motion corrected time series")
     csv_params = File(exists=True, desc="csv files with the 6-parameters rigid body transformations")
 
@@ -216,7 +215,7 @@ class antsMotionCorr(CommandLine):
         runtime = super(antsMotionCorr, self)._run_interface(runtime)
 
         setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
-        setattr(self, 'motcorr_params', 'ants_mc_tmp/motcorrWarp.nii.gz')
+        setattr(self, 'motcorr_warp', 'ants_mc_tmp/motcorrWarp.nii.gz')
         setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
         setattr(self, 'avg_image', 'ants_mc_tmp/motcorr_avg.nii.gz')
 
@@ -224,7 +223,7 @@ class antsMotionCorr(CommandLine):
 
     def _list_outputs(self):
         return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
-                'motcorr_params': getattr(self, 'motcorr_params'),
+                'motcorr_warp': getattr(self, 'motcorr_warp'),
                 'csv_params': getattr(self, 'csv_params'),
                 'avg_image': getattr(self, 'avg_image')}
 
@@ -262,28 +261,27 @@ class antsGenerateTemplate(CommandLine):
 
 
 
-class applyTransformsInputSpec(BaseInterfaceInputSpec):
+class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
     ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")
     use_fieldwarp = traits.Bool(mandatory=True, desc="determine whether fieldwarp is used")
     fieldwarp = File(exists=True, desc="file with the warp field for SDC")
-    xforms = File(exists=True, mandatory=True, desc="xforms from head motion estimation in a 5D .nii.gz format")
+    motcorr_params = File(exists=True, mandatory=True, desc="xforms from head motion estimation .csv file")
 
-class applyTransformsOutputSpec(TraitedSpec):
+class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
 
 
-class applyTransforms(BaseInterface):
+class slice_applyTransforms(BaseInterface):
     """
     This interface will apply head motion correction as well as susceptibility distortion correction
     if specified to the input EPI volumes using antsApplyTransforms.
     """
 
-    input_spec = applyTransformsInputSpec
-    output_spec = applyTransformsOutputSpec
+    input_spec = slice_applyTransformsInputSpec
+    output_spec = slice_applyTransformsOutputSpec
 
     def _run_interface(self, runtime):
-
         #resampling the reference image to the dimension of the EPI
         import nibabel as nb
         import os
@@ -296,28 +294,22 @@ class applyTransforms(BaseInterface):
         os.system('mnc2nii resampled.mnc resampled.nii')
         os.system('gzip resampled.nii')
 
-        from nipype.interfaces.ants.resampling import ApplyTransforms
-        at = ApplyTransforms(reference_image = os.path.abspath('resampled.nii.gz'), dimension=3,
-                                float = True, interpolation = 'LanczosWindowedSinc')
-
         print("Splitting bold and motion correction files into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
-        [split_xform, num_volumes] = split_volumes(self.inputs.xforms, "xform_")
 
+        motcorr_params=self.inputs.motcorr_params
+        ref_img=os.path.abspath('resampled.nii.gz')
         warped_volumes = []
         for x in range(0, num_volumes):
-            at.inputs.input_image = bold_volumes[x]
-            warped_vol_fname = os.path.abspath("deformed_volume" + str(x+1) + ".nii.gz")
-            at.inputs.output_image = warped_vol_fname
+            warped_vol_fname = os.path.abspath("deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
             if self.inputs.use_fieldwarp:
-                at.inputs.transforms = [split_xform[x], self.inputs.fieldwarp]
-                at.run()
-                print("Resampled volume " + str(x+1))
+                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
+                os.system('antsApplyTransforms -i %s -t %s -t motcorr_vol%s.mat -r %s -o %s' % (bold_volumes[x], self.inputs.fieldwarp, x, ref_img, warped_vol_fname))
             else:
-                at.inputs.transforms = split_xform[x]
-                at.run()
-                print("Resampled volume " + str(x+1))
+                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
+                os.system('antsApplyTransforms -i %s -t motcorr_vol%s.mat -r %s -o %s' % (bold_volumes[x], x, ref_img, warped_vol_fname))
+            print("Resampled volume " + str(x))
 
         setattr(self, 'out_files', warped_volumes)
         return runtime
@@ -329,7 +321,7 @@ class applyTransforms(BaseInterface):
 
 def split_volumes(in_file, output_prefix):
     '''
-    Takes as input a 4D or 5D .nii file and splits it into separate time series
+    Takes as input a 4D .nii file and splits it into separate time series
     volumes by splitting on the 4th dimension
     '''
     import os
@@ -339,26 +331,17 @@ def split_volumes(in_file, output_prefix):
     num_dimensions = len(in_nii.shape)
     num_volumes = in_nii.shape[3]
 
-    if num_dimensions!=4 and num_dimensions!=5:
-        print("the input file must be of dimensions 4 or 5")
+    if num_dimensions!=4:
+        print("the input file must be of dimensions 4")
         return None
 
     volumes = []
-    if num_dimensions==4:
-        for x in range(0, num_volumes):
-            data_slice = in_nii.dataobj[:, :, :, x]
-            slice_fname = os.path.abspath(output_prefix + "vol" + str(x) + ".nii.gz")
-            nb.Nifti1Image(data_slice, in_nii.affine,
-                           in_nii.header).to_filename(slice_fname)
-            volumes.append(slice_fname)
-
-    elif num_dimensions==5:
-        for x in range(0, num_volumes):
-            data_slice = in_nii.dataobj[:, :, :, x, :]
-            slice_fname = os.path.abspath(output_prefix + "vol" + str(x) + ".nii.gz")
-            nb.Nifti1Image(data_slice, in_nii.affine,
-                           in_nii.header).to_filename(slice_fname)
-            volumes.append(slice_fname)
+    for x in range(0, num_volumes):
+        data_slice = in_nii.dataobj[:, :, :, x]
+        slice_fname = os.path.abspath(output_prefix + "vol" + str(x) + ".nii.gz")
+        nb.Nifti1Image(data_slice, in_nii.affine,
+                       in_nii.header).to_filename(slice_fname)
+        volumes.append(slice_fname)
 
     return [volumes, num_volumes]
 

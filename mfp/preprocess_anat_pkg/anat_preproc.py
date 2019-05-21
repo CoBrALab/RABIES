@@ -51,8 +51,19 @@ class AnatPreproc(BaseInterface):
         os.system('mkdir -p %s/anat_preproc/' % (cwd,))
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
         os.system('nii2mnc %s %s/mnc_anat/%s.mnc' % (self.inputs.nii_anat,cwd,anat_file))
+        anat_mnc='%s/mnc_anat/%s.mnc' % (cwd,anat_file)
+        #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration
+        import nibabel as nb
+        import numpy as np
+        dim=nb.load(self.inputs.nii_anat).header.get_zooms()
+        low_dim=np.asarray(dim).min()
+        if not (dim==low_dim).sum()==3:
+            print('ANAT IMAGE NOT ISOTROPIC. WILL RESAMPLE TO ISOTROPIC RESOLUTION BASED ON LOWEST AVAILABLE RESOLUTION.')
+            os.system('ResampleImage 3 %s %s/mnc_anat/%s_resampled.mnc %sx%sx%s 0 4' % (anat_mnc,cwd,anat_file,low_dim,low_dim,low_dim))
+            anat_mnc='%s/mnc_anat/%s_resampled.mnc' % (cwd,anat_file)
+
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        os.system('bash %s/../shell_scripts/mouse-preprocessing-v3.sh %s/mnc_anat/%s.mnc %s/anat_preproc/%s_preproc.mnc' % (dir_path,cwd,anat_file,cwd,anat_file))
+        os.system('bash %s/../shell_scripts/mouse-preprocessing-v3.sh %s %s/anat_preproc/%s_preproc.mnc' % (dir_path,anat_mnc,cwd,anat_file))
 
         setattr(self, 'preproc_anat', '%s/anat_preproc/%s_preproc.mnc' % (cwd,anat_file))
         return runtime

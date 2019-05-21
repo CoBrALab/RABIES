@@ -13,7 +13,7 @@ def init_bold_confs_wf(SyN_SDC, aCompCor_method='50%', name="bold_confs_wf"):
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv']),
+        fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
         name='outputnode')
 
     WM_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='WM_mask_EPI')
@@ -66,6 +66,9 @@ def init_bold_confs_wf(SyN_SDC, aCompCor_method='50%', name="bold_confs_wf"):
             ('EPI_mask', 'EPI_labels')]),
         (confound_regression, outputnode, [
             ('confounds_csv', 'confounds_csv'),
+            ('FD_csv', 'FD_csv'),
+            ('FD_voxelwise', 'FD_voxelwise'),
+            ('pos_voxelwise', 'pos_voxelwise'),
             ]),
         ])
 
@@ -81,6 +84,9 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
 
 class ConfoundRegressionOutputSpec(TraitedSpec):
     confounds_csv = traits.File(desc="CSV file of confounds")
+    FD_csv = traits.File(desc="CSV file with global framewise displacement.")
+    FD_voxelwise = traits.File(desc=".nii file with voxelwise framewise displacement.")
+    pos_voxelwise = traits.File(desc=".nii file with voxelwise Positioning.")
 
 class ConfoundRegression(BaseInterface):
 
@@ -94,6 +100,17 @@ class ConfoundRegression(BaseInterface):
         session=os.path.basename(self.inputs.bold).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.bold).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+
+        #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
+        #first the voxelwise positioning map
+        os.system('antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
+                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_template)
+        #then the voxelwise framewise displacement map
+        os.system('antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
+                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        FD_csv=os.path.abspath("%s_FD_file.csv" % filename_template)
+        FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_template)
 
         confounds=[]
         csv_columns=[]
@@ -119,15 +136,21 @@ class ConfoundRegression(BaseInterface):
         motion_24=motion_24_params(self.inputs.movpar_file)
         for param in range(motion_24.shape[1]):
             confounds.append(motion_24[:,param])
-        csv_columns+=['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1-1', 'mov2-1', 'mov3-1', 'rot1-1', 'rot2-1', 'rot3-1', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1-1^2', 'mov2-1^2', 'mov3-1^2', 'rot1-1^2', 'rot2-1^2', 'rot3-1^2']
+        csv_columns+=['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
 
         confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_template)
 
+        setattr(self, 'FD_csv', FD_csv)
+        setattr(self, 'FD_voxelwise', FD_voxelwise)
+        setattr(self, 'pos_voxelwise', pos_voxelwise)
         setattr(self, 'confounds_csv', confounds_csv)
         return runtime
 
     def _list_outputs(self):
-        return {'confounds_csv': getattr(self, 'confounds_csv')}
+        return {'confounds_csv': getattr(self, 'confounds_csv'),
+                'FD_csv': getattr(self, 'FD_csv'),
+                'pos_voxelwise': getattr(self, 'pos_voxelwise'),
+                'FD_voxelwise': getattr(self, 'FD_voxelwise')}
 
 def write_confound_csv(confound_array, column_names, filename_template):
     import pandas as pd
@@ -179,18 +202,16 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
 
 def motion_24_params(movpar_csv):
     '''
-    motioncorr_24params: Regression of 6 head motion parameters and autoregressive
-                            models of motion: 6 head motion parameters, 6 head motion parameters one time
-                            point before, and the 12 corresponding squared items (Friston et al., 1996)
+    motioncorr_24params: 6 head motion parameters, their temporal derivative, and the 12 corresponding squared items (Friston et al. 1996, Magn. Reson. Med.)
     '''
     import numpy as np
     rigid_params=extract_rigid_movpar(movpar_csv)
     movpar=np.zeros([np.size(rigid_params,0), 24])
     movpar[:,:6]=rigid_params
     for i in range(6):
-        #add the timepoint 1 TR before
-        movpar[0,6+i]=movpar[0,i]
-        movpar[1:,6+i]=movpar[:-1,i]
+        #Compute temporal derivative as difference between two neighboring points
+        movpar[0,6+i]=0
+        movpar[1:,6+i]=movpar[1:,i]-movpar[:-1,i]
         #add the squared coefficients
         movpar[:,12+i]=movpar[:,i]**2
         movpar[:,18+i]=movpar[:,6+i]**2

@@ -34,7 +34,7 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
                         name='inputnode')
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['xforms', 'movpar_file']),
+        niu.IdentityInterface(fields=['motcorr_params']),
         name='outputnode')
 
     # Head motion correction (hmc)
@@ -45,8 +45,7 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
     workflow.connect([
         (inputnode, motion_estimation, [('ref_image', 'ref_file'),
                               ('bold_file', 'in_file')]),
-        (motion_estimation, outputnode, [('motcorr_params', 'xforms'),
-                                        ('csv_params', 'movpar_file')]),
+        (motion_estimation, outputnode, [('motcorr_params', 'motcorr_params')]),
     ])
 
     return workflow
@@ -75,15 +74,11 @@ class EstimateMotion(BaseInterface):
         import nibabel as nb
         from .utils import antsMotionCorr
         res = antsMotionCorr(in_file=self.inputs.in_file, ref_file=self.inputs.ref_file, second=False).run()
-
-        motcorr_params = os.path.abspath(res.outputs.motcorr_params)
         csv_params = os.path.abspath(res.outputs.csv_params)
 
-        setattr(self, 'motcorr_params', motcorr_params)
         setattr(self, 'csv_params', csv_params)
 
         return runtime
 
     def _list_outputs(self):
-        return {'motcorr_params': getattr(self, 'motcorr_params'),
-                'csv_params': getattr(self, 'csv_params')}
+        return {'motcorr_params': getattr(self, 'csv_params')}

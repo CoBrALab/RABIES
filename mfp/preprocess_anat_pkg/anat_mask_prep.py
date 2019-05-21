@@ -10,30 +10,8 @@ def init_anat_mask_prep_wf(csv_labels, name='anat_prep_mask_wf'):
     '''
 
     workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(fields=["subject_id", "session", 'anat_preproc', 'lsq6_transform', 'lsq6_mask', 'labels']), name='inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['resampled_mask', 'resampled_labels', 'WM_mask', 'CSF_mask', 'eroded_WM_mask', 'eroded_CSF_mask']), name='outputnode')
-
-    apply_transform_mask = pe.Node(Function(input_names=["subject_id", "session", "reference_image",'transforms','input_image', 'file_spec'],
-                              output_names=["output_image"],
-                              function=apply_transform),
-                     name='apply_transform_mask')
-    apply_transform_mask.inputs.file_spec='anat_mask.mnc'
-
-    apply_transform_labels = pe.Node(Function(input_names=["subject_id", "session", "reference_image",'transforms','input_image', 'file_spec'],
-                              output_names=["output_image"],
-                              function=apply_transform),
-                     name='apply_transform_labels')
-    apply_transform_labels.inputs.file_spec='anat_labels.mnc'
-
-    labels2nii = pe.Node(Function(input_names=['mnc_file'],
-                              output_names=['nii_file'],
-                              function=mnc2nii),
-                     name='labels2nii')
-
-    mask2nii = pe.Node(Function(input_names=['mnc_file'],
-                              output_names=['nii_file'],
-                              function=mnc2nii),
-                     name='mask2nii')
+    inputnode = pe.Node(niu.IdentityInterface(fields=["subject_id", "session", 'labels']), name='inputnode')
+    outputnode = pe.Node(niu.IdentityInterface(fields=['WM_mask', 'CSF_mask', 'eroded_WM_mask', 'eroded_CSF_mask']), name='outputnode')
 
     compute_anat_masks = pe.Node(Function(input_names=['atlas', 'csv_labels', "subject_id", "session"],
                               output_names=['WM_mask_file', 'CSF_mask_file', 'eroded_WM_mask_file', 'eroded_CSF_mask_file'],
@@ -42,26 +20,8 @@ def init_anat_mask_prep_wf(csv_labels, name='anat_prep_mask_wf'):
     compute_anat_masks.inputs.csv_labels = csv_labels
 
     workflow.connect([
-        (inputnode, apply_transform_mask, [
-            ("subject_id", "subject_id"),
-            ("session", "session"),
-            ("anat_preproc", "reference_image"),
-            ('lsq6_transform', 'transforms'),
-            ('lsq6_mask', 'input_image'),
-            ]),
-        (inputnode, apply_transform_labels, [
-            ("subject_id", "subject_id"),
-            ("session", "session"),
-            ("anat_preproc", "reference_image"),
-            ('lsq6_transform', 'transforms'),
-            ('labels', 'input_image'),
-            ]),
-        (apply_transform_mask, mask2nii, [("output_image", "mnc_file")]),
-        (mask2nii, outputnode, [("nii_file", "resampled_mask")]),
-        (apply_transform_labels, labels2nii, [("output_image", "mnc_file")]),
-        (labels2nii, outputnode, [("nii_file", "resampled_labels")]),
-        (labels2nii, compute_anat_masks, [("nii_file", "atlas")]),
         (inputnode, compute_anat_masks, [
+            ("labels", "atlas"),
             ("session", "session"),
             ("subject_id", "subject_id"),
             ]),
