@@ -273,22 +273,12 @@ class MaskEPI(BaseInterface):
         run=os.path.basename(self.inputs.ref_EPI).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
-        resampled_mask_path=os.path.abspath('%s_resampled_mask.nii.gz' % (filename_template))
-
         if self.inputs.name_spec==None:
             new_mask_path=os.path.abspath('%s_EPI_mask.nii.gz' % (filename_template))
         else:
             new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_template, self.inputs.name_spec))
 
-        if self.inputs.SyN_SDC: #no transform is used if SyN SDC was applied
-            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + resampled_mask_path + ' -n GenericLabel')
-            to_EPI.run()
-        else:
-            to_EPI = CommandLine('antsApplyTransforms', args='-i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -t ' + self.inputs.anat_to_EPI_trans + ' -o ' + resampled_mask_path + ' -n GenericLabel')
-            to_EPI.run()
-
-        nb.Nifti1Image(nb.load(resampled_mask_path).dataobj, nb.load(self.inputs.ref_EPI).affine,
-                       nb.load(self.inputs.ref_EPI).header).to_filename(new_mask_path)
+        os.system('antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel')
 
         setattr(self, 'EPI_mask', new_mask_path)
         return runtime

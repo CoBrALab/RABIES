@@ -1,3 +1,7 @@
+'''
+Pipeline Execution.
+'''
+
 import os
 import sys
 from mfp.main_wf import init_anat_init_wf, init_main_postPydpiper_wf
@@ -10,12 +14,15 @@ bias_reg_script=sys.argv[5]
 coreg_script=sys.argv[6]
 plugin=str(sys.argv[7])
 debug=str(sys.argv[8])
+atlas_file=sys.argv[9]
 
 data_csv=data_dir_path+'/data_info.csv'
 csv_labels='/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/labels/DSURQE_40micron_R_mapping.csv' #file with the id# of each label in the atlas to compute WM and CSF masks
 
 if bold_preproc_only=='true':
     bold_preproc_only=True
+    commonspace_transform=False
+    compute_WM_CSF_masks=False
 elif bold_preproc_only=='false':
     bold_preproc_only=False
 
@@ -26,9 +33,11 @@ elif bold_preproc_only=='false':
     if commonspace_method=='pydpiper':
         model_script_path=dir_path+'/mfp/shell_scripts/pydpiper.sh'
         commonspace_transform=False
+        compute_WM_CSF_masks=True
     elif commonspace_method=='ants_dbm':
         model_script_path=dir_path+'/mfp/shell_scripts/ants_dbm.sh'
         commonspace_transform=True
+        compute_WM_CSF_masks=False
     else:
         raise ValueError('Invalid commonspace method.')
 
@@ -37,7 +46,7 @@ elif bold_preproc_only=='false':
 else:
     raise ValueError('bold_preproc_only must be true or false.')
 
-main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
+main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, compute_WM_CSF_masks=compute_WM_CSF_masks, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
 main_postPydpiper_wf.base_dir = output_folder
 
 if debug=='true':
@@ -76,7 +85,7 @@ elif plugin=='local':
     os.system('mkdir -p %s' % (out_dir))
     cwd=os.getcwd()
     os.chdir(out_dir)
-    os.system('bash %s %s' % (model_script_path,commonspace_csv_file))
+    os.system('bash %s %s %s' % (model_script_path,commonspace_csv_file, atlas_file))
     os.chdir(cwd)
 
     print('Running main workflow locally.')
@@ -98,7 +107,7 @@ elif plugin=='parallel':
     os.system('mkdir -p %s' % (out_dir))
     cwd=os.getcwd()
     os.chdir(out_dir)
-    os.system('bash %s %s' % (model_script_path,commonspace_csv_file))
+    os.system('bash %s %s %s' % (model_script_path,commonspace_csv_file, atlas_file))
     os.chdir(cwd)
 
     print('Running main workflow in parallel.')

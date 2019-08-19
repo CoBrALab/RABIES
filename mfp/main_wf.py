@@ -143,7 +143,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
     return workflow
 
 
-def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels, bold_preproc_only=False, commonspace_transform=False,
+def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels, bold_preproc_only=False, commonspace_transform=False,compute_WM_CSF_masks=False,
                 bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
@@ -198,7 +198,12 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
             commonspace_affine = output_folder+'/'+opj('anat_datasink','commonspace_transforms','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_Affine.mat')
             commonspace_warp = output_folder+'/'+opj('anat_datasink','commonspace_transforms','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_Warp.nii.gz')
             commonspace_anat_template = output_folder+'/'+opj('anat_datasink','commonspace_template','commonspace_template.nii.gz')
-            commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'commonspace_affine': commonspace_affine, 'commonspace_warp': commonspace_warp, 'commonspace_anat_template':commonspace_anat_template}
+            if not compute_WM_CSF_masks:
+                WM_mask = output_folder+'/'+opj('anat_datasink','WM_mask','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_WM_mask.nii.gz')
+                CSF_mask = output_folder+'/'+opj('anat_datasink','CSF_mask','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_CSF_mask.nii.gz')
+                commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'WM_mask': WM_mask, 'CSF_mask': CSF_mask, 'commonspace_affine': commonspace_affine, 'commonspace_warp': commonspace_warp, 'commonspace_anat_template':commonspace_anat_template}
+            else:
+                commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'commonspace_affine': commonspace_affine, 'commonspace_warp': commonspace_warp, 'commonspace_anat_template':commonspace_anat_template}
 
         else:
             commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask}
@@ -209,29 +214,43 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
         commonspace_selectfiles.iterables = [('session', session_iter)]
         commonspace_selectfiles.base_directory=output_folder
 
-        anat_mask_prep_wf=init_anat_mask_prep_wf(csv_labels=csv_labels)
 
-        #connect the anat workflow
-        workflow.connect([
-            (infosource, commonspace_selectfiles, [
-                ("subject_id", "subject_id"),
-                ]),
-            (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
-            (file_info, anat_mask_prep_wf, [
-                ("subject_id", "inputnode.subject_id"),
-                ("session", "inputnode.session")]),
-            (commonspace_selectfiles, anat_mask_prep_wf, [
-                ("labels", "inputnode.labels"),
-                ]),
-            (anat_mask_prep_wf, datasink, [
-                ("outputnode.eroded_WM_mask", "WM_mask"),
-                ("outputnode.eroded_CSF_mask", "CSF_mask"),
-                ]),
-            (anat_mask_prep_wf, outputnode, [
-                ("outputnode.eroded_WM_mask", "WM_mask"),
-                ("outputnode.eroded_CSF_mask", "CSF_mask"),
-                ]),
-        ])
+        if compute_WM_CSF_masks:
+            anat_mask_prep_wf=init_anat_mask_prep_wf(csv_labels=csv_labels)
+
+            #connect the anat workflow
+            workflow.connect([
+                (infosource, commonspace_selectfiles, [
+                    ("subject_id", "subject_id"),
+                    ]),
+                (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
+                (file_info, anat_mask_prep_wf, [
+                    ("subject_id", "inputnode.subject_id"),
+                    ("session", "inputnode.session")]),
+                (commonspace_selectfiles, anat_mask_prep_wf, [
+                    ("labels", "inputnode.labels"),
+                    ]),
+                (anat_mask_prep_wf, datasink, [
+                    ("outputnode.eroded_WM_mask", "WM_mask"),
+                    ("outputnode.eroded_CSF_mask", "CSF_mask"),
+                    ]),
+                (anat_mask_prep_wf, outputnode, [
+                    ("outputnode.eroded_WM_mask", "WM_mask"),
+                    ("outputnode.eroded_CSF_mask", "CSF_mask"),
+                    ]),
+            ])
+        else:
+            #connect the anat workflow
+            workflow.connect([
+                (infosource, commonspace_selectfiles, [
+                    ("subject_id", "subject_id"),
+                    ]),
+                (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
+                (commonspace_selectfiles, outputnode, [
+                    ("WM_mask", "WM_mask"),
+                    ("CSF_mask", "CSF_mask"),
+                    ]),
+            ])
 
 
         ########BOLD PREPROCESSING WORKFLOW
@@ -250,6 +269,22 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
                         name="bold_datasink")
 
 
+        if compute_WM_CSF_masks:
+            workflow.connect([
+                (anat_mask_prep_wf, bold_main_wf, [
+                    ("outputnode.eroded_WM_mask", "inputnode.WM_mask"),
+                    ("outputnode.eroded_CSF_mask", "inputnode.CSF_mask"),
+                    ]),
+            ])
+        else:
+            workflow.connect([
+                (commonspace_selectfiles, bold_main_wf, [
+                    ("WM_mask", "inputnode.WM_mask"),
+                    ("CSF_mask", "inputnode.CSF_mask"),
+                    ]),
+            ])
+
+
         workflow.connect([
             (file_info, bold_selectfiles, [
                 ("subject_id", "subject_id"),
@@ -265,10 +300,6 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
                 ("anat_nii", 'inputnode.anat_preproc'),
                 ("labels", 'inputnode.labels'),
                 ("mask", 'inputnode.anat_mask'),
-                ]),
-            (anat_mask_prep_wf, bold_main_wf, [
-                ("outputnode.eroded_WM_mask", "inputnode.WM_mask"),
-                ("outputnode.eroded_CSF_mask", "inputnode.CSF_mask"),
                 ]),
             (bold_main_wf, outputnode, [
                 ("outputnode.bold_ref", "initial_bold_ref"),
