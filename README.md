@@ -99,8 +99,9 @@
 </body>
 </html>
 
+<br/>
 
-\nFor questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca
+For questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca
 
 ## References
 
