@@ -7,8 +7,6 @@
 * input_folder/subject_id/ses-#/anat/subject_id_ses-#_anat.nii.gz
 * input_folder/data_info.csv (with columns header: group,subject_id,num_session,num_run)
 
-![Input Data Structure](https://github.com/Gab-D-G/pics/blob/master/input_structure.jpg)
-
 
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
