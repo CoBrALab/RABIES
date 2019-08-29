@@ -32,10 +32,9 @@
   .SOCK  { color: fuchsia;background-color: transparent;}
   .EXEC  { color: green;  background-color: transparent;}
   -->
- </style>
 </head>
 <body>
-	<h1>Directory Tree</h1><p>
+	<h1>Example Directory Tree</h1><p>
 	<a href="nii_inputs/">nii_inputs/</a><br>
 	└── <a href="nii_inputs//nii_inputs/">nii_inputs</a><br>
 	&nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/data_info.csv">data_info.csv</a><br>
