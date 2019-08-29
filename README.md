@@ -99,10 +99,7 @@
 </body>
 </html>
 
-
-
-
-
+\s\s
 
 For questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca
 
