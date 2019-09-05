@@ -31,6 +31,26 @@ def get_parser():
                         help="Run in debug mode. Default=False")
     parser.add_argument("-v", "--verbose", type=bool, default=0,
                         help="Increase output verbosity. **doesn't do anything for now. Default=False")
+
+    g_template = parser.add_argument_group('Template files.')
+    g_template.add_argument('--anat_template', action='store_true',
+                        default=False,
+                        help='Anatomical file for the commonspace template.')
+    g_template.add_argument('--brain_mask', action='store_true',
+                        default=False,
+                        help='Brain mask for the template.')
+    g_template.add_argument('--WM_mask', action='store_true',
+                        default=False,
+                        help='White matter mask for the template.')
+    g_template.add_argument('--CSF_mask', action='store_true',
+                        default=False,
+                        help='CSF mask for the template.')
+    g_template.add_argument('--labels', action='store_true',
+                        default=False,
+                        help='Atlas file with anatomical labels.')
+    g_template.add_argument('--csv_labels', action='store_true',
+                        default=False,
+                        help='csv file with info on the labels.')
     return parser
 
 
@@ -45,9 +65,18 @@ def execute_workflow():
     output_folder=os.path.abspath(str(opts.output_dir))
     plugin=opts.plugin
 
-    data_csv=data_dir_path+'/data_info.csv'
-    csv_labels='/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/labels/DSURQE_40micron_R_mapping.csv' #file with the id# of each label in the atlas to compute WM and CSF masks
+    # set OS paths to template and atlas files
+    os.environ["template_anat"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz" % (os.environ["HOME"])
+    os.environ["template_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz" % (os.environ["HOME"])
+    os.environ["template_anat_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_average.mnc" % (os.environ["HOME"])
+    os.environ["template_mask_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_mask.mnc" % (os.environ["HOME"])
+    os.environ["atlas_labels"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz" % (os.environ["HOME"])
+    os.environ["csv_labels"] = "%s/DSURQE_atlas/DSURQE_40micron_R_mapping.csv" % (os.environ["HOME"])
+    os.environ["WM_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_WM_mask.nii.gz" % (os.environ["HOME"])
+    os.environ["CSF_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mask.nii.gz" % (os.environ["HOME"])
 
+    data_csv=data_dir_path+'/data_info.csv'
+    csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
 
     if bold_preproc_only:
         commonspace_transform=False

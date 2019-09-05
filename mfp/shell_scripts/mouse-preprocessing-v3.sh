@@ -11,8 +11,8 @@
 
 set -euo pipefail
 
-REGTARGET=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/100um/DSURQE.mnc
-REGMASK=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/100um/DSURQE_mask.mnc
+REGTARGET=$template_anat_mnc
+REGMASK=$template_mask_mnc
 
 tmpdir=$(mktemp -d)
 

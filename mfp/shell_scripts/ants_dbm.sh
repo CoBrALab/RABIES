@@ -2,16 +2,13 @@
 
 FILE_PATH=$1
 labels=$2
-template=/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/DSURQE.nii.gz
-mask=/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/DSURQE_mask.nii.gz
-WM_mask=/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/labels/WM_CSF_masks/eroded_WM_mask.nii.gz
-CSF_mask=/data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/labels/WM_CSF_masks/eroded_CSF_mask.nii.gz
+template=$template_anat
+mask=$template_mask
 
 mkdir -p ants_dbm
 cd ants_dbm
 
-/data/chamal/projects/Gabriel_DG/software/twolevel_ants_dbm/twolevel_dbm.py \
---rigid-model-target /data/chamal/projects/Gabriel_DG/atlases/DSURQE_atlas/DSURQE.nii.gz \
+twolevel_dbm.py --rigid-model-target $atlas_labels \
 --no-N4 --transform SyN --float --average-type normmean --gradient-step 0.25 --model-iterations 3 \
 --modelbuild-command antsMultivariateTemplateConstruction2.sh --cluster-type sge \
 --walltime 40:00:00 --memory-request 30gb --local-threads 30 \

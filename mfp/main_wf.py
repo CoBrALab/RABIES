@@ -165,7 +165,6 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
         for i in range(len(subject_list)):
             session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
 
-
         #create a dictionary with list of bold run numbers for each subject
         run_iter={}
         for i in range(len(subject_list)):
