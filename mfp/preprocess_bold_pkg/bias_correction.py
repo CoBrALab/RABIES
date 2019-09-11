@@ -81,7 +81,8 @@ class EPIBiasCorrection(BaseInterface):
             if os.path.isfile(self.inputs.bias_cor_script):
                 bias_cor_script_path=self.inputs.bias_cor_script
             else:
-                raise ValueError('REGISTRATION ERROR: THE BIASCOR SCRIPT FILE DOES NOT EXISTS')
+                msg='THE BIASCOR PATH %s DOES NOT EXISTS' % self.inputs.bias_cor_script
+                raise ValueError(msg)
 
         if self.inputs.reg_script=='Rigid':
             import mfp
@@ -94,7 +95,8 @@ class EPIBiasCorrection(BaseInterface):
             if os.path.isfile(self.inputs.reg_script):
                 reg_script_path=self.inputs.reg_script
             else:
-                raise ValueError('REGISTRATION ERROR: THE BIASCOR SCRIPT FILE DOES NOT EXISTS')
+                msg='THE BIASCOR PATH %s DOES NOT EXISTS' % self.inputs.reg_script
+                raise ValueError(msg)
 
         cwd=os.getcwd()
         os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,self.inputs.input_ref_EPI, self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))

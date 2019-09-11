@@ -19,7 +19,7 @@ def get_parser():
                               " is executed through registration of the EPIs to a common template atlas. Default=False")
     parser.add_argument("-c", "--commonspace_method", type=str, default='pydpiper',
                         help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Default=pydpiper")
-    parser.add_argument("-b", "--bias_reg_script", type=str, default='default',
+    parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration. Default=default")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine' and 'SyN' (non-linear), but"
