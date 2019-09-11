@@ -19,9 +19,9 @@ RUN apt-get -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # add user to build all tools
-RUN useradd -ms /bin/bash nistmni && \
-    echo "nistmni ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nistmni && \
-    chmod 0440 /etc/sudoers.d/nistmni
+RUN useradd -ms /bin/bash mfp && \
+    echo "mfp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/mfp && \
+    chmod 0440 /etc/sudoers.d/mfp
 
 ENV PATH=/usr/lib/ccache:$PATH
 
@@ -37,6 +37,9 @@ RUN mkdir src && \
     cd ../../ && \
     rm -rf src
 
+
+WORKDIR /home/mfp
+ENV HOME="/home/mfp"
 
 ### install ANTs/AFNI softwares
 RUN apt-get update -qq \
@@ -108,10 +111,6 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
     zenity libcurl4-openssl-dev bc gawk libxkbcommon-x11-0 \
     ttf-mscorefonts-installer bc
 
-USER nistmni
-ENV HOME /home/nistmni
-WORKDIR /home/nistmni
-
 ENV CONDA_DIR="$HOME/miniconda-latest" \
     PATH="$HOME/miniconda-latest/bin:$PATH" \
     ND_ENTRYPOINT="$HOME/startup.sh"
@@ -131,8 +130,6 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
     && sync && conda clean --all && sync \
     && rm -rf ~/.cache/pip/* \
     && sync
-
-USER root
 
 # set paths
 ENV minc_toolkit_v2=https://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.17-20190313-Ubuntu_18.04-x86_64.deb \
@@ -241,10 +238,10 @@ RUN cd ~ && \
 
 #### install Mouse_fmriPype
 
-FROM test:latest
-
 ENV export LD_LIBRARY_PATH=/opt/minc/1.9.17/lib \
   export PATH=/opt/minc-toolkit-extras/:$PATH
+
+RUN echo ""
 
 RUN . /opt/minc/1.9.17/minc-toolkit-config.sh && \
   cd $HOME && \
@@ -254,19 +251,15 @@ RUN . /opt/minc/1.9.17/minc-toolkit-config.sh && \
   echo 'export PATH=$HOME/twolevel_ants_dbm/twolevel_dbm.py:$PATH' >> $HOME/.bashrc
 
 #write container execution script
-RUN echo "#! /usr/bin/env python" > /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "import os" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "import sys" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "os.environ['MFP'] = '/home/nistmni/Mouse_fmriPype'" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "sys.path.insert(0,os.environ['MFP'])" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "from mfp.run_main import execute_workflow" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  echo "execute_workflow()" >> /home/nistmni/Mouse_fmriPype/exec.py && \
-  chmod +x /home/nistmni/Mouse_fmriPype/exec.py
+RUN echo "#! /usr/bin/env python" > /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "import os" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "import sys" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "os.environ['MFP'] = '/home/mfp/Mouse_fmriPype'" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "sys.path.insert(0,os.environ['MFP'])" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "from mfp.run_main import execute_workflow" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  echo "execute_workflow()" >> /home/mfp/Mouse_fmriPype/exec.py && \
+  chmod +x /home/mfp/Mouse_fmriPype/exec.py
 
 ENV QBATCH_SYSTEM local
 
-USER nistmni
-ENV HOME /home/nistmni
-WORKDIR /home/nistmni
-
-ENTRYPOINT ["/home/nistmni/Mouse_fmriPype/exec.py"]
+#ENTRYPOINT ["/home/mfp/Mouse_fmriPype/exec.py"]
