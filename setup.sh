@@ -1,15 +1,15 @@
-### setup mfp execution and DSURQE atlas
+### setup RABIES execution and DSURQE atlas
 
-export MFP="$( cd "$(dirname "$0")" ; pwd -P )"
-export PYTHONPATH="${PYTHONPATH}:$MFP"
+export RABIES="$( cd "$(dirname "$0")" ; pwd -P )"
+export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-mkdir -p $MFP/bin
-echo -e '#! /usr/bin/env python \nfrom mfp.run_main import execute_workflow \nexecute_workflow()' > $MFP/bin/mfp
-chmod +x $MFP/bin/mfp
+mkdir -p $RABIES/bin
+echo -e '#! /usr/bin/env python \nfrom rabies.run_main import execute_workflow \nexecute_workflow()' > $RABIES/bin/rabies
+chmod +x $RABIES/bin/rabies
 echo "# added by Mouse_fmriPype" >> $HOME/.bashrc
-echo "export MFP=$MFP" >> $HOME/.bashrc
-echo 'export PYTHONPATH="${PYTHONPATH}:$MFP"' >> $HOME/.bashrc
-echo 'export PATH=$PATH:$MFP/bin' >> $HOME/.bashrc
+echo "export RABIES=$RABIES" >> $HOME/.bashrc
+echo 'export PYTHONPATH="${PYTHONPATH}:$RABIES"' >> $HOME/.bashrc
+echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc
 
 
 # Download DSURQE template
@@ -33,4 +33,4 @@ DSURQE_100micron_anat=$HOME/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz
 DSURQE_100micron_mask=$HOME/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz
 DSURQE_100micron_labels=$HOME/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz
 csv_labels=$HOME/DSURQE_atlas/DSURQE_40micron_R_mapping.csv
-python $MFP/gen_masks.py $DSURQE_100micron_labels $csv_labels $HOME/DSURQE_atlas/nifti/DSURQE_100micron
+python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $HOME/DSURQE_atlas/nifti/DSURQE_100micron

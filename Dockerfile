@@ -19,9 +19,9 @@ RUN apt-get -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # add user to build all tools
-RUN useradd -ms /bin/bash mfp && \
-    echo "mfp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/mfp && \
-    chmod 0440 /etc/sudoers.d/mfp
+RUN useradd -ms /bin/bash rabies && \
+    echo "rabies ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/rabies && \
+    chmod 0440 /etc/sudoers.d/rabies
 
 ENV PATH=/usr/lib/ccache:$PATH
 
@@ -38,8 +38,8 @@ RUN mkdir src && \
     rm -rf src
 
 
-WORKDIR /home/mfp
-ENV HOME="/home/mfp"
+WORKDIR /home/rabies
+ENV HOME="/home/rabies"
 
 ### install ANTs/AFNI softwares
 RUN apt-get update -qq \
@@ -236,30 +236,28 @@ RUN cd ~ && \
   rm -rf /var/lib/apt/lists/*
 
 
-#### install Mouse_fmriPype
+#### install RABIES
 
 ENV export LD_LIBRARY_PATH=/opt/minc/1.9.17/lib \
   export PATH=/opt/minc-toolkit-extras/:$PATH
 
-RUN echo ""
-
 RUN . /opt/minc/1.9.17/minc-toolkit-config.sh && \
   cd $HOME && \
-  git clone https://github.com/Gab-D-G/Mouse_fmriPype && \
-  bash $HOME/Mouse_fmriPype/setup.sh && \
+  git clone https://github.com/Gab-D-G/RABIES && \
+  bash $HOME/RABIES/setup.sh && \
   git clone https://github.com/CobraLab/twolevel_ants_dbm && \
   echo 'export PATH=$HOME/twolevel_ants_dbm/twolevel_dbm.py:$PATH' >> $HOME/.bashrc
 
 #write container execution script
-RUN echo "#! /usr/bin/env python" > /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "import os" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "import sys" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "os.environ['MFP'] = '/home/mfp/Mouse_fmriPype'" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "sys.path.insert(0,os.environ['MFP'])" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "from mfp.run_main import execute_workflow" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  echo "execute_workflow()" >> /home/mfp/Mouse_fmriPype/exec.py && \
-  chmod +x /home/mfp/Mouse_fmriPype/exec.py
+RUN echo "#! /usr/bin/env python" > /home/rabies/RABIES/exec.py && \
+  echo "import os" >> /home/rabies/RABIES/exec.py && \
+  echo "import sys" >> /home/rabies/RABIES/exec.py && \
+  echo "os.environ['RABIES'] = '/home/rabies/RABIES'" >> /home/rabies/RABIES/exec.py && \
+  echo "sys.path.insert(0,os.environ['RABIES'])" >> /home/rabies/RABIES/exec.py && \
+  echo "from rabies.run_main import execute_workflow" >> /home/rabies/RABIES/exec.py && \
+  echo "execute_workflow()" >> /home/rabies/RABIES/exec.py && \
+  chmod +x /home/rabies/RABIES/exec.py
 
 ENV QBATCH_SYSTEM local
 
-#ENTRYPOINT ["/home/mfp/Mouse_fmriPype/exec.py"]
+#ENTRYPOINT ["/home/rabies/RABIES/exec.py"]

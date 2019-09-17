@@ -89,8 +89,8 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
     filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
     if reg_script=='SyN':
-        import mfp
-        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        import rabies
+        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         reg_script_path=dir_path+'/shell_scripts/SyN_registration.sh'
         '''
         EPI=$1
@@ -112,8 +112,8 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
 
     elif reg_script=='Affine':
-        import mfp
-        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        import rabies
+        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
         '''
         EPI=$1
@@ -133,8 +133,8 @@ def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='
         '''
 
     elif reg_script=='Rigid':
-        import mfp
-        dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+        import rabies
+        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
         '''
         EPI=$1

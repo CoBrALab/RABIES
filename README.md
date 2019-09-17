@@ -1,4 +1,4 @@
-# Mouse_fmriPype: Automated BOLD preprocessing pipeline for rodent fMRI analysis.
+# RABIES: Rodent Automated Bold Improvement of EPI Sequences.
 
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 

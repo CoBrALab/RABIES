@@ -1,6 +1,6 @@
 import os
 import sys
-from mfp.main_wf import init_anat_init_wf, init_main_postPydpiper_wf
+from rabies.main_wf import init_anat_init_wf, init_main_postPydpiper_wf
 
 from argparse import ArgumentParser
 from argparse import RawTextHelpFormatter
@@ -23,7 +23,7 @@ def get_parser():
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration. Default=default")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine' and 'SyN' (non-linear), but"
-                        " can specify a custom registration script following the template script structure (see Mouse_fmriPype/mfp/shell_scripts/ for template). Default=SyN")
+                        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template). Default=SyN")
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested. Default=Linear")
@@ -87,10 +87,10 @@ def execute_workflow():
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         if commonspace_method=='pydpiper':
-            model_script_path=dir_path+'/mfp/shell_scripts/pydpiper.sh'
+            model_script_path=dir_path+'/rabies/shell_scripts/pydpiper.sh'
             commonspace_transform=False
         elif commonspace_method=='ants_dbm':
-            model_script_path=dir_path+'/mfp/shell_scripts/ants_dbm.sh'
+            model_script_path=dir_path+'/rabies/shell_scripts/ants_dbm.sh'
             commonspace_transform=True
         else:
             raise ValueError('Invalid commonspace method.')

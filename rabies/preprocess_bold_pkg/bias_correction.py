@@ -71,8 +71,8 @@ class EPIBiasCorrection(BaseInterface):
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
         if self.inputs.bias_cor_script=='Default':
-            import mfp
-            dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+            import rabies
+            dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
             bias_cor_script_path=dir_path+'/shell_scripts/iter_bias_cor.sh'
         else:
             '''
@@ -85,8 +85,8 @@ class EPIBiasCorrection(BaseInterface):
                 raise ValueError(msg)
 
         if self.inputs.reg_script=='Rigid':
-            import mfp
-            dir_path = os.path.dirname(os.path.realpath(mfp.__file__))
+            import rabies
+            dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
             reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
         else:
             '''
