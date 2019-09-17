@@ -1,0 +1,7 @@
+# Details on the installation
+
+install.sh: will install the RABIES package in $HOME directory and setup permanent paths to run the pipeline. It will also download the DSURQE mouse template as default template.
+
+conda environment: can use the rabies_environment.yml to directly create the environment by running "conda env create -f rabies_environment.yml". Should append channels conda-forge, bioconda, simpleitk ("conda config --append channels conda-forge")
+
+Dependencies: can refer to the Dockerfile for installing dependencies.

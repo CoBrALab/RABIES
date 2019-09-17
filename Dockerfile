@@ -242,11 +242,9 @@ ENV export LD_LIBRARY_PATH=/opt/minc/1.9.17/lib \
   export PATH=/opt/minc-toolkit-extras/:$PATH
 
 RUN . /opt/minc/1.9.17/minc-toolkit-config.sh && \
-  cd $HOME && \
-  git clone https://github.com/Gab-D-G/RABIES && \
-  bash $HOME/RABIES/setup.sh && \
-  git clone https://github.com/CobraLab/twolevel_ants_dbm && \
-  echo 'export PATH=$HOME/twolevel_ants_dbm/twolevel_dbm.py:$PATH' >> $HOME/.bashrc
+  git clone https://github.com/Gab-D-G/RABIES temp/RABIES && \
+  bash temp/RABIES/install.sh && \
+  rm -r temp
 
 #write container execution script
 RUN echo "#! /usr/bin/env python" > /home/rabies/RABIES/exec.py && \
