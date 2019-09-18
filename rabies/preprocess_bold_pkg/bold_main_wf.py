@@ -21,7 +21,7 @@ from .confounds import init_bold_confs_wf
 
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, apply_STC=True, commonspace_transform=False,
+def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, commonspace_transform=False,
                         aCompCor_method='50%', bold_preproc_only=False, name='bold_main_wf'):
 
     """
@@ -80,7 +80,7 @@ def init_bold_main_wf(data_dir_path, data_csv=None, bias_cor_script='Default', b
     bias_cor_wf = bias_correction_wf(bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script)
 
     if apply_STC:
-        bold_stc_wf = init_bold_stc_wf()
+        bold_stc_wf = init_bold_stc_wf(tr=tr, tpattern=tpattern)
 
     # BOLD buffer: an identity used as a pointer to the STC data for further use.
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')

@@ -32,6 +32,16 @@ def get_parser():
     parser.add_argument("-v", "--verbose", type=bool, default=0,
                         help="Increase output verbosity. **doesn't do anything for now. Default=False")
 
+    g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift.')
+    g_stc.add_argument('--STC', action='store_true', type=bool, default=True,
+                        help="Whether to run STC or not. Default=True")
+    g_stc.add_argument('--TR', action='store_true',
+                        type=str, default='1.0s',
+                        help="Specify repetition time (TR). Default=1.0s")
+    g_stc.add_argument('--tpattern', action='store_true',
+                        type=str, default='alt',
+                        help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential. Default=alt")
+
     g_template = parser.add_argument_group('Template files. ***under development, can only use the DSURQE atlas as default for now.')
     g_template.add_argument('--anat_template', action='store_true',
                         default=False,
@@ -65,6 +75,17 @@ def execute_workflow():
     output_folder=os.path.abspath(str(opts.output_dir))
     plugin=opts.plugin
 
+    #STC options
+    stc_bool=opts.g_stc.STC
+    stc_TR=opts.g_stc.TR
+    if opts.g_stc.tpattern=="alt":
+        stc_tpattern='altplus'
+    elif opts.g_stc.tpattern=="seq":
+        stc_tpattern='seqplus'
+    else:
+        raise ValueError('Invalid --tpattern provided.')
+
+    #template options
     # set OS paths to template and atlas files
     os.environ["template_anat"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz" % (os.environ["RABIES"])
     os.environ["template_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz" % (os.environ["RABIES"])
@@ -99,7 +120,7 @@ def execute_workflow():
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
-    main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
+    main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool tr=tr, tpattern=tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
     main_postPydpiper_wf.base_dir = output_folder
 
     if opts.debug:
