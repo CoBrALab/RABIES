@@ -37,7 +37,7 @@ def get_parser():
                         help="Whether to run STC or not. Default=True")
     g_stc.add_argument('--TR', action='store_true',
                         type=str, default='1.0s',
-                        help="Anatomical file for the commonspace template. Default=1.0s")
+                        help="Specify repetition time (TR). Default=1.0s")
     g_stc.add_argument('--tpattern', action='store_true',
                         type=str, default='alt',
                         help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential. Default=alt")
