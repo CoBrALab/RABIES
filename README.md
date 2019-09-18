@@ -55,6 +55,11 @@
     --csv_labels          csv file with info on the labels.
 ```
 
+## Template execution command
+```
+  rabies -e 0 -c ants_dbm -b default -r SyN -p SGEGraph -d 0 -v 0 nii_inputs/ rabies_outputs/
+```
+
 ## Input data folder structure
 * input_folder/subject_id/ses-#/bold/subject_id_ses-#_run-#_bold.nii.gz
 * input_folder/subject_id/ses-#/anat/subject_id_ses-#_anat.nii.gz
@@ -163,9 +168,6 @@ After installing the container from the Dockerfile, can run RABIES interactively
 		rabies
 ```
 <br/>
-
-## Contacts
-For questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca
 
 ## Publications
 * Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. (2019) Dynamic functional connectivity properties are differentially affected by anesthesia protocols and compare across species. Presented at Organization for Human Brain Mapping 2019, Rome, Italy
