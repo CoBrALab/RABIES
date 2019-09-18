@@ -3,7 +3,7 @@
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 
 ## Command Line Interface
-```sh
+```
   usage: rabies [-h] [-e BOLD_ONLY] [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT]
                 [-r COREG_SCRIPT] [-p PLUGIN] [-d DEBUG] [-v VERBOSE]
                 [--anat_template] [--brain_mask] [--WM_mask] [--CSF_mask]
