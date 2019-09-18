@@ -16,7 +16,7 @@ from nipype.interfaces.base import (
     File, SimpleInterface
 )
 
-def init_bold_stc_wf(name='bold_stc_wf'):
+def init_bold_stc_wf(tr, tpattern, ame='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
@@ -56,7 +56,7 @@ def init_bold_stc_wf(name='bold_stc_wf'):
 
     # It would be good to fingerprint memory use of afni.TShift
     slice_timing_correction = pe.Node(
-        afni.TShift(outputtype='NIFTI_GZ'),
+        afni.TShift(tr=tr, tpattern=tpattern, outputtype='NIFTI_GZ'),
         name='slice_timing_correction')
 
     copy_xform = pe.Node(CopyXForm(), name='copy_xform')
