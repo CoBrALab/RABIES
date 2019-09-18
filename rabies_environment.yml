@@ -123,5 +123,3 @@ dependencies:
   - simpleitk=1.2.2=py36hf484d3e_0
   - pip:
     - dask==2.3.0
-prefix: /home/cic/desgab/miniconda3/envs/rabies
-

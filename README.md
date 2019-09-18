@@ -2,6 +2,59 @@
 
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 
+## Command Line Interface
+```sh
+  usage: rabies [-h] [-e BOLD_ONLY] [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT]
+                [-r COREG_SCRIPT] [-p PLUGIN] [-d DEBUG] [-v VERBOSE]
+                [--anat_template] [--brain_mask] [--WM_mask] [--CSF_mask]
+                [--labels] [--csv_labels]
+                input_dir output_dir
+
+  positional arguments:
+    input_dir             the root folder of the input data directory.
+    output_dir            the output path for the outcomes of preprocessing
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    -e BOLD_ONLY, --bold_only BOLD_ONLY
+                          preprocessing with only EPI scans. commonspace
+                          registration and distortion correction is executed
+                          through registration of the EPIs to a common template
+                          atlas. Default=False
+    -c COMMONSPACE_METHOD, --commonspace_method COMMONSPACE_METHOD
+                          specify either 'pydpiper' or 'ants_dbm' as common
+                          space registration method. Default=pydpiper
+    -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
+                          specify a registration script for iterative bias field
+                          correction. 'default' is a rigid registration.
+                          Default=default
+    -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
+                          Specify EPI to anat coregistration script. Built-in
+                          options include 'Rigid', 'Affine' and 'SyN' (non-
+                          linear), but can specify a custom registration script
+                          following the template script structure (see
+                          RABIES/rabies/shell_scripts/ for template).
+                          Default=SyN
+    -p PLUGIN, --plugin PLUGIN
+                          Specify the nipype plugin for workflow execution.
+                          Consult nipype plugin documentation for detailed
+                          options. Linear, MultiProc, SGE and SGEGraph have been
+                          tested. Default=Linear
+    -d DEBUG, --debug DEBUG
+                          Run in debug mode. Default=False
+    -v VERBOSE, --verbose VERBOSE
+                          Increase output verbosity. **doesnt do anything for
+                          now. Default=False
+
+  Template files.:
+    --anat_template       Anatomical file for the commonspace template.
+    --brain_mask          Brain mask for the template.
+    --WM_mask             White matter mask for the template.
+    --CSF_mask            CSF mask for the template.
+    --labels              Atlas file with anatomical labels.
+    --csv_labels          csv file with info on the labels.
+```
+
 ## Input data folder structure
 * input_folder/subject_id/ses-#/bold/subject_id_ses-#_run-#_bold.nii.gz
 * input_folder/subject_id/ses-#/anat/subject_id_ses-#_anat.nii.gz
@@ -99,6 +152,15 @@
 </body>
 </html>
 
+<br/>
+
+To run within an interactive docker container
+```sh
+    docker run -it --rm \
+		-v /nii_inputs_path:/nii_inputs:ro \
+		-v /outputs_path:/outputs \
+		rabies
+```
 <br/>
 
 For questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca

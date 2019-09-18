@@ -6,6 +6,7 @@ export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
 git clone https://github.com/Gab-D-G/RABIES $HOME/RABIES
 
+#creates an executable script to execute rabies
 mkdir -p $RABIES/bin
 echo -e '#! /usr/bin/env python \nfrom rabies.run_main import execute_workflow \nexecute_workflow()' > $RABIES/bin/rabies
 chmod +x $RABIES/bin/rabies
