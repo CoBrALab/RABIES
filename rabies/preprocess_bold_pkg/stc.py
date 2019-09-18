@@ -16,7 +16,7 @@ from nipype.interfaces.base import (
     File, SimpleInterface
 )
 
-def init_bold_stc_wf(tr, tpattern, ame='bold_stc_wf'):
+def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
