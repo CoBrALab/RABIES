@@ -154,7 +154,8 @@
 
 <br/>
 
-To run within an interactive docker container
+## Docker container
+After installing the container from the Dockerfile, can run RABIES interactively within a docker container
 ```sh
     docker run -it --rm \
 		-v /nii_inputs_path:/nii_inputs:ro \
@@ -163,7 +164,12 @@ To run within an interactive docker container
 ```
 <br/>
 
+## Contacts
 For questions or interests in using the pipeline, contact gabriel.desrosiers-gregoire@mail.mcgill.ca
+
+## Publications
+* Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. (2019) Dynamic functional connectivity properties are differentially affected by anesthesia protocols and compare across species. Presented at Organization for Human Brain Mapping 2019, Rome, Italy
+* Gabriel Desrosiers-Gregoire, Daniel Gallino, Gabriel A. Devenyi, M. Mallar Chakravarty. (2019) Comparison of the BOLD-evoked response to hypercapnic challenge in mice anesthetized under isoflurane and dexmedetomidine. Presented at International Society for Magnetic Resonance in Medicine 2019, Montreal, QC
 
 ## References
 
