@@ -253,7 +253,7 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
 
 
         ########BOLD PREPROCESSING WORKFLOW
-        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform, SyN_SDC=True, apply_STC=True, aCompCor_method=aCompCor_method)
+        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform, SyN_SDC=True, aCompCor_method=aCompCor_method)
 
         bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
@@ -366,7 +366,7 @@ def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels
                                  container="bold_datasink"),
                         name="bold_datasink")
 
-        bold_main_wf=init_bold_main_wf(bold_preproc_only=True, tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_csv=data_csv, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, apply_STC=True, aCompCor_method=aCompCor_method)
+        bold_main_wf=init_bold_main_wf(bold_preproc_only=True, tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_csv=data_csv, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, SyN_SDC=True, aCompCor_method=aCompCor_method)
 
         workflow.connect([
             (infosource, bold_main_wf, [
