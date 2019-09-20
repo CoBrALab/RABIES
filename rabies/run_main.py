@@ -17,8 +17,8 @@ def get_parser():
     parser.add_argument("-e", "--bold_only", type=bool, default=0,
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPIs to a common template atlas. Default=False")
-    parser.add_argument("-c", "--commonspace_method", type=str, default='pydpiper',
-                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Default=pydpiper")
+    parser.add_argument("-c", "--commonspace_method", type=str, default='ants_dbm',
+                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Default=ants_dbm ***pydpiper option in development")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration. Default=default")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
@@ -40,25 +40,25 @@ def get_parser():
     g_stc.add_argument('--tpattern', type=str, default='alt',
                         help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential. Default=alt")
 
-    g_template = parser.add_argument_group('Template files. ***under development, can only use the DSURQE atlas as default for now.')
+    g_template = parser.add_argument_group('Template files.')
     g_template.add_argument('--anat_template', action='store_true',
-                        default=False,
-                        help='Anatomical file for the commonspace template.')
+                        default='DSURQE',
+                        help='Anatomical file for the commonspace template. Default=DSURQE')
     g_template.add_argument('--brain_mask', action='store_true',
-                        default=False,
-                        help='Brain mask for the template.')
+                        default='DSURQE',
+                        help='Brain mask for the template. Default=DSURQE')
     g_template.add_argument('--WM_mask', action='store_true',
-                        default=False,
-                        help='White matter mask for the template.')
+                        default='DSURQE',
+                        help='White matter mask for the template. Default=DSURQE')
     g_template.add_argument('--CSF_mask', action='store_true',
-                        default=False,
-                        help='CSF mask for the template.')
+                        default='DSURQE',
+                        help='CSF mask for the template. Default=DSURQE')
     g_template.add_argument('--labels', action='store_true',
-                        default=False,
-                        help='Atlas file with anatomical labels.')
+                        default='DSURQE',
+                        help='Atlas file with anatomical labels. Default=DSURQE')
     g_template.add_argument('--csv_labels', action='store_true',
-                        default=False,
-                        help='csv file with info on the labels.')
+                        default='DSURQE',
+                        help='csv file with info on the labels. Default=DSURQE')
     return parser
 
 
@@ -85,14 +85,50 @@ def execute_workflow():
 
     #template options
     # set OS paths to template and atlas files
-    os.environ["template_anat"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz" % (os.environ["RABIES"])
-    os.environ["template_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz" % (os.environ["RABIES"])
+    if opts.g_template.anat_template=="DSURQE":
+        os.environ["template_anat"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz" % (os.environ["RABIES"])
+    else:
+        os.environ["template_anat"] = opts.g_template.anat_template
+        if not os.path.isfile(os.environ["template_anat"]):
+            raise ValueError("--anat_template file doesn't exists.")
+
+    if opts.g_template.brain_mask=="DSURQE":
+        os.environ["template_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz" % (os.environ["RABIES"])
+    else:
+        os.environ["template_mask"] = opts.g_template.brain_mask
+        if not os.path.isfile(os.environ["template_mask"]):
+            raise ValueError("--brain_mask file doesn't exists.")
+
+    if opts.g_template.WM_mask=="DSURQE":
+        os.environ["WM_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_WM_mask.nii.gz" % (os.environ["RABIES"])
+    else:
+        os.environ["WM_mask"] = opts.g_template.WM_mask
+        if not os.path.isfile(os.environ["WM_mask"]):
+            raise ValueError("--WM_mask file doesn't exists.")
+
+    if opts.g_template.CSF_mask=="DSURQE":
+        os.environ["CSF_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mask.nii.gz" % (os.environ["RABIES"])
+    else:
+        os.environ["CSF_mask"] = opts.g_template.CSF_mask
+        if not os.path.isfile(os.environ["CSF_mask"]):
+            raise ValueError("--CSF_mask file doesn't exists.")
+
+    if opts.g_template.labels=="DSURQE":
+        os.environ["atlas_labels"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz" % (os.environ["RABIES"])
+    else:
+        os.environ["atlas_labels"] = opts.g_template.labels
+        if not os.path.isfile(os.environ["atlas_labels"]):
+            raise ValueError("--labels file doesn't exists.")
+
+    if opts.g_template.csv_labels=="DSURQE":
+        os.environ["csv_labels"] = "%s/DSURQE_atlas/DSURQE_40micron_R_mapping.csv" % (os.environ["RABIES"])
+    else:
+        os.environ["csv_labels"] = opts.g_template.csv_labels
+        if not os.path.isfile(os.environ["csv_labels"]):
+            raise ValueError("--csv_labels file doesn't exists.")
+
     os.environ["template_anat_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_average.mnc" % (os.environ["RABIES"])
     os.environ["template_mask_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_mask.mnc" % (os.environ["RABIES"])
-    os.environ["atlas_labels"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz" % (os.environ["RABIES"])
-    os.environ["csv_labels"] = "%s/DSURQE_atlas/DSURQE_40micron_R_mapping.csv" % (os.environ["RABIES"])
-    os.environ["WM_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_WM_mask.nii.gz" % (os.environ["RABIES"])
-    os.environ["CSF_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mask.nii.gz" % (os.environ["RABIES"])
 
     data_csv=data_dir_path+'/data_info.csv'
     csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
