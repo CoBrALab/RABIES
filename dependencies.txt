@@ -29,3 +29,5 @@ scikit-learn>=0.20.0
 nibabel>=2.3.1
 nilearn>=0.4.2
 nipype>=1.1.4
+tqdm
+pathos

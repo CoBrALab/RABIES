@@ -126,7 +126,7 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
     && conda config --append channels bioconda \
     && conda config --append channels simpleitk \
     && sync && conda clean --all && sync \
-    && conda install -y -q python=3.6.8 numpy==1.16.2 pandas scipy python-graphviz pip cython setuptools simpleitk scikit-image scikit-learn==0.20.0 nibabel==2.3.1 nilearn==0.4.2 nipype==1.1.4 \
+    && conda install -y -q python=3.6.8 numpy==1.16.2 pandas scipy python-graphviz pip cython setuptools simpleitk scikit-image scikit-learn==0.20.0 nibabel==2.3.1 nilearn==0.4.2 nipype==1.1.4 tqdm pathos \
     && sync && conda clean --all && sync \
     && rm -rf ~/.cache/pip/* \
     && sync
