@@ -2,63 +2,92 @@ import os
 import sys
 from rabies.main_wf import init_anat_init_wf, init_main_postPydpiper_wf
 
-from argparse import ArgumentParser
-from argparse import RawTextHelpFormatter
+import argparse
 from pathlib import Path
+import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 
 def get_parser():
     """Build parser object"""
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="""RABIES performs preprocessing of rodent fMRI images. Can either run
+        on datasets that only contain EPI images, or both structural and EPI images. Refer
+        to the README documentation for the input folder structure.""",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('input_dir', action='store', type=Path,
                         help='the root folder of the input data directory.')
     parser.add_argument('output_dir', action='store', type=Path,
-                        help='the output path for the outcomes of preprocessing')
+                        help='the output path to drop outputs from major preprocessing steps.')
     parser.add_argument("-e", "--bold_only", type=bool, default=0,
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
-                              " is executed through registration of the EPIs to a common template atlas. Default=False")
+                              " is executed through registration of the EPIs to a common template atlas.")
     parser.add_argument("-c", "--commonspace_method", type=str, default='ants_dbm',
-                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Default=ants_dbm ***pydpiper option in development")
+                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. ***pydpiper option in development")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
-                        help="specify a registration script for iterative bias field correction. 'default' is a rigid registration. Default=default")
+                        help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine' and 'SyN' (non-linear), but"
-                        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template). Default=SyN")
+                        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
-                             " Linear, MultiProc, SGE and SGEGraph have been tested. Default=Linear")
+                             " Linear, MultiProc, SGE and SGEGraph have been tested.")
     parser.add_argument("-d", "--debug", type=bool, default=0,
                         help="Run in debug mode. Default=False")
     parser.add_argument("-v", "--verbose", type=bool, default=0,
-                        help="Increase output verbosity. **doesn't do anything for now. Default=False")
+                        help="Increase output verbosity. **doesn't do anything for now.")
+
+    g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
+    g_ants_dbm.add_argument(
+        '--cluster_type',
+        default="local",
+        choices=["local", "sge", "pbs", "slurm"],
+        help="Choose the type of cluster system to submit jobs to")
+    g_ants_dbm.add_argument(
+        '--walltime',
+        default="20:00:00",
+        help="""Option for job submission
+        specifying requested time per pairwise registration.""")
+    g_ants_dbm.add_argument(
+        '--memory_request',
+        default="8gb",
+        help="""Option for job submission
+        specifying requested memory per pairwise registration.""")
+    g_ants_dbm.add_argument(
+        '--local_threads',
+        '-j',
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help="""For local execution, how many subject-wise modelbuilds to run in parallel,
+        defaults to number of CPUs""")
+
 
     g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift.')
     g_stc.add_argument('--STC', type=bool, default=True,
-                        help="Whether to run STC or not. Default=True")
+                        help="Whether to run STC or not.")
     g_stc.add_argument('--TR', type=str, default='1.0s',
-                        help="Specify repetition time (TR). Default=1.0s")
+                        help="Specify repetition time (TR).")
     g_stc.add_argument('--tpattern', type=str, default='alt',
-                        help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential. Default=alt")
+                        help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
     g_template = parser.add_argument_group('Template files.')
     g_template.add_argument('--anat_template', action='store_true',
                         default='DSURQE',
-                        help='Anatomical file for the commonspace template. Default=DSURQE')
+                        help='Anatomical file for the commonspace template.')
     g_template.add_argument('--brain_mask', action='store_true',
                         default='DSURQE',
-                        help='Brain mask for the template. Default=DSURQE')
+                        help='Brain mask for the template.')
     g_template.add_argument('--WM_mask', action='store_true',
                         default='DSURQE',
-                        help='White matter mask for the template. Default=DSURQE')
+                        help='White matter mask for the template.')
     g_template.add_argument('--CSF_mask', action='store_true',
                         default='DSURQE',
-                        help='CSF mask for the template. Default=DSURQE')
+                        help='CSF mask for the template.')
     g_template.add_argument('--labels', action='store_true',
                         default='DSURQE',
-                        help='Atlas file with anatomical labels. Default=DSURQE')
+                        help='Atlas file with anatomical labels.')
     g_template.add_argument('--csv_labels', action='store_true',
                         default='DSURQE',
-                        help='csv file with info on the labels. Default=DSURQE')
+                        help='csv file with info on the labels.')
     return parser
 
 
@@ -82,6 +111,12 @@ def execute_workflow():
         stc_tpattern='seqplus'
     else:
         raise ValueError('Invalid --tpattern provided.')
+
+    #setting absolute paths for ants_dbm options options
+    os.environ["ants_dbm_cluster_type"]=opts.g_ants_dbm.cluster_type
+    os.environ["ants_dbm_walltime"]=opts.g_ants_dbm.walltime
+    os.environ["ants_dbm_memory_request"]=opts.g_ants_dbm.memory_request
+    os.environ["ants_dbm_local_threads"]=opts.g_ants_dbm.local_threads
 
     #template options
     # set OS paths to template and atlas files
