@@ -22,7 +22,8 @@ def get_parser():
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPIs to a common template atlas.")
     parser.add_argument("-c", "--commonspace_method", type=str, default='ants_dbm',
-                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. ***pydpiper option in development")
+                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Pydpiper can only be "
+                        "executed in parallel with SGE or PBS. ***pydpiper option in development")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
