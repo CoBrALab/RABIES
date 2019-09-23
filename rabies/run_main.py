@@ -104,62 +104,62 @@ def execute_workflow():
     plugin=opts.plugin
 
     #STC options
-    stc_bool=opts.g_stc.STC
-    stc_TR=opts.g_stc.TR
-    if opts.g_stc.tpattern=="alt":
+    stc_bool=opts.STC
+    stc_TR=opts.TR
+    if opts.tpattern=="alt":
         stc_tpattern='altplus'
-    elif opts.g_stc.tpattern=="seq":
+    elif opts.tpattern=="seq":
         stc_tpattern='seqplus'
     else:
         raise ValueError('Invalid --tpattern provided.')
 
     #setting absolute paths for ants_dbm options options
-    os.environ["ants_dbm_cluster_type"]=opts.g_ants_dbm.cluster_type
-    os.environ["ants_dbm_walltime"]=opts.g_ants_dbm.walltime
-    os.environ["ants_dbm_memory_request"]=opts.g_ants_dbm.memory_request
-    os.environ["ants_dbm_local_threads"]=opts.g_ants_dbm.local_threads
+    os.environ["ants_dbm_cluster_type"]=opts.cluster_type
+    os.environ["ants_dbm_walltime"]=opts.walltime
+    os.environ["ants_dbm_memory_request"]=opts.memory_request
+    os.environ["ants_dbm_local_threads"]=str(opts.local_threads)
 
     #template options
     # set OS paths to template and atlas files
-    if opts.g_template.anat_template=="DSURQE":
+    if opts.anat_template=="DSURQE":
         os.environ["template_anat"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz" % (os.environ["RABIES"])
     else:
-        os.environ["template_anat"] = opts.g_template.anat_template
+        os.environ["template_anat"] = opts.anat_template
         if not os.path.isfile(os.environ["template_anat"]):
             raise ValueError("--anat_template file doesn't exists.")
 
-    if opts.g_template.brain_mask=="DSURQE":
+    if opts.brain_mask=="DSURQE":
         os.environ["template_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz" % (os.environ["RABIES"])
     else:
-        os.environ["template_mask"] = opts.g_template.brain_mask
+        os.environ["template_mask"] = opts.brain_mask
         if not os.path.isfile(os.environ["template_mask"]):
             raise ValueError("--brain_mask file doesn't exists.")
 
-    if opts.g_template.WM_mask=="DSURQE":
+    if opts.WM_mask=="DSURQE":
         os.environ["WM_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_WM_mask.nii.gz" % (os.environ["RABIES"])
     else:
-        os.environ["WM_mask"] = opts.g_template.WM_mask
+        os.environ["WM_mask"] = opts.WM_mask
         if not os.path.isfile(os.environ["WM_mask"]):
             raise ValueError("--WM_mask file doesn't exists.")
 
-    if opts.g_template.CSF_mask=="DSURQE":
+    if opts.CSF_mask=="DSURQE":
         os.environ["CSF_mask"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mask.nii.gz" % (os.environ["RABIES"])
     else:
-        os.environ["CSF_mask"] = opts.g_template.CSF_mask
+        os.environ["CSF_mask"] = opts.CSF_mask
         if not os.path.isfile(os.environ["CSF_mask"]):
             raise ValueError("--CSF_mask file doesn't exists.")
 
-    if opts.g_template.labels=="DSURQE":
+    if opts.labels=="DSURQE":
         os.environ["atlas_labels"] = "%s/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz" % (os.environ["RABIES"])
     else:
-        os.environ["atlas_labels"] = opts.g_template.labels
+        os.environ["atlas_labels"] = opts.labels
         if not os.path.isfile(os.environ["atlas_labels"]):
             raise ValueError("--labels file doesn't exists.")
 
-    if opts.g_template.csv_labels=="DSURQE":
+    if opts.csv_labels=="DSURQE":
         os.environ["csv_labels"] = "%s/DSURQE_atlas/DSURQE_40micron_R_mapping.csv" % (os.environ["RABIES"])
     else:
-        os.environ["csv_labels"] = opts.g_template.csv_labels
+        os.environ["csv_labels"] = opts.csv_labels
         if not os.path.isfile(os.environ["csv_labels"]):
             raise ValueError("--csv_labels file doesn't exists.")
 
@@ -190,7 +190,7 @@ def execute_workflow():
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
-    main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=tr, tpattern=tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
+    main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
     main_postPydpiper_wf.base_dir = output_folder
 
     if opts.debug:
