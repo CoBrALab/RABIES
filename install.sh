@@ -41,4 +41,4 @@ python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $RABIES/DSURQE_
 
 # install twolevel_ants_dbm
 git clone https://github.com/CobraLab/twolevel_ants_dbm $RABIES/twolevel_ants_dbm && \
-echo 'export PATH=$RABIES/twolevel_ants_dbm/twolevel_dbm.py:$PATH' >> $HOME/.bashrc
+echo 'export PATH=$RABIES/twolevel_ants_dbm:$PATH' >> $HOME/.bashrc

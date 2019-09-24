@@ -1,18 +1,20 @@
 #!bin/bash
 
 FILE_PATH=$1
-labels=$2
 template=$template_anat
 mask=$template_mask
 
 mkdir -p ants_dbm
 cd ants_dbm
 
-twolevel_dbm.py --rigid-model-target $atlas_labels \
+echo twolevel_dbm.py --rigid-model-target $atlas_labels \
 --no-N4 --transform SyN --float --average-type normmean --gradient-step 0.25 --model-iterations 3 \
 --modelbuild-command antsMultivariateTemplateConstruction2.sh --cluster-type $ants_dbm_cluster_type \
 --walltime $ants_dbm_walltime --memory-request $ants_dbm_memory_request --local-threads $ants_dbm_local_threads \
-1level $FILE_PATH
+1level $FILE_PATH > exec.sh
+echo "Running the following commonspace registration:"
+cat exec.sh
+bash exec.sh
 
 cd ..
 
@@ -52,7 +54,7 @@ else
 
   #move brain mask and labels to each of subject space
   antsApplyTransforms -i $mask -t template_reg/template_reg_InverseComposite.h5 -r ants_dbm/output/secondlevel/secondlevel_template0.nii.gz -o template_reg/transformed_mask.nii.gz -n GenericLabel
-  antsApplyTransforms -i $labels -t template_reg/template_reg_InverseComposite.h5 -r ants_dbm/output/secondlevel/secondlevel_template0.nii.gz -o template_reg/transformed_labels.nii.gz -n GenericLabel
+  antsApplyTransforms -i $atlas_labels -t template_reg/template_reg_InverseComposite.h5 -r ants_dbm/output/secondlevel/secondlevel_template0.nii.gz -o template_reg/transformed_labels.nii.gz -n GenericLabel
   #also WM and CSF masks
   antsApplyTransforms -i $WM_mask -t template_reg/template_reg_InverseComposite.h5 -r ants_dbm/output/secondlevel/secondlevel_template0.nii.gz -o template_reg/transformed_WM_mask.nii.gz -n GenericLabel
   antsApplyTransforms -i $CSF_mask -t template_reg/template_reg_InverseComposite.h5 -r ants_dbm/output/secondlevel/secondlevel_template0.nii.gz -o template_reg/transformed_CSF_mask.nii.gz -n GenericLabel
@@ -79,7 +81,7 @@ else
   antsApplyTransforms -i template_reg/transformed_CSF_mask.nii.gz -t [$affine,1] -t $inverse_warp -r $anat_file -o ../anat_datasink/CSF_mask/_subject_id_${sub}/_session_${ses}/${sub}_ses-${ses}_CSF_mask.nii.gz -n GenericLabel"; \
   done < $FILE_PATH > transform_jobs.sh
 
-  qbatch -o "-sync y" transform_jobs.sh
+  qbatch -b $ants_dbm_cluster_type -o "-sync y" transform_jobs.sh
 
   echo "Complete transforms." > complete.txt
 fi

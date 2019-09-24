@@ -43,11 +43,11 @@ def mnc2nii(mnc_file):
     os.system('gzip *.nii')
     return '%s/%s.nii.gz' % (cwd,basename)
 
-def move_pydpiper_transforms(file_list_buffer, pydpiper_directory, transform_csv, output_folder):
+def move_commonspace_transforms(file_list_buffer, commonspace_directory, transform_csv, output_folder):
     import os
-    os.system('mkdir -p %s/anat_datasink/pydpiper_transforms/' % (output_folder))
-    os.system('mv %s %s/anat_datasink/pydpiper_transforms/' % (transform_csv, output_folder))
-    os.system('mv %s/mbm_atlasReg_processed %s/anat_datasink/pydpiper_transforms/' % (pydpiper_directory, output_folder))
+    os.system('mkdir -p %s/anat_datasink/commonspace_transforms/' % (output_folder))
+    os.system('mv %s %s/anat_datasink/commonspace_transforms/' % (transform_csv, output_folder))
+    os.system('mv %s/mbm_atlasReg_processed %s/anat_datasink/commonspace_transforms/' % (commonspace_directory, output_folder))
     return None
 
 
@@ -123,7 +123,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
     #connect the anat workflow
     workflow.connect([
         (anat_selectfiles, anat_preproc_wf, [("anat", "inputnode.anat_file")]),
-        (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "pydpiper_inputs")]),
+        (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "commonspace_inputs")]),
         (anat_preproc_wf, anat2nii, [("outputnode.preproc_anat", "mnc_file")]),
         (anat2nii, datasink, [("nii_file", 'anat_preproc')]),
         (anat_preproc_wf, outputnode, [("outputnode.preproc_anat", "anat_preproc")]),
@@ -143,7 +143,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
     return workflow
 
 
-def init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, csv_labels, tr, tpattern, apply_STC=True, bold_preproc_only=False, commonspace_transform=False,compute_WM_CSF_masks=False,
+def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_labels, tr, tpattern, apply_STC=True, bold_preproc_only=False, commonspace_transform=False,compute_WM_CSF_masks=False,
                 bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', aCompCor_method='50%', name='main_wf'):
 
     workflow = pe.Workflow(name=name)
