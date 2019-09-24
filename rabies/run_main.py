@@ -1,6 +1,6 @@
 import os
 import sys
-from rabies.main_wf import init_anat_init_wf, init_main_postPydpiper_wf
+from rabies.main_wf import init_anat_init_wf, init_main_postcommonspace_wf
 
 import argparse
 from pathlib import Path
@@ -178,10 +178,10 @@ def execute_workflow():
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         if commonspace_method=='pydpiper':
-            model_script_path=dir_path+'/rabies/shell_scripts/pydpiper.sh'
+            model_script_path=dir_path+'/shell_scripts/pydpiper.sh'
             commonspace_transform=False
         elif commonspace_method=='ants_dbm':
-            model_script_path=dir_path+'/rabies/shell_scripts/ants_dbm.sh'
+            model_script_path=dir_path+'/shell_scripts/ants_dbm.sh'
             commonspace_transform=True
         else:
             raise ValueError('Invalid commonspace method.')
@@ -190,8 +190,8 @@ def execute_workflow():
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
-    main_postPydpiper_wf = init_main_postPydpiper_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
-    main_postPydpiper_wf.base_dir = output_folder
+    main_postcommonspace_wf = init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
+    main_postcommonspace_wf.base_dir = output_folder
 
     if opts.debug:
         # Change execution parameters
@@ -212,7 +212,7 @@ def execute_workflow():
 
     print('Running main workflow with %s plugin.' % plugin)
     if bold_preproc_only:
-        main_postPydpiper_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+        main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
     else:
         print('Running anat init.')
         anat_init_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
@@ -223,7 +223,7 @@ def execute_workflow():
             time.sleep(300)
 
         print('Running commonspace registration.')
-        #run pydpiper
+        #run commonspace
         out_dir=output_folder+'/commonspace/'
         os.system('mkdir -p %s' % (out_dir))
         cwd=os.getcwd()
@@ -232,4 +232,4 @@ def execute_workflow():
         os.chdir(cwd)
 
         print('Running main workflow.')
-        main_postPydpiper_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+        main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
