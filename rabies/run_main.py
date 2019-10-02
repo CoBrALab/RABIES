@@ -169,6 +169,7 @@ def execute_workflow():
             raise ValueError('Invalid commonspace method.')
 
         commonspace_csv_file=output_folder+'/anat_init_wf/commonspace_prep/commonspace_input_files.csv'
+        commonspace_info_csv=output_folder+'/anat_init_wf/commonspace_prep/commonspace_info.csv'
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
@@ -210,7 +211,7 @@ def execute_workflow():
         os.system('mkdir -p %s' % (out_dir))
         cwd=os.getcwd()
         os.chdir(out_dir)
-        os.system('bash %s %s' % (model_script_path,commonspace_csv_file))
+        os.system('bash %s %s %s' % (model_script_path,commonspace_csv_file,commonspace_info_csv))
         os.chdir(cwd)
 
         print('Running main workflow.')
