@@ -23,17 +23,26 @@ def commonspace_prep_func(file_list, commonspace_method):
     import pandas as pd
     cwd = os.getcwd()
     csv_path=cwd+'/commonspace_input_files.csv'
+    info_csv_path=cwd+'/commonspace_info.csv'
     anat_id=[]
+    sub_id=[]
+    session=[]
     for sub_file_list in file_list:
         for file in sub_file_list:
             anat_id.append(file)
+            sub_id.append(os.path.basename(file).split('_ses-')[0])
+            session.append(os.path.basename(file).split('_ses-')[1][0])
     if commonspace_method=='pydpiper':
         df = pd.DataFrame(data={"file": anat_id})
         df.to_csv(csv_path, sep=',',index=False)
     elif commonspace_method=='ants_dbm':
         df = pd.DataFrame(data=anat_id)
         df.to_csv(csv_path, header=False, sep=',',index=False)
-    return csv_path
+        df = pd.DataFrame(data=anat_id)
+        df['sub_id']=sub_id
+        df['session']=session
+        df.to_csv(info_csv_path, header=False, sep=',',index=False)
+    return csv_path, info_csv_path
 
 def mnc2nii(mnc_file):
     import os
@@ -55,7 +64,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
 
     workflow = pe.Workflow(name=name)
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','csv_file']),
+        fields=['anat_preproc','csv_file', 'info_csv']),
         name='outputnode')
 
     import pandas as pd
@@ -113,7 +122,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
                      joinfield=['file_list'])
 
     commonspace_prep = pe.JoinNode(Function(input_names=['file_list', 'commonspace_method'],
-                              output_names=['csv_file'],
+                              output_names=['csv_file', 'info_csv'],
                               function=commonspace_prep_func),
                      name='commonspace_prep',
                      joinsource='infosource',
@@ -128,7 +137,7 @@ def init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method
         (anat2nii, datasink, [("nii_file", 'anat_preproc')]),
         (anat_preproc_wf, outputnode, [("outputnode.preproc_anat", "anat_preproc")]),
         (joinnode_buffer, commonspace_prep, [("file_list", "file_list")]),
-        (commonspace_prep, outputnode, [("csv_file", "csv_file")]),
+        (commonspace_prep, outputnode, [("csv_file", "csv_file"),("info_csv", "info_csv")]),
     ])
 
     if commonspace_method=='pydpiper':
@@ -187,6 +196,8 @@ def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_lab
         WM_mask = os.environ["WM_mask"]
         CSF_mask = os.environ["CSF_mask"]
         bold_file_run1 = data_dir_path+'/'+opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-1_bold.nii.gz')
+        commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'WM_mask': WM_mask, 'CSF_mask': CSF_mask, 'bold_file_run1': bold_file_run1}
+
     else:
 
         # Datasink - creates output folder for important outputs
@@ -203,7 +214,6 @@ def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_lab
         labels = output_folder+'/'+opj('anat_datasink','anat_labels','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_anat_labels.nii.gz')
         mask = output_folder+'/'+opj('anat_datasink','anat_mask','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_anat_mask.nii.gz')
 
-    if commonspace_transform:
         commonspace_affine = output_folder+'/'+opj('anat_datasink','commonspace_transforms','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_Affine.mat')
         commonspace_warp = output_folder+'/'+opj('anat_datasink','commonspace_transforms','_subject_id_{subject_id}','_session_{session}','{subject_id}_ses-{session}_Warp.nii.gz')
         commonspace_anat_template = output_folder+'/'+opj('anat_datasink','commonspace_template','commonspace_template.nii.gz')
@@ -213,8 +223,6 @@ def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_lab
             commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'WM_mask': WM_mask, 'CSF_mask': CSF_mask, 'commonspace_affine': commonspace_affine, 'commonspace_warp': commonspace_warp, 'commonspace_anat_template':commonspace_anat_template}
         else:
             commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'commonspace_affine': commonspace_affine, 'commonspace_warp': commonspace_warp, 'commonspace_anat_template':commonspace_anat_template}
-    else:
-        commonspace_templates = {'anat_nii':anat_nii,'labels': labels, 'mask': mask, 'WM_mask': WM_mask, 'CSF_mask': CSF_mask, 'bold_file_run1': bold_file_run1}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                        name="commonspace_selectfiles")
@@ -223,31 +231,7 @@ def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_lab
     commonspace_selectfiles.base_directory=output_folder
 
 
-    if compute_WM_CSF_masks:
-        anat_mask_prep_wf=init_anat_mask_prep_wf(csv_labels=csv_labels)
-
-        #connect the anat workflow
-        workflow.connect([
-            (infosource, commonspace_selectfiles, [
-                ("subject_id", "subject_id"),
-                ]),
-            (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
-            (file_info, anat_mask_prep_wf, [
-                ("subject_id", "inputnode.subject_id"),
-                ("session", "inputnode.session")]),
-            (commonspace_selectfiles, anat_mask_prep_wf, [
-                ("labels", "inputnode.labels"),
-                ]),
-            (anat_mask_prep_wf, datasink, [
-                ("outputnode.eroded_WM_mask", "WM_mask"),
-                ("outputnode.eroded_CSF_mask", "CSF_mask"),
-                ]),
-            (anat_mask_prep_wf, outputnode, [
-                ("outputnode.eroded_WM_mask", "WM_mask"),
-                ("outputnode.eroded_CSF_mask", "CSF_mask"),
-                ]),
-        ])
-    else:
+    if bold_preproc_only:
         #connect the anat workflow
         workflow.connect([
             (infosource, commonspace_selectfiles, [
@@ -259,6 +243,43 @@ def init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, csv_lab
                 ("CSF_mask", "CSF_mask"),
                 ]),
         ])
+    else:
+        if compute_WM_CSF_masks:
+            anat_mask_prep_wf=init_anat_mask_prep_wf(csv_labels=csv_labels)
+
+            #connect the anat workflow
+            workflow.connect([
+                (infosource, commonspace_selectfiles, [
+                    ("subject_id", "subject_id"),
+                    ]),
+                (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
+                (file_info, anat_mask_prep_wf, [
+                    ("subject_id", "inputnode.subject_id"),
+                    ("session", "inputnode.session")]),
+                (commonspace_selectfiles, anat_mask_prep_wf, [
+                    ("labels", "inputnode.labels"),
+                    ]),
+                (anat_mask_prep_wf, datasink, [
+                    ("outputnode.eroded_WM_mask", "WM_mask"),
+                    ("outputnode.eroded_CSF_mask", "CSF_mask"),
+                    ]),
+                (anat_mask_prep_wf, outputnode, [
+                    ("outputnode.eroded_WM_mask", "WM_mask"),
+                    ("outputnode.eroded_CSF_mask", "CSF_mask"),
+                    ]),
+            ])
+        else:
+            #connect the anat workflow
+            workflow.connect([
+                (infosource, commonspace_selectfiles, [
+                    ("subject_id", "subject_id"),
+                    ]),
+                (commonspace_selectfiles, file_info, [("anat_nii", "file_path")]),
+                (commonspace_selectfiles, outputnode, [
+                    ("WM_mask", "WM_mask"),
+                    ("CSF_mask", "CSF_mask"),
+                    ]),
+            ])
 
 
     ########BOLD PREPROCESSING WORKFLOW

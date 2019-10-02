@@ -1,6 +1,7 @@
 #!bin/bash
 
 FILE_PATH=$1
+info_csv=$2
 template=$template_anat
 mask=$template_mask
 
@@ -65,7 +66,7 @@ else
   cp template_reg/transformed_labels.nii.gz $template_folder
   cp ants_dbm/output/secondlevel/secondlevel_template0.nii.gz $template_folder/commonspace_template.nii.gz
 
-  while read anat_file; do file=$(basename $anat_file); IFS='_' read -r -a array <<< "$file"; sub=${array[0]}; ses=${array[1]:4:1}; \
+  while IFS=, read -r col1 col2 col3; do anat_file=$col1; sub=$col2; ses=$col3; \
   sub_dir=../anat_datasink/commonspace_transforms/_subject_id_${sub}/_session_${ses}/ ; mkdir -p $sub_dir ; mkdir -p ../anat_datasink/anat_mask/_subject_id_${sub}/_session_${ses}/; mkdir -p ../anat_datasink/anat_labels/_subject_id_${sub}/_session_${ses}/; \
   mkdir -p ../anat_datasink/WM_mask/_subject_id_${sub}/_session_${ses}/; mkdir -p ../anat_datasink/CSF_mask/_subject_id_${sub}/_session_${ses}/; \
   inverse_warp=ants_dbm/output/secondlevel/secondlevel_${sub}_ses-${ses}_anat_preproc*InverseWarp.nii.gz; \
@@ -79,7 +80,7 @@ else
   antsApplyTransforms -i template_reg/transformed_mask.nii.gz -t [$affine,1] -t $inverse_warp -r $anat_file -o ../anat_datasink/anat_mask/_subject_id_${sub}/_session_${ses}/${sub}_ses-${ses}_anat_mask.nii.gz -n GenericLabel; \
   antsApplyTransforms -i template_reg/transformed_WM_mask.nii.gz -t [$affine,1] -t $inverse_warp -r $anat_file -o ../anat_datasink/WM_mask/_subject_id_${sub}/_session_${ses}/${sub}_ses-${ses}_WM_mask.nii.gz -n GenericLabel; \
   antsApplyTransforms -i template_reg/transformed_CSF_mask.nii.gz -t [$affine,1] -t $inverse_warp -r $anat_file -o ../anat_datasink/CSF_mask/_subject_id_${sub}/_session_${ses}/${sub}_ses-${ses}_CSF_mask.nii.gz -n GenericLabel"; \
-  done < $FILE_PATH > transform_jobs.sh
+  done < $info_csv > transform_jobs.sh
 
   qbatch -b $ants_dbm_cluster_type -o "-sync y" transform_jobs.sh
 
