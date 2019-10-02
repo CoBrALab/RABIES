@@ -98,7 +98,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
-    if bold_preproc_only:
+    if bold_preproc_only: ###this is depreciated
         #takes as input a csv file with the path to the bold file, the paths to the anatomical template, the brain/CSF/WM masks, and the associated label file
         #the workflow will iterate simply through each subject
 

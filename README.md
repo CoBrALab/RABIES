@@ -4,55 +4,105 @@
 
 ## Command Line Interface
 ```
-  usage: rabies [-h] [-e BOLD_ONLY] [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT]
-                [-r COREG_SCRIPT] [-p PLUGIN] [-d DEBUG] [-v VERBOSE]
-                [--anat_template] [--brain_mask] [--WM_mask] [--CSF_mask]
-                [--labels] [--csv_labels]
-                input_dir output_dir
+usage: rabies [-h] [-e BOLD_ONLY] [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT]
+              [-r COREG_SCRIPT] [-p PLUGIN] [-d DEBUG] [-v VERBOSE]
+              [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
+              [--memory_request MEMORY_REQUEST]
+              [--local_threads LOCAL_THREADS] [--STC STC] [--TR TR]
+              [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
+              [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
+              [--CSF_mask CSF_MASK] [--labels LABELS]
+              [--csv_labels CSV_LABELS]
+              input_dir output_dir
 
-  positional arguments:
-    input_dir             the root folder of the input data directory.
-    output_dir            the output path for the outcomes of preprocessing
+RABIES performs preprocessing of rodent fMRI images. Can either run on
+datasets that only contain EPI images, or both structural and EPI images.
+Refer to the README documentation for the input folder structure.
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    -e BOLD_ONLY, --bold_only BOLD_ONLY
-                          preprocessing with only EPI scans. commonspace
-                          registration and distortion correction is executed
-                          through registration of the EPIs to a common template
-                          atlas. Default=False
-    -c COMMONSPACE_METHOD, --commonspace_method COMMONSPACE_METHOD
-                          specify either 'pydpiper' or 'ants_dbm' as common
-                          space registration method. Default=pydpiper
-    -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
-                          specify a registration script for iterative bias field
-                          correction. 'default' is a rigid registration.
-                          Default=default
-    -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
-                          Specify EPI to anat coregistration script. Built-in
-                          options include 'Rigid', 'Affine' and 'SyN' (non-
-                          linear), but can specify a custom registration script
-                          following the template script structure (see
-                          RABIES/rabies/shell_scripts/ for template).
-                          Default=SyN
-    -p PLUGIN, --plugin PLUGIN
-                          Specify the nipype plugin for workflow execution.
-                          Consult nipype plugin documentation for detailed
-                          options. Linear, MultiProc, SGE and SGEGraph have been
-                          tested. Default=Linear
-    -d DEBUG, --debug DEBUG
-                          Run in debug mode. Default=False
-    -v VERBOSE, --verbose VERBOSE
-                          Increase output verbosity. **doesnt do anything for
-                          now. Default=False
+positional arguments:
+  input_dir             the root folder of the input data directory.
+  output_dir            the output path to drop outputs from major
+                        preprocessing steps.
 
-  Template files.:
-    --anat_template       Anatomical file for the commonspace template.
-    --brain_mask          Brain mask for the template.
-    --WM_mask             White matter mask for the template.
-    --CSF_mask            CSF mask for the template.
-    --labels              Atlas file with anatomical labels.
-    --csv_labels          csv file with info on the labels.
+optional arguments:
+  -h, --help            show this help message and exit
+  -e BOLD_ONLY, --bold_only BOLD_ONLY
+                        preprocessing with only EPI scans. commonspace
+                        registration and distortion correction is executed
+                        through registration of the EPIs to a common template
+                        atlas. (default: False)
+  -c COMMONSPACE_METHOD, --commonspace_method COMMONSPACE_METHOD
+                        specify either 'pydpiper' or 'ants_dbm' as common
+                        space registration method. Pydpiper can only be
+                        executed in parallel with SGE or PBS. ***pydpiper
+                        option in development (default: ants_dbm)
+  -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
+                        specify a registration script for iterative bias field
+                        correction. 'default' is a rigid registration.
+                        (default: Rigid)
+  -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
+                        Specify EPI to anat coregistration script. Built-in
+                        options include 'Rigid', 'Affine' and 'SyN' (non-
+                        linear), but can specify a custom registration script
+                        following the template script structure (see
+                        RABIES/rabies/shell_scripts/ for template). (default:
+                        SyN)
+  -p PLUGIN, --plugin PLUGIN
+                        Specify the nipype plugin for workflow execution.
+                        Consult nipype plugin documentation for detailed
+                        options. Linear, MultiProc, SGE and SGEGraph have been
+                        tested. (default: Linear)
+  -d DEBUG, --debug DEBUG
+                        Run in debug mode. Default=False (default: False)
+  -v VERBOSE, --verbose VERBOSE
+                        Increase output verbosity. **doesn't do anything for
+                        now. (default: False)
+
+cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
+  --cluster_type {local,sge,pbs,slurm}
+                        Choose the type of cluster system to submit jobs to
+                        (default: local)
+  --walltime WALLTIME   Option for job submission specifying requested time
+                        per pairwise registration. (default: 20:00:00)
+  --memory_request MEMORY_REQUEST
+                        Option for job submission specifying requested memory
+                        per pairwise registration. (default: 8gb)
+  --local_threads LOCAL_THREADS, -j LOCAL_THREADS
+                        For local execution, how many subject-wise modelbuilds
+                        to run in parallel, defaults to number of CPUs
+                        (default: 8)
+
+Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
+  --STC STC             Whether to run STC or not. (default: True)
+  --TR TR               Specify repetition time (TR). (default: 1.0s)
+  --tpattern TPATTERN   Specify if interleaved or sequential acquisition.
+                        'alt' for interleaved, 'seq' for sequential. (default:
+                        alt)
+
+Template files.:
+  --anat_template ANAT_TEMPLATE
+                        Anatomical file for the commonspace template.
+                        (default: /home/cic/desgab/RABIES/DSURQE_atlas/nifti/D
+                        SURQE_100micron_average.nii.gz)
+  --brain_mask BRAIN_MASK
+                        Brain mask for the template. (default: /home/cic/desga
+                        b/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.
+                        gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
+                        c/desgab/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_er
+                        oded_WM_mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
+                        RABIES/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_
+                        mask.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
+                        /desgab/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_lab
+                        els.nii.gz)
+  --csv_labels CSV_LABELS
+                        csv file with info on the labels. (default: /home/cic/
+                        desgab/RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.c
+                        sv)
+
+
 ```
 
 ## Template execution command
