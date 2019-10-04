@@ -8,7 +8,7 @@ mask=$template_mask
 mkdir -p ants_dbm
 cd ants_dbm
 
-echo twolevel_dbm.py --rigid-model-target $atlas_labels \
+echo twolevel_dbm.py --rigid-model-target $template \
 --no-N4 --transform SyN --float --average-type normmean --gradient-step 0.25 --model-iterations 3 \
 --modelbuild-command antsMultivariateTemplateConstruction2.sh --cluster-type $ants_dbm_cluster_type \
 --walltime $ants_dbm_walltime --memory-request $ants_dbm_memory_request --local-threads $ants_dbm_local_threads \
@@ -30,7 +30,7 @@ else
 
   moving=../ants_dbm/output/secondlevel/secondlevel_template0.nii.gz
 
-  antsRegistration --dimensionality 3 --verbose 1 \
+  antsRegistration --dimensionality 3 \
     --output [template_reg_,template_reg_warped_image.nii.gz] \
     --initial-moving-transform [$template,$moving,1] \
     --transform Rigid[0.1] --metric Mattes[$template,$moving,1,32,None] --convergence [2025x2025x2025x2025x2025,1e-6,10] --shrink-factors 16x15x14x13x12 --smoothing-sigmas 7.99225592362x7.49173910041x6.99114831402x6.49046645078x5.98967067114vox --masks [NULL,NULL] \

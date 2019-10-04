@@ -1,6 +1,7 @@
 import os
 import sys
 from rabies.main_wf import init_anat_init_wf, init_main_postcommonspace_wf
+from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
 
 import argparse
 from pathlib import Path
@@ -152,51 +153,65 @@ def execute_workflow():
     csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
 
     if bold_preproc_only:
-        commonspace_transform=False
-        compute_WM_CSF_masks=False
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_cor_script='Default', bias_reg_script=bias_reg_script, coreg_script=coreg_script)
+        workflow.base_dir = output_folder
+
+        if opts.debug:
+            # Change execution parameters
+            workflow.config['execution'] = {'stop_on_first_crash' : 'true',
+                                    'remove_unnecessary_outputs': 'false',
+                                    'keep_inputs': 'true',
+                                    'log_directory' : os.getcwd()}
+
+            # Change logging parameters
+            workflow.config['logging'] = {'workflow_level' : 'DEBUG',
+                                    'filemanip_level' : 'DEBUG',
+                                    'interface_level' : 'DEBUG',
+                                    'utils_level' : 'DEBUG',
+                                    'log_to_file' : 'True',
+                                    'log_directory' : os.getcwd()}
+            print('Debug ON')
+
+        print('Running main workflow with %s plugin.' % plugin)
+        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+
     elif not bold_preproc_only:
         anat_init_wf = init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method=commonspace_method)
         anat_init_wf.base_dir = output_folder
 
-        dir_path = os.path.dirname(os.path.realpath(__file__))
         if commonspace_method=='pydpiper':
-            model_script_path=dir_path+'/shell_scripts/pydpiper.sh'
+            model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/pydpiper.sh'
             commonspace_transform=False
         elif commonspace_method=='ants_dbm':
-            model_script_path=dir_path+'/shell_scripts/ants_dbm.sh'
+            model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
             commonspace_transform=True
         else:
             raise ValueError('Invalid commonspace method.')
 
         commonspace_csv_file=output_folder+'/anat_init_wf/commonspace_prep/commonspace_input_files.csv'
         commonspace_info_csv=output_folder+'/anat_init_wf/commonspace_prep/commonspace_info.csv'
-    else:
-        raise ValueError('bold_preproc_only must be true or false.')
 
-    main_postcommonspace_wf = init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
-    main_postcommonspace_wf.base_dir = output_folder
+        main_postcommonspace_wf = init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
+        main_postcommonspace_wf.base_dir = output_folder
 
-    if opts.debug:
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash' : 'true',
-                                'remove_unnecessary_outputs': 'false',
-                                'keep_inputs': 'true',
-                                'log_directory' : os.getcwd()}
+        if opts.debug:
+            # Change execution parameters
+            workflow.config['execution'] = {'stop_on_first_crash' : 'true',
+                                    'remove_unnecessary_outputs': 'false',
+                                    'keep_inputs': 'true',
+                                    'log_directory' : os.getcwd()}
 
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level' : 'DEBUG',
-                                'filemanip_level' : 'DEBUG',
-                                'interface_level' : 'DEBUG',
-                                'utils_level' : 'DEBUG',
-                                'log_to_file' : 'True',
-                                'log_directory' : os.getcwd()}
-        print('Debug ON')
+            # Change logging parameters
+            workflow.config['logging'] = {'workflow_level' : 'DEBUG',
+                                    'filemanip_level' : 'DEBUG',
+                                    'interface_level' : 'DEBUG',
+                                    'utils_level' : 'DEBUG',
+                                    'log_to_file' : 'True',
+                                    'log_directory' : os.getcwd()}
+            print('Debug ON')
 
 
-    print('Running main workflow with %s plugin.' % plugin)
-    if bold_preproc_only:
-        main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
-    else:
+        print('Running main workflow with %s plugin.' % plugin)
         print('Running anat init.')
         anat_init_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
 
@@ -216,3 +231,5 @@ def execute_workflow():
 
         print('Running main workflow.')
         main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+    else:
+        raise ValueError('bold_preproc_only must be true or false.')

@@ -264,8 +264,8 @@ class antsGenerateTemplate(CommandLine):
 class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
     ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")
-    use_fieldwarp = traits.Bool(mandatory=True, desc="determine whether fieldwarp is used")
-    fieldwarp = File(exists=True, desc="file with the warp field for SDC")
+    transforms = traits.List(desc="List of transforms to apply to every slice")
+    inverses = traits.List(desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     motcorr_params = File(exists=True, mandatory=True, desc="xforms from head motion estimation .csv file")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
@@ -288,8 +288,16 @@ class slice_applyTransforms(BaseInterface):
         img=nb.load(self.inputs.in_file)
         shape=img.header.get_zooms()[:3]
 
+        #tranforms is a list of transform files, set in order of call within antsApplyTransforms
+        transform_string=""
+        for transform,inverse in zip(self.inputs.transforms, self.inputs.inverses):
+            if bool(inverse):
+                transform_string += "-t [%s,1] " % (transform,)
+            else:
+                transform_string += "-t %s " % (transform,)
+
         #resampling ref image to EPI dimensions
-        os.system('ResampleImage 3 %s resampled.nii.gz %sx%sx%s 0 4' % (self.inputs.ref_file, str(shape[0]),str(shape[1]),str(shape[2]))) #invert the 2nd and 3rd dimensions to fit .mnc format
+        os.system('ResampleImage 3 %s resampled.nii.gz %sx%sx%s 0 4' % (self.inputs.ref_file, str(shape[0]),str(shape[1]),str(shape[2])))
 
         print("Splitting bold and motion correction files into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
@@ -300,12 +308,8 @@ class slice_applyTransforms(BaseInterface):
         for x in range(0, num_volumes):
             warped_vol_fname = os.path.abspath("deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
-            if self.inputs.use_fieldwarp:
-                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
-                os.system('antsApplyTransforms -i %s -t %s -t motcorr_vol%s.mat -r %s -o %s' % (bold_volumes[x], self.inputs.fieldwarp, x, ref_img, warped_vol_fname))
-            else:
-                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
-                os.system('antsApplyTransforms -i %s -t motcorr_vol%s.mat -r %s -o %s' % (bold_volumes[x], x, ref_img, warped_vol_fname))
+            os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
+            os.system('antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname))
             print("Resampled volume " + str(x))
 
         setattr(self, 'out_files', warped_volumes)
