@@ -16,7 +16,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf'):
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['bold', 'bold_ref', 'bold_ref_brain']),
+        niu.IdentityInterface(fields=['bold', 'bold_ref']),
         name='outputnode')
 
 
@@ -47,46 +47,73 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf'):
 
 
 def init_bold_commonspace_trans_wf(name='bold_commonspace_trans_wf'):
-    """
-    Apply transforms of the EPI to commonspace, resampling the resolution to the target template.
-    """
+    import os
+    from .confounds import MaskEPI
+
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'bold_file', 'commonspace_affine', 'commonspace_warp', 'commonspace_template']),
+        'name_source', 'bold_file', 'transforms_list', 'inverses']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['commonspace_bold']),
+        niu.IdentityInterface(fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'labels']),
         name='outputnode')
 
-    transform_commonspace = pe.Node(Function(input_names=["reference_image",'input_image','commonspace_affine', 'commonspace_warp'],
-                              output_names=["output_image"],
-                              function=apply_transform),
-                     name='transform_commonspace')
+    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform.inputs.ref_file = os.environ["template_anat"]
+
+    merge = pe.Node(Merge(), name='merge')
+
+    # Generate a new BOLD reference
+    bold_reference_wf = init_bold_reference_wf()
+
+
+    WM_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='WM_mask_EPI')
+    WM_mask_to_EPI.inputs.name_spec='commonspace_WM_mask'
+    WM_mask_to_EPI.inputs.mask=os.environ["WM_mask"]
+
+    CSF_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='CSF_mask_EPI')
+    CSF_mask_to_EPI.inputs.name_spec='commonspace_CSF_mask'
+    CSF_mask_to_EPI.inputs.mask=os.environ["CSF_mask"]
+
+    brain_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='Brain_mask_EPI')
+    brain_mask_to_EPI.inputs.name_spec='commonspace_brain_mask'
+    brain_mask_to_EPI.inputs.mask=os.environ["template_mask"]
+
+    propagate_labels=pe.Node(MaskEPI(SyN_SDC=True), name='prop_labels_EPI')
+    propagate_labels.inputs.name_spec='commonspace_anat_labels'
+    propagate_labels.inputs.mask=os.environ["atlas_labels"]
+
 
     workflow.connect([
-        (inputnode, transform_commonspace, [
-            ('bold_file', 'input_image'),
-            ('commonspace_template', 'reference_image'),
-            ('commonspace_affine', 'commonspace_affine'),
-            ('commonspace_warp', 'commonspace_warp'),
+        (inputnode, merge, [('name_source', 'header_source')]),
+        (inputnode, bold_transform, [
+            ('bold_file', 'in_file'),
+            ('transforms_list', 'transforms'),
+            ('inverses', 'inverses'),
             ]),
-        (transform_commonspace, outputnode, [
-            ('output_image', 'commonspace_bold'),
-            ]),
+        (bold_transform, merge, [('out_files', 'in_files')]),
+        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (merge, outputnode, [('out_file', 'bold')]),
+        (bold_reference_wf, WM_mask_to_EPI, [
+            ('outputnode.ref_image', 'ref_EPI')]),
+        (WM_mask_to_EPI, outputnode, [
+            ('EPI_mask', 'WM_mask')]),
+        (bold_reference_wf, CSF_mask_to_EPI, [
+            ('outputnode.ref_image', 'ref_EPI')]),
+        (CSF_mask_to_EPI, outputnode, [
+            ('EPI_mask', 'CSF_mask')]),
+        (bold_reference_wf, brain_mask_to_EPI, [
+            ('outputnode.ref_image', 'ref_EPI')]),
+        (brain_mask_to_EPI, outputnode, [
+            ('EPI_mask', 'brain_mask')]),
+        (bold_reference_wf, propagate_labels, [
+            ('outputnode.ref_image', 'ref_EPI')]),
+        (propagate_labels, outputnode, [
+            ('EPI_mask', 'labels')]),
+        (bold_reference_wf, outputnode, [
+            ('outputnode.ref_image', 'bold_ref')]),
     ])
 
     return workflow
-
-
-def apply_transform(reference_image,input_image,commonspace_affine,commonspace_warp):
-    import os
-    subject_id=os.path.basename(input_image).split('_ses-')[0]
-    session=os.path.basename(input_image).split('_ses-')[1][0]
-    run=os.path.basename(input_image).split('_run-')[1][0]
-    cwd = os.getcwd()
-    output_image='%s/%s_ses-%s_run-%s_commonspace.nii.gz' % (cwd, subject_id, session, run)
-    os.system('antsApplyTransforms -d 3 -i %s -t %s -t %s -r %s -o %s -e 3 --verbose' % (input_image,commonspace_warp,commonspace_affine,reference_image,output_image,))
-
-    return output_image

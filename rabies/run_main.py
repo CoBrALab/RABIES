@@ -1,6 +1,6 @@
 import os
 import sys
-from rabies.main_wf import init_anat_init_wf, init_main_postcommonspace_wf
+from rabies.main_wf import init_unified_main_wf
 from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
 
 import argparse
@@ -150,31 +150,37 @@ def execute_workflow():
     os.environ["template_mask_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_mask.mnc" % (os.environ["RABIES"])
 
     data_csv=data_dir_path+'/data_info.csv'
-    csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
+    #csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
 
     if bold_preproc_only:
         workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_cor_script='Default', bias_reg_script=bias_reg_script, coreg_script=coreg_script)
-        workflow.base_dir = output_folder
+    elif not bold_preproc_only:
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, apply_STC=stc_bool, bias_cor_script='Default', bias_reg_script=bias_reg_script, coreg_script=coreg_script)
+    else:
+        raise ValueError('bold_preproc_only must be true or false.')
 
-        if opts.debug:
-            # Change execution parameters
-            workflow.config['execution'] = {'stop_on_first_crash' : 'true',
-                                    'remove_unnecessary_outputs': 'false',
-                                    'keep_inputs': 'true',
-                                    'log_directory' : os.getcwd()}
+    workflow.base_dir = output_folder
 
-            # Change logging parameters
-            workflow.config['logging'] = {'workflow_level' : 'DEBUG',
-                                    'filemanip_level' : 'DEBUG',
-                                    'interface_level' : 'DEBUG',
-                                    'utils_level' : 'DEBUG',
-                                    'log_to_file' : 'True',
-                                    'log_directory' : os.getcwd()}
-            print('Debug ON')
+    if opts.debug:
+        # Change execution parameters
+        workflow.config['execution'] = {'stop_on_first_crash' : 'true',
+                                'remove_unnecessary_outputs': 'false',
+                                'keep_inputs': 'true',
+                                'log_directory' : os.getcwd()}
 
-        print('Running main workflow with %s plugin.' % plugin)
-        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+        # Change logging parameters
+        workflow.config['logging'] = {'workflow_level' : 'DEBUG',
+                                'filemanip_level' : 'DEBUG',
+                                'interface_level' : 'DEBUG',
+                                'utils_level' : 'DEBUG',
+                                'log_to_file' : 'True',
+                                'log_directory' : os.getcwd()}
+        print('Debug ON')
 
+    print('Running main workflow with %s plugin.' % plugin)
+    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+
+'''
     elif not bold_preproc_only:
         anat_init_wf = init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method=commonspace_method)
         anat_init_wf.base_dir = output_folder
@@ -233,3 +239,4 @@ def execute_workflow():
         main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
     else:
         raise ValueError('bold_preproc_only must be true or false.')
+'''
