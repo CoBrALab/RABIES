@@ -189,6 +189,9 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                 ('commonspace_transforms_list', 'inputnode.transforms_list'),
                 ('commonspace_inverses', 'inputnode.inverses'),
                 ]),
+            (bold_bold_trans_wf, bold_commonspace_trans_wf, [
+                ('outputnode.bold', 'inputnode.bold_file'),
+                ]),
             (bold_commonspace_trans_wf, outputnode, [
                 ('outputnode.bold', 'commonspace_bold'),
                 ('outputnode.brain_mask', 'commonspace_mask'),
@@ -449,6 +452,20 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             ('ants_dbm_affine', 'ants_dbm_affine'),
             ('ants_dbm_common_anat', 'ants_dbm_common_anat'),
             ]),
+        (outputnode, datasink, [
+            ("bold_ref","initial_bold_ref"), #inspect initial bold ref
+            ("corrected_EPI","bias_cor_bold"), #inspect bias correction
+            ("EPI_brain_mask","bold_brain_mask"), #get the EPI labels
+            ("EPI_WM_mask","bold_WM_mask"), #get the EPI labels
+            ("EPI_CSF_mask","bold_CSF_mask"), #get the EPI labels
+            ("EPI_labels","bold_labels"), #get the EPI labels
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ("FD_voxelwise", "FD_voxelwise"),
+            ("pos_voxelwise", "pos_voxelwise"),
+            ("FD_csv", "FD_csv"),
+            ("resampled_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
+            ("resampled_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ]),
         ])
 
     return workflow
@@ -473,7 +490,7 @@ def commonspace_reg_function(file_list, output_folder):
 
     template_folder=output_folder+'/ants_dbm_outputs/'
     os.system('mkdir -p %s' % (template_folder,))
-    os.system('mv * %s' % (template_folder,))
+    os.system('cp * %s' % (template_folder,))
 
     #ants dbm outputs
     ants_dbm_common = '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'

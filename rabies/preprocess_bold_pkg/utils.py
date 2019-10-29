@@ -266,7 +266,8 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")
     transforms = traits.List(desc="List of transforms to apply to every slice")
     inverses = traits.List(desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
-    motcorr_params = File(exists=True, mandatory=True, desc="xforms from head motion estimation .csv file")
+    apply_motcorr = traits.Bool(default=True, desc="Whether to apply motion realignment.")
+    motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
@@ -283,10 +284,12 @@ class slice_applyTransforms(BaseInterface):
 
     def _run_interface(self, runtime):
         #resampling the reference image to the dimension of the EPI
+        from nibabel import processing
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
         shape=img.header.get_zooms()[:3]
+        processing.resample_to_output(nb.load(self.inputs.ref_file), voxel_sizes=shape, order=4).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
@@ -296,20 +299,21 @@ class slice_applyTransforms(BaseInterface):
             else:
                 transform_string += "-t %s " % (transform,)
 
-        #resampling ref image to EPI dimensions
-        os.system('ResampleImage 3 %s resampled.nii.gz %sx%sx%s 0 4' % (self.inputs.ref_file, str(shape[0]),str(shape[1]),str(shape[2])))
-
         print("Splitting bold and motion correction files into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
 
-        motcorr_params=self.inputs.motcorr_params
+        if self.inputs.apply_motcorr:
+            motcorr_params=self.inputs.motcorr_params
         ref_img=os.path.abspath('resampled.nii.gz')
         warped_volumes = []
         for x in range(0, num_volumes):
             warped_vol_fname = os.path.abspath("deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
-            os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
-            os.system('antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname))
+            if self.inputs.apply_motcorr:
+                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
+                os.system('antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname))
+            else:
+                os.system('antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname))
             print("Resampled volume " + str(x))
 
         setattr(self, 'out_files', warped_volumes)

@@ -105,7 +105,7 @@ Template files.:
 
 ```
 
-## Template execution command
+## Example execution command
 ```
   rabies -e 0 -c ants_dbm -b default -r SyN -p SGEGraph -d 0 -v 0 nii_inputs/ rabies_outputs/
 ```
@@ -220,6 +220,7 @@ After installing the container from the Dockerfile, can run RABIES interactively
 <br/>
 
 ## Publications
+* Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. Recurrent functional connectivity gradients identified along specific frequency bands of oscillatory coherence and across anesthesia protocols for mouse fMRI. Presented at Society for Neuroscience 2019, Chicago, IL
 * Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. (2019) Dynamic functional connectivity properties are differentially affected by anesthesia protocols and compare across species. Presented at Organization for Human Brain Mapping 2019, Rome, Italy
 * Gabriel Desrosiers-Gregoire, Daniel Gallino, Gabriel A. Devenyi, M. Mallar Chakravarty. (2019) Comparison of the BOLD-evoked response to hypercapnic challenge in mice anesthetized under isoflurane and dexmedetomidine. Presented at International Society for Magnetic Resonance in Medicine 2019, Montreal, QC
 

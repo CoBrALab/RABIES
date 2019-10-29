@@ -21,6 +21,7 @@ def init_bold_preproc_trans_wf(name='bold_preproc_trans_wf'):
 
 
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform.inputs.apply_motcorr = True
 
     merge = pe.Node(Merge(), name='merge')
 
@@ -62,6 +63,7 @@ def init_bold_commonspace_trans_wf(name='bold_commonspace_trans_wf'):
 
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
     bold_transform.inputs.ref_file = os.environ["template_anat"]
+    bold_transform.inputs.apply_motcorr = False
 
     merge = pe.Node(Merge(), name='merge')
 
