@@ -8,13 +8,11 @@ from nipype.interfaces.base import (
 
 def init_anat_preproc_wf(name='anat_preproc_wf'):
     '''
-    This workflow execute required preprocessing steps for anatomical scans at
-    the single subject levels.
-    This includes:
-    1-conversion of anat to minc format
-    2-single scan anatomical preprocessing (N4 bias correction, brain mask, ...)
-    with mouse-preprocessing-v3.sh script.
-    The inputs for pydpiper are then ready.
+    This workflow executes anatomical preprocessing based on anat_preproc.sh,
+    which includes initial N4 bias field correction and Adaptive
+    Non-Local Means Denoising (Manjon et al. 2010), followed by rigid
+    registration to a template atlas to obtain brain mask to then compute an
+    optimized N4 correction and denoising.
     '''
 
     workflow = pe.Workflow(name=name)
@@ -46,26 +44,30 @@ class AnatPreproc(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        cwd = os.getcwd()
-        os.system('mkdir -p %s/mnc_anat/' % (cwd,))
-        os.system('mkdir -p %s/anat_preproc/' % (cwd,))
-        anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
-        os.system('nii2mnc %s %s/mnc_anat/%s.mnc' % (self.inputs.nii_anat,cwd,anat_file))
-        anat_mnc='%s/mnc_anat/%s.mnc' % (cwd,anat_file)
-        #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration
-        import nibabel as nb
         import numpy as np
+        import nibabel as nb
+        from nibabel import processing
+
+        cwd = os.getcwd()
+        out_dir='%s/anat_preproc/' % (cwd,)
+        os.system('mkdir -p %s' % (out_dir,))
+        anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
+
+        #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration
         dim=nb.load(self.inputs.nii_anat).header.get_zooms()
         low_dim=np.asarray(dim).min()
         if not (dim==low_dim).sum()==3:
             print('ANAT IMAGE NOT ISOTROPIC. WILL RESAMPLE TO ISOTROPIC RESOLUTION BASED ON LOWEST AVAILABLE RESOLUTION.')
-            os.system('ResampleImage 3 %s %s/mnc_anat/%s_resampled.mnc %sx%sx%s 0 4' % (anat_mnc,cwd,anat_file,low_dim,low_dim,low_dim))
-            anat_mnc='%s/mnc_anat/%s_resampled.mnc' % (cwd,anat_file)
+            input_anat=out_dir+anat_file+'_resampled.nii.gz'
+            processing.resample_to_output(nb.load(self.inputs.nii_anat), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(input_anat)
+        else:
+            input_anat=self.inputs.nii_anat
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        os.system('bash %s/../shell_scripts/mouse-preprocessing-v3.sh %s %s/anat_preproc/%s_preproc.mnc' % (dir_path,anat_mnc,cwd,anat_file))
+        output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
+        os.system('bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat))
 
-        setattr(self, 'preproc_anat', '%s/anat_preproc/%s_preproc.mnc' % (cwd,anat_file))
+        setattr(self, 'preproc_anat', output_anat)
         return runtime
 
     def _list_outputs(self):

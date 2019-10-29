@@ -1,13 +1,6 @@
 # Minimal dependencies
 ANTs>=2.3.1
 AFNI>=17.0.18
-minc-toolkit>=1.9.17
-pyminc>=0.52
-minc-stuffs>=0.1.24
-itksnap>=3.4.0
-pydpiper>=2.0.13
-bpipe>=0.9.9.6
-qbatch>=2.1.5
 
 # python dependencies
 conda channels:
@@ -31,3 +24,12 @@ nilearn>=0.4.2
 nipype>=1.1.4
 tqdm
 pathos
+
+# Optional MINC dependencies
+minc-toolkit>=1.9.17
+pyminc>=0.52
+minc-stuffs>=0.1.24
+itksnap>=3.4.0
+pydpiper>=2.0.13
+bpipe>=0.9.9.6
+qbatch>=2.1.5

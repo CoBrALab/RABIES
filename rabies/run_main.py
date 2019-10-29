@@ -1,6 +1,5 @@
 import os
 import sys
-from rabies.main_wf import init_anat_init_wf, init_main_postcommonspace_wf
 
 import argparse
 from pathlib import Path
@@ -36,6 +35,12 @@ def get_parser():
                         help="Run in debug mode. Default=False")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
                         help="Increase output verbosity. **doesn't do anything for now.")
+
+    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling:')
+    g_resampling.add_argument('--isotropic_resampling', type=bool, default=False,
+                        help="Whether to resample the EPI to an isotropic resolution based on the lowest dimension.")
+    g_resampling.add_argument('--upsampling', type=float, default=1.0,
+                        help="Can specify a upsampling parameter to increase the EPI resolution upon resampling and minimize information lost from the transform interpolation.")
 
     g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
@@ -93,8 +98,10 @@ def get_parser():
 
 
 def execute_workflow():
+    #generates the parser CLI and execute the workflow based on specified parameters.
     opts = get_parser().parse_args()
 
+    #obtain parser parameters
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
     coreg_script=opts.coreg_script
@@ -112,6 +119,10 @@ def execute_workflow():
         stc_tpattern='seqplus'
     else:
         raise ValueError('Invalid --tpattern provided.')
+
+    #resampling options
+    isotropic_resampling=opts.isotropic_resampling
+    upsampling=opts.upsampling
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
@@ -145,37 +156,20 @@ def execute_workflow():
     if not os.path.isfile(os.environ["csv_labels"]):
         raise ValueError("--csv_labels file doesn't exists.")
 
-    os.environ["template_anat_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_average.mnc" % (os.environ["RABIES"])
-    os.environ["template_mask_mnc"] = "%s/DSURQE_atlas/minc/DSURQE_100micron_mask.mnc" % (os.environ["RABIES"])
-
-    data_csv=data_dir_path+'/data_info.csv'
-    csv_labels=os.environ["csv_labels"] #file with the id# of each label in the atlas to compute WM and CSF masks
+    data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
 
     if bold_preproc_only:
-        commonspace_transform=False
-        compute_WM_CSF_masks=False
+        from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
     elif not bold_preproc_only:
-        anat_init_wf = init_anat_init_wf(data_csv, data_dir_path, output_folder, commonspace_method=commonspace_method)
-        anat_init_wf.base_dir = output_folder
-
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        if commonspace_method=='pydpiper':
-            model_script_path=dir_path+'/shell_scripts/pydpiper.sh'
-            commonspace_transform=False
-        elif commonspace_method=='ants_dbm':
-            model_script_path=dir_path+'/shell_scripts/ants_dbm.sh'
-            commonspace_transform=True
-        else:
-            raise ValueError('Invalid commonspace method.')
-
-        commonspace_csv_file=output_folder+'/anat_init_wf/commonspace_prep/commonspace_input_files.csv'
-        commonspace_info_csv=output_folder+'/anat_init_wf/commonspace_prep/commonspace_info.csv'
+        from rabies.main_wf import init_unified_main_wf
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
-    main_postcommonspace_wf = init_main_postcommonspace_wf(data_csv, data_dir_path, output_folder, apply_STC=stc_bool, tr=stc_TR, tpattern=stc_tpattern, bold_preproc_only=bold_preproc_only, csv_labels=csv_labels, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=commonspace_transform)
-    main_postcommonspace_wf.base_dir = output_folder
+    workflow.base_dir = output_folder
 
+    #setting workflow options for debug mode
     if opts.debug:
         # Change execution parameters
         workflow.config['execution'] = {'stop_on_first_crash' : 'true',
@@ -192,27 +186,6 @@ def execute_workflow():
                                 'log_directory' : os.getcwd()}
         print('Debug ON')
 
-
     print('Running main workflow with %s plugin.' % plugin)
-    if bold_preproc_only:
-        main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
-    else:
-        print('Running anat init.')
-        anat_init_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
-
-        while(not os.path.isfile(commonspace_csv_file)):
-            import time
-            print('Anat init not finished, waiting 5min.')
-            time.sleep(300)
-
-        print('Running commonspace registration.')
-        #run commonspace
-        out_dir=output_folder+'/commonspace/'
-        os.system('mkdir -p %s' % (out_dir))
-        cwd=os.getcwd()
-        os.chdir(out_dir)
-        os.system('bash %s %s %s' % (model_script_path,commonspace_csv_file,commonspace_info_csv))
-        os.chdir(cwd)
-
-        print('Running main workflow.')
-        main_postcommonspace_wf.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+    #execute workflow, with plugin_args limiting the cluster load for parallel execution
+    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
