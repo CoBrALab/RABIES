@@ -13,11 +13,10 @@ from .sdc import init_sdc_wf
 from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
-
 from nipype.interfaces.utility import Function
 
 def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, commonspace_transform=False,
-                        aCompCor_method='50%', name='bold_main_wf'):
+                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
 
     """
     This workflow controls the functional preprocessing stages of the pipeline.
@@ -92,9 +91,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(
-        name='bold_bold_trans_wf'
-    )
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -179,9 +176,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
-        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(
-            name='bold_commonspace_trans_wf'
-        )
+        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_commonspace_trans_wf')
 
         workflow.connect([
             (inputnode, bold_commonspace_trans_wf, [
@@ -206,7 +201,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
 #alternative workflow for EPI-only commonspace
 def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True,
-                        aCompCor_method='50%', name='bold_main_wf'):
+                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
     from nipype.interfaces.io import SelectFiles, DataSink
 
     print("BOLD preproc only!")
@@ -275,9 +270,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(
-        name='bold_bold_trans_wf'
-    )
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
@@ -470,31 +463,51 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
 
     return workflow
 
+
 def commonspace_reg_function(file_list, output_folder):
     import os
+    import numpy as np
     import pandas as pd
+    #create a csv file of the input image list
     cwd = os.getcwd()
     csv_path=cwd+'/commonspace_input_files.csv'
-    files=[]
-    for sub_file_list in file_list:
-        for ses_file in sub_file_list:
-            for file in ses_file:
-                files.append(file)
-    df = pd.DataFrame(data=files)
+    files_array=np.asarray(file_list).reshape(-1)
+    df = pd.DataFrame(data=files_array)
     df.to_csv(csv_path, header=False, sep=',',index=False)
 
     model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
     print('Running commonspace registration.')
     os.system('bash %s %s' % (model_script_path,csv_path))
 
-
+    #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
     os.system('mkdir -p %s' % (template_folder,))
-    os.system('cp * %s' % (template_folder,))
+    os.system('cp -r * %s' % (template_folder,))
 
+    ###verify that all outputs are present
     #ants dbm outputs
-    ants_dbm_common = '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
-    common_to_template_transform = '/template_reg/template_reg_Composite.h5'
-    template_to_common_transform = '/template_reg/template_reg_InverseComposite.h5'
+    ants_dbm_template = '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
+    if not os.path.isfile(template_folder+ants_dbm_template):
+        raise ValueError(ants_dbm_template+" doesn't exists.")
+    common_to_template_transform = '/template_reg/template_reg_InverseComposite.h5'
+    if not os.path.isfile(template_folder+common_to_template_transform):
+        raise ValueError(common_to_template_transform+" doesn't exists.")
+    template_to_common_transform = '/template_reg/template_reg_Composite.h5'
+    if not os.path.isfile(template_folder+template_to_common_transform):
+        raise ValueError(template_to_common_transform+" doesn't exists.")
 
-    return ants_dbm_common, common_to_template_transform, template_to_common_transform
+    i=0
+    for file in files_array:
+        filename_template=os.path.basename(file).split('.')[0]
+        anat_to_template_inverse_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (template_folder,filename_template,str(i),)
+        if not os.path.isfile(anat_to_template_inverse_warp):
+            raise ValueError(anat_to_template_inverse_warp+" file doesn't exists.")
+        anat_to_template_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (template_folder,filename_template,str(i),)
+        if not os.path.isfile(anat_to_template_warp):
+            raise ValueError(anat_to_template_warp+" file doesn't exists.")
+        anat_to_template_affine = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (template_folder,filename_template,str(i),)
+        if not os.path.isfile(anat_to_template_affine):
+            raise ValueError(anat_to_template_affine+" file doesn't exists.")
+        i+=1
+
+    return ants_dbm_template, common_to_template_transform, template_to_common_transform

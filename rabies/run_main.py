@@ -36,6 +36,12 @@ def get_parser():
     parser.add_argument("-v", "--verbose", type=bool, default=False,
                         help="Increase output verbosity. **doesn't do anything for now.")
 
+    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling:')
+    g_resampling.add_argument('--isotropic_resampling', type=bool, default=False,
+                        help="Whether to resample the EPI to an isotropic resolution based on the lowest dimension.")
+    g_resampling.add_argument('--upsampling', type=float, default=1.0,
+                        help="Can specify a upsampling parameter to increase the EPI resolution upon resampling and minimize information lost from the transform interpolation.")
+
     g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
         '--cluster_type',
@@ -114,6 +120,10 @@ def execute_workflow():
     else:
         raise ValueError('Invalid --tpattern provided.')
 
+    #resampling options
+    isotropic_resampling=opts.isotropic_resampling
+    upsampling=opts.upsampling
+
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
     os.environ["ants_dbm_walltime"]=opts.walltime
@@ -150,10 +160,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

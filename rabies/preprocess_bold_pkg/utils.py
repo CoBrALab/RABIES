@@ -268,6 +268,8 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     inverses = traits.List(desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(default=True, desc="Whether to apply motion realignment.")
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
+    isotropic_resampling = traits.Bool(desc="If true, the EPI will be resampled to isotropic resolution based on the lowest dimension.")
+    upsampling = traits.Float(default=1.0, desc="Option to upsample the voxel resolution upon resampling to minimize data loss. All dimensions will be multiplied by the specified proportion. e.g. 2.0 doubles the resolution.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
@@ -285,11 +287,16 @@ class slice_applyTransforms(BaseInterface):
     def _run_interface(self, runtime):
         #resampling the reference image to the dimension of the EPI
         from nibabel import processing
+        import numpy as np
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
         shape=img.header.get_zooms()[:3]
-        processing.resample_to_output(nb.load(self.inputs.ref_file), voxel_sizes=shape, order=4).to_filename('resampled.nii.gz')
+        upsampling_multiplier=1/self.inputs.upsampling
+        if self.inputs.isotropic_resampling:
+            low_dim=np.asarray(shape).min()
+            shape=(low_dim,low_dim,low_dim)
+        processing.resample_to_output(nb.load(self.inputs.ref_file), voxel_sizes=(shape[0]*upsampling_multiplier,shape[1]*upsampling_multiplier,shape[2]*upsampling_multiplier), order=4).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
