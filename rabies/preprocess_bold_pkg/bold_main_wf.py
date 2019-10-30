@@ -15,48 +15,117 @@ from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, data_csv=None, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True, commonspace_transform=False,
+def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', commonspace_transform=False,
                         isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
-
     """
-    This workflow controls the functional preprocessing stages of the pipeline.
-
+    This workflow controls the functional preprocessing stages of the pipeline when both
+    functional and anatomical images are provided.
 
     **Parameters**
 
-        use_syn : bool
-            Use ANTs SyN-based susceptibility distortion correction (SDC) during
-            EPI to anat coregistration.
+        data_dir_path
+            Path to the input data directory with proper input folder structure.
+        tr
+            repetition time for the EPI
+        tpattern
+            specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
+        apply_STC
+            whether to apply slice timing correction (STC) or not
+        bias_reg_script
+            path to registration script that will be applied for bias field correction. The script must
+            follow the template structure of registration scripts in shell_scripts/.
+            Default is set to 'Rigid' registration.
+        coreg_script
+            path to registration script for EPI to anat coregistraion. The script must
+            follow the template structure of registration scripts in shell_scripts/.
+            Default is set to 'SyN' registration.
+        commonspace_transform
+            Whether common space registration was applied and the transforms are provided
+            to resampling the EPI to common space.
+        isotropic_resampling
+            Whether the EPI should be resampled to isotropic resolution based on the
+            lowest dimension
+        upsampling
+            specify whether to upsampling the resolution of the EPI upon resampling
 
     **Inputs**
 
-        bold_file
-            BOLD series NIfTI file
-        reversed_bold_file
-            EPI acquired with the reversed phase encoding direction to apply topup distortion correction
+        bold
+            Input BOLD series NIfTI file
         anat_preproc
-            Bias-corrected structural template image
+            Preprocessed anatomical image after bias field correction and denoising
         anat_mask
-            Mask of the preprocessed anat
-        anat_labels
-            Labels derived from atlas registration.
-
+            Brain mask inherited from the common space registration
+        WM_mask
+            Eroded WM mask inherited from the common space registration
+        CSF_mask
+            Eroded CSF mask inherited from the common space registration
+        labels
+            Anatomical labels inherited from the common space registration
+        commonspace_transforms_list
+            list of transforms to be applied to resample to commonspace
+        commonspace_inverses
+            Specification for the application of inverse affine transform for
+            the provided commonspace transforms
 
     **Outputs**
 
-        native_bold
-            Preprocessed BOLD series, resampled to BOLD native space
-        bold_anat
-            BOLD series, resampled to anatw space
-        bold_mask_anat
-            BOLD series mask in anatw space
-        bold_template
-            BOLD series, resampled to template space
-        bold_mask_mni
-            BOLD series mask in template space
-        confounds
-            TSV of confounds
-
+        input_bold
+            The provided input BOLD file
+        bold_ref
+            Initial EPI median volume subsequently used as 3D reference EPI volume
+        skip_vols
+            Initial saturated volumes detected through the generation of the bold_ref
+        motcorr_params
+            motion parameters file provided from antsMotionCorr
+        corrected_EPI
+            3D reference EPI volume after bias field correction
+        itk_bold_to_anat
+            Composite transforms from the EPI space to the anatomical space
+        itk_anat_to_bold
+            Composite transforms from the anatomical space to the EPI space
+        output_warped_bold
+            Bias field corrected 3D EPI volume warped to the anatomical space
+        resampled_bold
+            Original BOLD timeseries resampled through motion realignment and
+            susceptibility distortion correction based on registration to the
+            anatomical image
+        resampled_ref_bold
+            3D median EPI volume from the resampled native BOLD timeseries
+        confounds_csv
+            .csv file with measured confound timecourses, including global signal,
+            WM signal, CSF signal, 6 rigid body motion parameters + their first
+            temporal derivate + the 12 parameters squared (24 motion parameters),
+            and aCompCorr timecourses
+        FD_voxelwise
+            Voxelwise framewise displacement (FD) measures that can be integrated
+            to future confound regression.
+            These measures are computed from antsMotionCorrStats.
+        pos_voxelwise
+            Voxel distancing across time based on rigid body movement parameters,
+            which can be integrated for a voxelwise motion regression
+            These measures are computed from antsMotionCorrStats.
+        FD_csv
+            .csv file with global framewise displacement (FD) measures
+        EPI_brain_mask
+            EPI brain mask for resampled bold
+        EPI_WM_mask
+            EPI WM mask for resampled bold
+        EPI_CSF_mask
+            EPI CSF mask for resampled bold
+        EPI_labels
+            EPI anatomical labels for resampled bold
+        commonspace_bold
+            Motion and SDC-corrected EPI timeseries resampled into common space
+            by applying transforms from the anatomical common space registration
+        commonspace_mask
+            EPI brain mask for commonspace bold
+        commonspace_WM_mask
+            EPI WM mask for commonspace bold
+        commonspace_CSF_mask
+            EPI CSF mask for commonspace bold
+        commonspace_labels
+            EPI anatomical labels for commonspace bold
     """
 
     workflow = pe.Workflow(name=name)
@@ -65,12 +134,12 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels',
-                        'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
+                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold','resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                        'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
     bold_reference_wf = init_bold_reference_wf()
-    bias_cor_wf = bias_correction_wf(bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script)
+    bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
 
     if apply_STC:
         bold_stc_wf = init_bold_stc_wf(tr=tr, tpattern=tpattern)
@@ -93,7 +162,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
 
-    bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, name="bold_confs_wf")
+    bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################
@@ -199,9 +268,105 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-#alternative workflow for EPI-only commonspace
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_cor_script='Default', bias_reg_script='Rigid', coreg_script='SyN', SyN_SDC=True,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN',
                         isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
+    """
+    This is an alternative workflow for EPI-only preprocessing, inluding commonspace
+    registration based on the generation of a EPI template from the provided sample
+    and registration of that template to the provided external anatomical template for
+    masking and labeling.
+
+    **Parameters**
+
+        data_dir_path
+            Path to the input data directory with proper input folder structure.
+        data_csv
+            csv file specifying subject id and number of sessions and runs
+        output_folder
+            path to output folder for the workflow and datasink
+        tr
+            repetition time for the EPI
+        tpattern
+            specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
+        apply_STC
+            whether to apply slice timing correction (STC) or not
+        bias_reg_script
+            path to registration script that will be applied for bias field correction. The script must
+            follow the template structure of registration scripts in shell_scripts/.
+            Default is set to 'Rigid' registration.
+        coreg_script
+            path to registration script for EPI to anat coregistraion. The script must
+            follow the template structure of registration scripts in shell_scripts/.
+            Default is set to 'SyN' registration.
+        commonspace_transform
+            Whether common space registration was applied and the transforms are provided
+            to resampling the EPI to common space.
+        isotropic_resampling
+            Whether the EPI should be resampled to isotropic resolution based on the
+            lowest dimension
+        upsampling
+            specify whether to upsampling the resolution of the EPI upon resampling
+
+    **Outputs**
+
+        input_bold
+            The provided input BOLD file
+        bold_ref
+            Initial EPI median volume subsequently used as 3D reference EPI volume
+        skip_vols
+            Initial saturated volumes detected through the generation of the bold_ref
+        motcorr_params
+            motion parameters file provided from antsMotionCorr
+        corrected_EPI
+            3D reference EPI volume after bias field correction
+        ants_dbm_affine
+            Affine transforms from the EPI subject space to the EPI template
+            space
+        ants_dbm_warp
+            Non-linear transforms from the EPI subject space
+            to the EPI template space
+        ants_dbm_inverse_warp
+            Inverse for the non-linear transforms from the EPI subject space
+            to the EPI template space
+        ants_dbm_common_anat
+            EPI template generated from ants_dbm
+        common_to_template_transform
+            Inverse composite transforms from the registration of the EPI
+            template to the anatomical template.
+        template_to_common_transform
+            Composite transforms from the registration of the EPI template to
+            the anatomical template.
+        resampled_bold
+            Original BOLD timeseries resampled through motion realignment and
+            resampling to the anatomical common space, simultaneously correcting
+            for susceptibility distortion correction
+        resampled_ref_bold
+            3D median EPI volume from the resampled BOLD timeseries
+        confounds_csv
+            .csv file with measured confound timecourses, including global signal,
+            WM signal, CSF signal, 6 rigid body motion parameters + their first
+            temporal derivate + the 12 parameters squared (24 motion parameters),
+            and aCompCorr timecourses
+        FD_voxelwise
+            Voxelwise framewise displacement (FD) measures that can be integrated
+            to future confound regression.
+            These measures are computed from antsMotionCorrStats.
+        pos_voxelwise
+            Voxel distancing across time based on rigid body movement parameters,
+            which can be integrated for a voxelwise motion regression
+            These measures are computed from antsMotionCorrStats.
+        FD_csv
+            .csv file with global framewise displacement (FD) measures
+        EPI_brain_mask
+            EPI brain mask for resampled bold
+        EPI_WM_mask
+            EPI WM mask for resampled bold
+        EPI_CSF_mask
+            EPI CSF mask for resampled bold
+        EPI_labels
+            EPI anatomical labels for resampled bold
+    """
+
     from nipype.interfaces.io import SelectFiles, DataSink
 
     print("BOLD preproc only!")
@@ -256,7 +421,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                     name="datasink")
 
     bold_reference_wf = init_bold_reference_wf()
-    bias_cor_wf = bias_correction_wf(bias_cor_script=bias_cor_script, bias_reg_script=bias_reg_script)
+    bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
     bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
     bias_cor_wf.inputs.inputnode.anat_mask=os.environ["template_mask"]
 
@@ -275,17 +440,17 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
 
-    def to_commonspace_transforms_prep(common_to_template_transform, ants_dbm_warp, ants_dbm_affine):
+    def to_commonspace_transforms_prep(template_to_common_transform, ants_dbm_warp, ants_dbm_affine):
         #simply list transforms in the proper order
-        return [common_to_template_transform, ants_dbm_warp, ants_dbm_affine],[0,0,0] #transforms_list,inverses
+        return [template_to_common_transform, ants_dbm_warp, ants_dbm_affine],[0,0,0] #transforms_list,inverses
 
-    transforms_prep = pe.Node(Function(input_names=['common_to_template_transform', 'ants_dbm_warp', 'ants_dbm_affine'],
+    transforms_prep = pe.Node(Function(input_names=['template_to_common_transform', 'ants_dbm_warp', 'ants_dbm_affine'],
                               output_names=['transforms_list','inverses'],
                               function=to_commonspace_transforms_prep),
                      name='transforms_prep')
 
 
-    bold_confs_wf = init_bold_confs_wf(SyN_SDC=SyN_SDC, aCompCor_method=aCompCor_method, name="bold_confs_wf")
+    bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
     #give the template masks and labels, which will be assign to every subject scan after corrections, since
     #all scans will be in common space after SDC
     bold_confs_wf.inputs.inputnode.t1_mask = os.environ["template_mask"]
@@ -387,7 +552,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
         (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (commonspace_selectfiles, transforms_prep, [
-            ('common_to_template_transform', 'common_to_template_transform'),
+            ('template_to_common_transform', 'template_to_common_transform'),
             ('ants_dbm_warp', 'ants_dbm_warp'),
             ('ants_dbm_affine', 'ants_dbm_affine'),
             ]),
