@@ -38,19 +38,82 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
             Default is set to 'SyN' registration.
+        isotropic_resampling
+            Whether the EPI should be resampled to isotropic resolution based on the
+            lowest dimension
+        upsampling
+            specify whether to upsampling the resolution of the EPI upon resampling
 
     **Outputs**
-        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'confounds_csv', 'itk_bold_to_anat', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
-                'itk_anat_to_bold','boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
 
+        anat_preproc
+            Preprocessed anatomical image after bias field correction and denoising
+        anat_mask
+            Brain mask inherited from the common space registration
+        anat_labels
+            Anatomical labels inherited from the common space registration
+        WM_mask
+            Eroded WM mask inherited from the common space registration
+        CSF_mask
+            Eroded CSF mask inherited from the common space registration
+        initial_bold_ref
+            Initial EPI median volume subsequently used as 3D reference EPI volume
+        bias_cor_bold
+            3D reference EPI volume after bias field correction
+        itk_bold_to_anat
+            Composite transforms from the EPI space to the anatomical space
+        itk_anat_to_bold
+            Composite transforms from the anatomical space to the EPI space
+        boldref_warped2anat
+            Bias field corrected 3D EPI volume warped to the anatomical space
+        native_corrected_bold
+            Original BOLD timeseries resampled through motion realignment and
+            susceptibility distortion correction based on registration to the
+            anatomical image
+        corrected_ref_bold
+            3D median EPI volume from the resampled native BOLD timeseries
+        confounds_csv
+            .csv file with measured confound timecourses, including global signal,
+            WM signal, CSF signal, 6 rigid body motion parameters + their first
+            temporal derivate + the 12 parameters squared (24 motion parameters),
+            and aCompCorr timecourses
+        FD_voxelwise
+            Voxelwise framewise displacement (FD) measures that can be integrated
+            to future confound regression.
+            These measures are computed from antsMotionCorrStats.
+        pos_voxelwise
+            Voxel distancing across time based on rigid body movement parameters,
+            which can be integrated for a voxelwise motion regression
+            These measures are computed from antsMotionCorrStats.
+        FD_csv
+            .csv file with global framewise displacement (FD) measures
+        bold_brain_mask
+            EPI brain mask for native corrected bold
+        bold_WM_mask
+            EPI WM mask for native corrected bold
+        bold_CSF_mask
+            EPI CSF mask for native corrected bold
+        bold_labels
+            EPI anatomical labels for native corrected bold
+        commonspace_bold
+            Motion and SDC-corrected EPI timeseries resampled into common space
+            by applying transforms from the anatomical common space registration
+        commonspace_mask
+            EPI brain mask for commonspace bold
+        commonspace_WM_mask
+            EPI WM mask for commonspace bold
+        commonspace_CSF_mask
+            EPI CSF mask for commonspace bold
+        commonspace_labels
+            EPI anatomical labels for commonspace bold
     '''
 
     workflow = pe.Workflow(name=name)
 
     #set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'confounds_csv', 'itk_bold_to_anat', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
-                'itk_anat_to_bold','boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
+        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'itk_bold_to_anat','itk_anat_to_bold', 'boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+                'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
         name='outputnode')
 
 
@@ -241,6 +304,12 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ("WM_mask", "inputnode.WM_mask"),
                 ("CSF_mask", "inputnode.CSF_mask"),
                 ]),
+            (transform_masks, outputnode, [
+                ("anat_labels", 'anat_labels'),
+                ("brain_mask", 'anat_mask'),
+                ("WM_mask", "WM_mask"),
+                ("CSF_mask", "CSF_mask"),
+                ]),
             (commonspace_selectfiles, commonspace_transforms_prep, [
                 ("template_to_common_transform", "template_to_common_transform"),
                 ("anat_to_template_affine", "anat_to_template_affine"),
@@ -258,6 +327,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ("outputnode.commonspace_bold", "commonspace_bold"),
                 ]),
             (outputnode, datasink, [
+                ("anat_labels", 'anat_labels'),
+                ("anat_mask", 'anat_mask'),
+                ("WM_mask", "WM_mask"),
+                ("CSF_mask", "CSF_mask"),
                 ("commonspace_bold", "commonspace_bold"), #resampled EPI after motion realignment and SDC
                 ("commonspace_mask", "commonspace_bold_mask"),
                 ("commonspace_WM_mask", "commonspace_bold_WM_mask"),

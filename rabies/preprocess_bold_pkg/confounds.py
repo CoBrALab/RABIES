@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 )
 from nipype import Function
 
-def init_bold_confs_wf(SyN_SDC, aCompCor_method='50%', name="bold_confs_wf"):
+def init_bold_confs_wf(SyN_SDC=True, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
