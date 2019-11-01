@@ -5,11 +5,12 @@ from nipype.interfaces import utility as niu
 from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
 from .preprocess_anat_pkg.anat_mask_prep import init_anat_mask_prep_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
+from .preprocess_bold_pkg.registration import run_antsRegistration
 from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, apply_STC=True, commonspace_method='pydpiper',
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -218,13 +219,22 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                          name='commonspace_reg')
         commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
 
+        #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
+        template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
+                                  output_names=['composite_transform', 'inverse_composite_transform', 'warped_image'],
+                                  function=run_antsRegistration),
+                         name='template_reg')
+        template_reg.inputs.fixed_image = os.environ["template_anat"]
+        template_reg.inputs.anat_mask = os.environ["template_mask"]
+        template_reg.inputs.reg_script = template_reg_script
+
         #setting SelectFiles for the commonspace registration
         anat_to_template_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1InverseWarp.nii.gz')
         anat_to_template_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1Warp.nii.gz')
         anat_to_template_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*0GenericAffine.mat')
         ants_dbm_template_anat = output_folder+'/'+opj('datasink','ants_dbm_outputs','{ants_dbm_template}')
-        common_to_template_transform = output_folder+'/'+opj('datasink','ants_dbm_outputs','{common_to_template_transform}')
-        template_to_common_transform = output_folder+'/'+opj('datasink','ants_dbm_outputs','{template_to_common_transform}')
+        common_to_template_transform = '{common_to_template_transform}'
+        template_to_common_transform = '{template_to_common_transform}'
 
         commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'ants_dbm_template_anat': ants_dbm_template_anat, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
 
@@ -264,7 +274,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                                   function=commonspace_transforms),
                          name='commonspace_transforms_prep')
 
-        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, SyN_SDC=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
+        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
 
         workflow.connect([
             (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
@@ -277,15 +287,23 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             (infosession, commonspace_selectfiles, [
                 ("session", "session")
                 ]),
+            (commonspace_reg, template_reg, [
+                ("ants_dbm_template", "moving_image"),
+                ]),
             (commonspace_reg, commonspace_selectfiles, [
                 ("ants_dbm_template", "ants_dbm_template"),
-                ("common_to_template_transform", "common_to_template_transform"),
-                ("template_to_common_transform", "template_to_common_transform"),
                 ]),
             (commonspace_reg, datasink, [
                 ("ants_dbm_template", "ants_dbm_template"),
-                ("common_to_template_transform", "common_to_template_transform"),
-                ("template_to_common_transform", "template_to_common_transform"),
+                ]),
+            (template_reg, commonspace_selectfiles, [
+                ("inverse_composite_transform", "common_to_template_transform"),
+                ("composite_transform", "template_to_common_transform"),
+                ]),
+            (commonspace_reg, datasink, [
+                ("inverse_composite_transform", "common_to_template_transform"),
+                ("composite_transform", "template_to_common_transform"),
+                ("warped_image", "warped_template"),
                 ]),
             (commonspace_selectfiles, transform_masks, [
                 ("common_to_template_transform", "common_to_template_transform"),

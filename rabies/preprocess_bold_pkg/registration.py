@@ -75,11 +75,6 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
     return workflow
 
-def run_registration_interface(interface):
-    from nipype.interfaces.base import CommandLine
-    res=interface.run()
-    return [res.outputs.composite_transform, res.outputs.inverse_composite_transform, res.outputs.warped_image]
-
 
 def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
