@@ -477,7 +477,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                      joinfield=['file_list'])
 
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
-                              output_names=['ants_dbm_template', 'common_to_template_transform', 'template_to_common_transform'],
+                              output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg')
     commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
@@ -495,11 +495,10 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     ants_dbm_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
     ants_dbm_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
     ants_dbm_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
-    ants_dbm_template_anat = output_folder+'/'+opj('datasink','ants_dbm_outputs','{ants_dbm_template}')
-    common_to_template_transform = '{common_to_template_transform}'
-    template_to_common_transform = '{template_to_common_transform}'
+    common_to_template_transform = '/'+opj('{common_to_template_transform}')
+    template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
-    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'ants_dbm_template_anat': ants_dbm_template_anat, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
+    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
@@ -545,9 +544,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             ]),
         (commonspace_reg, template_reg, [
             ("ants_dbm_template", "moving_image"),
-            ]),
-        (commonspace_reg, commonspace_selectfiles, [
-            ("ants_dbm_template", "ants_dbm_template"),
             ]),
         (commonspace_reg, datasink, [
             ("ants_dbm_template", "ants_dbm_template"),
@@ -676,8 +672,8 @@ def commonspace_reg_function(file_list, output_folder):
 
     ###verify that all outputs are present
     #ants dbm outputs
-    ants_dbm_template = '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
-    if not os.path.isfile(template_folder+ants_dbm_template):
+    ants_dbm_template = template_folder+'/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
+    if not os.path.isfile(ants_dbm_template):
         raise ValueError(ants_dbm_template+" doesn't exists.")
 
     i=0

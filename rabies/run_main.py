@@ -33,8 +33,6 @@ def get_parser():
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
                         help="Run in debug mode. Default=False")
-    parser.add_argument("--data_type", type=str, default='float32',
-                        help="Specify output data type for EPI files.")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
                         help="Increase output verbosity. **doesn't do anything for now.")
 
@@ -43,6 +41,8 @@ def get_parser():
                         help="Whether to resample the EPI to an isotropic resolution based on the lowest dimension.")
     g_resampling.add_argument('--upsampling', type=float, default=1.0,
                         help="Can specify a upsampling parameter to increase the EPI resolution upon resampling and minimize information lost from the transform interpolation.")
+    g_resampling.add_argument("--data_type", type=str, default='float32',
+                        help="Specify resampling data format to control for file size. Options: 'float64', 'float32', 'int32', 'int16'.")
 
     g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
     g_ants_dbm.add_argument(

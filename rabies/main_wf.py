@@ -214,7 +214,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
     elif commonspace_method=='ants_dbm':
 
         commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
-                                  output_names=['ants_dbm_template', 'common_to_template_transform', 'template_to_common_transform'],
+                                  output_names=['ants_dbm_template'],
                                   function=commonspace_reg_function),
                          name='commonspace_reg')
         commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
@@ -232,11 +232,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
         anat_to_template_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1InverseWarp.nii.gz')
         anat_to_template_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1Warp.nii.gz')
         anat_to_template_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*0GenericAffine.mat')
-        ants_dbm_template_anat = output_folder+'/'+opj('datasink','ants_dbm_outputs','{ants_dbm_template}')
-        common_to_template_transform = '{common_to_template_transform}'
-        template_to_common_transform = '{template_to_common_transform}'
+        common_to_template_transform = '/'+opj('{common_to_template_transform}')
+        template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
-        commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'ants_dbm_template_anat': ants_dbm_template_anat, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
+        commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
 
         commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                        name="commonspace_selectfiles")
@@ -300,7 +299,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ("inverse_composite_transform", "common_to_template_transform"),
                 ("composite_transform", "template_to_common_transform"),
                 ]),
-            (commonspace_reg, datasink, [
+            (template_reg, datasink, [
                 ("inverse_composite_transform", "common_to_template_transform"),
                 ("composite_transform", "template_to_common_transform"),
                 ("warped_image", "warped_template"),

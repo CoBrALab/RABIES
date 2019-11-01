@@ -260,7 +260,6 @@ class antsGenerateTemplate(CommandLine):
                 'template': getattr(self, 'template')}
 
 
-
 class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
     ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")
@@ -270,10 +269,10 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
     isotropic_resampling = traits.Bool(desc="If true, the EPI will be resampled to isotropic resolution based on the lowest dimension.")
     upsampling = traits.Float(default=1.0, desc="Option to upsample the voxel resolution upon resampling to minimize data loss. All dimensions will be multiplied by the specified proportion. e.g. 2.0 doubles the resolution.")
+    data_type = traits.Str(default='float16', desc="Specify resampling data format to control for file size. Options: 'float64', 'float32', 'int32', 'int16'.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
-
 
 class slice_applyTransforms(BaseInterface):
     """
@@ -328,8 +327,6 @@ class slice_applyTransforms(BaseInterface):
 
     def _list_outputs(self):
         return {'out_files': getattr(self, 'out_files')}
-
-
 
 def split_volumes(in_file, output_prefix):
     '''

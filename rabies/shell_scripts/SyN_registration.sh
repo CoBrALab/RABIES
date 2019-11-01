@@ -16,7 +16,7 @@ anat_file=$2
 mask=$3
 filename_template=$4
 
-antsRegistration --dimensionality 3 --verbose 1 \
+antsRegistration --dimensionality 3 \
   --output [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
   --initial-moving-transform [$anat_file,$EPI,1] \
   --transform Rigid[0.1] --metric Mattes[$anat_file,$EPI,1,32,None] --convergence [2025x2025x2025x2025x2025,1e-6,10] --shrink-factors 16x15x14x13x12 --smoothing-sigmas 7.99225592362x7.49173910041x6.99114831402x6.49046645078x5.98967067114vox --masks [NULL,NULL] \
