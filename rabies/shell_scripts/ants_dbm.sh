@@ -3,7 +3,6 @@
 FILE_PATH=$1
 info_csv=$2
 template=$template_anat
-mask=$template_mask
 
 mkdir -p ants_dbm
 cd ants_dbm

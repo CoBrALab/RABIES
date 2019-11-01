@@ -269,7 +269,7 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
     isotropic_resampling = traits.Bool(desc="If true, the EPI will be resampled to isotropic resolution based on the lowest dimension.")
     upsampling = traits.Float(default=1.0, desc="Option to upsample the voxel resolution upon resampling to minimize data loss. All dimensions will be multiplied by the specified proportion. e.g. 2.0 doubles the resolution.")
-    data_type = traits.Str(default='float16', desc="Specify resampling data format to control for file size. Options: 'float64', 'float32', 'int32', 'int16'.")
+    data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
@@ -320,7 +320,10 @@ class slice_applyTransforms(BaseInterface):
                 os.system('antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname))
             else:
                 os.system('antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname))
-            print("Resampled volume " + str(x))
+            #change image to specified data type
+            img=nb.load(warped_vol_fname)
+            img.set_data_dtype(self.inputs.data_type)
+            nb.save(img, warped_vol_fname)
 
         setattr(self, 'out_files', warped_volumes)
         return runtime
@@ -360,6 +363,7 @@ class MergeInputSpec(BaseInterfaceInputSpec):
     in_files = InputMultiPath(File(exists=True), mandatory=True,
                               desc='input list of files to merge, listed in the order to merge')
     header_source = File(exists=True, mandatory=True, desc='a Nifti file from which the header should be copied')
+    data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class MergeOutputSpec(TraitedSpec):
     out_file = File(exists=True, desc='output merged file')
@@ -396,8 +400,11 @@ class Merge(BaseInterface):
             print("Error occured with Merge.")
             return None
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
-        nb.Nifti1Image(combined, affine,
-                       header).to_filename(combined_files)
+        combined_image=nb.Nifti1Image(combined, affine,
+                       header)
+        #change image to specified data type
+        combined_image.set_data_dtype(self.inputs.data_type)
+        nb.save(combined_image, combined_files)
 
         setattr(self, 'out_file', combined_files)
         return runtime

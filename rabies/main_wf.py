@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
-                bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, name='main_wf'):
+                bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
 
@@ -273,7 +273,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                                   function=commonspace_transforms),
                          name='commonspace_transforms_prep')
 
-        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
+        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
 
         workflow.connect([
             (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),

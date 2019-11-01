@@ -16,7 +16,7 @@ from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', commonspace_transform=False,
-                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
+                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -160,7 +160,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -245,7 +245,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
-        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_commonspace_trans_wf')
+        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_commonspace_trans_wf')
 
         workflow.connect([
             (inputnode, bold_commonspace_trans_wf, [
@@ -269,7 +269,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
 
 def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
-                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
+                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
     registration based on the generation of a EPI template from the provided sample
@@ -437,7 +437,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
