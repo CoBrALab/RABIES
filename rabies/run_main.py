@@ -31,6 +31,8 @@ def get_parser():
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
+    parser.add_argument("--min_proc", type=int, default=1,
+                        help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
                         help="Run in debug mode. Default=False")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
@@ -117,6 +119,7 @@ def execute_workflow():
     data_dir_path=os.path.abspath(str(opts.input_dir))
     output_folder=os.path.abspath(str(opts.output_dir))
     plugin=opts.plugin
+    os.environ["min_proc"]=str(opts.min_proc)
 
     #STC options
     stc_bool=opts.STC
@@ -216,4 +219,4 @@ def execute_workflow():
 
     print('Running main workflow with %s plugin.' % plugin)
     #execute workflow, with plugin_args limiting the cluster load for parallel execution
-    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})

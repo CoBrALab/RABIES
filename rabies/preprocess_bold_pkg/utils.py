@@ -64,8 +64,10 @@ def init_bold_reference_wf(name='gen_bold_ref'):
         <https://github.com/poldracklab/fmriprep/issues/873#issuecomment-349394544>
     '''
     validate = pe.Node(ValidateImage(), name='validate')
+    validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref')
+    gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
         (inputnode, validate, [('bold_file', 'in_file')]),
@@ -305,7 +307,7 @@ class slice_applyTransforms(BaseInterface):
             else:
                 transform_string += "-t %s " % (transform,)
 
-        print("Splitting bold and motion correction files into lists of single volumes")
+        print("Splitting bold file into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(self.inputs.in_file, "bold_")
 
         if self.inputs.apply_motcorr:

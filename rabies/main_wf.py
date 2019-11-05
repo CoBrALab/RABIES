@@ -342,6 +342,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ]),
             (bold_main_wf, outputnode, [
                 ("outputnode.commonspace_bold", "commonspace_bold"),
+                ("outputnode.commonspace_mask", "commonspace_mask"),
+                ("outputnode.commonspace_WM_mask", "commonspace_WM_mask"),
+                ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
+                ("outputnode.commonspace_labels", "commonspace_labels"),
                 ]),
             (outputnode, datasink, [
                 ("anat_labels", 'anat_labels'),

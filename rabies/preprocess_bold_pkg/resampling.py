@@ -28,6 +28,7 @@ def init_bold_preproc_trans_wf(isotropic_resampling, upsampling, data_type='floa
 
     merge = pe.Node(Merge(), name='merge')
     merge.inputs.data_type = data_type
+    #merge.plugin_args = {'qsub_args': '-pe smp 2 -l h_vmem=1G ', 'overwrite': True}
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf()
@@ -79,19 +80,19 @@ def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='
     bold_reference_wf = init_bold_reference_wf()
 
 
-    WM_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='WM_mask_EPI')
+    WM_mask_to_EPI=pe.Node(MaskEPI(), name='WM_mask_EPI')
     WM_mask_to_EPI.inputs.name_spec='commonspace_WM_mask'
     WM_mask_to_EPI.inputs.mask=os.environ["WM_mask"]
 
-    CSF_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='CSF_mask_EPI')
+    CSF_mask_to_EPI=pe.Node(MaskEPI(), name='CSF_mask_EPI')
     CSF_mask_to_EPI.inputs.name_spec='commonspace_CSF_mask'
     CSF_mask_to_EPI.inputs.mask=os.environ["CSF_mask"]
 
-    brain_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=True), name='Brain_mask_EPI')
+    brain_mask_to_EPI=pe.Node(MaskEPI(), name='Brain_mask_EPI')
     brain_mask_to_EPI.inputs.name_spec='commonspace_brain_mask'
     brain_mask_to_EPI.inputs.mask=os.environ["template_mask"]
 
-    propagate_labels=pe.Node(MaskEPI(SyN_SDC=True), name='prop_labels_EPI')
+    propagate_labels=pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='commonspace_anat_labels'
     propagate_labels.inputs.mask=os.environ["atlas_labels"]
 

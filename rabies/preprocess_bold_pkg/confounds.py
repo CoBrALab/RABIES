@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 )
 from nipype import Function
 
-def init_bold_confs_wf(SyN_SDC=True, aCompCor_method='50%', name="bold_confs_wf"):
+def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
@@ -16,16 +16,16 @@ def init_bold_confs_wf(SyN_SDC=True, aCompCor_method='50%', name="bold_confs_wf"
         fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
         name='outputnode')
 
-    WM_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='WM_mask_EPI')
+    WM_mask_to_EPI=pe.Node(MaskEPI(), name='WM_mask_EPI')
     WM_mask_to_EPI.inputs.name_spec='WM_mask'
 
-    CSF_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='CSF_mask_EPI')
+    CSF_mask_to_EPI=pe.Node(MaskEPI(), name='CSF_mask_EPI')
     CSF_mask_to_EPI.inputs.name_spec='CSF_mask'
 
-    brain_mask_to_EPI=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='Brain_mask_EPI')
+    brain_mask_to_EPI=pe.Node(MaskEPI(), name='Brain_mask_EPI')
     brain_mask_to_EPI.inputs.name_spec='brain_mask'
 
-    propagate_labels=pe.Node(MaskEPI(SyN_SDC=SyN_SDC), name='prop_labels_EPI')
+    propagate_labels=pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='anat_labels'
 
     confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression')
@@ -251,8 +251,6 @@ def extract_labels(atlas):
 class MaskEPIInputSpec(BaseInterfaceInputSpec):
     mask = File(exists=True, mandatory=True, desc="Mask to transfer to EPI space.")
     ref_EPI = File(exists=True, mandatory=True, desc="Motion-realigned and SDC-corrected reference 3D EPI.")
-    anat_to_EPI_trans = File(exists=True, desc="Transforms for registration of EPI to anat, in order to move the mask to the EPI native space.")
-    SyN_SDC = traits.Bool(mandatory=True, desc="If SyN SDC was used, the ref EPI is already overlapping with the anat space, so no transform need to be used.")
     name_spec = traits.Str(desc="Specify the name of the mask.")
 
 class MaskEPIOutputSpec(TraitedSpec):
