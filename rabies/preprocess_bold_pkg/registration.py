@@ -76,79 +76,14 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
+def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
     filename_template=os.path.basename(moving_image).split('.')[0]
 
-    if reg_script=='SyN':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/SyN_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,NULL] \
-        -t Affine[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,$mask] \
-        -t SyN[ 0.2, 3.0, 0.0 ] -m Mattes[$anat_file,$EPI, 1, 64 ] \
-        -c [ 40x20x0, 1e-06, 6 ] -s 2x1x0 -f 4x2x1 --masks [$mask,$mask] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
-    elif reg_script=='Affine':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,NULL] \
-        -t Affine[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,$mask] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
-    elif reg_script=='Rigid':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
+    if os.path.isfile(reg_script):
+        reg_script_path=reg_script
     else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(reg_script):
-            reg_script_path=reg_script
-        else:
-            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+        raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
 
     cwd=os.getcwd()

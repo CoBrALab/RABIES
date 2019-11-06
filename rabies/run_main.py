@@ -26,7 +26,7 @@ def get_parser():
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
-                        help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine' and 'SyN' (non-linear), but"
+                        help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear) and 'light_SyN', but"
                         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
@@ -114,7 +114,7 @@ def execute_workflow():
     #obtain parser parameters
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
-    coreg_script=opts.coreg_script
+    coreg_script=define_reg_script(opts.coreg_script)
     commonspace_method=opts.commonspace_method
     data_dir_path=os.path.abspath(str(opts.input_dir))
     output_folder=os.path.abspath(str(opts.output_dir))
@@ -142,24 +142,7 @@ def execute_workflow():
     os.environ["ants_dbm_memory_request"]=opts.memory_request
     os.environ["ants_dbm_local_threads"]=str(opts.local_threads)
     template_reg_option=opts.template_reg_script
-    import rabies
-    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-    if template_reg_option=='SyN':
-        template_reg_script=dir_path+'/shell_scripts/SyN_registration.sh'
-    elif template_reg_option=='light_SyN':
-        template_reg_script=dir_path+'/shell_scripts/light_SyN_registration.sh'
-    elif template_reg_option=='Affine':
-        template_reg_script=dir_path+'/shell_scripts/Affine_registration.sh'
-    elif template_reg_option=='Rigid':
-        template_reg_script=dir_path+'/shell_scripts/Rigid_registration.sh'
-    else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(template_reg_option):
-            template_reg_script=template_reg_option
-        else:
-            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+    template_reg_script=define_reg_script(template_reg_option)
 
     #template options
     # set OS paths to template and atlas files
@@ -220,3 +203,25 @@ def execute_workflow():
     print('Running main workflow with %s plugin.' % plugin)
     #execute workflow, with plugin_args limiting the cluster load for parallel execution
     workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
+
+
+def define_reg_script(reg_option):
+    import rabies
+    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
+    if reg_option=='SyN':
+        reg_script=dir_path+'/shell_scripts/SyN_registration.sh'
+    elif reg_option=='light_SyN':
+        reg_script=dir_path+'/shell_scripts/light_SyN_registration.sh'
+    elif reg_option=='Affine':
+        reg_script=dir_path+'/shell_scripts/Affine_registration.sh'
+    elif reg_option=='Rigid':
+        reg_script=dir_path+'/shell_scripts/Rigid_registration.sh'
+    else:
+        '''
+        For user-provided antsRegistration command.
+        '''
+        if os.path.isfile(reg_option):
+            reg_script=reg_option
+        else:
+            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+    return reg_script
