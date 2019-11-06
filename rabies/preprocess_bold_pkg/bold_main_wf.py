@@ -11,12 +11,12 @@ from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_
 from .stc import init_bold_stc_wf
 from .sdc import init_sdc_wf
 from .bias_correction import bias_correction_wf
-from .registration import init_bold_reg_wf
+from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', commonspace_transform=False,
-                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
+                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -160,7 +160,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -245,7 +245,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
-        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_commonspace_trans_wf')
+        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_commonspace_trans_wf')
 
         workflow.connect([
             (inputnode, bold_commonspace_trans_wf, [
@@ -268,8 +268,8 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN',
-                        isotropic_resampling=False, upsampling=1.0, aCompCor_method='50%', name='bold_main_wf'):
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
     registration based on the generation of a EPI template from the provided sample
@@ -328,7 +328,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
         ants_dbm_inverse_warp
             Inverse for the non-linear transforms from the EPI subject space
             to the EPI template space
-        ants_dbm_common_anat
+        ants_dbm_template_anat
             EPI template generated from ants_dbm
         common_to_template_transform
             Inverse composite transforms from the registration of the EPI
@@ -336,6 +336,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
         template_to_common_transform
             Composite transforms from the registration of the EPI template to
             the anatomical template.
+        warped_template
+            ants_dbm template registered to the atlas template
         resampled_bold
             Original BOLD timeseries resampled through motion realignment and
             resampling to the anatomical common space, simultaneously correcting
@@ -374,7 +376,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     workflow = pe.Workflow(name=name)
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'ants_dbm_inverse_warp', 'ants_dbm_warp', 'ants_dbm_affine', 'ants_dbm_common_anat', 'common_to_template_transform', 'template_to_common_transform',
+                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'ants_dbm_inverse_warp', 'ants_dbm_warp', 'ants_dbm_affine', 'ants_dbm_template_anat', 'common_to_template_transform', 'template_to_common_transform','warped_template',
                         'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
                 name='outputnode')
 
@@ -435,7 +437,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
@@ -475,20 +477,28 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                      joinfield=['file_list'])
 
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
-                              output_names=['ants_dbm_common', 'common_to_template_transform', 'template_to_common_transform'],
+                              output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg')
     commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
+
+    #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
+    template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
+                              output_names=['composite_transform', 'inverse_composite_transform', 'warped_image'],
+                              function=run_antsRegistration),
+                     name='template_reg')
+    template_reg.inputs.fixed_image = os.environ["template_anat"]
+    template_reg.inputs.anat_mask = os.environ["template_mask"]
+    template_reg.inputs.reg_script = template_reg_script
 
     #setting SelectFiles for the commonspace registration
     ants_dbm_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
     ants_dbm_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
     ants_dbm_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
-    ants_dbm_common_anat = output_folder+'/'+opj('datasink','ants_dbm_outputs','{ants_dbm_common}')
-    common_to_template_transform = output_folder+'/'+opj('datasink','ants_dbm_outputs','{common_to_template_transform}')
-    template_to_common_transform = output_folder+'/'+opj('datasink','ants_dbm_outputs','{template_to_common_transform}')
+    common_to_template_transform = '/'+opj('{common_to_template_transform}')
+    template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
-    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'ants_dbm_common_anat': ants_dbm_common_anat, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
+    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
@@ -532,10 +542,15 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
         (inforun, commonspace_selectfiles, [
             ("run", "run")
             ]),
-        (commonspace_reg, commonspace_selectfiles, [
-            ("ants_dbm_common", "ants_dbm_common"),
-            ("common_to_template_transform", "common_to_template_transform"),
-            ("template_to_common_transform", "template_to_common_transform"),
+        (commonspace_reg, template_reg, [
+            ("ants_dbm_template", "moving_image"),
+            ]),
+        (commonspace_reg, datasink, [
+            ("ants_dbm_template", "ants_dbm_template"),
+            ]),
+        (template_reg, commonspace_selectfiles, [
+            ("inverse_composite_transform", "common_to_template_transform"),
+            ("composite_transform", "template_to_common_transform"),
             ]),
         ])
 
@@ -602,13 +617,16 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             ('outputnode.FD_voxelwise', 'FD_voxelwise'),
             ('outputnode.pos_voxelwise', 'pos_voxelwise'),
             ]),
+        (template_reg, outputnode, [
+            ("inverse_composite_transform", "common_to_template_transform"),
+            ("composite_transform", "template_to_common_transform"),
+            ("warped_image", "warped_template"),
+            ]),
         (commonspace_selectfiles, outputnode, [
-            ('common_to_template_transform', 'common_to_template_transform'),
-            ('template_to_common_transform', 'template_to_common_transform'),
             ('ants_dbm_warp', 'ants_dbm_warp'),
             ('ants_dbm_inverse_warp', 'ants_dbm_inverse_warp'),
             ('ants_dbm_affine', 'ants_dbm_affine'),
-            ('ants_dbm_common_anat', 'ants_dbm_common_anat'),
+            ('ants_dbm_template_anat', 'ants_dbm_template_anat'),
             ]),
         (outputnode, datasink, [
             ("bold_ref","initial_bold_ref"), #inspect initial bold ref
@@ -623,6 +641,9 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             ("FD_csv", "FD_csv"),
             ("resampled_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
             ("resampled_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ("common_to_template_transform", "common_to_template_transform"),
+            ("template_to_common_transform", "template_to_common_transform"),
+            ("warped_template", "warped_template"),
             ]),
         ])
 
@@ -651,15 +672,9 @@ def commonspace_reg_function(file_list, output_folder):
 
     ###verify that all outputs are present
     #ants dbm outputs
-    ants_dbm_template = '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
-    if not os.path.isfile(template_folder+ants_dbm_template):
+    ants_dbm_template = template_folder+'/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
+    if not os.path.isfile(ants_dbm_template):
         raise ValueError(ants_dbm_template+" doesn't exists.")
-    common_to_template_transform = '/template_reg/template_reg_InverseComposite.h5'
-    if not os.path.isfile(template_folder+common_to_template_transform):
-        raise ValueError(common_to_template_transform+" doesn't exists.")
-    template_to_common_transform = '/template_reg/template_reg_Composite.h5'
-    if not os.path.isfile(template_folder+template_to_common_transform):
-        raise ValueError(template_to_common_transform+" doesn't exists.")
 
     i=0
     for file in files_array:
@@ -675,4 +690,4 @@ def commonspace_reg_function(file_list, output_folder):
             raise ValueError(anat_to_template_affine+" file doesn't exists.")
         i+=1
 
-    return ants_dbm_template, common_to_template_transform, template_to_common_transform
+    return ants_dbm_template

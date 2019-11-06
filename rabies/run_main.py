@@ -31,6 +31,8 @@ def get_parser():
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
+    parser.add_argument("--min_proc", type=int, default=1,
+                        help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
                         help="Run in debug mode. Default=False")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
@@ -41,6 +43,8 @@ def get_parser():
                         help="Whether to resample the EPI to an isotropic resolution based on the lowest dimension.")
     g_resampling.add_argument('--upsampling', type=float, default=1.0,
                         help="Can specify a upsampling parameter to increase the EPI resolution upon resampling and minimize information lost from the transform interpolation.")
+    g_resampling.add_argument("--data_type", type=str, default='float64',
+                        help="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
     g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
@@ -60,11 +64,17 @@ def get_parser():
         specifying requested memory per pairwise registration.""")
     g_ants_dbm.add_argument(
         '--local_threads',
-        '-j',
         type=int,
         default=multiprocessing.cpu_count(),
         help="""For local execution, how many subject-wise modelbuilds to run in parallel,
         defaults to number of CPUs""")
+    g_ants_dbm.add_argument(
+        '--template_reg_script',
+        type=str,
+        default='SyN',
+        help="""Registration script that will be used for registration of the generated
+        template to the provided atlas for masking and labeling. Can choose a predefined
+        registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
 
 
     g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift.')
@@ -109,6 +119,7 @@ def execute_workflow():
     data_dir_path=os.path.abspath(str(opts.input_dir))
     output_folder=os.path.abspath(str(opts.output_dir))
     plugin=opts.plugin
+    os.environ["min_proc"]=str(opts.min_proc)
 
     #STC options
     stc_bool=opts.STC
@@ -123,12 +134,32 @@ def execute_workflow():
     #resampling options
     isotropic_resampling=opts.isotropic_resampling
     upsampling=opts.upsampling
+    resampling_data_type=opts.data_type
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
     os.environ["ants_dbm_walltime"]=opts.walltime
     os.environ["ants_dbm_memory_request"]=opts.memory_request
     os.environ["ants_dbm_local_threads"]=str(opts.local_threads)
+    template_reg_option=opts.template_reg_script
+    import rabies
+    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
+    if template_reg_option=='SyN':
+        template_reg_script=dir_path+'/shell_scripts/SyN_registration.sh'
+    elif template_reg_option=='light_SyN':
+        template_reg_script=dir_path+'/shell_scripts/light_SyN_registration.sh'
+    elif template_reg_option=='Affine':
+        template_reg_script=dir_path+'/shell_scripts/Affine_registration.sh'
+    elif template_reg_option=='Rigid':
+        template_reg_script=dir_path+'/shell_scripts/Rigid_registration.sh'
+    else:
+        '''
+        For user-provided antsRegistration command.
+        '''
+        if os.path.isfile(template_reg_option):
+            template_reg_script=template_reg_option
+        else:
+            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
 
     #template options
     # set OS paths to template and atlas files
@@ -160,10 +191,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
@@ -188,4 +219,4 @@ def execute_workflow():
 
     print('Running main workflow with %s plugin.' % plugin)
     #execute workflow, with plugin_args limiting the cluster load for parallel execution
-    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp 1'})
+    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})

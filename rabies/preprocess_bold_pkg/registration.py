@@ -75,18 +75,10 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
     return workflow
 
-def run_registration_interface(interface):
-    from nipype.interfaces.base import CommandLine
-    res=interface.run()
-    return [res.outputs.composite_transform, res.outputs.inverse_composite_transform, res.outputs.warped_image]
-
 
 def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
-    subject_id=os.path.basename(moving_image).split('_ses-')[0]
-    session=os.path.basename(moving_image).split('_ses-')[1][0]
-    run=os.path.basename(moving_image).split('_run-')[1][0]
-    filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+    filename_template=os.path.basename(moving_image).split('.')[0]
 
     if reg_script=='SyN':
         import rabies
