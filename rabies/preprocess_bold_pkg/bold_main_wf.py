@@ -130,7 +130,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'commonspace_transforms_list', 'commonspace_inverses']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'template_to_common_transform','anat_to_template_affine','anat_to_template_warp']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -245,16 +245,32 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
+        def commonspace_transforms(template_to_common_transform,anat_to_template_warp, anat_to_template_affine, itk_bold_to_anat):
+            return [template_to_common_transform,anat_to_template_warp, anat_to_template_affine,itk_bold_to_anat],[0,0,0,0] #transforms_list,inverses
+        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_transform','anat_to_template_warp','anat_to_template_affine','itk_bold_to_anat'],
+                                  output_names=['transforms_list','inverses'],
+                                  function=commonspace_transforms),
+                         name='commonspace_transforms_prep')
+
         bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_commonspace_trans_wf')
 
         workflow.connect([
+            (inputnode, commonspace_transforms_prep, [
+                ("template_to_common_transform", "template_to_common_transform"),
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_warp", "anat_to_template_warp"),
+                ]),
+            (bold_reg_wf, commonspace_transforms_prep, [
+                ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
+                ]),
+            (commonspace_transforms_prep, bold_commonspace_trans_wf, [
+                ('transforms_list', 'inputnode.transforms_list'),
+                ('inverses', 'inputnode.inverses'),
+                ]),
+            (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+            (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
             (inputnode, bold_commonspace_trans_wf, [
                 ('bold', 'inputnode.name_source'),
-                ('commonspace_transforms_list', 'inputnode.transforms_list'),
-                ('commonspace_inverses', 'inputnode.inverses'),
-                ]),
-            (bold_bold_trans_wf, bold_commonspace_trans_wf, [
-                ('outputnode.bold', 'inputnode.bold_file'),
                 ]),
             (bold_commonspace_trans_wf, outputnode, [
                 ('outputnode.bold', 'commonspace_bold'),

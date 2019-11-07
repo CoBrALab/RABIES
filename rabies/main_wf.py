@@ -338,18 +338,14 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
                 ]),
-            (commonspace_selectfiles, commonspace_transforms_prep, [
-                ("template_to_common_transform", "template_to_common_transform"),
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
+            (commonspace_selectfiles, bold_main_wf, [
+                ("template_to_common_transform", "inputnode.template_to_common_transform"),
+                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
                 ]),
             (commonspace_selectfiles, datasink, [
                 ("anat_to_template_affine", "anat_to_template_affine"),
                 ("anat_to_template_warp", "anat_to_template_warp"),
-                ]),
-            (commonspace_transforms_prep, bold_main_wf, [
-                ("transforms_list", "inputnode.commonspace_transforms_list"),
-                ("inverses", "inputnode.commonspace_inverses"),
                 ]),
             (bold_main_wf, outputnode, [
                 ("outputnode.commonspace_bold", "commonspace_bold"),
