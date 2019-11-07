@@ -6,7 +6,7 @@ from nipype.interfaces import utility as niu
 from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
-from .utils import init_bold_reference_wf
+from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
 from .sdc import init_sdc_wf
@@ -268,7 +268,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -284,6 +284,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
+        bids_input
+            specify if the provided input folder is in a BIDS format to use BIDS reader
         tr
             repetition time for the EPI
         tpattern
@@ -380,21 +382,35 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                         'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
                 name='outputnode')
 
-    import pandas as pd
-    data_df=pd.read_csv(data_csv, sep=',')
-    subject_list=data_df['subject_id'].values.tolist()
-    session_list=data_df['num_session'].values.tolist()
-    run_list=data_df['num_run'].values.tolist()
+    if bids_input:
+        #with BIDS input data
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(data_dir_path)
+        subject_list, session_iter, run_iter=prep_bids_iter(layout)
+        #set SelectFiles nodes
+        bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
+    else:
+        import pandas as pd
+        data_df=pd.read_csv(data_csv, sep=',')
+        subject_list=data_df['subject_id'].values.tolist()
+        session_list=data_df['num_session'].values.tolist()
+        run_list=data_df['num_run'].values.tolist()
 
-    #create a dictionary with list of bold session numbers for each subject
-    session_iter={}
-    for i in range(len(subject_list)):
-        session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
+        #create a dictionary with list of bold session numbers for each subject
+        session_iter={}
+        for i in range(len(subject_list)):
+            session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
 
-    #create a dictionary with list of bold run numbers for each subject
-    run_iter={}
-    for i in range(len(subject_list)):
-        run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+        #create a dictionary with list of bold run numbers for each subject
+        run_iter={}
+        for i in range(len(subject_list)):
+            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+
+        bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
+                                       base_directory=data_dir_path),
+                           name="bold_selectfiles")
+
 
     ####setting up all iterables
     infosub_id = pe.Node(niu.IdentityInterface(fields=['subject_id']),
@@ -410,11 +426,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                       name="inforun")
     inforun.itersource = ('infosub_id', 'subject_id')
     inforun.iterables = [('run', run_iter)]
-
-    bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
-    bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
-                                   base_directory=data_dir_path),
-                       name="bold_selectfiles")
 
 
     # Datasink - creates output folder for important outputs
@@ -556,8 +567,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (bold_selectfiles, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
-        (bold_selectfiles, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
+        (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (bold_selectfiles, bold_bold_trans_wf, [('out_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),

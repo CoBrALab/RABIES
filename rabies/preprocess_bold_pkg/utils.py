@@ -7,6 +7,72 @@ from nipype.interfaces.base import (
 )
 from nipype.interfaces.base import CommandLine, CommandLineInputSpec
 
+def prep_bids_iter(layout):
+    subject_list=layout.get_subject()
+    #create a dictionary with list of bold session and run numbers for each subject
+    session_iter={}
+    run_iter={}
+    for sub in subject_list:
+        sub_func=layout.get(datatype='func', extension=['nii', 'nii.gz'])
+        session=0
+        run=0
+        for func_bids in sub_func:
+            if int(func_bids.get_entities()['session'])>session:
+                session=int(func_bids.get_entities()['session'])
+            if int(func_bids.get_entities()['run'])>run:
+                run=int(func_bids.get_entities()['run'])
+        session_iter[sub] = list(range(1,int(session)+1))
+        run_iter[sub] = list(range(1,int(run)+1))
+    return subject_list, session_iter, run_iter
+
+class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
+    bids_dir = traits.Str(exists=True, mandatory=True, desc="BIDS data directory")
+    datatype = traits.Str(exists=True, mandatory=True, desc="datatype of the target file")
+    subject_id = traits.Str(exists=True, mandatory=True, desc="Subject ID")
+    session = traits.Int(exists=True, mandatory=True, desc="Session number")
+    run = traits.Int(exists=True, default=None, desc="Run number")
+
+class BIDSDataGraberOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc="Selected file based on the provided parameters.")
+
+class BIDSDataGraber(BaseInterface):
+    """
+    """
+
+    input_spec = BIDSDataGraberInputSpec
+    output_spec = BIDSDataGraberOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(self.inputs.bids_dir)
+        if self.inputs.datatype=='func':
+            bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
+            func=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
+            file=func[0]
+        elif self.inputs.datatype=='anat':
+            bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
+            anat=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
+            file=anat[0]
+        else:
+            raise ValueError('Wrong datatype %s' % (self.inputs.datatype))
+
+        if len(bids_file)>1:
+            raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
+
+        nii_format=bids_file[0].get_entities()['extension']
+        #RABIES only work with compressed .nii for now
+        if nii_format=='nii':
+            os.system('gzip %s' % (file,))
+            file=file+'.gz'
+
+        setattr(self, 'out_file', file)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'out_file': getattr(self, 'out_file')}
+
 
 def init_bold_reference_wf(name='gen_bold_ref'):
     """

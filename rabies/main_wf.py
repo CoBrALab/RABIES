@@ -6,11 +6,12 @@ from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
 from .preprocess_anat_pkg.anat_mask_prep import init_anat_mask_prep_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
+from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter
 from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -23,6 +24,8 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
+        bids_input
+            specify if the provided input folder is in a BIDS format to use BIDS reader
         tr
             repetition time for the EPI
         tpattern
@@ -117,23 +120,42 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
         name='outputnode')
 
+    if bids_input:
+        #with BIDS input data
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(data_dir_path)
+        subject_list, session_iter, run_iter=prep_bids_iter(layout)
+        #set SelectFiles nodes
+        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
+        bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
+    else:
+        #with restricted data input structure for RABIES
+        import pandas as pd
+        data_df=pd.read_csv(data_csv, sep=',')
+        subject_list=data_df['subject_id'].values.tolist()
+        session_list=data_df['num_session'].values.tolist()
+        run_list=data_df['num_run'].values.tolist()
 
-    #read the data_info csv
-    import pandas as pd
-    data_df=pd.read_csv(data_csv, sep=',')
-    subject_list=data_df['subject_id'].values.tolist()
-    session_list=data_df['num_session'].values.tolist()
-    run_list=data_df['num_run'].values.tolist()
+        #create a dictionary with list of bold session numbers for each subject
+        session_iter={}
+        for i in range(len(subject_list)):
+            session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
 
-    #create a dictionary with list of bold session numbers for each subject
-    session_iter={}
-    for i in range(len(subject_list)):
-        session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
+        #create a dictionary with list of bold run numbers for each subject
+        run_iter={}
+        for i in range(len(subject_list)):
+            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
-    #create a dictionary with list of bold run numbers for each subject
-    run_iter={}
-    for i in range(len(subject_list)):
-        run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+        #set SelectFiles nodes
+        anat_file = opj('{subject_id}', 'ses-{session}', 'anat', '{subject_id}_ses-{session}_anat.nii.gz')
+        anat_selectfiles = pe.Node(SelectFiles({'out_file': anat_file},
+                                       base_directory=data_dir_path),
+                           name="anat_selectfiles")
+
+        bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
+                                       base_directory=data_dir_path),
+                           name="bold_selectfiles")
 
     ####setting up all iterables
     infosub_id = pe.Node(niu.IdentityInterface(fields=['subject_id']),
@@ -154,17 +176,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
     datasink = pe.Node(DataSink(base_directory=output_folder,
                              container="datasink"),
                     name="datasink")
-
-    #set SelectFiles nodes
-    anat_file = opj('{subject_id}', 'ses-{session}', 'anat', '{subject_id}_ses-{session}_anat.nii.gz')
-    anat_selectfiles = pe.Node(SelectFiles({'anat': anat_file},
-                                   base_directory=data_dir_path),
-                       name="anat_selectfiles")
-
-    bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
-    bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
-                                   base_directory=data_dir_path),
-                       name="bold_selectfiles")
 
     #####setting up commonspace registration within the workflow
     joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
@@ -362,13 +373,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (anat_selectfiles, anat_preproc_wf, [("anat", "inputnode.anat_file")]),
+        (anat_selectfiles, anat_preproc_wf, [("out_file", "inputnode.anat_file")]),
         (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "anat_preproc")]),
         (bold_selectfiles, datasink, [
-            ("bold", "input_bold"),
+            ("out_file", "input_bold"),
             ]),
         (bold_selectfiles, bold_main_wf, [
-            ("bold", "inputnode.bold"),
+            ("out_file", "inputnode.bold"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),

@@ -17,6 +17,9 @@ def get_parser():
                         help='the root folder of the input data directory.')
     parser.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
+    parser.add_argument("--bids_input", type=bool, default=False,
+                        help="If the provided input data folder is in the BIDS format to use the BIDS reader."
+                             "Note that all .nii inputs will be converted to compressed .gz format.")
     parser.add_argument("-e", "--bold_only", type=bool, default=False,
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPIs to a common template atlas.")
@@ -112,6 +115,7 @@ def execute_workflow():
     opts = get_parser().parse_args()
 
     #obtain parser parameters
+    bids_input=opts.bids_input
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
@@ -174,10 +178,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
