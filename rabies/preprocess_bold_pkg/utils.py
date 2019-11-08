@@ -46,19 +46,21 @@ class BIDSDataGraber(BaseInterface):
         import os
         from bids.layout import BIDSLayout
         layout = BIDSLayout(self.inputs.bids_dir)
-        if self.inputs.datatype=='func':
-            bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
-            func=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
-            file=func[0]
-        elif self.inputs.datatype=='anat':
-            bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
-            anat=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
-            file=anat[0]
-        else:
-            raise ValueError('Wrong datatype %s' % (self.inputs.datatype))
-
-        if len(bids_file)>1:
-            raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
+        try:
+            if self.inputs.datatype=='func':
+                bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
+                func=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
+                file=func[0]
+            elif self.inputs.datatype=='anat':
+                bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
+                anat=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
+                file=anat[0]
+            else:
+                raise ValueError('Wrong datatype %s' % (self.inputs.datatype))
+            if len(bids_file)>1:
+                raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
+        except:
+            raise ValueError('Error with BIDS spec: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
 
         nii_format=bids_file[0].get_entities()['extension']
         #RABIES only work with compressed .nii for now
