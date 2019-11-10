@@ -422,7 +422,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
         for i in range(len(subject_list)):
             run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
-        bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'bold', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
                                        base_directory=data_dir_path),
                            name="bold_selectfiles")
@@ -445,9 +445,21 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
 
 
     # Datasink - creates output folder for important outputs
-    datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="datasink"),
-                    name="datasink")
+    bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="bold_datasink"),
+                    name="bold_datasink")
+
+    commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="commonspace_datasink"),
+                    name="commonspace_datasink")
+
+    transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="transforms_datasink"),
+                    name="transforms_datasink")
+
+    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="confounds_datasink"),
+                    name="confounds_datasink")
 
     bold_reference_wf = init_bold_reference_wf()
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
@@ -507,7 +519,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg')
-    commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
+    commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -519,9 +531,9 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     template_reg.inputs.reg_script = template_reg_script
 
     #setting SelectFiles for the commonspace registration
-    ants_dbm_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
-    ants_dbm_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
-    ants_dbm_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
+    ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
+    ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
+    ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
     common_to_template_transform = '/'+opj('{common_to_template_transform}')
     template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
@@ -571,9 +583,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         (commonspace_reg, template_reg, [
             ("ants_dbm_template", "moving_image"),
-            ]),
-        (commonspace_reg, datasink, [
-            ("ants_dbm_template", "ants_dbm_template"),
             ]),
         (template_reg, commonspace_selectfiles, [
             ("inverse_composite_transform", "common_to_template_transform"),
@@ -655,21 +664,30 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ('ants_dbm_affine', 'ants_dbm_affine'),
             ('ants_dbm_template_anat', 'ants_dbm_template_anat'),
             ]),
-        (outputnode, datasink, [
+        (commonspace_reg, commonspace_datasink, [
+            ("ants_dbm_template", "ants_dbm_template"),
+            ]),
+        (outputnode, bold_datasink, [
             ("bold_ref","initial_bold_ref"), #inspect initial bold ref
             ("corrected_EPI","bias_cor_bold"), #inspect bias correction
             ("EPI_brain_mask","bold_brain_mask"), #get the EPI labels
             ("EPI_WM_mask","bold_WM_mask"), #get the EPI labels
             ("EPI_CSF_mask","bold_CSF_mask"), #get the EPI labels
             ("EPI_labels","bold_labels"), #get the EPI labels
+            ("resampled_bold", "corrected_bold"), #resampled EPI after motion realignment and SDC
+            ("resampled_ref_bold", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
+            ]),
+        (outputnode, confounds_datasink, [
             ("confounds_csv", "confounds_csv"), #confounds file
             ("FD_voxelwise", "FD_voxelwise"),
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
-            ("resampled_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
-            ("resampled_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ]),
+        (outputnode, transforms_datasink, [
             ("common_to_template_transform", "common_to_template_transform"),
             ("template_to_common_transform", "template_to_common_transform"),
+            ]),
+        (outputnode, commonspace_datasink, [
             ("warped_template", "warped_template"),
             ]),
         ])

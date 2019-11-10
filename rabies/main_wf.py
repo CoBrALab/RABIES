@@ -68,13 +68,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             Composite transforms from the EPI space to the anatomical space
         itk_anat_to_bold
             Composite transforms from the anatomical space to the EPI space
-        boldref_warped2anat
+        bias_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
             Original BOLD timeseries resampled through motion realignment and
             susceptibility distortion correction based on registration to the
             anatomical image
-        corrected_ref_bold
+        corrected_bold_ref
             3D median EPI volume from the resampled native BOLD timeseries
         confounds_csv
             .csv file with measured confound timecourses, including global signal,
@@ -116,7 +116,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
 
     #set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'itk_bold_to_anat','itk_anat_to_bold', 'boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'itk_bold_to_anat','itk_anat_to_bold', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
         name='outputnode')
 
@@ -147,12 +147,12 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
         #set SelectFiles nodes
-        anat_file = opj('{subject_id}', 'ses-{session}', 'anat', '{subject_id}_ses-{session}_anat.nii.gz')
+        anat_file = opj('sub-{subject_id}', 'ses-{session}', 'anat', 'sub-{subject_id}_ses-{session}_anat.nii.gz')
         anat_selectfiles = pe.Node(SelectFiles({'out_file': anat_file},
                                        base_directory=data_dir_path),
                            name="anat_selectfiles")
 
-        bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'func', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
                                        base_directory=data_dir_path),
                            name="bold_selectfiles")
@@ -173,9 +173,25 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     inforun.iterables = [('run', run_iter)]
 
     # Datasink - creates output folder for important outputs
-    datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="datasink"),
-                    name="datasink")
+    anat_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="anat_datasink"),
+                    name="anat_datasink")
+
+    bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="bold_datasink"),
+                    name="bold_datasink")
+
+    commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="commonspace_datasink"),
+                    name="commonspace_datasink")
+
+    transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="transforms_datasink"),
+                    name="transforms_datasink")
+
+    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="confounds_datasink"),
+                    name="confounds_datasink")
 
     #####setting up commonspace registration within the workflow
     joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
@@ -228,7 +244,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                                   output_names=['ants_dbm_template'],
                                   function=commonspace_reg_function),
                          name='commonspace_reg')
-        commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
+        commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
         #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
         template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -240,9 +256,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
         template_reg.inputs.reg_script = template_reg_script
 
         #setting SelectFiles for the commonspace registration
-        anat_to_template_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
-        anat_to_template_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
-        anat_to_template_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
+        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
+        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
+        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
         common_to_template_transform = '/'+opj('{common_to_template_transform}')
         template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
@@ -303,17 +319,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             (commonspace_reg, commonspace_selectfiles, [
                 ("ants_dbm_template", "ants_dbm_template"),
                 ]),
-            (commonspace_reg, datasink, [
-                ("ants_dbm_template", "ants_dbm_template"),
-                ]),
             (template_reg, commonspace_selectfiles, [
                 ("inverse_composite_transform", "common_to_template_transform"),
                 ("composite_transform", "template_to_common_transform"),
-                ]),
-            (template_reg, datasink, [
-                ("inverse_composite_transform", "common_to_template_transform"),
-                ("composite_transform", "template_to_common_transform"),
-                ("warped_image", "warped_template"),
                 ]),
             (commonspace_selectfiles, transform_masks, [
                 ("common_to_template_transform", "common_to_template_transform"),
@@ -343,10 +351,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
                 ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
                 ]),
-            (commonspace_selectfiles, datasink, [
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
-                ]),
             (bold_main_wf, outputnode, [
                 ("outputnode.commonspace_bold", "commonspace_bold"),
                 ("outputnode.commonspace_mask", "commonspace_mask"),
@@ -354,11 +358,27 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
                 ("outputnode.commonspace_labels", "commonspace_labels"),
                 ]),
-            (outputnode, datasink, [
+            (commonspace_reg, commonspace_datasink, [
+                ("ants_dbm_template", "ants_dbm_template"),
+                ]),
+            (template_reg, commonspace_datasink, [
+                ("warped_image", "warped_template"),
+                ]),
+            (template_reg, transforms_datasink, [
+                ("inverse_composite_transform", "common_to_template_transform"),
+                ("composite_transform", "template_to_common_transform"),
+                ]),
+            (commonspace_selectfiles, transforms_datasink, [
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_warp", "anat_to_template_warp"),
+                ]),
+            (outputnode, anat_datasink, [
                 ("anat_labels", 'anat_labels'),
                 ("anat_mask", 'anat_mask'),
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
+                ]),
+            (outputnode, bold_datasink, [
                 ("commonspace_bold", "commonspace_bold"), #resampled EPI after motion realignment and SDC
                 ("commonspace_mask", "commonspace_bold_mask"),
                 ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
@@ -390,26 +410,30 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             ("outputnode.FD_csv", "FD_csv"),
             ("outputnode.itk_bold_to_anat", "itk_bold_to_anat"),
             ("outputnode.itk_anat_to_bold", "itk_anat_to_bold"),
-            ("outputnode.output_warped_bold", "boldref_warped2anat"),
+            ("outputnode.output_warped_bold", "bias_cor_bold_warped2anat"),
             ("outputnode.resampled_bold", "native_corrected_bold"),
-            ("outputnode.resampled_ref_bold", "corrected_ref_bold"),
+            ("outputnode.resampled_ref_bold", "corrected_bold_ref"),
             ]),
-        (outputnode, datasink, [
+        (outputnode, transforms_datasink, [
+            ("itk_bold_to_anat", "bold_to_anat_transform"),
+            ("itk_anat_to_bold", "anat_to_bold_transform"),
+            ]),
+        (outputnode, confounds_datasink, [
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ("FD_voxelwise", "FD_voxelwise"),
+            ("pos_voxelwise", "pos_voxelwise"),
+            ("FD_csv", "FD_csv"),
+            ]),
+        (outputnode, bold_datasink, [
             ("initial_bold_ref","initial_bold_ref"), #inspect initial bold ref
             ("bias_cor_bold","bias_cor_bold"), #inspect bias correction
             ("bold_brain_mask","bold_brain_mask"), #get the EPI labels
             ("bold_WM_mask","bold_WM_mask"), #get the EPI labels
             ("bold_CSF_mask","bold_CSF_mask"), #get the EPI labels
             ("bold_labels","bold_labels"), #get the EPI labels
-            ("confounds_csv", "confounds_csv"), #confounds file
-            ("FD_voxelwise", "FD_voxelwise"),
-            ("pos_voxelwise", "pos_voxelwise"),
-            ("FD_csv", "FD_csv"),
-            ("itk_bold_to_anat", "itk_bold_to_anat"),
-            ("itk_anat_to_bold", "itk_anat_to_bold"),
-            ("boldref_warped2anat","boldref_warped2anat"), #warped EPI to anat
+            ("bias_cor_bold_warped2anat","bias_cor_bold_warped2anat"), #warped EPI to anat
             ("native_corrected_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
-            ("corrected_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ("corrected_bold_ref", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
             ]),
         ])
 

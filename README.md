@@ -4,12 +4,16 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [-e BOLD_ONLY] [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT]
-              [-r COREG_SCRIPT] [-p PLUGIN] [-d DEBUG] [-v VERBOSE]
+usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
+              [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
+              [-p PLUGIN] [--min_proc MIN_PROC] [-d DEBUG] [-v VERBOSE]
+              [--isotropic_resampling ISOTROPIC_RESAMPLING]
+              [--upsampling UPSAMPLING] [--data_type DATA_TYPE]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
               [--memory_request MEMORY_REQUEST]
-              [--local_threads LOCAL_THREADS] [--STC STC] [--TR TR]
-              [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
+              [--local_threads LOCAL_THREADS]
+              [--template_reg_script TEMPLATE_REG_SCRIPT] [--STC STC]
+              [--TR TR] [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
               [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
               [--CSF_mask CSF_MASK] [--labels LABELS]
               [--csv_labels CSV_LABELS]
@@ -26,6 +30,11 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --bids_input BIDS_INPUT
+                        If the provided input data folder is in the BIDS
+                        format to use the BIDS reader.Note that all .nii
+                        inputs will be converted to compressed .gz format.
+                        (default: False)
   -e BOLD_ONLY, --bold_only BOLD_ONLY
                         preprocessing with only EPI scans. commonspace
                         registration and distortion correction is executed
@@ -42,9 +51,9 @@ optional arguments:
                         (default: Rigid)
   -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
                         Specify EPI to anat coregistration script. Built-in
-                        options include 'Rigid', 'Affine' and 'SyN' (non-
-                        linear), but can specify a custom registration script
-                        following the template script structure (see
+                        options include 'Rigid', 'Affine', 'SyN' (non-linear)
+                        and 'light_SyN', but can specify a custom registration
+                        script following the template script structure (see
                         RABIES/rabies/shell_scripts/ for template). (default:
                         SyN)
   -p PLUGIN, --plugin PLUGIN
@@ -52,11 +61,27 @@ optional arguments:
                         Consult nipype plugin documentation for detailed
                         options. Linear, MultiProc, SGE and SGEGraph have been
                         tested. (default: Linear)
+  --min_proc MIN_PROC   For parallel processing, specify the minimal number of
+                        nodes to be assigned. (default: 1)
   -d DEBUG, --debug DEBUG
                         Run in debug mode. Default=False (default: False)
   -v VERBOSE, --verbose VERBOSE
                         Increase output verbosity. **doesn't do anything for
                         now. (default: False)
+
+Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling::
+  --isotropic_resampling ISOTROPIC_RESAMPLING
+                        Whether to resample the EPI to an isotropic resolution
+                        based on the lowest dimension. (default: False)
+  --upsampling UPSAMPLING
+                        Can specify a upsampling parameter to increase the EPI
+                        resolution upon resampling and minimize information
+                        lost from the transform interpolation. (default: 1.0)
+  --data_type DATA_TYPE
+                        Specify resampling data format to control for file
+                        size. Can specify a numpy data type from https://docs.
+                        scipy.org/doc/numpy/user/basics.types.html. (default:
+                        float64)
 
 cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
   --cluster_type {local,sge,pbs,slurm}
@@ -67,10 +92,16 @@ cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
   --memory_request MEMORY_REQUEST
                         Option for job submission specifying requested memory
                         per pairwise registration. (default: 8gb)
-  --local_threads LOCAL_THREADS, -j LOCAL_THREADS
+  --local_threads LOCAL_THREADS
                         For local execution, how many subject-wise modelbuilds
                         to run in parallel, defaults to number of CPUs
-                        (default: 8)
+                        (default: 2)
+  --template_reg_script TEMPLATE_REG_SCRIPT
+                        Registration script that will be used for registration
+                        of the generated template to the provided atlas for
+                        masking and labeling. Can choose a predefined
+                        registration script among Rigid,Affine,SyN or
+                        light_SyN, or provide a custom script. (default: SyN)
 
 Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
   --STC STC             Whether to run STC or not. (default: True)
@@ -82,46 +113,47 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
 Template files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/cic/desgab/RABIES/DSURQE_atlas/nifti/D
-                        SURQE_100micron_average.nii.gz)
+                        (default: /home/gabriel/RABIES/DSURQE_atlas/nifti/DSUR
+                        QE_100micron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/cic/desga
-                        b/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.
-                        gz)
-  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
-                        c/desgab/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_er
-                        oded_WM_mask.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
-                        RABIES/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_
-                        mask.nii.gz)
-  --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
-                        /desgab/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_lab
-                        els.nii.gz)
+                        Brain mask for the template. (default: /home/gabriel/R
+                        ABIES/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
+                        briel/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_erode
+                        d_WM_mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
+                        IES/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mas
+                        k.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
+                        riel/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_labels
+                        .nii.gz)
   --csv_labels CSV_LABELS
-                        csv file with info on the labels. (default: /home/cic/
-                        desgab/RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.c
-                        sv)
+                        csv file with info on the labels. (default: /home/gabr
+                        iel/RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.csv)
 
 
 ```
 
 ## Example execution command
 ```
-  rabies -e 0 -c ants_dbm -b default -r SyN -p SGEGraph -d 0 -v 0 nii_inputs/ rabies_outputs/
+  rabies nii_inputs/ rabies_outputs/ -e 0 -c ants_dbm -b default -r SyN -p SGEGraph -d 0 -v 0
 ```
 
-## Input data folder structure
-* input_folder/subject_id/ses-#/bold/subject_id_ses-#_run-#_bold.nii.gz
-* input_folder/subject_id/ses-#/anat/subject_id_ses-#_anat.nii.gz
+# Input data folder structure
+Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/) or the following:
+* input_folder/sub-subject_id/ses-#/func/sub-subject_id_ses-#_run-#_bold.nii.gz
+* input_folder/sub-subject_id/ses-#/anat/sub-subject_id_ses-#_anat.nii.gz
 * input_folder/data_info.csv (with columns header: group,subject_id,num_session,num_run)
 
 
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!DOCTYPE html>
 <html>
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <meta name="Author" content="Made by 'tree'">
- <meta name="GENERATOR" content="$Version: $ tree v1.6.0 (c) 1996 - 2011 by Steve Baker, Thomas Moore, Francesc Rocher, Kyosuke Tokoro $">
+ <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
+ <title>Directory Tree</title>
+ <style type="text/css">
   <!--
   BODY { font-family : ariel, monospace, sans-serif; }
   P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
@@ -140,68 +172,54 @@ Template files.:
   .SOCK  { color: fuchsia;background-color: transparent;}
   .EXEC  { color: green;  background-color: transparent;}
   -->
+ </style>
 </head>
 <body>
-	<h1>Example Directory Tree</h1><p>
-	<a href="nii_inputs/">nii_inputs/</a><br>
-	└── <a href="nii_inputs//nii_inputs/">nii_inputs</a><br>
-	&nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/data_info.csv">data_info.csv</a><br>
-	&nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/">jgrAesAWc11L</a><br>
-	&nbsp;&nbsp;&nbsp; │   ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/anat/jgrAesAWc11L_ses-1_anat.nii.gz">jgrAesAWc11L_ses-1_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/bold/jgrAesAWc11L_ses-1_run-1_bold.nii.gz">jgrAesAWc11L_ses-1_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/bold/jgrAesAWc11L_ses-1_run-2_bold.nii.gz">jgrAesAWc11L_ses-1_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-1/bold/jgrAesAWc11L_ses-1_run-3_bold.nii.gz">jgrAesAWc11L_ses-1_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/">ses-2</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/anat/jgrAesAWc11L_ses-2_anat.nii.gz">jgrAesAWc11L_ses-2_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/bold/jgrAesAWc11L_ses-2_run-1_bold.nii.gz">jgrAesAWc11L_ses-2_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/bold/jgrAesAWc11L_ses-2_run-2_bold.nii.gz">jgrAesAWc11L_ses-2_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11L/ses-2/bold/jgrAesAWc11L_ses-2_run-3_bold.nii.gz">jgrAesAWc11L_ses-2_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/">jgrAesAWc11R</a><br>
-	&nbsp;&nbsp;&nbsp; │   ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/anat/jgrAesAWc11R_ses-1_anat.nii.gz">jgrAesAWc11R_ses-1_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/bold/jgrAesAWc11R_ses-1_run-1_bold.nii.gz">jgrAesAWc11R_ses-1_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/bold/jgrAesAWc11R_ses-1_run-2_bold.nii.gz">jgrAesAWc11R_ses-1_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-1/bold/jgrAesAWc11R_ses-1_run-3_bold.nii.gz">jgrAesAWc11R_ses-1_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/">ses-2</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/anat/jgrAesAWc11R_ses-2_anat.nii.gz">jgrAesAWc11R_ses-2_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/bold/jgrAesAWc11R_ses-2_run-1_bold.nii.gz">jgrAesAWc11R_ses-2_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/bold/jgrAesAWc11R_ses-2_run-2_bold.nii.gz">jgrAesAWc11R_ses-2_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R/ses-2/bold/jgrAesAWc11R_ses-2_run-3_bold.nii.gz">jgrAesAWc11R_ses-2_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/">jgrAesAWc11R1L</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/anat/jgrAesAWc11R1L_ses-1_anat.nii.gz">jgrAesAWc11R1L_ses-1_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/bold/jgrAesAWc11R1L_ses-1_run-1_bold.nii.gz">jgrAesAWc11R1L_ses-1_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/bold/jgrAesAWc11R1L_ses-1_run-2_bold.nii.gz">jgrAesAWc11R1L_ses-1_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-1/bold/jgrAesAWc11R1L_ses-1_run-3_bold.nii.gz">jgrAesAWc11R1L_ses-1_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/">ses-2</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/anat/jgrAesAWc11R1L_ses-2_anat.nii.gz">jgrAesAWc11R1L_ses-2_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/bold/">bold</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/bold/jgrAesAWc11R1L_ses-2_run-1_bold.nii.gz">jgrAesAWc11R1L_ses-2_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/bold/jgrAesAWc11R1L_ses-2_run-2_bold.nii.gz">jgrAesAWc11R1L_ses-2_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_inputs//nii_inputs/jgrAesAWc11R1L/ses-2/bold/jgrAesAWc11R1L_ses-2_run-3_bold.nii.gz">jgrAesAWc11R1L_ses-2_run-3_bold.nii.gz</a><br>
+  <h1>Example Directory Tree</h1><p>
+	<a href="nii_input">nii_input</a><br>
+	├── <a href="nii_input/data_info.csv">data_info.csv</a><br>
+	├── <a href="nii_input/sub-jgrAesAWc11L/">sub-jgrAesAWc11L</a><br>
+	│   ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/">ses-1</a><br>
+	│   │   ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/anat/">anat</a><br>
+	│   │   │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/anat/sub-jgrAesAWc11L_ses-1_anat.nii.gz">sub-jgrAesAWc11L_ses-1_anat.nii.gz</a><br>
+	│   │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/">func</a><br>
+	│   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-1_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-1_bold.nii.gz</a><br>
+	│   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-2_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-2_bold.nii.gz</a><br>
+	│   │   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-3_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-3_bold.nii.gz</a><br>
+	│   └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/">ses-2</a><br>
+	│   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/anat/">anat</a><br>
+	│   &nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/anat/sub-jgrAesAWc11L_ses-2_anat.nii.gz">sub-jgrAesAWc11L_ses-2_anat.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/">func</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-1_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-1_bold.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-2_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-2_bold.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-3_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-3_bold.nii.gz</a><br>
+	└── <a href="nii_input/sub-jgrAesAWc11R/">sub-jgrAesAWc11R</a><br>
+	&nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/">ses-1</a><br>
+	&nbsp;&nbsp;&nbsp; │   ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/anat/">anat</a><br>
+	&nbsp;&nbsp;&nbsp; │   │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/anat/sub-jgrAesAWc11R_ses-1_anat.nii.gz">sub-jgrAesAWc11R_ses-1_anat.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/">func</a><br>
+	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-1_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-1_bold.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-2_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-2_bold.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-3_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-3_bold.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/">ses-2</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/anat/">anat</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/anat/sub-jgrAesAWc11R_ses-2_anat.nii.gz">sub-jgrAesAWc11R_ses-2_anat.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/">func</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-1_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-1_bold.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-2_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-2_bold.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-3_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-3_bold.nii.gz</a><br>
 	<br><br>
 	</p>
 	<p>
 
-22 directories, 25 files
+14 directories, 17 files
 	<br><br>
 	</p>
 	<hr>
 	<p class="VERSION">
-		 tree v1.6.0 © 1996 - 2011 by Steve Baker and Thomas Moore <br>
+		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
 		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
+		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
 		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
 	</p>
 </body>
@@ -219,6 +237,16 @@ After installing the container from the Dockerfile, can run RABIES interactively
 ```
 <br/>
 
+# Managing outputs
+Important outputs will be found in datasink folders:
+* anat_datasink: Includes outputs specific to the anatomical workflow
+* bold_datasink: Includes corrected EPI timeseries, EPI masks and key EPI outputs from the preprocessing workflow
+* commonspace_datasink: Outputs from the common space registration
+* transforms_datasink: Contains all transforms
+* confounds_datasink: contains outputs to use for confound regression steps
+
+<br/>
+
 ## Publications
 * Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. Recurrent functional connectivity gradients identified along specific frequency bands of oscillatory coherence and across anesthesia protocols for mouse fMRI. Presented at Society for Neuroscience 2019, Chicago, IL
 * Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. (2019) Dynamic functional connectivity properties are differentially affected by anesthesia protocols and compare across species. Presented at Organization for Human Brain Mapping 2019, Rome, Italy
@@ -227,7 +255,3 @@ After installing the container from the Dockerfile, can run RABIES interactively
 ## References
 
 * fmriprep - https://github.com/poldracklab/fmriprep
-* minc-toolkit v2 - https://github.com/BIC-MNI/minc-toolkit-v2
-* minc-stuffs - https://github.com/Mouse-Imaging-Centre/minc-stuffs
-* minc2-simple - https://github.com/vfonov/minc2-simple
-* pydpiper - https://github.com/Mouse-Imaging-Centre/pydpiper

@@ -24,6 +24,7 @@ nilearn>=0.4.2
 nipype>=1.1.4
 tqdm
 pathos
+pybids
 
 # Optional MINC dependencies
 minc-toolkit>=1.9.17
