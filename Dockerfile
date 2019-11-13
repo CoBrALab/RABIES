@@ -94,11 +94,8 @@ RUN wget afni.nimh.nih.gov/pub/dist/tgz/linux_ubuntu_16_64.tgz \
     && tar -xzf linux_ubuntu_16_64.tgz -C $HOME/afni \
     && rm -rf linux_ubuntu_16_64.tgz
 
-ENV AFNIPATH="$HOME/ants-v2.3.1/bin" \
+ENV AFNIPATH="$HOME/afni/linux_ubuntu_16_64/" \
     PATH="$HOME/afni/linux_ubuntu_16_64:$PATH"
-
-
-### Local CIC VM from https://github.com/CobraLab/MINC-VM/blob/master/provision.sh
 
 RUN apt-get update && \
   apt-get install -y --no-install-recommends htop nano wget imagemagick parallel zram-config debconf
@@ -110,6 +107,8 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
     ed zlib1g-dev libxml2-dev libxslt-dev openjdk-8-jre \
     zenity libcurl4-openssl-dev bc gawk libxkbcommon-x11-0 \
     ttf-mscorefonts-installer bc
+
+#Install python environment
 
 ENV CONDA_DIR="$HOME/miniconda-latest" \
     PATH="$HOME/miniconda-latest/bin:$PATH" \

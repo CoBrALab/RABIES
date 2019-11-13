@@ -390,8 +390,8 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
         (anat_selectfiles, anat_preproc_wf, [("out_file", "inputnode.anat_file")]),
-        (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "anat_preproc")]),
-        (bold_selectfiles, datasink, [
+        (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
+        (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
             ]),
         (bold_selectfiles, bold_main_wf, [
