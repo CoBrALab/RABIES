@@ -64,6 +64,8 @@ class EPIBiasCorrection(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import numpy as np
+        import nibabel as nb
 
         subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
@@ -99,11 +101,21 @@ class EPIBiasCorrection(BaseInterface):
                 raise ValueError(msg)
 
         cwd=os.getcwd()
-        os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,self.inputs.input_ref_EPI, self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))
-
         warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
         resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_template)
         biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_template)
+
+        #resample to isotropic resolution based on lowest dimension
+        dim=nb.load(self.inputs.input_ref_EPI).header.get_zooms()
+        low_dim=np.asarray(dim).min()
+        processing.resample_to_output(nb.load(self.inputs.input_ref_EPI), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(cwd+'/resampled.nii.gz')
+
+        os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))
+
+        #resample to anatomical image resolution
+        dim=nb.load(self.inputs.anat).header.get_zooms()
+        low_dim=np.asarray(dim).min()
+        processing.resample_to_output(nb.load(cwd+'iter_corrected.nii.gz'), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(biascor_EPI)
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)

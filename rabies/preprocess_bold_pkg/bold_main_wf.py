@@ -134,7 +134,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold','resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat','resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
@@ -152,9 +152,9 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     bold_reg_wf = init_bold_reg_wf(coreg_script=coreg_script)
 
-    def SyN_coreg_transforms_prep(itk_bold_to_anat):
-        return [itk_bold_to_anat],[0] #transforms_list,inverses
-    transforms_prep = pe.Node(Function(input_names=['itk_bold_to_anat'],
+    def SyN_coreg_transforms_prep(warp_bold2anat,affine_bold2anat):
+        return [warp_bold2anat,affine_bold2anat],[0,0] #transforms_list,inverses
+    transforms_prep = pe.Node(Function(input_names=['warp_bold2anat','affine_bold2anat'],
                               output_names=['transforms_list','inverses'],
                               function=SyN_coreg_transforms_prep),
                      name='transforms_prep')
@@ -195,12 +195,14 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
         (bias_cor_wf, outputnode, [
               ('outputnode.corrected_EPI', 'corrected_EPI')]),
         (bold_reg_wf, outputnode, [
-            ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
-            ('outputnode.itk_anat_to_bold', 'itk_anat_to_bold'),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+            ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ('outputnode.output_warped_bold', 'output_warped_bold'),
             ]),
         (bold_reg_wf, transforms_prep, [
-            ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
             ]),
         (transforms_prep, bold_bold_trans_wf, [
             ('transforms_list', 'inputnode.transforms_list'),
@@ -245,9 +247,9 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
-        def commonspace_transforms(template_to_common_transform,anat_to_template_warp, anat_to_template_affine, itk_bold_to_anat):
-            return [template_to_common_transform,anat_to_template_warp, anat_to_template_affine,itk_bold_to_anat],[0,0,0,0] #transforms_list,inverses
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_transform','anat_to_template_warp','anat_to_template_affine','itk_bold_to_anat'],
+        def commonspace_transforms(template_to_common_transform,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
+            return [template_to_common_transform,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat],[0,0,0,0,0] #transforms_list,inverses
+        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_transform','anat_to_template_warp','anat_to_template_affine', 'warp_bold2anat', 'affine_bold2anat'],
                                   output_names=['transforms_list','inverses'],
                                   function=commonspace_transforms),
                          name='commonspace_transforms_prep')
@@ -261,7 +263,8 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                 ("anat_to_template_warp", "anat_to_template_warp"),
                 ]),
             (bold_reg_wf, commonspace_transforms_prep, [
-                ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
+                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
                 ]),
             (commonspace_transforms_prep, bold_commonspace_trans_wf, [
                 ('transforms_list', 'inputnode.transforms_list'),

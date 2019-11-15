@@ -116,7 +116,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
 
     #set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'itk_bold_to_anat','itk_anat_to_bold', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
         name='outputnode')
 
@@ -408,15 +408,17 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
             ("outputnode.pos_voxelwise", "pos_voxelwise"),
             ("outputnode.FD_csv", "FD_csv"),
-            ("outputnode.itk_bold_to_anat", "itk_bold_to_anat"),
-            ("outputnode.itk_anat_to_bold", "itk_anat_to_bold"),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+            ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ("outputnode.output_warped_bold", "bias_cor_bold_warped2anat"),
             ("outputnode.resampled_bold", "native_corrected_bold"),
             ("outputnode.resampled_ref_bold", "corrected_bold_ref"),
             ]),
         (outputnode, transforms_datasink, [
-            ("itk_bold_to_anat", "bold_to_anat_transform"),
-            ("itk_anat_to_bold", "anat_to_bold_transform"),
+            ('affine_bold2anat', 'affine_bold2anat'),
+            ('warp_bold2anat', 'warp_bold2anat'),
+            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ]),
         (outputnode, confounds_datasink, [
             ("confounds_csv", "confounds_csv"), #confounds file

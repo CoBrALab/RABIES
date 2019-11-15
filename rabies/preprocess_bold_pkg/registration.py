@@ -49,14 +49,14 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=[
-            'itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold']),
+            'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold']),
         name='outputnode'
     )
 
 
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
                                             "anat_mask"],
-                   output_names=['itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold'],
+                   output_names=['affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold'],
                    function=run_antsRegistration), name='EPI_Coregistration')
     run_reg.inputs.reg_script=coreg_script
     run_reg.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
@@ -67,8 +67,9 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
             ('anat_preproc', 'fixed_image'),
             ('anat_mask', 'anat_mask')]),
         (run_reg, outputnode, [
-            ('itk_bold_to_anat', 'itk_bold_to_anat'),
-            ('itk_anat_to_bold', 'itk_anat_to_bold'),
+            ('affine_bold2anat', 'affine_bold2anat'),
+            ('warp_bold2anat', 'warp_bold2anat'),
+            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ('output_warped_bold', 'output_warped_bold'),
             ]),
         ])
@@ -88,9 +89,14 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
-    inverse_composite_transform='%s/%s_output_InverseComposite.h5' % (cwd, filename_template)
-    composite_transform='%s/%s_output_Composite.h5' % (cwd, filename_template)
-    if not os.path.isfile(warped_image) or not os.path.isfile(inverse_composite_transform) or not os.path.isfile(composite_transform):
+    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_template)
+    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_template)
+    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_template)
+    if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING.')
+    if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
+        print('No non-linear warp files as output. Assumes linear registration.')
+        warp='NULL'
+        inverse_warp='NULL'
 
-    return [composite_transform, inverse_composite_transform, warped_image]
+    return [affine, warp, inverse_warp, warped_image]
