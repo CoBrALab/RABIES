@@ -58,7 +58,7 @@ def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'name_source', 'bold_file', 'transforms_list', 'inverses']),
+        'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses']),
         name='inputnode'
     )
 
@@ -67,8 +67,8 @@ def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='
         name='outputnode')
 
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform.inputs.apply_motcorr = True
     bold_transform.inputs.ref_file = os.environ["template_anat"]
-    bold_transform.inputs.apply_motcorr = False
     bold_transform.inputs.isotropic_resampling = isotropic_resampling
     bold_transform.inputs.upsampling = upsampling
     bold_transform.inputs.data_type = data_type
@@ -101,6 +101,7 @@ def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='
         (inputnode, merge, [('name_source', 'header_source')]),
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
+            ('motcorr_params', 'motcorr_params'),
             ('transforms_list', 'transforms'),
             ('inverses', 'inverses'),
             ]),

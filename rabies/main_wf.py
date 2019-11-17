@@ -6,11 +6,12 @@ from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
 from .preprocess_anat_pkg.anat_mask_prep import init_anat_mask_prep_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
+from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter
 from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -23,6 +24,8 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
+        bids_input
+            specify if the provided input folder is in a BIDS format to use BIDS reader
         tr
             repetition time for the EPI
         tpattern
@@ -65,13 +68,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             Composite transforms from the EPI space to the anatomical space
         itk_anat_to_bold
             Composite transforms from the anatomical space to the EPI space
-        boldref_warped2anat
+        bias_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
             Original BOLD timeseries resampled through motion realignment and
             susceptibility distortion correction based on registration to the
             anatomical image
-        corrected_ref_bold
+        corrected_bold_ref
             3D median EPI volume from the resampled native BOLD timeseries
         confounds_csv
             .csv file with measured confound timecourses, including global signal,
@@ -113,27 +116,46 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
 
     #set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'itk_bold_to_anat','itk_anat_to_bold', 'boldref_warped2anat', 'native_corrected_bold', 'corrected_ref_bold', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+        fields=['anat_preproc','anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask','initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv','FD_voxelwise', 'pos_voxelwise', 'FD_csv',
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
         name='outputnode')
 
+    if bids_input:
+        #with BIDS input data
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(data_dir_path)
+        subject_list, session_iter, run_iter=prep_bids_iter(layout)
+        #set SelectFiles nodes
+        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
+        bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
+    else:
+        #with restricted data input structure for RABIES
+        import pandas as pd
+        data_df=pd.read_csv(data_csv, sep=',')
+        subject_list=data_df['subject_id'].values.tolist()
+        session_list=data_df['num_session'].values.tolist()
+        run_list=data_df['num_run'].values.tolist()
 
-    #read the data_info csv
-    import pandas as pd
-    data_df=pd.read_csv(data_csv, sep=',')
-    subject_list=data_df['subject_id'].values.tolist()
-    session_list=data_df['num_session'].values.tolist()
-    run_list=data_df['num_run'].values.tolist()
+        #create a dictionary with list of bold session numbers for each subject
+        session_iter={}
+        for i in range(len(subject_list)):
+            session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
 
-    #create a dictionary with list of bold session numbers for each subject
-    session_iter={}
-    for i in range(len(subject_list)):
-        session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
+        #create a dictionary with list of bold run numbers for each subject
+        run_iter={}
+        for i in range(len(subject_list)):
+            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
-    #create a dictionary with list of bold run numbers for each subject
-    run_iter={}
-    for i in range(len(subject_list)):
-        run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+        #set SelectFiles nodes
+        anat_file = opj('sub-{subject_id}', 'ses-{session}', 'anat', 'sub-{subject_id}_ses-{session}_anat.nii.gz')
+        anat_selectfiles = pe.Node(SelectFiles({'out_file': anat_file},
+                                       base_directory=data_dir_path),
+                           name="anat_selectfiles")
+
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'func', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
+                                       base_directory=data_dir_path),
+                           name="bold_selectfiles")
 
     ####setting up all iterables
     infosub_id = pe.Node(niu.IdentityInterface(fields=['subject_id']),
@@ -151,20 +173,25 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
     inforun.iterables = [('run', run_iter)]
 
     # Datasink - creates output folder for important outputs
-    datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="datasink"),
-                    name="datasink")
+    anat_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="anat_datasink"),
+                    name="anat_datasink")
 
-    #set SelectFiles nodes
-    anat_file = opj('{subject_id}', 'ses-{session}', 'anat', '{subject_id}_ses-{session}_anat.nii.gz')
-    anat_selectfiles = pe.Node(SelectFiles({'anat': anat_file},
-                                   base_directory=data_dir_path),
-                       name="anat_selectfiles")
+    bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="bold_datasink"),
+                    name="bold_datasink")
 
-    bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
-    bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
-                                   base_directory=data_dir_path),
-                       name="bold_selectfiles")
+    commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="commonspace_datasink"),
+                    name="commonspace_datasink")
+
+    transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="transforms_datasink"),
+                    name="transforms_datasink")
+
+    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="confounds_datasink"),
+                    name="confounds_datasink")
 
     #####setting up commonspace registration within the workflow
     joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
@@ -217,7 +244,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                                   output_names=['ants_dbm_template'],
                                   function=commonspace_reg_function),
                          name='commonspace_reg')
-        commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
+        commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
         #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
         template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -229,9 +256,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
         template_reg.inputs.reg_script = template_reg_script
 
         #setting SelectFiles for the commonspace registration
-        anat_to_template_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1InverseWarp.nii.gz')
-        anat_to_template_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*1Warp.nii.gz')
-        anat_to_template_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{subject_id}_ses-{session}_anat_preproc*0GenericAffine.mat')
+        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
+        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
+        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
         common_to_template_transform = '/'+opj('{common_to_template_transform}')
         template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
@@ -292,17 +319,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             (commonspace_reg, commonspace_selectfiles, [
                 ("ants_dbm_template", "ants_dbm_template"),
                 ]),
-            (commonspace_reg, datasink, [
-                ("ants_dbm_template", "ants_dbm_template"),
-                ]),
             (template_reg, commonspace_selectfiles, [
                 ("inverse_composite_transform", "common_to_template_transform"),
                 ("composite_transform", "template_to_common_transform"),
-                ]),
-            (template_reg, datasink, [
-                ("inverse_composite_transform", "common_to_template_transform"),
-                ("composite_transform", "template_to_common_transform"),
-                ("warped_image", "warped_template"),
                 ]),
             (commonspace_selectfiles, transform_masks, [
                 ("common_to_template_transform", "common_to_template_transform"),
@@ -327,18 +346,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
                 ]),
-            (commonspace_selectfiles, commonspace_transforms_prep, [
-                ("template_to_common_transform", "template_to_common_transform"),
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
-                ]),
-            (commonspace_selectfiles, datasink, [
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
-                ]),
-            (commonspace_transforms_prep, bold_main_wf, [
-                ("transforms_list", "inputnode.commonspace_transforms_list"),
-                ("inverses", "inputnode.commonspace_inverses"),
+            (commonspace_selectfiles, bold_main_wf, [
+                ("template_to_common_transform", "inputnode.template_to_common_transform"),
+                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
                 ]),
             (bold_main_wf, outputnode, [
                 ("outputnode.commonspace_bold", "commonspace_bold"),
@@ -347,11 +358,27 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
                 ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
                 ("outputnode.commonspace_labels", "commonspace_labels"),
                 ]),
-            (outputnode, datasink, [
+            (commonspace_reg, commonspace_datasink, [
+                ("ants_dbm_template", "ants_dbm_template"),
+                ]),
+            (template_reg, commonspace_datasink, [
+                ("warped_image", "warped_template"),
+                ]),
+            (template_reg, transforms_datasink, [
+                ("inverse_composite_transform", "common_to_template_transform"),
+                ("composite_transform", "template_to_common_transform"),
+                ]),
+            (commonspace_selectfiles, transforms_datasink, [
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_warp", "anat_to_template_warp"),
+                ]),
+            (outputnode, anat_datasink, [
                 ("anat_labels", 'anat_labels'),
                 ("anat_mask", 'anat_mask'),
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
+                ]),
+            (outputnode, bold_datasink, [
                 ("commonspace_bold", "commonspace_bold"), #resampled EPI after motion realignment and SDC
                 ("commonspace_mask", "commonspace_bold_mask"),
                 ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
@@ -362,13 +389,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (anat_selectfiles, anat_preproc_wf, [("anat", "inputnode.anat_file")]),
-        (anat_preproc_wf, datasink, [("outputnode.preproc_anat", "anat_preproc")]),
-        (bold_selectfiles, datasink, [
-            ("bold", "input_bold"),
+        (anat_selectfiles, anat_preproc_wf, [("out_file", "inputnode.anat_file")]),
+        (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
+        (bold_selectfiles, bold_datasink, [
+            ("out_file", "input_bold"),
             ]),
         (bold_selectfiles, bold_main_wf, [
-            ("bold", "inputnode.bold"),
+            ("out_file", "inputnode.bold"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
@@ -381,28 +408,34 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, tr, tpattern, a
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
             ("outputnode.pos_voxelwise", "pos_voxelwise"),
             ("outputnode.FD_csv", "FD_csv"),
-            ("outputnode.itk_bold_to_anat", "itk_bold_to_anat"),
-            ("outputnode.itk_anat_to_bold", "itk_anat_to_bold"),
-            ("outputnode.output_warped_bold", "boldref_warped2anat"),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+            ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+            ("outputnode.output_warped_bold", "bias_cor_bold_warped2anat"),
             ("outputnode.resampled_bold", "native_corrected_bold"),
-            ("outputnode.resampled_ref_bold", "corrected_ref_bold"),
+            ("outputnode.resampled_ref_bold", "corrected_bold_ref"),
             ]),
-        (outputnode, datasink, [
+        (outputnode, transforms_datasink, [
+            ('affine_bold2anat', 'affine_bold2anat'),
+            ('warp_bold2anat', 'warp_bold2anat'),
+            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+            ]),
+        (outputnode, confounds_datasink, [
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ("FD_voxelwise", "FD_voxelwise"),
+            ("pos_voxelwise", "pos_voxelwise"),
+            ("FD_csv", "FD_csv"),
+            ]),
+        (outputnode, bold_datasink, [
             ("initial_bold_ref","initial_bold_ref"), #inspect initial bold ref
             ("bias_cor_bold","bias_cor_bold"), #inspect bias correction
             ("bold_brain_mask","bold_brain_mask"), #get the EPI labels
             ("bold_WM_mask","bold_WM_mask"), #get the EPI labels
             ("bold_CSF_mask","bold_CSF_mask"), #get the EPI labels
             ("bold_labels","bold_labels"), #get the EPI labels
-            ("confounds_csv", "confounds_csv"), #confounds file
-            ("FD_voxelwise", "FD_voxelwise"),
-            ("pos_voxelwise", "pos_voxelwise"),
-            ("FD_csv", "FD_csv"),
-            ("itk_bold_to_anat", "itk_bold_to_anat"),
-            ("itk_anat_to_bold", "itk_anat_to_bold"),
-            ("boldref_warped2anat","boldref_warped2anat"), #warped EPI to anat
+            ("bias_cor_bold_warped2anat","bias_cor_bold_warped2anat"), #warped EPI to anat
             ("native_corrected_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
-            ("corrected_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ("corrected_bold_ref", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
             ]),
         ])
 

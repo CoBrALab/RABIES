@@ -49,14 +49,14 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=[
-            'itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold']),
+            'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold']),
         name='outputnode'
     )
 
 
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
                                             "anat_mask"],
-                   output_names=['itk_bold_to_anat', 'itk_anat_to_bold', 'output_warped_bold'],
+                   output_names=['affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold'],
                    function=run_antsRegistration), name='EPI_Coregistration')
     run_reg.inputs.reg_script=coreg_script
     run_reg.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
@@ -67,8 +67,9 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
             ('anat_preproc', 'fixed_image'),
             ('anat_mask', 'anat_mask')]),
         (run_reg, outputnode, [
-            ('itk_bold_to_anat', 'itk_bold_to_anat'),
-            ('itk_anat_to_bold', 'itk_anat_to_bold'),
+            ('affine_bold2anat', 'affine_bold2anat'),
+            ('warp_bold2anat', 'warp_bold2anat'),
+            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ('output_warped_bold', 'output_warped_bold'),
             ]),
         ])
@@ -76,86 +77,26 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_script='Affine', moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
+def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
     filename_template=os.path.basename(moving_image).split('.')[0]
 
-    if reg_script=='SyN':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/SyN_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,NULL] \
-        -t Affine[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,$mask] \
-        -t SyN[ 0.2, 3.0, 0.0 ] -m Mattes[$anat_file,$EPI, 1, 64 ] \
-        -c [ 40x20x0, 1e-06, 6 ] -s 2x1x0 -f 4x2x1 --masks [$mask,$mask] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
-    elif reg_script=='Affine':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Affine_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        -t Similarity[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,NULL] \
-        -t Affine[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,$mask] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
-    elif reg_script=='Rigid':
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
-        '''
-        EPI=$1
-        anat_file=$2
-        mask=$3
-        filename_template=$4
-
-        antsRegistration -d 3 \
-        --verbose -o [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
-        -t Rigid[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
-        -c 1000x500x250x100x50x25 -s 8x4x2x1x0.5x0 -f 6x5x4x3x2x1 --masks [NULL,NULL] \
-        --interpolation BSpline[5] -z 1 -u 0 -a 1
-        '''
-
+    if os.path.isfile(reg_script):
+        reg_script_path=reg_script
     else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(reg_script):
-            reg_script_path=reg_script
-        else:
-            raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+        raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
-    inverse_composite_transform='%s/%s_output_InverseComposite.h5' % (cwd, filename_template)
-    composite_transform='%s/%s_output_Composite.h5' % (cwd, filename_template)
-    if not os.path.isfile(warped_image) or not os.path.isfile(inverse_composite_transform) or not os.path.isfile(composite_transform):
+    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_template)
+    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_template)
+    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_template)
+    if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING.')
+    if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
+        print('No non-linear warp files as output. Assumes linear registration.')
+        warp='NULL'
+        inverse_warp='NULL'
 
-    return [composite_transform, inverse_composite_transform, warped_image]
+    return [affine, warp, inverse_warp, warped_image]

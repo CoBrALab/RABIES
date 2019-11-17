@@ -6,7 +6,7 @@ from nipype.interfaces import utility as niu
 from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
-from .utils import init_bold_reference_wf
+from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
 from .sdc import init_sdc_wf
@@ -130,11 +130,11 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'commonspace_transforms_list', 'commonspace_inverses']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'template_to_common_transform','anat_to_template_affine','anat_to_template_warp']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'itk_bold_to_anat', 'itk_anat_to_bold','resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                fields=['input_bold', 'bold_ref', 'skip_vols','motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat','resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
@@ -152,9 +152,9 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     bold_reg_wf = init_bold_reg_wf(coreg_script=coreg_script)
 
-    def SyN_coreg_transforms_prep(itk_bold_to_anat):
-        return [itk_bold_to_anat],[0] #transforms_list,inverses
-    transforms_prep = pe.Node(Function(input_names=['itk_bold_to_anat'],
+    def SyN_coreg_transforms_prep(warp_bold2anat,affine_bold2anat):
+        return [warp_bold2anat,affine_bold2anat],[0,0] #transforms_list,inverses
+    transforms_prep = pe.Node(Function(input_names=['warp_bold2anat','affine_bold2anat'],
                               output_names=['transforms_list','inverses'],
                               function=SyN_coreg_transforms_prep),
                      name='transforms_prep')
@@ -195,12 +195,14 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
         (bias_cor_wf, outputnode, [
               ('outputnode.corrected_EPI', 'corrected_EPI')]),
         (bold_reg_wf, outputnode, [
-            ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
-            ('outputnode.itk_anat_to_bold', 'itk_anat_to_bold'),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+            ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
             ('outputnode.output_warped_bold', 'output_warped_bold'),
             ]),
         (bold_reg_wf, transforms_prep, [
-            ('outputnode.itk_bold_to_anat', 'itk_bold_to_anat'),
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
             ]),
         (transforms_prep, bold_bold_trans_wf, [
             ('transforms_list', 'inputnode.transforms_list'),
@@ -245,16 +247,33 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             ])
 
     if commonspace_transform:
+        def commonspace_transforms(template_to_common_transform,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
+            return [template_to_common_transform,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat],[0,0,0,0,0] #transforms_list,inverses
+        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_transform','anat_to_template_warp','anat_to_template_affine', 'warp_bold2anat', 'affine_bold2anat'],
+                                  output_names=['transforms_list','inverses'],
+                                  function=commonspace_transforms),
+                         name='commonspace_transforms_prep')
+
         bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_commonspace_trans_wf')
 
         workflow.connect([
+            (inputnode, commonspace_transforms_prep, [
+                ("template_to_common_transform", "template_to_common_transform"),
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_warp", "anat_to_template_warp"),
+                ]),
+            (bold_reg_wf, commonspace_transforms_prep, [
+                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+                ]),
+            (commonspace_transforms_prep, bold_commonspace_trans_wf, [
+                ('transforms_list', 'inputnode.transforms_list'),
+                ('inverses', 'inputnode.inverses'),
+                ]),
+            (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+            (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
             (inputnode, bold_commonspace_trans_wf, [
                 ('bold', 'inputnode.name_source'),
-                ('commonspace_transforms_list', 'inputnode.transforms_list'),
-                ('commonspace_inverses', 'inputnode.inverses'),
-                ]),
-            (bold_bold_trans_wf, bold_commonspace_trans_wf, [
-                ('outputnode.bold', 'inputnode.bold_file'),
                 ]),
             (bold_commonspace_trans_wf, outputnode, [
                 ('outputnode.bold', 'commonspace_bold'),
@@ -268,7 +287,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -284,6 +303,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
+        bids_input
+            specify if the provided input folder is in a BIDS format to use BIDS reader
         tr
             repetition time for the EPI
         tpattern
@@ -380,21 +401,35 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                         'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
                 name='outputnode')
 
-    import pandas as pd
-    data_df=pd.read_csv(data_csv, sep=',')
-    subject_list=data_df['subject_id'].values.tolist()
-    session_list=data_df['num_session'].values.tolist()
-    run_list=data_df['num_run'].values.tolist()
+    if bids_input:
+        #with BIDS input data
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(data_dir_path)
+        subject_list, session_iter, run_iter=prep_bids_iter(layout)
+        #set SelectFiles nodes
+        bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
+    else:
+        import pandas as pd
+        data_df=pd.read_csv(data_csv, sep=',')
+        subject_list=data_df['subject_id'].values.tolist()
+        session_list=data_df['num_session'].values.tolist()
+        run_list=data_df['num_run'].values.tolist()
 
-    #create a dictionary with list of bold session numbers for each subject
-    session_iter={}
-    for i in range(len(subject_list)):
-        session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
+        #create a dictionary with list of bold session numbers for each subject
+        session_iter={}
+        for i in range(len(subject_list)):
+            session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
 
-    #create a dictionary with list of bold run numbers for each subject
-    run_iter={}
-    for i in range(len(subject_list)):
-        run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+        #create a dictionary with list of bold run numbers for each subject
+        run_iter={}
+        for i in range(len(subject_list)):
+            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
+
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'bold', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
+                                       base_directory=data_dir_path),
+                           name="bold_selectfiles")
+
 
     ####setting up all iterables
     infosub_id = pe.Node(niu.IdentityInterface(fields=['subject_id']),
@@ -411,16 +446,23 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     inforun.itersource = ('infosub_id', 'subject_id')
     inforun.iterables = [('run', run_iter)]
 
-    bold_file = opj('{subject_id}', 'ses-{session}', 'bold', '{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
-    bold_selectfiles = pe.Node(SelectFiles({'bold': bold_file},
-                                   base_directory=data_dir_path),
-                       name="bold_selectfiles")
-
 
     # Datasink - creates output folder for important outputs
-    datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="datasink"),
-                    name="datasink")
+    bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="bold_datasink"),
+                    name="bold_datasink")
+
+    commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="commonspace_datasink"),
+                    name="commonspace_datasink")
+
+    transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="transforms_datasink"),
+                    name="transforms_datasink")
+
+    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="confounds_datasink"),
+                    name="confounds_datasink")
 
     bold_reference_wf = init_bold_reference_wf()
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
@@ -480,7 +522,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg')
-    commonspace_reg.inputs.output_folder = output_folder+'/datasink/'
+    commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -492,9 +534,9 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
     template_reg.inputs.reg_script = template_reg_script
 
     #setting SelectFiles for the commonspace registration
-    ants_dbm_inverse_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
-    ants_dbm_warp = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
-    ants_dbm_affine = output_folder+'/'+opj('datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
+    ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
+    ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
+    ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
     common_to_template_transform = '/'+opj('{common_to_template_transform}')
     template_to_common_transform = '/'+opj('{template_to_common_transform}')
 
@@ -545,9 +587,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
         (commonspace_reg, template_reg, [
             ("ants_dbm_template", "moving_image"),
             ]),
-        (commonspace_reg, datasink, [
-            ("ants_dbm_template", "ants_dbm_template"),
-            ]),
         (template_reg, commonspace_selectfiles, [
             ("inverse_composite_transform", "common_to_template_transform"),
             ("composite_transform", "template_to_common_transform"),
@@ -556,8 +595,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (bold_selectfiles, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
-        (bold_selectfiles, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
+        (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+        (bold_selectfiles, bold_bold_trans_wf, [('out_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),
@@ -628,21 +667,30 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, tr='1.0s',
             ('ants_dbm_affine', 'ants_dbm_affine'),
             ('ants_dbm_template_anat', 'ants_dbm_template_anat'),
             ]),
-        (outputnode, datasink, [
+        (commonspace_reg, commonspace_datasink, [
+            ("ants_dbm_template", "ants_dbm_template"),
+            ]),
+        (outputnode, bold_datasink, [
             ("bold_ref","initial_bold_ref"), #inspect initial bold ref
             ("corrected_EPI","bias_cor_bold"), #inspect bias correction
             ("EPI_brain_mask","bold_brain_mask"), #get the EPI labels
             ("EPI_WM_mask","bold_WM_mask"), #get the EPI labels
             ("EPI_CSF_mask","bold_CSF_mask"), #get the EPI labels
             ("EPI_labels","bold_labels"), #get the EPI labels
+            ("resampled_bold", "corrected_bold"), #resampled EPI after motion realignment and SDC
+            ("resampled_ref_bold", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
+            ]),
+        (outputnode, confounds_datasink, [
             ("confounds_csv", "confounds_csv"), #confounds file
             ("FD_voxelwise", "FD_voxelwise"),
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
-            ("resampled_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
-            ("resampled_ref_bold", "corrected_ref_bold"), #resampled EPI after motion realignment and SDC
+            ]),
+        (outputnode, transforms_datasink, [
             ("common_to_template_transform", "common_to_template_transform"),
             ("template_to_common_transform", "template_to_common_transform"),
+            ]),
+        (outputnode, commonspace_datasink, [
             ("warped_template", "warped_template"),
             ]),
         ])
