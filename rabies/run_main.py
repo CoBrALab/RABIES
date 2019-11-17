@@ -5,6 +5,10 @@ import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 
+import logging
+logging.basicConfig(filename='rabies.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
+log = logging.getLogger(__name__)
+
 def get_parser():
     """Build parser object"""
     parser = argparse.ArgumentParser(
@@ -114,6 +118,18 @@ def execute_workflow():
     #generates the parser CLI and execute the workflow based on specified parameters.
     opts = get_parser().parse_args()
 
+    ###managing log info
+    from ._info import __version__
+    log.info('Running RABIES - version: '+__version__)
+
+    #print complete CLI command
+    args='CLI INPUTS: \n'
+    for arg in vars(opts):
+        input='-> {arg} = {value} \n'.format(
+            arg=arg, value=getattr(opts, arg))
+        args+=input
+    log.info(args)
+
     #obtain parser parameters
     bids_input=opts.bids_input
     bold_preproc_only=opts.bold_only
@@ -204,9 +220,13 @@ def execute_workflow():
                                 'log_directory' : os.getcwd()}
         print('Debug ON')
 
-    print('Running main workflow with %s plugin.' % plugin)
-    #execute workflow, with plugin_args limiting the cluster load for parallel execution
-    workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
+    try:
+        print('Running main workflow with %s plugin.' % plugin)
+        #execute workflow, with plugin_args limiting the cluster load for parallel execution
+        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
+    except Exception as e:
+        log.critical('RABIES failed: %s', e)
+        raise
 
 
 def define_reg_script(reg_option):

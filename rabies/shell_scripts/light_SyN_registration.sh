@@ -24,4 +24,4 @@ antsRegistration --dimensionality 3 \
   --transform SyN[0.2,2,0] --metric CC[$fixed,$moving,1,4] --convergence [2025x2025x200x50x25x25,1e-6,10] \
     --shrink-factors 6x4x3x2x1x1 \
     --smoothing-sigmas 5.48872979374x3.4822628776x2.47510701762x1.45813399545x0.936031382318x0 \
-    --masks [NULL,NULL] -z 1 -a 1
+    --masks [NULL,NULL] -z 1

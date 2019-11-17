@@ -11,4 +11,4 @@ antsRegistration -d 3 \
 -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,NULL] \
 -t Affine[0.1] -m Mattes[$anat_file,$EPI,1,64,None] \
 -c 100x50x25 -s 1x0.5x0 -f 3x2x1 --masks [$mask,$mask] \
---interpolation BSpline[5] -z 1 -u 0 -a 1
+--interpolation BSpline[5] -z 1 -u 0

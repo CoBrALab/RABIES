@@ -66,6 +66,7 @@ class EPIBiasCorrection(BaseInterface):
         import os
         import numpy as np
         import nibabel as nb
+        from nibabel import processing
 
         subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
@@ -115,7 +116,7 @@ class EPIBiasCorrection(BaseInterface):
         #resample to anatomical image resolution
         dim=nb.load(self.inputs.anat).header.get_zooms()
         low_dim=np.asarray(dim).min()
-        processing.resample_to_output(nb.load(cwd+'iter_corrected.nii.gz'), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(biascor_EPI)
+        processing.resample_to_output(nb.load(cwd+'/iter_corrected.nii.gz'), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(biascor_EPI)
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)

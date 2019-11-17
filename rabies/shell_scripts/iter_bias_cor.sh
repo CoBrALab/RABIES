@@ -10,5 +10,5 @@ N4BiasFieldCorrection -d 3 -i $EPI -b 20 -s 1 -c [100x100x100x100,1e-6] -w thres
 
 #iterative registration and bias correction
 bash $reg_script corrected.nii.gz $anat_file $mask $filename_template
-antsApplyTransforms -d 3 -i $mask -t ${filename_template}_output_InverseComposite.h5 -r $EPI -o ${filename_template}_resampled_mask.nii.gz -n GenericLabel
+antsApplyTransforms -d 3 -i $mask -t [${filename_template}_output_0GenericAffine.mat,1] -r $EPI -o ${filename_template}_resampled_mask.nii.gz -n GenericLabel
 N4BiasFieldCorrection -d 3 -i resampled.nii.gz -b 20 -s 1 -c [100x100x100x100,1e-6] -w ${filename_template}_resampled_mask.nii.gz -x null_mask.nii.gz -o iter_corrected.nii.gz
