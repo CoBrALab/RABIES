@@ -9,7 +9,6 @@ from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
-from .sdc import init_sdc_wf
 from .bias_correction import bias_correction_wf
 from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
@@ -705,8 +704,10 @@ def commonspace_reg_function(file_list, output_folder):
     #create a csv file of the input image list
     cwd = os.getcwd()
     csv_path=cwd+'/commonspace_input_files.csv'
-    files_array=np.asarray(file_list).reshape(-1)
-    df = pd.DataFrame(data=files_array)
+
+    import itertools
+    merged = list(itertools.chain.from_iterable(file_list))
+    df = pd.DataFrame(data=merged)
     df.to_csv(csv_path, header=False, sep=',',index=False)
 
     model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'

@@ -13,7 +13,7 @@ def prep_bids_iter(layout):
     session_iter={}
     run_iter={}
     for sub in subject_list:
-        sub_func=layout.get(datatype='func', extension=['nii', 'nii.gz'])
+        sub_func=layout.get(subject=sub, datatype='func', extension=['nii', 'nii.gz'])
         session=0
         run=0
         for func_bids in sub_func:
