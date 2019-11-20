@@ -4,7 +4,7 @@
 export RABIES=$HOME/RABIES
 export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-git clone https://github.com/Gab-D-G/RABIES $HOME/RABIES
+git clone https://github.com/CoBrALab/RABIES $HOME/RABIES
 
 #creates an executable script to execute rabies
 mkdir -p $RABIES/bin

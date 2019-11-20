@@ -248,7 +248,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
 
         #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
         template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
-                                  output_names=['composite_transform', 'inverse_composite_transform', 'warped_image'],
+                                  output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
                                   function=run_antsRegistration),
                          name='template_reg')
         template_reg.inputs.fixed_image = os.environ["template_anat"]
@@ -259,15 +259,16 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
         anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
         anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
         anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
-        common_to_template_transform = '/'+opj('{common_to_template_transform}')
-        template_to_common_transform = '/'+opj('{template_to_common_transform}')
+        template_to_common_affine = '/'+opj('{template_to_common_affine}')
+        template_to_common_warp = '/'+opj('{template_to_common_warp}')
+        template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
 
-        commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'common_to_template_transform': common_to_template_transform, 'template_to_common_transform':template_to_common_transform}
+        commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'template_to_common_affine':template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
 
         commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                        name="commonspace_selectfiles")
 
-        def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,common_to_template_transform):
+        def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
             import os
             cwd = os.getcwd()
             subject_id=os.path.basename(reference_image).split('_ses-')[0]
@@ -275,27 +276,27 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             filename_template = '%s_ses-%s' % (subject_id, session)
             input_image=os.environ["template_mask"]
             brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,common_to_template_transform,reference_image,brain_mask,))
+            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,))
             input_image=os.environ["WM_mask"]
             WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,common_to_template_transform,reference_image,WM_mask,))
+            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,))
             input_image=os.environ["CSF_mask"]
             CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,common_to_template_transform,reference_image,CSF_mask,))
+            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,))
             input_image=os.environ["atlas_labels"]
             anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,common_to_template_transform,reference_image,anat_labels,))
+            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,))
 
             return brain_mask, WM_mask, CSF_mask, anat_labels
 
-        transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','common_to_template_transform'],
+        transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
                                   output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'anat_labels'],
                                   function=transform_masks),
                          name='transform_masks')
 
-        def commonspace_transforms(template_to_common_transform,anat_to_template_warp, anat_to_template_affine):
-            return [template_to_common_transform,anat_to_template_warp, anat_to_template_affine],[0,0,0] #transforms_list,inverses
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_transform','anat_to_template_warp','anat_to_template_affine'],
+        def commonspace_transforms(template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine):
+            return [template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine],[0,0,0,0] #transforms_list,inverses
+        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp','template_to_common_affine','anat_to_template_warp','anat_to_template_affine'],
                                   output_names=['transforms_list','inverses'],
                                   function=commonspace_transforms),
                          name='commonspace_transforms_prep')
@@ -320,11 +321,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("ants_dbm_template", "ants_dbm_template"),
                 ]),
             (template_reg, commonspace_selectfiles, [
-                ("inverse_composite_transform", "common_to_template_transform"),
-                ("composite_transform", "template_to_common_transform"),
+                ("affine", "template_to_common_affine"),
+                ("warp", "template_to_common_warp"),
+                ("inverse_warp", "template_to_common_inverse_warp"),
                 ]),
             (commonspace_selectfiles, transform_masks, [
-                ("common_to_template_transform", "common_to_template_transform"),
+                ("template_to_common_affine","template_to_common_affine"),
+                ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
                 ("anat_to_template_affine", "anat_to_template_affine"),
                 ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
                 ]),
@@ -347,7 +350,8 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("CSF_mask", "CSF_mask"),
                 ]),
             (commonspace_selectfiles, bold_main_wf, [
-                ("template_to_common_transform", "inputnode.template_to_common_transform"),
+                ("template_to_common_affine","inputnode.template_to_common_affine"),
+                ("template_to_common_warp","inputnode.template_to_common_warp"),
                 ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
                 ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
                 ]),
@@ -365,8 +369,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("warped_image", "warped_template"),
                 ]),
             (template_reg, transforms_datasink, [
-                ("inverse_composite_transform", "common_to_template_transform"),
-                ("composite_transform", "template_to_common_transform"),
+                ("affine", "template_to_common_affine"),
+                ("warp", "template_to_common_warp"),
+                ("inverse_warp", "template_to_common_inverse_warp"),
                 ]),
             (commonspace_selectfiles, transforms_datasink, [
                 ("anat_to_template_affine", "anat_to_template_affine"),
