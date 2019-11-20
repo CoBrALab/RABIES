@@ -120,28 +120,18 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
     && curl -fsSL --retry 5 -o "$conda_installer" https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
     && bash "$conda_installer" -b -p $HOME/miniconda-latest \
     && rm -f "$conda_installer" \
-    && conda update -yq -nbase conda \
-    && conda config --append channels conda-forge \
-    && conda config --append channels bioconda \
-    && conda config --append channels simpleitk \
-    && sync && conda clean --all && sync \
-    && conda install -y -q python=3.6.8 numpy==1.16.2 pandas scipy python-graphviz pip cython setuptools simpleitk scikit-image scikit-learn==0.20.0 nibabel==2.3.1 nilearn==0.4.2 nipype==1.1.4 tqdm pathos \
-    && sync && conda clean --all && sync \
-    && rm -rf ~/.cache/pip/* \
-    && sync
+    && conda update -yq -nbase conda
+
 
 #### install RABIES
 
-ENV export LD_LIBRARY_PATH=/opt/minc/1.9.17/lib \
-  export PATH=/opt/minc-toolkit-extras/:$PATH
-
-RUN . /opt/minc/1.9.17/minc-toolkit-config.sh && \
-  git clone https://github.com/Gab-D-G/RABIES temp/RABIES && \
+RUN git clone https://github.com/CoBrALab/RABIES temp/RABIES && \
+  conda env create -f temp/RABIES/rabies_environment.yml && \
   bash temp/RABIES/install.sh && \
   rm -r temp
 
 #write container execution script
-RUN echo "#! /usr/bin/env python" > /home/rabies/RABIES/exec.py && \
+RUN echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > /home/rabies/RABIES/exec.py && \
   echo "import os" >> /home/rabies/RABIES/exec.py && \
   echo "import sys" >> /home/rabies/RABIES/exec.py && \
   echo "os.environ['RABIES'] = '/home/rabies/RABIES'" >> /home/rabies/RABIES/exec.py && \
@@ -152,4 +142,5 @@ RUN echo "#! /usr/bin/env python" > /home/rabies/RABIES/exec.py && \
 
 ENV QBATCH_SYSTEM local
 
-#ENTRYPOINT ["/home/rabies/RABIES/exec.py"]
+WORKDIR /tmp/
+ENTRYPOINT ["/home/rabies/RABIES/exec.py"]

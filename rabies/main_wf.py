@@ -376,6 +376,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             (commonspace_selectfiles, transforms_datasink, [
                 ("anat_to_template_affine", "anat_to_template_affine"),
                 ("anat_to_template_warp", "anat_to_template_warp"),
+                ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
                 ]),
             (outputnode, anat_datasink, [
                 ("anat_labels", 'anat_labels'),
