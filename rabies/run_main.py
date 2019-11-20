@@ -41,7 +41,7 @@ def get_parser():
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
-                        help="Run in debug mode. Default=False")
+                        help="Run in debug mode.")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
                         help="Increase output verbosity. **doesn't do anything for now.")
 

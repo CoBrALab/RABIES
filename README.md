@@ -227,13 +227,14 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
 
 <br/>
 
-## Docker container
+## Docker Execution
 After installing the container from the Dockerfile, can run RABIES interactively within a docker container
+***note that currently the DSURQE atlas download fails within the container due to a required minc to nifti conversion, and thus, custom atlas files must be specified
 ```sh
     docker run -it --rm \
 		-v /nii_inputs_path:/nii_inputs:ro \
 		-v /outputs_path:/outputs \
-		rabies
+		rabies /nii_inputs /outputs --further_execution_specifications
 ```
 <br/>
 

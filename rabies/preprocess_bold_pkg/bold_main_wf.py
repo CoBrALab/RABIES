@@ -693,6 +693,11 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ("FD_csv", "FD_csv"),
             ]),
         (outputnode, transforms_datasink, [
+            ('ants_dbm_warp', 'ants_dbm_warp'),
+            ('ants_dbm_inverse_warp', 'ants_dbm_inverse_warp'),
+            ('ants_dbm_affine', 'ants_dbm_affine'),
+            ]),
+        (outputnode, transforms_datasink, [
             ("template_to_common_affine", "template_to_common_affine"),
             ("template_to_common_warp", "template_to_common_warp"),
             ("template_to_common_inverse_warp", "template_to_common_inverse_warp"),
