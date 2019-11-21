@@ -5,10 +5,6 @@ import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 
-import logging
-logging.basicConfig(filename='rabies.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
-log = logging.getLogger(__name__)
-
 def get_parser():
     """Build parser object"""
     parser = argparse.ArgumentParser(
@@ -117,8 +113,13 @@ def get_parser():
 def execute_workflow():
     #generates the parser CLI and execute the workflow based on specified parameters.
     opts = get_parser().parse_args()
+    output_folder=os.path.abspath(str(opts.output_dir))
 
     ###managing log info
+    import logging
+    logging.basicConfig(filename=output_folder+'/rabies.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
+    log = logging.getLogger(__name__)
+
     from ._info import __version__
     log.info('Running RABIES - version: '+__version__)
 
@@ -137,7 +138,6 @@ def execute_workflow():
     coreg_script=define_reg_script(opts.coreg_script)
     commonspace_method=opts.commonspace_method
     data_dir_path=os.path.abspath(str(opts.input_dir))
-    output_folder=os.path.abspath(str(opts.output_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
 
