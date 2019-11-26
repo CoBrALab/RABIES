@@ -130,6 +130,15 @@ RUN git clone https://github.com/CoBrALab/RABIES temp/RABIES && \
   bash temp/RABIES/install.sh && \
   rm -r temp
 
+# create WM and CSF masks
+ENV DSURQE_100micron_anat=/home/rabies/RABIES/template_files/DSURQE_100micron_average.nii.gz \
+  DSURQE_100micron_mask=/home/rabies/RABIES/template_files/DSURQE_100micron_mask.nii.gz \
+  DSURQE_100micron_labels=/home/rabies/RABIES/template_files/DSURQE_100micron_labels.nii.gz \
+  csv_labels=/home/rabies/RABIES/template_files/DSURQE_40micron_R_mapping.csv
+
+RUN /home/rabies/miniconda-latest/envs/rabies/bin/python /home/rabies/RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels /home/rabies/RABIES/template_files/DSURQE_100micron
+
+
 #write container execution script
 RUN echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > /home/rabies/RABIES/exec.py && \
   echo "import os" >> /home/rabies/RABIES/exec.py && \

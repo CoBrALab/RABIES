@@ -17,27 +17,24 @@ echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc
 
 
 # Download DSURQE template
-mkdir -p $RABIES/DSURQE_atlas/minc
-curl -L --retry 5 -o $RABIES/DSURQE_atlas/minc/DSURQE_40micron_average.mnc http://repo.mouseimaging.ca/repo/DSURQE_40micron/DSURQE_40micron_average.mnc
-curl -L --retry 5 -o $RABIES/DSURQE_atlas/minc/DSURQE_40micron_labels.mnc http://repo.mouseimaging.ca/repo/DSURQE_40micron/DSURQE_40micron_labels.mnc
-curl -L --retry 5 -o $RABIES/DSURQE_atlas/minc/DSURQE_40micron_mask.mnc http://repo.mouseimaging.ca/repo/DSURQE_40micron/DSURQE_40micron_mask.mnc
-curl -L --retry 5 -o $RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.csv http://repo.mouseimaging.ca/repo/DSURQE_40micron/DSURQE_40micron_R_mapping.csv
+template_dir=$RABIES/template_files
+curl -L --retry 5 -o $template_dir/DSURQE_40micron_average.nii http://repo.mouseimaging.ca/repo/DSURQE_40micron_nifti/DSURQE_40micron_average.nii
+curl -L --retry 5 -o $template_dir/DSURQE_40micron_labels.nii http://repo.mouseimaging.ca/repo/DSURQE_40micron_nifti/DSURQE_40micron_labels.nii
+#curl -L --retry 5 -o $template_dir/DSURQE_40micron_mask.nii http://repo.mouseimaging.ca/repo/DSURQE_40micron_nifti/DSURQE_40micron_mask.nii
+curl -L --retry 5 -o $template_dir/DSURQE_40micron_R_mapping.csv http://repo.mouseimaging.ca/repo/DSURQE_40micron/DSURQE_40micron_R_mapping.csv
 # create a 100um version
-ResampleImage 3 $RABIES/DSURQE_atlas/minc/DSURQE_40micron_average.mnc $RABIES/DSURQE_atlas/minc/DSURQE_100micron_average.mnc 0.1x0.1x0.1 0 4
-antsApplyTransforms -i $RABIES/DSURQE_atlas/minc/DSURQE_40micron_mask.mnc -o $RABIES/DSURQE_atlas/minc/DSURQE_100micron_mask.mnc -r $RABIES/DSURQE_atlas/minc/DSURQE_100micron_average.mnc -n GenericLabel
-antsApplyTransforms -i $RABIES/DSURQE_atlas/minc/DSURQE_40micron_labels.mnc -o $RABIES/DSURQE_atlas/minc/DSURQE_100micron_labels.mnc -r $RABIES/DSURQE_atlas/minc/DSURQE_100micron_average.mnc -n GenericLabel
+ResampleImage 3 $template_dir/DSURQE_40micron_average.nii $template_dir/DSURQE_100micron_average.nii 0.1x0.1x0.1 0 4
+antsApplyTransforms -i $template_dir/DSURQE_40micron_mask.nii -o $template_dir/DSURQE_100micron_mask.nii -r $template_dir/DSURQE_100micron_average.nii -n GenericLabel
+antsApplyTransforms -i $template_dir/DSURQE_40micron_labels.nii -o $template_dir/DSURQE_100micron_labels.nii -r $template_dir/DSURQE_100micron_average.nii -n GenericLabel
 
-# convert to nifti
-mkdir -p $RABIES/DSURQE_atlas/nifti
-for file in $RABIES/DSURQE_atlas/minc/*; do mnc2nii $file $RABIES/DSURQE_atlas/nifti/$(basename ${file::-4}).nii; done
-gzip -f $RABIES/DSURQE_atlas/nifti/*.nii
+gzip -f $template_dir/*.nii
 
 # create WM and CSF masks
-DSURQE_100micron_anat=$RABIES/DSURQE_atlas/nifti/DSURQE_100micron_average.nii.gz
-DSURQE_100micron_mask=$RABIES/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz
-DSURQE_100micron_labels=$RABIES/DSURQE_atlas/nifti/DSURQE_100micron_labels.nii.gz
-csv_labels=$RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.csv
-python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $RABIES/DSURQE_atlas/nifti/DSURQE_100micron
+DSURQE_100micron_anat=$template_dir/DSURQE_100micron_average.nii.gz
+DSURQE_100micron_mask=$template_dir/DSURQE_100micron_mask.nii.gz
+DSURQE_100micron_labels=$template_dir/DSURQE_100micron_labels.nii.gz
+csv_labels=$template_dir/DSURQE_40micron_R_mapping.csv
+python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $template_dir/DSURQE_100micron
 
 # install twolevel_ants_dbm
 git clone https://github.com/CobraLab/twolevel_ants_dbm $RABIES/twolevel_ants_dbm && \
