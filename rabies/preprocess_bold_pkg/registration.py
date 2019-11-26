@@ -79,13 +79,19 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
 def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
+    import logging
+    log = logging.getLogger(__name__)
+
     filename_template=os.path.basename(moving_image).split('.')[0]
 
     if os.path.isfile(reg_script):
         reg_script_path=reg_script
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    os.system('bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template))
+    registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template)
+    print("Registration call: "+registration_call)
+    log.info("Registration call: "+registration_call)
+    os.system(registration_call)
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
@@ -93,7 +99,7 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_template)
     inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_template)
     if not os.path.isfile(warped_image) or not os.path.isfile(affine):
-        raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING.')
+        raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
         print('No non-linear warp files as output. Assumes linear registration.')
         warp='NULL'

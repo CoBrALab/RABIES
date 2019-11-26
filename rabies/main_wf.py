@@ -274,18 +274,34 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             subject_id=os.path.basename(reference_image).split('_ses-')[0]
             session=os.path.basename(reference_image).split('_ses-')[1][0]
             filename_template = '%s_ses-%s' % (subject_id, session)
+
             input_image=os.environ["template_mask"]
             brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,))
+            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
+            os.system(antsApplyTransforms_call)
+            if not os.path.isfile(brain_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+
             input_image=os.environ["WM_mask"]
             WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,))
+            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
+            os.system(antsApplyTransforms_call)
+            if not os.path.isfile(WM_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+
             input_image=os.environ["CSF_mask"]
             CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,))
+            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
+            os.system(antsApplyTransforms_call)
+            if not os.path.isfile(CSF_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+
             input_image=os.environ["atlas_labels"]
             anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
-            os.system('antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,))
+            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
+            os.system(antsApplyTransforms_call)
+            if not os.path.isfile(anat_labels):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
             return brain_mask, WM_mask, CSF_mask, anat_labels
 
