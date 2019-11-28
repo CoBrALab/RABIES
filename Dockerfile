@@ -153,4 +153,4 @@ RUN export RABIES_VERSION=0.1.1 && \
 ENV QBATCH_SYSTEM local
 
 WORKDIR /tmp/
-ENTRYPOINT ["/home/rabies/RABIES/exec.py"]
+ENTRYPOINT ["/home/rabies/RABIES-0.1.1/exec.py"]
