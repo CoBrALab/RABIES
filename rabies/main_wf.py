@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, commonspace_method='pydpiper', template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -32,8 +32,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
         apply_STC
             whether to apply slice timing correction (STC) or not
-        commonspace_method
-            specified method for common space registration between 'ants_dbm' and 'pydpiper'
         bias_reg_script
             path to registration script that will be applied for bias field correction. The script must
             follow the template structure of registration scripts in shell_scripts/.
@@ -236,186 +234,182 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()
 
-    if commonspace_method=='pydpiper':
-        raise ValueError("Depreciated. Use 'ants_dbm' instead as common space registration method.")
-    elif commonspace_method=='ants_dbm':
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
+                              output_names=['ants_dbm_template'],
+                              function=commonspace_reg_function),
+                     name='commonspace_reg')
+    commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
-        commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
-                                  output_names=['ants_dbm_template'],
-                                  function=commonspace_reg_function),
-                         name='commonspace_reg')
-        commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
+    #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
+    template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
+                              output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
+                              function=run_antsRegistration),
+                     name='template_reg')
+    template_reg.inputs.fixed_image = os.environ["template_anat"]
+    template_reg.inputs.anat_mask = os.environ["template_mask"]
+    template_reg.inputs.reg_script = template_reg_script
 
-        #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
-        template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
-                                  output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
-                                  function=run_antsRegistration),
-                         name='template_reg')
-        template_reg.inputs.fixed_image = os.environ["template_anat"]
-        template_reg.inputs.anat_mask = os.environ["template_mask"]
-        template_reg.inputs.reg_script = template_reg_script
+    #setting SelectFiles for the commonspace registration
+    anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
+    anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
+    anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
+    template_to_common_affine = '/'+opj('{template_to_common_affine}')
+    template_to_common_warp = '/'+opj('{template_to_common_warp}')
+    template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
 
-        #setting SelectFiles for the commonspace registration
-        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
-        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
-        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
-        template_to_common_affine = '/'+opj('{template_to_common_affine}')
-        template_to_common_warp = '/'+opj('{template_to_common_warp}')
-        template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
+    commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'template_to_common_affine':template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
 
-        commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'template_to_common_affine':template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
+    commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
+                   name="commonspace_selectfiles")
 
-        commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
-                       name="commonspace_selectfiles")
+    def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
+        import os
+        cwd = os.getcwd()
+        subject_id=os.path.basename(reference_image).split('_ses-')[0]
+        session=os.path.basename(reference_image).split('_ses-')[1][0]
+        filename_template = '%s_ses-%s' % (subject_id, session)
 
-        def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
-            import os
-            cwd = os.getcwd()
-            subject_id=os.path.basename(reference_image).split('_ses-')[0]
-            session=os.path.basename(reference_image).split('_ses-')[1][0]
-            filename_template = '%s_ses-%s' % (subject_id, session)
+        input_image=os.environ["template_mask"]
+        brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
+        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
+        os.system(antsApplyTransforms_call)
+        if not os.path.isfile(brain_mask):
+            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            input_image=os.environ["template_mask"]
-            brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
-            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
-            os.system(antsApplyTransforms_call)
-            if not os.path.isfile(brain_mask):
-                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+        input_image=os.environ["WM_mask"]
+        WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
+        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
+        os.system(antsApplyTransforms_call)
+        if not os.path.isfile(WM_mask):
+            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            input_image=os.environ["WM_mask"]
-            WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
-            os.system(antsApplyTransforms_call)
-            if not os.path.isfile(WM_mask):
-                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+        input_image=os.environ["CSF_mask"]
+        CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
+        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
+        os.system(antsApplyTransforms_call)
+        if not os.path.isfile(CSF_mask):
+            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            input_image=os.environ["CSF_mask"]
-            CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
-            os.system(antsApplyTransforms_call)
-            if not os.path.isfile(CSF_mask):
-                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+        input_image=os.environ["vascular_mask"]
+        vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
+        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
+        os.system(antsApplyTransforms_call)
+        if not os.path.isfile(vascular_mask):
+            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            input_image=os.environ["vascular_mask"]
-            vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
-            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
-            os.system(antsApplyTransforms_call)
-            if not os.path.isfile(vascular_mask):
-                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+        input_image=os.environ["atlas_labels"]
+        anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
+        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
+        os.system(antsApplyTransforms_call)
+        if not os.path.isfile(anat_labels):
+            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            input_image=os.environ["atlas_labels"]
-            anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
-            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
-            os.system(antsApplyTransforms_call)
-            if not os.path.isfile(anat_labels):
-                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+        return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
 
-            return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
+    transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
+                              output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'anat_labels'],
+                              function=transform_masks),
+                     name='transform_masks')
 
-        transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
-                                  output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'anat_labels'],
-                                  function=transform_masks),
-                         name='transform_masks')
+    def commonspace_transforms(template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine):
+        return [template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine],[0,0,0,0] #transforms_list,inverses
+    commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp','template_to_common_affine','anat_to_template_warp','anat_to_template_affine'],
+                              output_names=['transforms_list','inverses'],
+                              function=commonspace_transforms),
+                     name='commonspace_transforms_prep')
 
-        def commonspace_transforms(template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine):
-            return [template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine],[0,0,0,0] #transforms_list,inverses
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp','template_to_common_affine','anat_to_template_warp','anat_to_template_affine'],
-                                  output_names=['transforms_list','inverses'],
-                                  function=commonspace_transforms),
-                         name='commonspace_transforms_prep')
+    bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
 
-        bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
-
-        workflow.connect([
-            (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
-            (joinnode_sub_id, commonspace_reg, [
-                ("file_list", "file_list"),
-                ]),
-            (infosub_id, commonspace_selectfiles, [
-                ("subject_id", "subject_id"),
-                ]),
-            (infosession, commonspace_selectfiles, [
-                ("session", "session")
-                ]),
-            (commonspace_reg, template_reg, [
-                ("ants_dbm_template", "moving_image"),
-                ]),
-            (commonspace_reg, commonspace_selectfiles, [
-                ("ants_dbm_template", "ants_dbm_template"),
-                ]),
-            (template_reg, commonspace_selectfiles, [
-                ("affine", "template_to_common_affine"),
-                ("warp", "template_to_common_warp"),
-                ("inverse_warp", "template_to_common_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, transform_masks, [
-                ("template_to_common_affine","template_to_common_affine"),
-                ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
-                ]),
-            (anat_preproc_wf, transform_masks, [
-                ("outputnode.preproc_anat", "reference_image"),
-                ]),
-            (anat_preproc_wf, bold_main_wf, [
-                ("outputnode.preproc_anat", "inputnode.anat_preproc"),
-                ]),
-            (transform_masks, bold_main_wf, [
-                ("anat_labels", 'inputnode.labels'),
-                ("brain_mask", 'inputnode.anat_mask'),
-                ("WM_mask", "inputnode.WM_mask"),
-                ("CSF_mask", "inputnode.CSF_mask"),
-                ("vascular_mask", "inputnode.vascular_mask"),
-                ]),
-            (transform_masks, outputnode, [
-                ("anat_labels", 'anat_labels'),
-                ("brain_mask", 'anat_mask'),
-                ("WM_mask", "WM_mask"),
-                ("CSF_mask", "CSF_mask"),
-                ]),
-            (commonspace_selectfiles, bold_main_wf, [
-                ("template_to_common_affine","inputnode.template_to_common_affine"),
-                ("template_to_common_warp","inputnode.template_to_common_warp"),
-                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
-                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
-                ]),
-            (bold_main_wf, outputnode, [
-                ("outputnode.commonspace_bold", "commonspace_bold"),
-                ("outputnode.commonspace_mask", "commonspace_mask"),
-                ("outputnode.commonspace_WM_mask", "commonspace_WM_mask"),
-                ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
-                ("outputnode.commonspace_labels", "commonspace_labels"),
-                ]),
-            (commonspace_reg, commonspace_datasink, [
-                ("ants_dbm_template", "ants_dbm_template"),
-                ]),
-            (template_reg, commonspace_datasink, [
-                ("warped_image", "warped_template"),
-                ]),
-            (template_reg, transforms_datasink, [
-                ("affine", "template_to_common_affine"),
-                ("warp", "template_to_common_warp"),
-                ("inverse_warp", "template_to_common_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, transforms_datasink, [
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
-                ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
-                ]),
-            (outputnode, anat_datasink, [
-                ("anat_labels", 'anat_labels'),
-                ("anat_mask", 'anat_mask'),
-                ("WM_mask", "WM_mask"),
-                ("CSF_mask", "CSF_mask"),
-                ]),
-            (outputnode, bold_datasink, [
-                ("commonspace_bold", "commonspace_bold"), #resampled EPI after motion realignment and SDC
-                ("commonspace_mask", "commonspace_bold_mask"),
-                ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
-                ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
-                ("commonspace_labels", "commonspace_bold_labels"),
-                ]),
-            ])
+    workflow.connect([
+        (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
+        (joinnode_sub_id, commonspace_reg, [
+            ("file_list", "file_list"),
+            ]),
+        (infosub_id, commonspace_selectfiles, [
+            ("subject_id", "subject_id"),
+            ]),
+        (infosession, commonspace_selectfiles, [
+            ("session", "session")
+            ]),
+        (commonspace_reg, template_reg, [
+            ("ants_dbm_template", "moving_image"),
+            ]),
+        (commonspace_reg, commonspace_selectfiles, [
+            ("ants_dbm_template", "ants_dbm_template"),
+            ]),
+        (template_reg, commonspace_selectfiles, [
+            ("affine", "template_to_common_affine"),
+            ("warp", "template_to_common_warp"),
+            ("inverse_warp", "template_to_common_inverse_warp"),
+            ]),
+        (commonspace_selectfiles, transform_masks, [
+            ("template_to_common_affine","template_to_common_affine"),
+            ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
+            ("anat_to_template_affine", "anat_to_template_affine"),
+            ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
+            ]),
+        (anat_preproc_wf, transform_masks, [
+            ("outputnode.preproc_anat", "reference_image"),
+            ]),
+        (anat_preproc_wf, bold_main_wf, [
+            ("outputnode.preproc_anat", "inputnode.anat_preproc"),
+            ]),
+        (transform_masks, bold_main_wf, [
+            ("anat_labels", 'inputnode.labels'),
+            ("brain_mask", 'inputnode.anat_mask'),
+            ("WM_mask", "inputnode.WM_mask"),
+            ("CSF_mask", "inputnode.CSF_mask"),
+            ("vascular_mask", "inputnode.vascular_mask"),
+            ]),
+        (transform_masks, outputnode, [
+            ("anat_labels", 'anat_labels'),
+            ("brain_mask", 'anat_mask'),
+            ("WM_mask", "WM_mask"),
+            ("CSF_mask", "CSF_mask"),
+            ]),
+        (commonspace_selectfiles, bold_main_wf, [
+            ("template_to_common_affine","inputnode.template_to_common_affine"),
+            ("template_to_common_warp","inputnode.template_to_common_warp"),
+            ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+            ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
+            ]),
+        (bold_main_wf, outputnode, [
+            ("outputnode.commonspace_bold", "commonspace_bold"),
+            ("outputnode.commonspace_mask", "commonspace_mask"),
+            ("outputnode.commonspace_WM_mask", "commonspace_WM_mask"),
+            ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
+            ("outputnode.commonspace_labels", "commonspace_labels"),
+            ]),
+        (commonspace_reg, commonspace_datasink, [
+            ("ants_dbm_template", "ants_dbm_template"),
+            ]),
+        (template_reg, commonspace_datasink, [
+            ("warped_image", "warped_template"),
+            ]),
+        (template_reg, transforms_datasink, [
+            ("affine", "template_to_common_affine"),
+            ("warp", "template_to_common_warp"),
+            ("inverse_warp", "template_to_common_inverse_warp"),
+            ]),
+        (commonspace_selectfiles, transforms_datasink, [
+            ("anat_to_template_affine", "anat_to_template_affine"),
+            ("anat_to_template_warp", "anat_to_template_warp"),
+            ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
+            ]),
+        (outputnode, anat_datasink, [
+            ("anat_labels", 'anat_labels'),
+            ("anat_mask", 'anat_mask'),
+            ("WM_mask", "WM_mask"),
+            ("CSF_mask", "CSF_mask"),
+            ]),
+        (outputnode, bold_datasink, [
+            ("commonspace_bold", "commonspace_bold"), #resampled EPI after motion realignment and SDC
+            ("commonspace_mask", "commonspace_bold_mask"),
+            ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
+            ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
+            ("commonspace_labels", "commonspace_bold_labels"),
+            ]),
+        ])
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([

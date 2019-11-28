@@ -23,9 +23,6 @@ def get_parser():
     parser.add_argument("-e", "--bold_only", type=bool, default=False,
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPIs to a common template atlas.")
-    parser.add_argument("-c", "--commonspace_method", type=str, default='ants_dbm',
-                        help="specify either 'pydpiper' or 'ants_dbm' as common space registration method. Pydpiper can only be "
-                        "executed in parallel with SGE or PBS. ***pydpiper option in development")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
@@ -139,7 +136,6 @@ def execute_workflow():
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
-    commonspace_method=opts.commonspace_method
     data_dir_path=os.path.abspath(str(opts.input_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
@@ -203,7 +199,7 @@ def execute_workflow():
         workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, commonspace_method=commonspace_method, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
