@@ -10,7 +10,7 @@ from nipype import Function
 def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask']),
+        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
@@ -21,6 +21,9 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     CSF_mask_to_EPI=pe.Node(MaskEPI(), name='CSF_mask_EPI')
     CSF_mask_to_EPI.inputs.name_spec='CSF_mask'
+
+    vascular_mask_to_EPI=pe.Node(MaskEPI(), name='vascular_mask_EPI')
+    vascular_mask_to_EPI.inputs.name_spec='vascular_mask'
 
     brain_mask_to_EPI=pe.Node(MaskEPI(), name='Brain_mask_EPI')
     brain_mask_to_EPI.inputs.name_spec='brain_mask'
@@ -37,6 +40,9 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
             ('ref_bold', 'ref_EPI')]),
         (inputnode, CSF_mask_to_EPI, [
             ('CSF_mask', 'mask'),
+            ('ref_bold', 'ref_EPI')]),
+        (inputnode, vascular_mask_to_EPI, [
+            ('vascular_mask', 'mask'),
             ('ref_bold', 'ref_EPI')]),
         (inputnode, brain_mask_to_EPI, [
             ('t1_mask', 'mask'),
@@ -58,6 +64,8 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
             ('EPI_mask', 'CSF_mask')]),
         (CSF_mask_to_EPI, outputnode, [
             ('EPI_mask', 'CSF_mask')]),
+        (vascular_mask_to_EPI, confound_regression, [
+            ('EPI_mask', 'vascular_mask')]),
         (brain_mask_to_EPI, confound_regression, [
             ('EPI_mask', 'brain_mask')]),
         (brain_mask_to_EPI, outputnode, [
@@ -80,6 +88,7 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
     brain_mask = File(exists=True, mandatory=True, desc="EPI-formated whole brain mask")
     WM_mask = File(exists=True, mandatory=True, desc="EPI-formated white matter mask")
     CSF_mask = File(exists=True, mandatory=True, desc="EPI-formated CSF mask")
+    vascular_mask = File(exists=True, mandatory=True, desc="EPI-formated vascular mask")
     aCompCor_method = traits.Str(desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
 
 class ConfoundRegressionOutputSpec(TraitedSpec):
@@ -121,6 +130,10 @@ class ConfoundRegression(BaseInterface):
         CSF_signal=extract_mask_trace(self.inputs.bold, self.inputs.CSF_mask)
         confounds.append(CSF_signal)
         csv_columns+=['CSF_signal']
+
+        vascular_signal=extract_mask_trace(self.inputs.bold, self.inputs.vascular_mask)
+        confounds.append(vascular_signal)
+        csv_columns+=['vascular_signal']
 
         [aCompCor, num_comp]=compute_aCompCor(self.inputs.bold, self.inputs.WM_mask, self.inputs.CSF_mask, method=self.inputs.aCompCor_method)
         for param in range(aCompCor.shape[1]):

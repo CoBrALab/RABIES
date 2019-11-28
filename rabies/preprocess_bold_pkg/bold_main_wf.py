@@ -129,7 +129,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp','anat_to_template_affine','anat_to_template_warp']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp','anat_to_template_affine','anat_to_template_warp']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -178,6 +178,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
         (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
             ('WM_mask', 'inputnode.WM_mask'),
             ('CSF_mask', 'inputnode.CSF_mask'),
+            ('vascular_mask', 'inputnode.vascular_mask'),
             ('labels', 'inputnode.t1_labels'),
             ]),
         (bold_reference_wf, bias_cor_wf, [
@@ -500,6 +501,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     bold_confs_wf.inputs.inputnode.t1_mask = os.environ["template_mask"]
     bold_confs_wf.inputs.inputnode.WM_mask = os.environ["WM_mask"]
     bold_confs_wf.inputs.inputnode.CSF_mask = os.environ["CSF_mask"]
+    bold_confs_wf.inputs.inputnode.vascular_mask = os.environ["vascular_mask"]
     bold_confs_wf.inputs.inputnode.t1_labels = os.environ["atlas_labels"]
 
     #####setting up commonspace registration within the workflow

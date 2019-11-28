@@ -296,6 +296,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             if not os.path.isfile(CSF_mask):
                 raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
+            input_image=os.environ["vascular_mask"]
+            vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
+            antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
+            os.system(antsApplyTransforms_call)
+            if not os.path.isfile(vascular_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+
             input_image=os.environ["atlas_labels"]
             anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
             antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
@@ -303,10 +310,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             if not os.path.isfile(anat_labels):
                 raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-            return brain_mask, WM_mask, CSF_mask, anat_labels
+            return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
 
         transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
-                                  output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'anat_labels'],
+                                  output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'anat_labels'],
                                   function=transform_masks),
                          name='transform_masks')
 
@@ -358,6 +365,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                 ("brain_mask", 'inputnode.anat_mask'),
                 ("WM_mask", "inputnode.WM_mask"),
                 ("CSF_mask", "inputnode.CSF_mask"),
+                ("vascular_mask", "inputnode.vascular_mask"),
                 ]),
             (transform_masks, outputnode, [
                 ("anat_labels", 'anat_labels'),
@@ -456,7 +464,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             ("bold_CSF_mask","bold_CSF_mask"), #get the EPI labels
             ("bold_labels","bold_labels"), #get the EPI labels
             ("bias_cor_bold_warped2anat","bias_cor_bold_warped2anat"), #warped EPI to anat
-            ("native_corrected_bold", "native_corrected_bold"), #resampled EPI after motion realignment and SDC
+            ("native_corrected_bold", "corrected_bold"), #resampled EPI after motion realignment and SDC
             ("corrected_bold_ref", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
             ]),
         ])
