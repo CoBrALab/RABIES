@@ -155,8 +155,6 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <meta name="Author" content="Made by 'tree'">
  <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
- <title>Directory Tree</title>
- <style type="text/css">
   <!--
   BODY { font-family : ariel, monospace, sans-serif; }
   P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
