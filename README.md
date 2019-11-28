@@ -139,7 +139,7 @@ Template files.:
 
 ## Example execution command
 ```
-  rabies nii_inputs/ rabies_outputs/ -e 0 -c ants_dbm -b default -r SyN -p SGEGraph -d 0 -v 0
+  rabies nii_inputs/ rabies_outputs/ -e 0 -b default -r SyN -p SGEGraph -d 0 -v 0
 ```
 
 # Input data folder structure
@@ -232,7 +232,6 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
 
 ## Docker Execution
 After installing the container from the Dockerfile, can run RABIES interactively within a docker container
-***note that currently the DSURQE atlas download fails within the container due to a required minc to nifti conversion, and thus, custom atlas files must be specified
 ```sh
     docker run -it --rm \
 		-v /nii_inputs_path:/nii_inputs:ro \
