@@ -5,8 +5,8 @@
 ## Command Line Interface
 ```
 usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
-              [-c COMMONSPACE_METHOD] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
-              [-p PLUGIN] [--min_proc MIN_PROC] [-d DEBUG] [-v VERBOSE]
+              [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
+              [--min_proc MIN_PROC] [-d DEBUG] [-v VERBOSE]
               [--isotropic_resampling ISOTROPIC_RESAMPLING]
               [--upsampling UPSAMPLING] [--data_type DATA_TYPE]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
@@ -15,8 +15,8 @@ usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
               [--template_reg_script TEMPLATE_REG_SCRIPT] [--STC STC]
               [--TR TR] [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
               [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
-              [--CSF_mask CSF_MASK] [--labels LABELS]
-              [--csv_labels CSV_LABELS]
+              [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
+              [--labels LABELS] [--csv_labels CSV_LABELS]
               input_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -40,11 +40,6 @@ optional arguments:
                         registration and distortion correction is executed
                         through registration of the EPIs to a common template
                         atlas. (default: False)
-  -c COMMONSPACE_METHOD, --commonspace_method COMMONSPACE_METHOD
-                        specify either 'pydpiper' or 'ants_dbm' as common
-                        space registration method. Pydpiper can only be
-                        executed in parallel with SGE or PBS. ***pydpiper
-                        option in development (default: ants_dbm)
   -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
                         specify a registration script for iterative bias field
                         correction. 'default' is a rigid registration.
@@ -64,7 +59,7 @@ optional arguments:
   --min_proc MIN_PROC   For parallel processing, specify the minimal number of
                         nodes to be assigned. (default: 1)
   -d DEBUG, --debug DEBUG
-                        Run in debug mode. Default=False (default: False)
+                        Run in debug mode. (default: False)
   -v VERBOSE, --verbose VERBOSE
                         Increase output verbosity. **doesn't do anything for
                         now. (default: False)
@@ -95,7 +90,7 @@ cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
   --local_threads LOCAL_THREADS
                         For local execution, how many subject-wise modelbuilds
                         to run in parallel, defaults to number of CPUs
-                        (default: 2)
+                        (default: 8)
   --template_reg_script TEMPLATE_REG_SCRIPT
                         Registration script that will be used for registration
                         of the generated template to the provided atlas for
@@ -113,24 +108,32 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
 Template files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/gabriel/RABIES/DSURQE_atlas/nifti/DSUR
-                        QE_100micron_average.nii.gz)
+                        (default: /home/cic/desgab/RABIES/template_files/DSURQ
+                        E_100micron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/gabriel/R
-                        ABIES/DSURQE_atlas/nifti/DSURQE_100micron_mask.nii.gz)
-  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
-                        briel/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_erode
-                        d_WM_mask.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
-                        IES/DSURQE_atlas/nifti/DSURQE_100micron_eroded_CSF_mas
-                        k.nii.gz)
-  --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
-                        riel/RABIES/DSURQE_atlas/nifti/DSURQE_100micron_labels
+                        Brain mask for the template. (default: /home/cic/desga
+                        b/RABIES/template_files/DSURQE_100micron_mask.nii.gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
+                        c/desgab/RABIES/template_files/DSURQE_100micron_eroded
+                        _WM_mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
+                        RABIES/template_files/DSURQE_100micron_eroded_CSF_mask
                         .nii.gz)
+  --vascular_mask VASCULAR_MASK
+                        Can provide a mask of major blood vessels for
+                        computing confound timeseries. The default mask was
+                        generated by applying MELODIC ICA and selecting the
+                        resulting component mapping onto major veins.
+                        (Grandjean et al. 2020, NeuroImage; Beckmann et al.
+                        2005) (default: /home/cic/desgab/RABIES/template_files
+                        /vascular_mask.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
+                        /desgab/RABIES/template_files/DSURQE_100micron_labels.
+                        nii.gz)
   --csv_labels CSV_LABELS
-                        csv file with info on the labels. (default: /home/gabr
-                        iel/RABIES/DSURQE_atlas/DSURQE_40micron_R_mapping.csv)
-
+                        csv file with info on the labels. (default: /home/cic/
+                        desgab/RABIES/template_files/DSURQE_40micron_R_mapping
+                        .csv)
 
 ```
 
@@ -241,10 +244,16 @@ After installing the container from the Dockerfile, can run RABIES interactively
 # Managing outputs
 Important outputs will be found in datasink folders:
 * anat_datasink: Includes outputs specific to the anatomical workflow
-* bold_datasink: Includes corrected EPI timeseries, EPI masks and key EPI outputs from the preprocessing workflow
+* bold_datasink: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and key EPI outputs from the preprocessing workflow
 * commonspace_datasink: Outputs from the common space registration
 * transforms_datasink: Contains all transforms
 * confounds_datasink: contains outputs to use for confound regression steps
+
+## Recommendations for Quality Control
+* bias correction: can visualize if bias correction was correctly applied to correct intensity inhomogeneities for the anatomical scan (anat_datasink/anat_preproc/) and EPI reference image (bold_datasink/bias_cor_bold/)
+* commonspace registration: verify that each anatomical image (commonspace_datasink/ants_dbm_outputs/ants_dbm/output/secondlevel/secondlevel_template0sub-*_ses-*_preproc0WarpedToTemplate.nii.gz) was properly realigned to the dataset-generated template (commonspace_datasink/ants_dbm_template/secondlevel_template0.nii.gz)
+* template registration: verify that the dataset-generated template (commonspace_datasink/warped_template/secondlevel_template0_output_warped_image.nii.gz) was realigned properly to the provided commonspace template (--anat_template input)
+* EPI_Coregistration: verify for each session that the bias field-corrected reference EPI (bold_datasink/bias_cor_bold_warped2anat/) was appropriately registered to the anatomical scan of that session (anat_datasink/anat_preproc/)
 
 <br/>
 
