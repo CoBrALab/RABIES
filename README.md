@@ -173,7 +173,6 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
   .SOCK  { color: fuchsia;background-color: transparent;}
   .EXEC  { color: green;  background-color: transparent;}
   -->
- </style>
 </head>
 <body>
   <h1>Example Directory Tree</h1><p>
