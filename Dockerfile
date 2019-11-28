@@ -124,30 +124,31 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
 
 
 #### install RABIES
+ENV export RABIES_VERSION=0.1.1 \
+    export RABIES=$HOME/RABIES-${RABIES_VERSION} \
+    export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-RUN git clone https://github.com/CoBrALab/RABIES temp/RABIES && \
-  conda env create -f temp/RABIES/rabies_environment.yml && \
-  bash temp/RABIES/install.sh && \
-  rm -r temp
-
-# create WM and CSF masks
-ENV DSURQE_100micron_anat=/home/rabies/RABIES/template_files/DSURQE_100micron_average.nii.gz \
-  DSURQE_100micron_mask=/home/rabies/RABIES/template_files/DSURQE_100micron_mask.nii.gz \
-  DSURQE_100micron_labels=/home/rabies/RABIES/template_files/DSURQE_100micron_labels.nii.gz \
-  csv_labels=/home/rabies/RABIES/template_files/DSURQE_40micron_R_mapping.csv
-
-RUN /home/rabies/miniconda-latest/envs/rabies/bin/python /home/rabies/RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels /home/rabies/RABIES/template_files/DSURQE_100micron
-
-
-#write container execution script
-RUN echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > /home/rabies/RABIES/exec.py && \
-  echo "import os" >> /home/rabies/RABIES/exec.py && \
-  echo "import sys" >> /home/rabies/RABIES/exec.py && \
-  echo "os.environ['RABIES'] = '/home/rabies/RABIES'" >> /home/rabies/RABIES/exec.py && \
-  echo "sys.path.insert(0,os.environ['RABIES'])" >> /home/rabies/RABIES/exec.py && \
-  echo "from rabies.run_main import execute_workflow" >> /home/rabies/RABIES/exec.py && \
-  echo "execute_workflow()" >> /home/rabies/RABIES/exec.py && \
-  chmod +x /home/rabies/RABIES/exec.py
+RUN export RABIES_VERSION=0.1.1 && \
+  export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
+  mkdir -p temp && \
+  curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
+  cd temp && \
+  tar zxf RABIES.tar.gz && \
+  cd .. && \
+  conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
+  bash temp/RABIES-${RABIES_VERSION}/install.sh && \
+  rm -r temp && \
+  DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
+  csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
+  echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > ${RABIES}/exec.py && \
+  echo "import os" >> ${RABIES}/exec.py && \
+  echo "import sys" >> ${RABIES}/exec.py && \
+  echo "os.environ['RABIES'] = '${RABIES}'" >> ${RABIES}/exec.py && \
+  echo "sys.path.insert(0,os.environ['RABIES'])" >> ${RABIES}/exec.py && \
+  echo "from rabies.run_main import execute_workflow" >> ${RABIES}/exec.py && \
+  echo "execute_workflow()" >> ${RABIES}/exec.py && \
+  chmod +x ${RABIES}/exec.py
 
 ENV QBATCH_SYSTEM local
 
