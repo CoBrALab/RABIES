@@ -140,12 +140,16 @@ RUN export RABIES_VERSION=0.1.1 && \
   rm -r temp && \
   DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
   csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron
+
+RUN export RABIES_VERSION=0.1.1 && \
+  export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
   echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > ${RABIES}/exec.py && \
   echo "import os" >> ${RABIES}/exec.py && \
   echo "import sys" >> ${RABIES}/exec.py && \
   echo "os.environ['RABIES'] = '${RABIES}'" >> ${RABIES}/exec.py && \
   echo "sys.path.insert(0,os.environ['RABIES'])" >> ${RABIES}/exec.py && \
+  echo "os.environ['PATH'] = '${RABIES}/twolevel_ants_dbm:/home/rabies/miniconda-latest/envs/rabies/bin:${PATH}'" >> ${RABIES}/exec.py && \
   echo "from rabies.run_main import execute_workflow" >> ${RABIES}/exec.py && \
   echo "execute_workflow()" >> ${RABIES}/exec.py && \
   chmod +x ${RABIES}/exec.py
@@ -153,4 +157,7 @@ RUN export RABIES_VERSION=0.1.1 && \
 ENV QBATCH_SYSTEM local
 
 WORKDIR /tmp/
+ENV PATH /home/rabies/miniconda-latest/envs/rabies/bin:$PATH
+RUN /bin/bash -c "source activate rabies"
+
 ENTRYPOINT ["/home/rabies/RABIES-0.1.1/exec.py"]
