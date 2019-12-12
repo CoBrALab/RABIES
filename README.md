@@ -234,7 +234,7 @@ After installing the container from the Dockerfile, can run RABIES interactively
     docker run -it --rm \
 		-v /nii_inputs_path:/nii_inputs:ro \
 		-v /outputs_path:/outputs \
-		rabies /nii_inputs /outputs --further_execution_specifications
+		gabdesgreg/rabies:version /nii_inputs /outputs --further_execution_specifications
 ```
 <br/>
 
