@@ -6,7 +6,7 @@
 ```
 usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
               [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
-              [--min_proc MIN_PROC] [-d DEBUG] [-v VERBOSE]
+              [--min_proc MIN_PROC] [-d DEBUG]
               [--isotropic_resampling ISOTROPIC_RESAMPLING]
               [--upsampling UPSAMPLING] [--data_type DATA_TYPE]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
@@ -16,7 +16,7 @@ usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
               [--TR TR] [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
               [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
               [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
-              [--labels LABELS] [--csv_labels CSV_LABELS]
+              [--labels LABELS]
               input_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -38,12 +38,15 @@ optional arguments:
   -e BOLD_ONLY, --bold_only BOLD_ONLY
                         preprocessing with only EPI scans. commonspace
                         registration and distortion correction is executed
-                        through registration of the EPIs to a common template
-                        atlas. (default: False)
+                        through registration of the EPI-generated template
+                        from ants_dbm to a common template atlas. (default:
+                        False)
   -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
                         specify a registration script for iterative bias field
-                        correction. 'default' is a rigid registration.
-                        (default: Rigid)
+                        correction. This registration step consists of
+                        aligning the volume with the commonspace template to
+                        provide a brain mask and optimize the bias field
+                        correction. (default: Rigid)
   -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
                         Specify EPI to anat coregistration script. Built-in
                         options include 'Rigid', 'Affine', 'SyN' (non-linear)
@@ -60,9 +63,6 @@ optional arguments:
                         nodes to be assigned. (default: 1)
   -d DEBUG, --debug DEBUG
                         Run in debug mode. (default: False)
-  -v VERBOSE, --verbose VERBOSE
-                        Increase output verbosity. **doesn't do anything for
-                        now. (default: False)
 
 Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling::
   --isotropic_resampling ISOTROPIC_RESAMPLING
@@ -78,7 +78,7 @@ Options for the resampling of the EPI for motion realignment, susceptibility dis
                         scipy.org/doc/numpy/user/basics.types.html. (default:
                         float64)
 
-cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
+cluster options for running ants_dbm (options copied from twolevel_dbm.py)::
   --cluster_type {local,sge,pbs,slurm}
                         Choose the type of cluster system to submit jobs to
                         (default: local)
@@ -90,7 +90,7 @@ cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
   --local_threads LOCAL_THREADS
                         For local execution, how many subject-wise modelbuilds
                         to run in parallel, defaults to number of CPUs
-                        (default: 8)
+                        (default: 2)
   --template_reg_script TEMPLATE_REG_SCRIPT
                         Registration script that will be used for registration
                         of the generated template to the provided atlas for
@@ -108,39 +108,40 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
 Template files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/cic/desgab/RABIES/template_files/DSURQ
-                        E_100micron_average.nii.gz)
+                        (default: /home/gabriel/RABIES/template_files/DSURQE_1
+                        00micron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/cic/desga
-                        b/RABIES/template_files/DSURQE_100micron_mask.nii.gz)
-  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
-                        c/desgab/RABIES/template_files/DSURQE_100micron_eroded
-                        _WM_mask.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
-                        RABIES/template_files/DSURQE_100micron_eroded_CSF_mask
-                        .nii.gz)
+                        Brain mask for the template. (default: /home/gabriel/R
+                        ABIES/template_files/DSURQE_100micron_mask.nii.gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
+                        briel/RABIES/template_files/DSURQE_100micron_eroded_WM
+                        _mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
+                        IES/template_files/DSURQE_100micron_eroded_CSF_mask.ni
+                        i.gz)
   --vascular_mask VASCULAR_MASK
                         Can provide a mask of major blood vessels for
                         computing confound timeseries. The default mask was
                         generated by applying MELODIC ICA and selecting the
                         resulting component mapping onto major veins.
                         (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/cic/desgab/RABIES/template_files
-                        /vascular_mask.nii.gz)
-  --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
-                        /desgab/RABIES/template_files/DSURQE_100micron_labels.
-                        nii.gz)
-  --csv_labels CSV_LABELS
-                        csv file with info on the labels. (default: /home/cic/
-                        desgab/RABIES/template_files/DSURQE_40micron_R_mapping
-                        .csv)
-
+                        2005) (default: /home/gabriel/RABIES/template_files/va
+                        scular_mask.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
+                        riel/RABIES/template_files/DSURQE_100micron_labels.nii
+                        .gz)
 ```
 
 ## Example execution command
 ```
-  rabies nii_inputs/ rabies_outputs/ -e 0 -b default -r SyN -p SGEGraph -d 0 -v 0
+  rabies nii_inputs/ rabies_outputs/ --bids_input True -r light_SyN --template_reg_script light_SyN -p SGEGraph --TR 1.0s
 ```
+
+## Detailed graph for the nipype workflow structure:
+main_wf:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_orig.png)
+bold_main_wf:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_bold_workflow.png)
 
 # Input data folder structure
 Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/) or the following:

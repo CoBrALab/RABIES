@@ -22,9 +22,12 @@ def get_parser():
                              "Note that all .nii inputs will be converted to compressed .gz format.")
     parser.add_argument("-e", "--bold_only", type=bool, default=False,
                         help="preprocessing with only EPI scans. commonspace registration and distortion correction"
-                              " is executed through registration of the EPIs to a common template atlas.")
+                              " is executed through registration of the EPI-generated template from ants_dbm"
+                              " to a common template atlas.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
-                        help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
+                        help="specify a registration script for iterative bias field correction. This registration step"
+                        " consists of aligning the volume with the commonspace template to provide"
+                        " a brain mask and optimize the bias field correction.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear) and 'light_SyN', but"
                         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
@@ -35,8 +38,6 @@ def get_parser():
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
                         help="Run in debug mode.")
-    parser.add_argument("-v", "--verbose", type=bool, default=False,
-                        help="Increase output verbosity. **doesn't do anything for now.")
 
     g_resampling = parser.add_argument_group('Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling:')
     g_resampling.add_argument('--isotropic_resampling', type=bool, default=False,
@@ -46,7 +47,7 @@ def get_parser():
     g_resampling.add_argument("--data_type", type=str, default='float64',
                         help="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
-    g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
+    g_ants_dbm = parser.add_argument_group('cluster options for running ants_dbm (options copied from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
         '--cluster_type',
         default="local",
@@ -104,9 +105,6 @@ def get_parser():
     g_template.add_argument('--labels', action='store', type=Path,
                         default="%s/template_files/DSURQE_100micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
-    g_template.add_argument('--csv_labels', action='store', type=Path,
-                        default="%s/template_files/DSURQE_40micron_R_mapping.csv" % (os.environ["RABIES"]),
-                        help='csv file with info on the labels.')
     return parser
 
 
@@ -188,9 +186,6 @@ def execute_workflow():
     if not os.path.isfile(os.environ["atlas_labels"]):
         raise ValueError("--labels file doesn't exists.")
 
-    os.environ["csv_labels"] = str(opts.csv_labels)
-    if not os.path.isfile(os.environ["csv_labels"]):
-        raise ValueError("--csv_labels file doesn't exists.")
 
     data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
 
