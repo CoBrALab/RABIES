@@ -415,7 +415,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
         for i in range(len(subject_list)):
             run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
-        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'bold', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'func', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
                                        base_directory=data_dir_path),
                            name="bold_selectfiles")
