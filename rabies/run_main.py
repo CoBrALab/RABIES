@@ -33,18 +33,21 @@ def get_parser():
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
+    parser.add_argument("--data_type", type=str, default='float32',
+                        help="Specify data format outputs to control for file size and/or information loss. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
     parser.add_argument("-d", "--debug", type=bool, default=False,
                         help="Run in debug mode.")
     parser.add_argument("-v", "--verbose", type=bool, default=False,
                         help="Increase output verbosity. **doesn't do anything for now.")
 
-    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling:')
-    g_resampling.add_argument('--isotropic_resampling', type=bool, default=False,
-                        help="Whether to resample the EPI to an isotropic resolution based on the lowest dimension.")
-    g_resampling.add_argument('--upsampling', type=float, default=1.0,
-                        help="Can specify a upsampling parameter to increase the EPI resolution upon resampling and minimize information lost from the transform interpolation.")
-    g_resampling.add_argument("--data_type", type=str, default='float64',
-                        help="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
+    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for:')
+    g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
+                        help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
+                             "'origin' is specified.")
+    g_resampling.add_argument('--commonspace_resampling', type=str, default='origin',
+                        help="Can specify a resampling dimension for the commonspace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
+                             "'origin' is specified."
+                             "***this option specifies the resampling for the --bold_only workflow")
 
     g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
@@ -151,9 +154,9 @@ def execute_workflow():
         raise ValueError('Invalid --tpattern provided.')
 
     #resampling options
-    isotropic_resampling=opts.isotropic_resampling
-    upsampling=opts.upsampling
-    resampling_data_type=opts.data_type
+    nativespace_resampling=opts.nativespace_resampling
+    commonspace_resampling=opts.commonspace_resampling
+    os.environ["rabies_data_type"]=opts.data_type
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
@@ -196,10 +199,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

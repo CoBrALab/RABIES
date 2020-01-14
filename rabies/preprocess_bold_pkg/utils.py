@@ -229,8 +229,9 @@ class EstimateReferenceImage(BaseInterface):
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
-        nb.Nifti1Image(median_image_data, in_nii.affine,
-                       in_nii.header).to_filename(out_ref_fname)
+        ref_img=nb.Nifti1Image(median_image_data, in_nii.affine,
+                       in_nii.header)
+        resample_image(ref_img, os.environ["rabies_data_type"]).to_filename(out_ref_fname)
 
 
         setattr(self, 'ref_image', out_ref_fname)
@@ -337,8 +338,7 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     inverses = traits.List(desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(default=True, desc="Whether to apply motion realignment.")
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
-    isotropic_resampling = traits.Bool(desc="If true, the EPI will be resampled to isotropic resolution based on the lowest dimension.")
-    upsampling = traits.Float(default=1.0, desc="Option to upsample the voxel resolution upon resampling to minimize data loss. All dimensions will be multiplied by the specified proportion. e.g. 2.0 doubles the resolution.")
+    resampling_dim = traits.Str(desc="Specification for the dimension of resampling.")
     data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
@@ -360,12 +360,7 @@ class slice_applyTransforms(BaseInterface):
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
-        shape=img.header.get_zooms()[:3]
-        upsampling_multiplier=1/self.inputs.upsampling
-        if self.inputs.isotropic_resampling:
-            low_dim=np.asarray(shape).min()
-            shape=(low_dim,low_dim,low_dim)
-        processing.resample_to_output(nb.load(self.inputs.ref_file), voxel_sizes=(shape[0]*upsampling_multiplier,shape[1]*upsampling_multiplier,shape[2]*upsampling_multiplier), order=4).to_filename('resampled.nii.gz')
+        resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
@@ -517,3 +512,13 @@ class Skullstrip(BaseInterface):
 
     def _list_outputs(self):
         return {'skullstrip_brain': getattr(self, 'skullstrip_brain')}
+
+def resample_image(nb_image, data_type, img_dim='origin'):
+    import nibabel as nb
+    if not img_dim=='origin':
+        from nibabel import processing
+        import numpy as np
+        shape=img_dim.split('x')
+        nb_image=processing.resample_to_output(nb_image, voxel_sizes=(float(shape[0]),float(shape[1]),float(shape[2])), order=4)
+    nb_image.set_data_dtype(data_type)
+    return nb_image
