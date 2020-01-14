@@ -76,7 +76,7 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
-def init_bold_reference_wf(name='gen_bold_ref'):
+def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
     """
     This workflow generates reference BOLD images for a series
 
@@ -134,7 +134,7 @@ def init_bold_reference_wf(name='gen_bold_ref'):
     validate = pe.Node(ValidateImage(), name='validate')
     validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
-    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref')
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref')
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
@@ -151,6 +151,7 @@ def init_bold_reference_wf(name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    detect_dummy = traits.Bool(desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
 
 class EstimateReferenceImageOutputSpec(TraitedSpec):
     ref_image = File(exists=True, desc="3D reference image")
@@ -195,7 +196,11 @@ class EstimateReferenceImage(BaseInterface):
 
         out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
-        if n_volumes_to_discard == 0:
+        if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
+            print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
+            median_image_data = np.median(
+                data_slice[:, :, :, :n_volumes_to_discard], axis=3)
+        else:
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
@@ -222,10 +227,6 @@ class EstimateReferenceImage(BaseInterface):
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
             median_image_data = np.median(nb.load(res.outputs.mc_corrected_bold).get_data(), axis=3)
-        else:
-            print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
-            median_image_data = np.median(
-                data_slice[:, :, :, :n_volumes_to_discard], axis=3)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it

@@ -78,6 +78,10 @@ def get_parser():
         template to the provided atlas for masking and labeling. Can choose a predefined
         registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
 
+    g_gen_ref = parser.add_argument_group('Options for the generation of EPI reference volume.')
+    g_gen_ref.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
+                        help="Detect and remove dummy volumes, and generate "
+                             "a reference EPI based on these volumes if detected.")
 
     g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift.')
     g_stc.add_argument('--no_STC', dest='STC', action='store_false',
@@ -141,6 +145,7 @@ def execute_workflow():
     data_dir_path=os.path.abspath(str(opts.input_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
+    detect_dummy=opts.detect_dummy
 
     #STC options
     stc_bool=opts.STC
@@ -198,10 +203,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

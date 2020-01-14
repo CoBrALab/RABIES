@@ -14,7 +14,7 @@ from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN',
+def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
                         nativespace_resampling='origin', commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
@@ -133,7 +133,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
-    bold_reference_wf = init_bold_reference_wf()
+    bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
 
     if apply_STC:
@@ -283,7 +283,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -454,7 +454,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                              container="confounds_datasink"),
                     name="confounds_datasink")
 
-    bold_reference_wf = init_bold_reference_wf()
+    bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
     bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
     bias_cor_wf.inputs.inputnode.anat_mask=os.environ["template_mask"]
