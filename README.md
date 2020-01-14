@@ -4,19 +4,19 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [--bids_input BIDS_INPUT] [-e BOLD_ONLY]
-              [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
-              [--min_proc MIN_PROC] [-d DEBUG] [-v VERBOSE]
-              [--isotropic_resampling ISOTROPIC_RESAMPLING]
-              [--upsampling UPSAMPLING] [--data_type DATA_TYPE]
+usage: rabies [-h] [--bids_input] [-e] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
+              [-p PLUGIN] [--min_proc MIN_PROC] [--data_type DATA_TYPE]
+              [--debug] [-v] [--nativespace_resampling NATIVESPACE_RESAMPLING]
+              [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
               [--memory_request MEMORY_REQUEST]
               [--local_threads LOCAL_THREADS]
-              [--template_reg_script TEMPLATE_REG_SCRIPT] [--STC STC]
-              [--TR TR] [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
-              [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
-              [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
-              [--labels LABELS] [--csv_labels CSV_LABELS]
+              [--template_reg_script TEMPLATE_REG_SCRIPT] [--detect_dummy]
+              [--no_STC] [--TR TR] [--tpattern TPATTERN]
+              [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK]
+              [--WM_mask WM_MASK] [--CSF_mask CSF_MASK]
+              [--vascular_mask VASCULAR_MASK] [--labels LABELS]
+              [--csv_labels CSV_LABELS]
               input_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -30,13 +30,9 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --bids_input BIDS_INPUT
-                        If the provided input data folder is in the BIDS
-                        format to use the BIDS reader.Note that all .nii
-                        inputs will be converted to compressed .gz format.
-                        (default: False)
-  -e BOLD_ONLY, --bold_only BOLD_ONLY
-                        preprocessing with only EPI scans. commonspace
+  --bids_input          Specify a BIDS input data format to use the BIDS
+                        reader. (default: False)
+  -e, --bold_only       Apply preprocessing with only EPI scans. commonspace
                         registration and distortion correction is executed
                         through registration of the EPIs to a common template
                         atlas. (default: False)
@@ -58,25 +54,27 @@ optional arguments:
                         tested. (default: Linear)
   --min_proc MIN_PROC   For parallel processing, specify the minimal number of
                         nodes to be assigned. (default: 1)
-  -d DEBUG, --debug DEBUG
-                        Run in debug mode. (default: False)
-  -v VERBOSE, --verbose VERBOSE
-                        Increase output verbosity. **doesn't do anything for
+  --data_type DATA_TYPE
+                        Specify data format outputs to control for file size
+                        and/or information loss. Can specify a numpy data type
+                        from https://docs.scipy.org/doc/numpy/user/basics.type
+                        s.html. (default: float32)
+  --debug               Run in debug mode. (default: False)
+  -v, --verbose         Increase output verbosity. **doesn't do anything for
                         now. (default: False)
 
-Options for the resampling of the EPI for motion realignment, susceptibility distortion correction and common space resampling::
-  --isotropic_resampling ISOTROPIC_RESAMPLING
-                        Whether to resample the EPI to an isotropic resolution
-                        based on the lowest dimension. (default: False)
-  --upsampling UPSAMPLING
-                        Can specify a upsampling parameter to increase the EPI
-                        resolution upon resampling and minimize information
-                        lost from the transform interpolation. (default: 1.0)
-  --data_type DATA_TYPE
-                        Specify resampling data format to control for file
-                        size. Can specify a numpy data type from https://docs.
-                        scipy.org/doc/numpy/user/basics.types.html. (default:
-                        float64)
+Options for the resampling of the EPI for::
+  --nativespace_resampling NATIVESPACE_RESAMPLING
+                        Can specify a resampling dimension for the nativespace
+                        outputs. Must be of the form dim1xdim2xdim3 (in mm).
+                        The original dimensions are conserved'origin' is
+                        specified. (default: origin)
+  --commonspace_resampling COMMONSPACE_RESAMPLING
+                        Can specify a resampling dimension for the commonspace
+                        outputs. Must be of the form dim1xdim2xdim3 (in mm).
+                        The original dimensions are conserved'origin' is
+                        specified.***this option specifies the resampling for
+                        the --bold_only workflow (default: origin)
 
 cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
   --cluster_type {local,sge,pbs,slurm}
@@ -98,8 +96,13 @@ cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py)::
                         registration script among Rigid,Affine,SyN or
                         light_SyN, or provide a custom script. (default: SyN)
 
+Options for the generation of EPI reference volume.:
+  --detect_dummy        Detect and remove dummy volumes, and generate a
+                        reference EPI based on these volumes if detected.
+                        (default: False)
+
 Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
-  --STC STC             Whether to run STC or not. (default: True)
+  --no_STC              Don't run STC. (default: True)
   --TR TR               Specify repetition time (TR). (default: 1.0s)
   --tpattern TPATTERN   Specify if interleaved or sequential acquisition.
                         'alt' for interleaved, 'seq' for sequential. (default:
@@ -108,32 +111,33 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
 Template files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/cic/desgab/RABIES/template_files/DSURQ
-                        E_100micron_average.nii.gz)
+                        (default: /home/cic/desgab/RABIES-0.1.1/template_files
+                        /DSURQE_100micron_average.nii.gz)
   --brain_mask BRAIN_MASK
                         Brain mask for the template. (default: /home/cic/desga
-                        b/RABIES/template_files/DSURQE_100micron_mask.nii.gz)
+                        b/RABIES-0.1.1/template_files/DSURQE_100micron_mask.ni
+                        i.gz)
   --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
-                        c/desgab/RABIES/template_files/DSURQE_100micron_eroded
-                        _WM_mask.nii.gz)
+                        c/desgab/RABIES-0.1.1/template_files/DSURQE_100micron_
+                        eroded_WM_mask.nii.gz)
   --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
-                        RABIES/template_files/DSURQE_100micron_eroded_CSF_mask
-                        .nii.gz)
+                        RABIES-0.1.1/template_files/DSURQE_100micron_eroded_CS
+                        F_mask.nii.gz)
   --vascular_mask VASCULAR_MASK
                         Can provide a mask of major blood vessels for
                         computing confound timeseries. The default mask was
                         generated by applying MELODIC ICA and selecting the
                         resulting component mapping onto major veins.
                         (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/cic/desgab/RABIES/template_files
-                        /vascular_mask.nii.gz)
+                        2005) (default: /home/cic/desgab/RABIES-0.1.1/template
+                        _files/vascular_mask.nii.gz)
   --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
-                        /desgab/RABIES/template_files/DSURQE_100micron_labels.
-                        nii.gz)
+                        /desgab/RABIES-0.1.1/template_files/DSURQE_100micron_l
+                        abels.nii.gz)
   --csv_labels CSV_LABELS
                         csv file with info on the labels. (default: /home/cic/
-                        desgab/RABIES/template_files/DSURQE_40micron_R_mapping
-                        .csv)
+                        desgab/RABIES-0.1.1/template_files/DSURQE_40micron_R_m
+                        apping.csv)
 
 ```
 
