@@ -14,8 +14,8 @@ from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', commonspace_transform=False,
-                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
+def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
+                        nativespace_resampling='origin', commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -38,14 +38,10 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
             Default is set to 'SyN' registration.
-        commonspace_transform
-            Whether common space registration was applied and the transforms are provided
-            to resampling the EPI to common space.
-        isotropic_resampling
-            Whether the EPI should be resampled to isotropic resolution based on the
-            lowest dimension
-        upsampling
-            specify whether to upsampling the resolution of the EPI upon resampling
+        nativespace_resampling
+            Specified dimensions for the resampling of the corrected EPI in native space.
+        commonspace_resampling
+            Specified dimensions for the resampling of the corrected EPI in common space.
 
     **Inputs**
 
@@ -137,7 +133,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
-    bold_reference_wf = init_bold_reference_wf()
+    bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
 
     if apply_STC:
@@ -159,7 +155,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=nativespace_resampling, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -246,50 +242,49 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
                 ('outputnode.bold_file', 'bold_file')]),
             ])
 
-    if commonspace_transform:
-        def commonspace_transforms( template_to_common_warp, template_to_common_affine,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
-            return [template_to_common_warp, template_to_common_affine,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat],[0,0,0,0,0,0] #transforms_list,inverses
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp', 'template_to_common_affine','anat_to_template_warp','anat_to_template_affine', 'warp_bold2anat', 'affine_bold2anat'],
-                                  output_names=['transforms_list','inverses'],
-                                  function=commonspace_transforms),
-                         name='commonspace_transforms_prep')
+    def commonspace_transforms( template_to_common_warp, template_to_common_affine,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
+        return [template_to_common_warp, template_to_common_affine,anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat],[0,0,0,0,0,0] #transforms_list,inverses
+    commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp', 'template_to_common_affine','anat_to_template_warp','anat_to_template_affine', 'warp_bold2anat', 'affine_bold2anat'],
+                              output_names=['transforms_list','inverses'],
+                              function=commonspace_transforms),
+                     name='commonspace_transforms_prep')
 
-        bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_commonspace_trans_wf')
+    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=commonspace_resampling, name='bold_commonspace_trans_wf')
 
-        workflow.connect([
-            (inputnode, commonspace_transforms_prep, [
-                ("template_to_common_affine", "template_to_common_affine"),
-                ("template_to_common_warp", "template_to_common_warp"),
-                ("anat_to_template_affine", "anat_to_template_affine"),
-                ("anat_to_template_warp", "anat_to_template_warp"),
-                ]),
-            (bold_reg_wf, commonspace_transforms_prep, [
-                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
-                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
-                ]),
-            (commonspace_transforms_prep, bold_commonspace_trans_wf, [
-                ('transforms_list', 'inputnode.transforms_list'),
-                ('inverses', 'inputnode.inverses'),
-                ]),
-            (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
-            (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
-            (inputnode, bold_commonspace_trans_wf, [
-                ('bold', 'inputnode.name_source'),
-                ]),
-            (bold_commonspace_trans_wf, outputnode, [
-                ('outputnode.bold', 'commonspace_bold'),
-                ('outputnode.brain_mask', 'commonspace_mask'),
-                ('outputnode.WM_mask', 'commonspace_WM_mask'),
-                ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
-                ('outputnode.labels', 'commonspace_labels'),
-                ]),
-        ])
+    workflow.connect([
+        (inputnode, commonspace_transforms_prep, [
+            ("template_to_common_affine", "template_to_common_affine"),
+            ("template_to_common_warp", "template_to_common_warp"),
+            ("anat_to_template_affine", "anat_to_template_affine"),
+            ("anat_to_template_warp", "anat_to_template_warp"),
+            ]),
+        (bold_reg_wf, commonspace_transforms_prep, [
+            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+            ]),
+        (commonspace_transforms_prep, bold_commonspace_trans_wf, [
+            ('transforms_list', 'inputnode.transforms_list'),
+            ('inverses', 'inputnode.inverses'),
+            ]),
+        (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+        (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+        (inputnode, bold_commonspace_trans_wf, [
+            ('bold', 'inputnode.name_source'),
+            ]),
+        (bold_commonspace_trans_wf, outputnode, [
+            ('outputnode.bold', 'commonspace_bold'),
+            ('outputnode.brain_mask', 'commonspace_mask'),
+            ('outputnode.WM_mask', 'commonspace_WM_mask'),
+            ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
+            ('outputnode.labels', 'commonspace_labels'),
+            ]),
+    ])
 
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
-                        isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', aCompCor_method='50%', name='bold_main_wf'):
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+                        commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
     registration based on the generation of a EPI template from the provided sample
@@ -320,14 +315,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
             Default is set to 'SyN' registration.
-        commonspace_transform
-            Whether common space registration was applied and the transforms are provided
-            to resampling the EPI to common space.
-        isotropic_resampling
-            Whether the EPI should be resampled to isotropic resolution based on the
-            lowest dimension
-        upsampling
-            specify whether to upsampling the resolution of the EPI upon resampling
+        commonspace_resampling
+            Specified dimensions for the resampling of the corrected EPI in common space.
 
     **Outputs**
 
@@ -426,7 +415,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
         for i in range(len(subject_list)):
             run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
 
-        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'bold', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
+        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'func', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
         bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
                                        base_directory=data_dir_path),
                            name="bold_selectfiles")
@@ -465,7 +454,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                              container="confounds_datasink"),
                     name="confounds_datasink")
 
-    bold_reference_wf = init_bold_reference_wf()
+    bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
     bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
     bias_cor_wf.inputs.inputnode.anat_mask=os.environ["template_mask"]
@@ -480,7 +469,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(isotropic_resampling=isotropic_resampling, upsampling=upsampling, data_type=resampling_data_type, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 

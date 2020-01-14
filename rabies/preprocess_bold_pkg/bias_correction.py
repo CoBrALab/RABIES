@@ -118,6 +118,11 @@ class EPIBiasCorrection(BaseInterface):
         low_dim=np.asarray(dim).min()
         processing.resample_to_output(nb.load(cwd+'/iter_corrected.nii.gz'), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(biascor_EPI)
 
+        from .utils import resample_image
+        resample_image(nb.load(biascor_EPI), os.environ["rabies_data_type"]).to_filename(biascor_EPI)
+        resample_image(nb.load(warped_image), os.environ["rabies_data_type"]).to_filename(warped_image)
+        resample_image(nb.load(resampled_mask), os.environ["rabies_data_type"]).to_filename(resampled_mask)
+
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)
         setattr(self, 'resampled_mask', resampled_mask)

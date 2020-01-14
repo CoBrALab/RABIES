@@ -76,7 +76,7 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
-def init_bold_reference_wf(name='gen_bold_ref'):
+def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
     """
     This workflow generates reference BOLD images for a series
 
@@ -134,7 +134,7 @@ def init_bold_reference_wf(name='gen_bold_ref'):
     validate = pe.Node(ValidateImage(), name='validate')
     validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
-    gen_ref = pe.Node(EstimateReferenceImage(), name='gen_ref')
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref')
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
@@ -151,6 +151,7 @@ def init_bold_reference_wf(name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    detect_dummy = traits.Bool(desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
 
 class EstimateReferenceImageOutputSpec(TraitedSpec):
     ref_image = File(exists=True, desc="3D reference image")
@@ -195,7 +196,11 @@ class EstimateReferenceImage(BaseInterface):
 
         out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
-        if n_volumes_to_discard == 0:
+        if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
+            print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
+            median_image_data = np.median(
+                data_slice[:, :, :, :n_volumes_to_discard], axis=3)
+        else:
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
@@ -222,15 +227,12 @@ class EstimateReferenceImage(BaseInterface):
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
             median_image_data = np.median(nb.load(res.outputs.mc_corrected_bold).get_data(), axis=3)
-        else:
-            print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
-            median_image_data = np.median(
-                data_slice[:, :, :, :n_volumes_to_discard], axis=3)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
-        nb.Nifti1Image(median_image_data, in_nii.affine,
-                       in_nii.header).to_filename(out_ref_fname)
+        ref_img=nb.Nifti1Image(median_image_data, in_nii.affine,
+                       in_nii.header)
+        resample_image(ref_img, os.environ["rabies_data_type"]).to_filename(out_ref_fname)
 
 
         setattr(self, 'ref_image', out_ref_fname)
@@ -337,8 +339,7 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     inverses = traits.List(desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(default=True, desc="Whether to apply motion realignment.")
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
-    isotropic_resampling = traits.Bool(desc="If true, the EPI will be resampled to isotropic resolution based on the lowest dimension.")
-    upsampling = traits.Float(default=1.0, desc="Option to upsample the voxel resolution upon resampling to minimize data loss. All dimensions will be multiplied by the specified proportion. e.g. 2.0 doubles the resolution.")
+    resampling_dim = traits.Str(desc="Specification for the dimension of resampling.")
     data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
@@ -360,12 +361,7 @@ class slice_applyTransforms(BaseInterface):
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
-        shape=img.header.get_zooms()[:3]
-        upsampling_multiplier=1/self.inputs.upsampling
-        if self.inputs.isotropic_resampling:
-            low_dim=np.asarray(shape).min()
-            shape=(low_dim,low_dim,low_dim)
-        processing.resample_to_output(nb.load(self.inputs.ref_file), voxel_sizes=(shape[0]*upsampling_multiplier,shape[1]*upsampling_multiplier,shape[2]*upsampling_multiplier), order=4).to_filename('resampled.nii.gz')
+        resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
@@ -517,3 +513,13 @@ class Skullstrip(BaseInterface):
 
     def _list_outputs(self):
         return {'skullstrip_brain': getattr(self, 'skullstrip_brain')}
+
+def resample_image(nb_image, data_type, img_dim='origin'):
+    import nibabel as nb
+    if not img_dim=='origin':
+        from nibabel import processing
+        import numpy as np
+        shape=img_dim.split('x')
+        nb_image=processing.resample_to_output(nb_image, voxel_sizes=(float(shape[0]),float(shape[1]),float(shape[2])), order=4)
+    nb_image.set_data_dtype(data_type)
+    return nb_image

@@ -4,11 +4,12 @@ from nipype.interfaces import utility as niu
 from .utils import slice_applyTransforms, init_bold_reference_wf, Merge
 from nipype.interfaces.utility import Function
 
-def init_bold_preproc_trans_wf(isotropic_resampling, upsampling, data_type='float64', name='bold_preproc_trans_wf'):
+def init_bold_preproc_trans_wf(resampling_dim, name='bold_preproc_trans_wf'):
     """
     This workflow resamples the input fMRI in its native (original)
     space in a "single shot" from the original BOLD series.
     """
+    import os
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file']),
@@ -22,12 +23,11 @@ def init_bold_preproc_trans_wf(isotropic_resampling, upsampling, data_type='floa
 
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
     bold_transform.inputs.apply_motcorr = True
-    bold_transform.inputs.isotropic_resampling = isotropic_resampling
-    bold_transform.inputs.upsampling = upsampling
-    bold_transform.inputs.data_type = data_type
+    bold_transform.inputs.resampling_dim = resampling_dim
+    bold_transform.inputs.data_type = os.environ["rabies_data_type"]
 
     merge = pe.Node(Merge(), name='merge')
-    merge.inputs.data_type = data_type
+    merge.inputs.data_type = os.environ["rabies_data_type"]
     #merge.plugin_args = {'qsub_args': '-pe smp 2 -l h_vmem=1G ', 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -52,7 +52,7 @@ def init_bold_preproc_trans_wf(isotropic_resampling, upsampling, data_type='floa
     return workflow
 
 
-def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='float64', name='bold_commonspace_trans_wf'):
+def init_bold_commonspace_trans_wf(resampling_dim, name='bold_commonspace_trans_wf'):
     import os
     from .confounds import MaskEPI
 
@@ -69,12 +69,11 @@ def init_bold_commonspace_trans_wf(isotropic_resampling, upsampling, data_type='
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
     bold_transform.inputs.apply_motcorr = True
     bold_transform.inputs.ref_file = os.environ["template_anat"]
-    bold_transform.inputs.isotropic_resampling = isotropic_resampling
-    bold_transform.inputs.upsampling = upsampling
-    bold_transform.inputs.data_type = data_type
+    bold_transform.inputs.resampling_dim = resampling_dim
+    bold_transform.inputs.data_type = os.environ["rabies_data_type"]
 
     merge = pe.Node(Merge(), name='merge')
-    merge.inputs.data_type = data_type
+    merge.inputs.data_type = os.environ["rabies_data_type"]
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf()

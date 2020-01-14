@@ -291,6 +291,9 @@ class MaskEPI(BaseInterface):
 
         os.system('antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel')
 
+        from .utils import resample_image
+        resample_image(nb.load(new_mask_path), os.environ["rabies_data_type"]).to_filename(new_mask_path)
+
         setattr(self, 'EPI_mask', new_mask_path)
         return runtime
 

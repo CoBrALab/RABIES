@@ -11,8 +11,8 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, template_reg_script=None,
-                bias_reg_script='Rigid', coreg_script='SyN', isotropic_resampling=False, upsampling=1.0, resampling_data_type='float64', name='main_wf'):
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, template_reg_script=None,
+                bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
 
@@ -40,11 +40,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
             Default is set to 'SyN' registration.
-        isotropic_resampling
-            Whether the EPI should be resampled to isotropic resolution based on the
-            lowest dimension
-        upsampling
-            specify whether to upsampling the resolution of the EPI upon resampling
+        nativespace_resampling
+            Specified dimensions for the resampling of the corrected EPI in native space.
+        commonspace_resampling
+            Specified dimensions for the resampling of the corrected EPI in common space.
 
     **Outputs**
 
@@ -318,7 +317,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                               function=commonspace_transforms),
                      name='commonspace_transforms_prep')
 
-    bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, commonspace_transform=True, isotropic_resampling=isotropic_resampling, upsampling=upsampling, resampling_data_type=resampling_data_type)
+    bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
 
     workflow.connect([
         (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),

@@ -47,6 +47,7 @@ class AnatPreproc(BaseInterface):
         import numpy as np
         import nibabel as nb
         from nibabel import processing
+        from rabies.preprocess_bold_pkg.utils import resample_image
 
         cwd = os.getcwd()
         out_dir='%s/anat_preproc/' % (cwd,)
@@ -66,6 +67,8 @@ class AnatPreproc(BaseInterface):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
         os.system('bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat))
+
+        resample_image(nb.load(output_anat), os.environ["rabies_data_type"]).to_filename(output_anat)
 
         setattr(self, 'preproc_anat', output_anat)
         return runtime
