@@ -17,11 +17,10 @@ def get_parser():
                         help='the root folder of the input data directory.')
     parser.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
-    parser.add_argument("--bids_input", type=bool, default=False,
-                        help="If the provided input data folder is in the BIDS format to use the BIDS reader."
-                             "Note that all .nii inputs will be converted to compressed .gz format.")
-    parser.add_argument("-e", "--bold_only", type=bool, default=False,
-                        help="preprocessing with only EPI scans. commonspace registration and distortion correction"
+    parser.add_argument("--bids_input", dest='bids_input', action='store_true',
+                        help="Specify a BIDS input data format to use the BIDS reader.")
+    parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
+                        help="Apply preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPIs to a common template atlas.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
@@ -35,9 +34,9 @@ def get_parser():
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
                         help="Specify data format outputs to control for file size and/or information loss. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
-    parser.add_argument("-d", "--debug", type=bool, default=False,
+    parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
-    parser.add_argument("-v", "--verbose", type=bool, default=False,
+    parser.add_argument("-v", "--verbose", dest='verbose', action='store_true',
                         help="Increase output verbosity. **doesn't do anything for now.")
 
     g_resampling = parser.add_argument_group('Options for the resampling of the EPI for:')
@@ -81,8 +80,8 @@ def get_parser():
 
 
     g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift.')
-    g_stc.add_argument('--STC', type=bool, default=True,
-                        help="Whether to run STC or not.")
+    g_stc.add_argument('--no_STC', dest='STC', action='store_false',
+                        help="Don't run STC.")
     g_stc.add_argument('--TR', type=str, default='1.0s',
                         help="Specify repetition time (TR).")
     g_stc.add_argument('--tpattern', type=str, default='alt',
@@ -199,7 +198,7 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
         workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
