@@ -16,7 +16,6 @@ usage: rabies [-h] [--bids_input] [-e] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
               [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK]
               [--WM_mask WM_MASK] [--CSF_mask CSF_MASK]
               [--vascular_mask VASCULAR_MASK] [--labels LABELS]
-              [--csv_labels CSV_LABELS]
               input_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -134,10 +133,6 @@ Template files.:
   --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
                         /desgab/RABIES-0.1.1/template_files/DSURQE_100micron_l
                         abels.nii.gz)
-  --csv_labels CSV_LABELS
-                        csv file with info on the labels. (default: /home/cic/
-                        desgab/RABIES-0.1.1/template_files/DSURQE_40micron_R_m
-                        apping.csv)
 
 ```
 
