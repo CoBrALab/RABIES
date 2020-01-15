@@ -105,7 +105,8 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         warp='NULL'
         inverse_warp='NULL'
 
-    from .utils import resample_image
+    from rabies.preprocess_bold_pkg.utils import resample_image
+    import nibabel as nb
     resample_image(nb.load(warped_image), os.environ["rabies_data_type"]).to_filename(warped_image)
 
     return [affine, warp, inverse_warp, warped_image]

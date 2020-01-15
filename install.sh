@@ -1,7 +1,7 @@
 ### setup RABIES execution and DSURQE atlas
 
 #will install RABIES in HOME directory
-export RABIES_VERSION=0.1.1
+export RABIES_VERSION=0.1.2
 export RABIES=$HOME/RABIES-${RABIES_VERSION}
 export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
@@ -15,7 +15,7 @@ mkdir -p $RABIES/bin
 echo -e '#! /usr/bin/env python \nfrom rabies.run_main import execute_workflow \nexecute_workflow()' > $RABIES/bin/rabies
 chmod +x $RABIES/bin/rabies
 echo "# added by RABIES" >> $HOME/.bashrc
-echo "export RABIES_VERSION=0.1.1" >> $HOME/.bashrc
+echo "export RABIES_VERSION=0.1.2" >> $HOME/.bashrc
 echo "export RABIES=$RABIES" >> $HOME/.bashrc
 echo 'export PYTHONPATH="${PYTHONPATH}:$RABIES"' >> $HOME/.bashrc
 echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc

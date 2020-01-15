@@ -110,9 +110,6 @@ def get_parser():
     g_template.add_argument('--labels', action='store', type=Path,
                         default="%s/template_files/DSURQE_100micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
-    g_template.add_argument('--csv_labels', action='store', type=Path,
-                        default="%s/template_files/DSURQE_40micron_R_mapping.csv" % (os.environ["RABIES"]),
-                        help='csv file with info on the labels.')
     return parser
 
 
@@ -194,10 +191,6 @@ def execute_workflow():
     os.environ["atlas_labels"] = str(opts.labels)
     if not os.path.isfile(os.environ["atlas_labels"]):
         raise ValueError("--labels file doesn't exists.")
-
-    os.environ["csv_labels"] = str(opts.csv_labels)
-    if not os.path.isfile(os.environ["csv_labels"]):
-        raise ValueError("--csv_labels file doesn't exists.")
 
     data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
 

@@ -103,6 +103,7 @@ class CopyXForm(SimpleInterface):
         _copyxform(self.inputs.hdr_file, out_name)
 
         from .utils import resample_image
+        import os
         import nibabel as nb
         resample_image(nb.load(out_name), os.environ["rabies_data_type"]).to_filename(out_name)
 
