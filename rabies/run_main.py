@@ -21,9 +21,12 @@ def get_parser():
                         help="Specify a BIDS input data format to use the BIDS reader.")
     parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
                         help="Apply preprocessing with only EPI scans. commonspace registration and distortion correction"
-                              " is executed through registration of the EPIs to a common template atlas.")
+                              " is executed through registration of the EPI-generated template from ants_dbm"
+                              " to a common template atlas.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
-                        help="specify a registration script for iterative bias field correction. 'default' is a rigid registration.")
+                        help="specify a registration script for iterative bias field correction. This registration step"
+                        " consists of aligning the volume with the commonspace template to provide"
+                        " a brain mask and optimize the bias field correction.")
     parser.add_argument("-r", "--coreg_script", type=str, default='SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear) and 'light_SyN', but"
                         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
@@ -36,8 +39,6 @@ def get_parser():
                         help="Specify data format outputs to control for file size and/or information loss. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
-    parser.add_argument("-v", "--verbose", dest='verbose', action='store_true',
-                        help="Increase output verbosity. **doesn't do anything for now.")
 
     g_resampling = parser.add_argument_group('Options for the resampling of the EPI for:')
     g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
@@ -48,7 +49,7 @@ def get_parser():
                              "'origin' is specified."
                              "***this option specifies the resampling for the --bold_only workflow")
 
-    g_ants_dbm = parser.add_argument_group('cluster options if commonspace method is ants_dbm (taken from twolevel_dbm.py):')
+    g_ants_dbm = parser.add_argument_group('cluster options for running ants_dbm (options copied from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
         '--cluster_type',
         default="local",
