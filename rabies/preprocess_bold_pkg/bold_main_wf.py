@@ -400,7 +400,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
         bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
     else:
         import pandas as pd
-        data_df=pd.read_csv(data_csv, sep=',')
+        data_df=pd.read_csv(data_csv, sep=',', dtype=str)
         subject_list=data_df['subject_id'].values.tolist()
         session_list=data_df['num_session'].values.tolist()
         run_list=data_df['num_run'].values.tolist()
