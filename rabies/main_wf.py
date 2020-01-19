@@ -128,7 +128,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     else:
         #with restricted data input structure for RABIES
         import pandas as pd
-        data_df=pd.read_csv(data_csv, sep=',')
+        data_df=pd.read_csv(data_csv, sep=',', dtype=str)
         subject_list=data_df['subject_id'].values.tolist()
         session_list=data_df['num_session'].values.tolist()
         run_list=data_df['num_run'].values.tolist()
