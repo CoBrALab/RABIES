@@ -28,7 +28,7 @@ def init_bold_preproc_trans_wf(resampling_dim, name='bold_preproc_trans_wf'):
 
     merge = pe.Node(Merge(), name='merge', mem_gb=3)
     merge.inputs.data_type = os.environ["rabies_data_type"]
-    #merge.plugin_args = {'qsub_args': '-pe smp 2 -l h_vmem=1G ', 'overwrite': True}
+    merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf()
@@ -74,6 +74,7 @@ def init_bold_commonspace_trans_wf(resampling_dim, name='bold_commonspace_trans_
 
     merge = pe.Node(Merge(), name='merge', mem_gb=3)
     merge.inputs.data_type = os.environ["rabies_data_type"]
+    merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf()

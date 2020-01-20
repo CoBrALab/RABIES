@@ -131,10 +131,10 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
         This interface implements the `following logic
         <https://github.com/poldracklab/fmriprep/issues/873#issuecomment-349394544>
     '''
-    validate = pe.Node(ValidateImage(), name='validate')
+    validate = pe.Node(ValidateImage(), name='validate', mem_gb=2)
     validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref')
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2)
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
