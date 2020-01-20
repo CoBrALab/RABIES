@@ -233,17 +233,25 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()
 
+    #calculate the number of anat scans that will be registered
+    num_anat=0
+    for sub in subject_list:
+        num_anat+=len(session_iter[sub])
+    if int(os.environ["ants_dbm_local_threads"])<num_anat:
+        num_anat=int(os.environ["ants_dbm_local_threads"])
+
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg')
+                     name='commonspace_reg', n_procs=num_anat)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
                               output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
                               function=run_antsRegistration),
-                     name='template_reg')
+                     name='template_reg', mem_gb=3)
+    template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
     template_reg.inputs.fixed_image = os.environ["template_anat"]
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
