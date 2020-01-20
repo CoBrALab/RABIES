@@ -57,7 +57,7 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
                                             "anat_mask"],
                    output_names=['affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold'],
-                   function=run_antsRegistration), name='EPI_Coregistration')
+                   function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3)
     run_reg.inputs.reg_script=coreg_script
     run_reg.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
 
