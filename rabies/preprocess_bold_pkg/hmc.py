@@ -30,6 +30,8 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
         movpar_file
             CSV file with antsMotionCorr motion parameters
     """
+    import os
+    
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
                         name='inputnode')
@@ -39,7 +41,7 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
 
     # Head motion correction (hmc)
     motion_estimation = pe.Node(EstimateMotion(), name='ants_MC', mem_gb=3)
-    motion_estimation.plugin_args = {'qsub_args': '-pe smp 4', 'overwrite': True}
+    motion_estimation.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
 
     workflow.connect([

@@ -131,10 +131,10 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
         This interface implements the `following logic
         <https://github.com/poldracklab/fmriprep/issues/873#issuecomment-349394544>
     '''
-    validate = pe.Node(ValidateImage(), name='validate')
+    validate = pe.Node(ValidateImage(), name='validate', mem_gb=2)
     validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref')
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2)
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
@@ -336,7 +336,13 @@ class slice_applyTransforms(BaseInterface):
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
-        resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
+
+        if not self.inputs.resampling_dim=='origin':
+            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
+        else:
+            shape=img.header.get_zooms()
+            dims="%sx%sx%s" % (shape[0],shape[1],shape[2])
+            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=dims).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""

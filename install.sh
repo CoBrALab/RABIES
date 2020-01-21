@@ -6,11 +6,11 @@ export RABIES=$HOME/RABIES-${RABIES_VERSION}
 export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
 cd $HOME
-#curl -L --retry 5 -o $HOME/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz
-#tar zxf $HOME/RABIES.tar.gz
-#rm $HOME/RABIES.tar.gz
-git clone https://github.com/CoBrALab/RABIES
-mv RABIES $RABIES
+curl -L --retry 5 -o $HOME/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz
+tar zxf $HOME/RABIES.tar.gz
+rm $HOME/RABIES.tar.gz
+#git clone https://github.com/CoBrALab/RABIES
+#mv RABIES $RABIES
 
 #creates an executable script to execute rabies
 mkdir -p $RABIES/bin
@@ -44,5 +44,8 @@ csv_labels=$template_dir/DSURQE_40micron_R_mapping.csv
 python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $template_dir/DSURQE_100micron
 
 # install twolevel_ants_dbm
-git clone https://github.com/CobraLab/twolevel_ants_dbm $RABIES/twolevel_ants_dbm && \
+git clone https://github.com/CoBrALab/twolevel_ants_dbm.git $RABIES/twolevel_ants_dbm
+cd twolevel_ants_dbm
+git checkout bde563f3ee017eb7f374b72e8599f2102a69c1da
+cd ..
 echo 'export PATH=$RABIES/twolevel_ants_dbm:$PATH' >> $HOME/.bashrc
