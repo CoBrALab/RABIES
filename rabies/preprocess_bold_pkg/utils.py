@@ -336,7 +336,13 @@ class slice_applyTransforms(BaseInterface):
         import nibabel as nb
         import os
         img=nb.load(self.inputs.in_file)
-        resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
+
+        if not self.inputs.resampling_dim=='origin':
+            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
+        else:
+            shape=img.header.get_zooms()
+            dims="%sx%sx%s" % (shape[0],shape[1],shape[2])
+            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=dims).to_filename('resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
