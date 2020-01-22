@@ -519,7 +519,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg', n_procs=num_bold)
+                     name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
@@ -723,8 +723,11 @@ def commonspace_reg_function(file_list, output_folder):
     df.to_csv(csv_path, header=False, sep=',',index=False)
 
     model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
+
     print('Running commonspace registration.')
-    os.system('bash %s %s' % (model_script_path,csv_path))
+    command='bash %s %s' % (model_script_path,csv_path)
+    if os.system(command) != 0:
+        raise ValueError('Error in running commonspace registration with: '+os.system(command))
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'

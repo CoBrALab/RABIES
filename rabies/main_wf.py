@@ -243,7 +243,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg', n_procs=num_anat)
+                     name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
