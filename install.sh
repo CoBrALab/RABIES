@@ -5,7 +5,7 @@ export RABIES_VERSION=0.1.2-dev
 export RABIES=$HOME/RABIES-${RABIES_VERSION}
 export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-#cd $HOME
+cd $HOME
 #curl -L --retry 5 -o $HOME/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz
 #tar zxf $HOME/RABIES.tar.gz
 #rm $HOME/RABIES.tar.gz
