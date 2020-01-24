@@ -33,6 +33,12 @@ def get_parser():
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
+    parser.add_argument(
+        '--local_threads',
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help="""For local MultiProc execution, set the maximum number of processors run in parallel,
+        defaults to number of CPUs""")
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
@@ -65,12 +71,6 @@ def get_parser():
         default="8gb",
         help="""Option for job submission
         specifying requested memory per pairwise registration.""")
-    g_ants_dbm.add_argument(
-        '--local_threads',
-        type=int,
-        default=multiprocessing.cpu_count(),
-        help="""For local execution, how many subject-wise modelbuilds to run in parallel,
-        defaults to number of CPUs""")
     g_ants_dbm.add_argument(
         '--template_reg_script',
         type=str,
@@ -143,6 +143,7 @@ def execute_workflow():
     data_dir_path=os.path.abspath(str(opts.input_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
+    os.environ["local_threads"]=str(opts.local_threads)
     detect_dummy=opts.detect_dummy
 
     #STC options
@@ -164,7 +165,6 @@ def execute_workflow():
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
     os.environ["ants_dbm_walltime"]=opts.walltime
     os.environ["ants_dbm_memory_request"]=opts.memory_request
-    os.environ["ants_dbm_local_threads"]=str(opts.local_threads)
     template_reg_option=opts.template_reg_script
     template_reg_script=define_reg_script(template_reg_option)
 
@@ -226,7 +226,7 @@ def execute_workflow():
     try:
         print('Running main workflow with %s plugin.' % plugin)
         #execute workflow, with plugin_args limiting the cluster load for parallel execution
-        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
+        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'n_procs' : int(os.environ["local_threads"]), 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
     except Exception as e:
         log.critical('RABIES failed: %s', e)
         raise

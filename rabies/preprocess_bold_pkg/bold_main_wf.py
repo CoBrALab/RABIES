@@ -513,8 +513,8 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     num_bold=0
     for sub in subject_list:
         num_bold+=(len(session_iter[sub])*len(run_iter[sub]))
-    if int(os.environ["ants_dbm_local_threads"])<num_bold:
-        num_bold=int(os.environ["ants_dbm_local_threads"])
+    if int(os.environ["local_threads"])<num_bold:
+        num_bold=int(os.environ["local_threads"])
 
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
                               output_names=['ants_dbm_template'],
