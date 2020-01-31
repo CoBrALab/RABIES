@@ -727,7 +727,7 @@ def commonspace_reg_function(file_list, output_folder):
     print('Running commonspace registration.')
     command='bash %s %s' % (model_script_path,csv_path)
     if os.system(command) != 0:
-        raise ValueError('Error in running commonspace registration with: '+os.system(command))
+        raise ValueError('Error in running commonspace registration with: '+command)
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'

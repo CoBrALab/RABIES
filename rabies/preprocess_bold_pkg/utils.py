@@ -257,43 +257,43 @@ def _get_vols_to_discard(img):
     return is_outlier(global_signal)
 
 
-class antsMotionCorrInputSpec(CommandLineInputSpec):
-    in_file = File(exists=True, mandatory=True, argstr='%s, 1 , 20, Regular, 0.2] -t Rigid[0.25] -i 50x20 -u 1 -e 1 -s 1x0 -f 2x1 -n 10 -l 1 -w 1', position=2, desc='input BOLD time series')
-    ref_file = File(exists=True, mandatory=True, argstr='-d 3 -o [ ants_mc_tmp/motcorr, ants_mc_tmp/motcorr.nii.gz, ants_mc_tmp/motcorr_avg.nii.gz] -m mi[ %s, ', position=1, desc='ref file to realignment time series')
+class antsMotionCorrInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
+    ref_file = File(exists=True, mandatory=True, desc='ref file to realignment time series')
     second = traits.Bool(desc="specify if it is the second iteration")
 
 class antsMotionCorrOutputSpec(TraitedSpec):
     mc_corrected_bold = File(exists=True, desc="motion corrected time series")
-    motcorr_warp = File(exists=True, desc="motion estimation of the time series")
     avg_image = File(exists=True, desc="average image of the motion corrected time series")
     csv_params = File(exists=True, desc="csv files with the 6-parameters rigid body transformations")
 
-class antsMotionCorr(CommandLine):
+class antsMotionCorr(BaseInterface):
     """
     This interface performs motion realignment using antsMotionCorr function. It takes a reference volume to which
     EPI volumes from the input 4D file are realigned based on a Rigid registration.
     """
 
-    _cmd = 'antsMotionCorr'
     input_spec = antsMotionCorrInputSpec
     output_spec = antsMotionCorrOutputSpec
 
     def _run_interface(self, runtime):
 
+        import os
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
-            mk_tmp = CommandLine('mv', args='ants_mc_tmp first_ants_mc_tmp')
-            mk_tmp.run()
+            command='mv ants_mc_tmp first_ants_mc_tmp'
+            if os.system(command) != 0:
+                raise ValueError('Error in '+command)
 
         #make a tmp directory to store the files
-        import os
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
-        # Run the command line as a natural CommandLine interface
-        runtime = super(antsMotionCorr, self)._run_interface(runtime)
+        command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
+                -m MI[ %s , %s , 1 , 20 , None ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f 4x2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
-        setattr(self, 'motcorr_warp', 'ants_mc_tmp/motcorrWarp.nii.gz')
         setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
         setattr(self, 'avg_image', 'ants_mc_tmp/motcorr_avg.nii.gz')
 
@@ -301,7 +301,6 @@ class antsMotionCorr(CommandLine):
 
     def _list_outputs(self):
         return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
-                'motcorr_warp': getattr(self, 'motcorr_warp'),
                 'csv_params': getattr(self, 'csv_params'),
                 'avg_image': getattr(self, 'avg_image')}
 

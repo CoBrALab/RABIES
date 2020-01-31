@@ -25,13 +25,11 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
 
     **Outputs**
 
-        xforms
-            Transform file aligning each volume to ``ref_image``
         movpar_file
             CSV file with antsMotionCorr motion parameters
     """
     import os
-    
+
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
                         name='inputnode')
