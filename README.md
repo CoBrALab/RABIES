@@ -4,9 +4,10 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [--bids_input] [-e] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
-              [-p PLUGIN] [--local_threads LOCAL_THREADS]
-              [--min_proc MIN_PROC] [--data_type DATA_TYPE] [--debug]
+usage: rabies [-h] [--bids_input] [-e] [--apply_despiking]
+              [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
+              [--local_threads LOCAL_THREADS] [--min_proc MIN_PROC]
+              [--data_type DATA_TYPE] [--debug]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
@@ -36,6 +37,9 @@ optional arguments:
                         through registration of the EPI-generated template
                         from ants_dbm to a common template atlas. (default:
                         False)
+  --apply_despiking     Whether to apply despiking of the EPI timeseries based
+                        on AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist
+                        /doc/program_help/3dDespike.html. (default: False)
   -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
                         specify a registration script for iterative bias field
                         correction. This registration step consists of
@@ -134,7 +138,6 @@ Template files.:
   --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
                         riel/RABIES-0.1.2-dev/template_files/DSURQE_100micron_
                         labels.nii.gz)
-
 ```
 
 ## Command syntax

@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -325,7 +325,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                               function=commonspace_transforms),
                      name='commonspace_transforms_prep')
 
-    bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+    bold_main_wf=init_bold_main_wf(apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
 
     workflow.connect([
         (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
