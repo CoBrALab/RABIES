@@ -51,7 +51,9 @@ class AnatPreproc(BaseInterface):
 
         cwd = os.getcwd()
         out_dir='%s/anat_preproc/' % (cwd,)
-        os.system('mkdir -p %s' % (out_dir,))
+        command='mkdir -p %s' % (out_dir,)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
 
         #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration

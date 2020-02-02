@@ -113,12 +113,18 @@ class ConfoundRegression(BaseInterface):
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
-        os.system('antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
-                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
+                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
         pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_template)
+
         #then the voxelwise framewise displacement map
-        os.system('antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
-                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
+                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
+
         FD_csv=os.path.abspath("%s_FD_file.csv" % filename_template)
         FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_template)
 
@@ -290,7 +296,9 @@ class MaskEPI(BaseInterface):
         else:
             new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_template, self.inputs.name_spec))
 
-        os.system('antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel')
+        command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         from .utils import resample_image
         resample_image(nb.load(new_mask_path), os.environ["rabies_data_type"]).to_filename(new_mask_path)

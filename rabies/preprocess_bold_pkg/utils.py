@@ -71,7 +71,9 @@ class BIDSDataGraber(BaseInterface):
         #RABIES only work with compressed .nii for now
         if not '.nii.gz' in file:
             print('Compressing BIDS input to .gz')
-            os.system('gzip %s' % (file,))
+            command='gzip %s' % (file,)
+            if os.system(command) != 0:
+                raise ValueError('Error in '+command)
             file=file+'.gz'
 
         setattr(self, 'out_file', file)
@@ -362,10 +364,16 @@ class slice_applyTransforms(BaseInterface):
             warped_vol_fname = os.path.abspath("deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
             if self.inputs.apply_motcorr:
-                os.system('antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x))
-                os.system('antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname))
+                command='antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x)
+                if os.system(command) != 0:
+                    raise ValueError('Error in '+command)
+                command='antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
+                if os.system(command) != 0:
+                    raise ValueError('Error in '+command)
             else:
-                os.system('antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname))
+                command='antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname)
+                if os.system(command) != 0:
+                    raise ValueError('Error in '+command)
             #change image to specified data type
             img=nb.load(warped_vol_fname)
             img.set_data_dtype(self.inputs.data_type)

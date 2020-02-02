@@ -91,7 +91,8 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template)
     print("Registration call: "+registration_call)
     log.info("Registration call: "+registration_call)
-    os.system(registration_call)
+    if os.system(registration_call) != 0:
+        raise ValueError('Error in '+registration_call)
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)

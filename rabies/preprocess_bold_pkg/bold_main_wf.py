@@ -756,8 +756,12 @@ def commonspace_reg_function(file_list, output_folder):
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
-    os.system('mkdir -p %s' % (template_folder,))
-    os.system('cp -r * %s' % (template_folder,))
+    command='mkdir -p %s' % (template_folder,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
+    command='cp -r * %s' % (template_folder,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
 
     ###verify that all outputs are present
     #ants dbm outputs

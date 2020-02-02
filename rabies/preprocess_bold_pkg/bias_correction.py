@@ -111,7 +111,9 @@ class EPIBiasCorrection(BaseInterface):
         low_dim=np.asarray(dim).min()
         processing.resample_to_output(nb.load(self.inputs.input_ref_EPI), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(cwd+'/resampled.nii.gz')
 
-        os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))
+        command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         #resample to anatomical image resolution
         dim=nb.load(self.inputs.anat).header.get_zooms()
