@@ -1,5 +1,5 @@
 import os
-import nibabel as nb
+import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
@@ -179,16 +179,11 @@ class EstimateReferenceImage(BaseInterface):
     def _run_interface(self, runtime):
 
         import os
-        import nibabel as nb
+        import SimpleITK as sitk
         import numpy as np
 
-        in_nii = nb.load(self.inputs.in_file)
-        data_slice = in_nii.dataobj[:, :, :, :50]
-
-        # Slicing may induce inconsistencies with shape-dependent values in extensions.
-        # For now, remove all. If this turns out to be a mistake, we can select extensions
-        # that don't break pipeline stages.
-        in_nii.header.extensions.clear()
+        in_nii=sitk.ReadImage(self.inputs.in_file, os.environ["rabies_data_type"])
+        data_slice = sitk.GetArrayFromImage(in_nii)[:, :, :, :50]
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
@@ -209,34 +204,27 @@ class EstimateReferenceImage(BaseInterface):
             #slices of the time series
             if in_nii.shape[-1] > 40:
                 slice_fname = os.path.abspath("slice.nii.gz")
-                nb.Nifti1Image(data_slice[:, :, :, 20:40], in_nii.affine,
-                               in_nii.header).to_filename(slice_fname)
+                sitk.WriteImage(sitk.GetImageFromArray(data_slice[:, :, :, 20:40], isVector=False).CopyInformation(in_nii), slice_fname)
                 median_fname = os.path.abspath("median.nii.gz")
-                nb.Nifti1Image(np.median(data_slice[:, :, :, 20:40], axis=3), in_nii.affine,
-                               in_nii.header).to_filename(median_fname)
+                sitk.WriteImage(sitk.GetImageFromArray(np.median(data_slice[:, :, :, 20:40], axis=3), isVector=False).CopyInformation(in_nii), median_fname)
             else:
                 slice_fname = self.inputs.in_file
                 median_fname = os.path.abspath("median.nii.gz")
-                nb.Nifti1Image(np.median(data_slice, axis=3), in_nii.affine,
-                               in_nii.header).to_filename(median_fname)
+                sitk.WriteImage(sitk.GetImageFromArray(np.median(data_slice, axis=3), isVector=False).CopyInformation(in_nii), median_fname)
 
             print("First iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=median_fname, second=False).run()
-            median = np.median(nb.load(res.outputs.mc_corrected_bold).get_data(), axis=3)
+            median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, os.environ["rabies_data_type"])), axis=3)
             tmp_median_fname = os.path.abspath("tmp_median.nii.gz")
-            nb.Nifti1Image(median, in_nii.affine,
-                           in_nii.header).to_filename(tmp_median_fname)
+            sitk.WriteImage(sitk.GetImageFromArray(median, isVector=False).CopyInformation(in_nii), tmp_median_fname)
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
-            median_image_data = np.median(nb.load(res.outputs.mc_corrected_bold).get_data(), axis=3)
+            median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, os.environ["rabies_data_type"])), axis=3)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
-        ref_img=nb.Nifti1Image(median_image_data, in_nii.affine,
-                       in_nii.header)
-        resample_image(ref_img, os.environ["rabies_data_type"]).to_filename(out_ref_fname)
-
+        sitk.WriteImage(sitk.GetImageFromArray(median_image_data, isVector=False).CopyInformation(in_nii), out_ref_fname)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -254,7 +242,7 @@ def _get_vols_to_discard(img):
     is_outlier function: computes Modified Z-Scores (https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm) to determine which volumes are outliers.
     '''
     from nipype.algorithms.confounds import is_outlier
-    data_slice = img.dataobj[:, :, :, :50]
+    data_slice = sitk.GetArrayFromImage(img)[:, :, :, :50]
     global_signal = data_slice.mean(axis=0).mean(axis=0).mean(axis=0)
     return is_outlier(global_signal)
 
@@ -315,7 +303,6 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     apply_motcorr = traits.Bool(default=True, desc="Whether to apply motion realignment.")
     motcorr_params = File(exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(desc="Specification for the dimension of resampling.")
-    data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
     out_files = traits.List(desc="warped images after the application of the transforms")
@@ -332,18 +319,19 @@ class slice_applyTransforms(BaseInterface):
 
     def _run_interface(self, runtime):
         #resampling the reference image to the dimension of the EPI
-        from nibabel import processing
         import numpy as np
-        import nibabel as nb
+        import SimpleITK as sitk
         import os
-        img=nb.load(self.inputs.in_file)
+
+        img=sitk.ReadImage(self.inputs.in_file, os.environ["rabies_data_type"])
 
         if not self.inputs.resampling_dim=='origin':
-            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=self.inputs.resampling_dim).to_filename('resampled.nii.gz')
+            shape=self.inputs.resampling_dim.split('x')
+            spacing=tuple(float(shape[0]),float(shape[1]),float(shape[2]))
         else:
-            shape=img.header.get_zooms()
-            dims="%sx%sx%s" % (shape[0],shape[1],shape[2])
-            resample_image(nb.load(self.inputs.ref_file), self.inputs.data_type, img_dim=dims).to_filename('resampled.nii.gz')
+            spacing=img.GetSpacing()
+        resampled=resample_image_spacing(sitk.ReadImage(self.inputs.ref_file, os.environ["rabies_data_type"]), spacing)
+        sitk.WriteImage(resampled,'resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string=""
@@ -375,9 +363,7 @@ class slice_applyTransforms(BaseInterface):
                 if os.system(command) != 0:
                     raise ValueError('Error in '+command)
             #change image to specified data type
-            img=nb.load(warped_vol_fname)
-            img.set_data_dtype(self.inputs.data_type)
-            nb.save(img, warped_vol_fname)
+            sitk.WriteImage(sitk.ReadImage(warped_vol_fname, os.environ["rabies_data_type"]), warped_vol_fname)
 
         setattr(self, 'out_files', warped_volumes)
         return runtime
@@ -392,10 +378,9 @@ def split_volumes(in_file, output_prefix):
     '''
     import os
     import numpy as np
-    import nibabel as nb
-    in_nii = nb.load(in_file)
-    num_dimensions = len(in_nii.shape)
-    num_volumes = in_nii.shape[3]
+    in_nii = sitk.ReadImage(in_file, os.environ["rabies_data_type"])
+    num_dimensions = len(in_nii.GetSize())
+    num_volumes = in_nii.GetSize().shape[3]
 
     if num_dimensions!=4:
         print("the input file must be of dimensions 4")
@@ -403,10 +388,9 @@ def split_volumes(in_file, output_prefix):
 
     volumes = []
     for x in range(0, num_volumes):
-        data_slice = in_nii.dataobj[:, :, :, x]
+        data_slice = sitk.GetArrayFromImage(in_nii)[:, :, :, x]
         slice_fname = os.path.abspath(output_prefix + "vol" + str(x) + ".nii.gz")
-        nb.Nifti1Image(data_slice, in_nii.affine,
-                       in_nii.header).to_filename(slice_fname)
+        sitk.WriteImage(sitk.GetImageFromArray(data_slice, isVector=False).CopyInformation(in_nii), slice_fname)
         volumes.append(slice_fname)
 
     return [volumes, num_volumes]
@@ -417,7 +401,6 @@ class MergeInputSpec(BaseInterfaceInputSpec):
     in_files = InputMultiPath(File(exists=True), mandatory=True,
                               desc='input list of files to merge, listed in the order to merge')
     header_source = File(exists=True, mandatory=True, desc='a Nifti file from which the header should be copied')
-    data_type = traits.Str(default='float64', desc="Specify resampling data format to control for file size. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
 
 class MergeOutputSpec(TraitedSpec):
     out_file = File(exists=True, desc='output merged file')
@@ -432,33 +415,42 @@ class Merge(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        import nibabel as nb
         import numpy as np
+        import SimpleITK as sitk
 
         subject_id=os.path.basename(self.inputs.header_source).split('_ses-')[0]
         session=os.path.basename(self.inputs.header_source).split('_ses-')[1][0]
         run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
-        img = nb.load(self.inputs.in_files[0])
-        affine = img.affine
-        header = nb.load(self.inputs.header_source).header
+        sample_volume = sitk.ReadImage(self.inputs.in_files[0], os.environ["rabies_data_type"])
         length = len(self.inputs.in_files)
-        combined = np.zeros((img.shape[0], img.shape[1], img.shape[2], length))
+        combined = np.zeros((sample_volume.shape[0], sample_volume.shape[1], sample_volume.shape[2], length))
 
         i=0
         for file in self.inputs.in_files:
-            combined[:,:,:,i] = nb.load(file).dataobj[:,:,:]
+            combined[:,:,:,i] = sitk.GetArrayFromImage(sitk.ReadImage(file, os.environ["rabies_data_type"]))[:,:,:]
             i = i+1
         if (i!=length):
-            print("Error occured with Merge.")
-            return None
+            raise ValueError("Error occured with Merge.")
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
-        combined_image=nb.Nifti1Image(combined, affine,
-                       header)
-        #change image to specified data type
-        combined_image.set_data_dtype(self.inputs.data_type)
-        nb.save(combined_image, combined_files)
+        combined_image=sitk.GetArrayFromImage(combined, isVector=False)
+
+        #set metadata and affine for the newly constructed 4D image
+        keys=sample_volume.GetMetaDataKeys()
+        for key in keys:
+            combined_image.SetMetaData(key,sample_volume.GetMetaData(key))
+        header_source = sitk.ReadImage(self.inputs.header_source, os.environ["rabies_data_type"])
+        combined_image.SetMetaData('dim[0]',header_source.GetMetaData('dim[0]'))
+        combined_image.SetMetaData('dim[4]',str(length))
+        combined_image.SetMetaData('qform_code',header_source.GetMetaData('qform_code'))
+        combined_image.SetSpacing(tuple(list(sample_volume.GetSpacing()).append(header_source.GetSpacing()[3])))
+        combined_image.SetOrigin(tuple(list(sample_volume.GetOrigin()).append(header_source.GetOrigin()[3])))
+        dim_3d=list(sample_volume.GetDirection())
+        dim_4d=list(header_source.GetDirection())
+        combined_image.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[3:6]+[dim_4d[7]]+dim_3d[6:9]+dim_4d[11:]))
+
+        sitk.WriteImage(combined_image, combined_files)
 
         setattr(self, 'out_file', combined_files)
         return runtime
@@ -467,17 +459,16 @@ class Merge(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
+def resample_image_spacing(image,output_spacing):
+    import SimpleITK as sitk
+    import numpy as np
+    dimension = 3
+    identity = sitk.Transform(dimension, sitk.sitkIdentity)
 
-def resample_image(nb_image, data_type, img_dim='origin'):
-    """
-    This function takes as input a nibabel nifti image and changes the its data
-    format as well as its voxel dimensions if specified.
-    """
-    import nibabel as nb
-    if not img_dim=='origin':
-        from nibabel import processing
-        import numpy as np
-        shape=img_dim.split('x')
-        nb_image=processing.resample_to_output(nb_image, voxel_sizes=(float(shape[0]),float(shape[1]),float(shape[2])), order=4)
-    nb_image.set_data_dtype(data_type)
-    return nb_image
+    # Compute grid size based on the physical size and spacing.
+    input_size=image.GetSize()
+    sampling_ratio=np.asarray(image.GetSpacing())/np.asarray(output_spacing)
+    output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+
+    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSplineResamplerOrder4, image.GetOrigin(), output_spacing, image.GetDirection())
+    return resampled_image

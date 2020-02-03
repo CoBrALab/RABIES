@@ -71,7 +71,6 @@ class EstimateMotion(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        import nibabel as nb
         from .utils import antsMotionCorr
         res = antsMotionCorr(in_file=self.inputs.in_file, ref_file=self.inputs.ref_file, second=False).run()
         csv_params = os.path.abspath(res.outputs.csv_params)

@@ -102,10 +102,9 @@ class CopyXForm(SimpleInterface):
         shutil.copy(self.inputs.in_file, out_name)
         _copyxform(self.inputs.hdr_file, out_name)
 
-        from .utils import resample_image
         import os
-        import nibabel as nb
-        resample_image(nb.load(out_name), os.environ["rabies_data_type"]).to_filename(out_name)
+        import SimpleITK as sitk
+        sitk.WriteImage(sitk.ReadImage(out_name, os.environ["rabies_data_type"]), out_name)
 
         self._results['out_file'] = out_name
         return runtime
