@@ -3,7 +3,6 @@ from os.path import join as opj
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
-from .preprocess_anat_pkg.anat_mask_prep import init_anat_mask_prep_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
 from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter
@@ -11,7 +10,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -279,35 +278,40 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
         input_image=os.environ["template_mask"]
         brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
         antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
-        os.system(antsApplyTransforms_call)
+        if os.system(antsApplyTransforms_call) != 0:
+            raise ValueError('Error in '+antsApplyTransforms_call)
         if not os.path.isfile(brain_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["WM_mask"]
         WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
         antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
-        os.system(antsApplyTransforms_call)
+        if os.system(antsApplyTransforms_call) != 0:
+            raise ValueError('Error in '+antsApplyTransforms_call)
         if not os.path.isfile(WM_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["CSF_mask"]
         CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
         antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
-        os.system(antsApplyTransforms_call)
+        if os.system(antsApplyTransforms_call) != 0:
+            raise ValueError('Error in '+antsApplyTransforms_call)
         if not os.path.isfile(CSF_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["vascular_mask"]
         vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
         antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
-        os.system(antsApplyTransforms_call)
+        if os.system(antsApplyTransforms_call) != 0:
+            raise ValueError('Error in '+antsApplyTransforms_call)
         if not os.path.isfile(vascular_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["atlas_labels"]
         anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
         antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
-        os.system(antsApplyTransforms_call)
+        if os.system(antsApplyTransforms_call) != 0:
+            raise ValueError('Error in '+antsApplyTransforms_call)
         if not os.path.isfile(anat_labels):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
@@ -325,7 +329,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                               function=commonspace_transforms),
                      name='commonspace_transforms_prep')
 
-    bold_main_wf=init_bold_main_wf(tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+    bold_main_wf=init_bold_main_wf(apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
 
     workflow.connect([
         (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),

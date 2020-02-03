@@ -113,12 +113,18 @@ class ConfoundRegression(BaseInterface):
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
-        os.system('antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
-                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
+                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
         pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_template)
+
         #then the voxelwise framewise displacement map
-        os.system('antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
-                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template))
+        command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
+                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
+
         FD_csv=os.path.abspath("%s_FD_file.csv" % filename_template)
         FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_template)
 
@@ -181,18 +187,20 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
     the EPI, and retain either the first 5 components' time series or up to 50% of
     the variance explained as in Muschelli et al. 2014.
     '''
-    import nibabel as nb
+    import SimpleITK as sitk
     import numpy as np
     from sklearn.decomposition import PCA
 
-    WM_data=nb.load(WM_mask).dataobj
-    CSF_data=nb.load(CSF_mask).dataobj
-    combined=(np.asarray(WM_data)+np.asarray(CSF_data))>0
-    noise_mask=nb.Nifti1Image(combined, nb.load(WM_mask).affine, nb.load(WM_mask).header)
+    WM_data=sitk.GetArrayFromImage(sitk.ReadImage(WM_mask, int(os.environ["rabies_data_type"])))
+    CSF_data=sitk.GetArrayFromImage(sitk.ReadImage(CSF_mask, int(os.environ["rabies_data_type"])))
+    combined=(WM_data+CSF_data)>0
+    from .utils import copyInfo_3DImage
+    noise_mask=copyInfo_3DImage(sitk.GetImageFromArray(combined.astype(int), isVector=False), sitk.ReadImage(WM_mask, sitk.sitkInt16))
+    sitk.WriteImage(noise_mask,'noise_mask.nii.gz')
 
     from nilearn.input_data import NiftiMasker
-    masker=NiftiMasker(mask_img=noise_mask, standardize=True, detrend=True) #detrend and standardize the voxel time series before PCA
-    mask_timeseries=masker.fit_transform(nb.load(bold)) #shape n_timepoints x n_voxels
+    masker=NiftiMasker(mask_img='noise_mask.nii.gz', standardize=True, detrend=True) #detrend and standardize the voxel time series before PCA
+    mask_timeseries=masker.fit_transform(bold) #shape n_timepoints x n_voxels
 
     if method=='50%':
         pca=PCA()
@@ -277,8 +285,7 @@ class MaskEPI(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        import nibabel as nb
-        from nipype.interfaces.base import CommandLine
+        import SimpleITK as sitk
 
         subject_id=os.path.basename(self.inputs.ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.ref_EPI).split('_ses-')[1][0]
@@ -290,10 +297,11 @@ class MaskEPI(BaseInterface):
         else:
             new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_template, self.inputs.name_spec))
 
-        os.system('antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel')
+        command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
-        from .utils import resample_image
-        resample_image(nb.load(new_mask_path), os.environ["rabies_data_type"]).to_filename(new_mask_path)
+        sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)
 
         setattr(self, 'EPI_mask', new_mask_path)
         return runtime

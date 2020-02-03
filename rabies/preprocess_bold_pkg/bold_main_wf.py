@@ -2,7 +2,7 @@ import os
 from os.path import join as opj
 
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu
+from nipype.interfaces import utility as niu, afni
 from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
@@ -14,7 +14,7 @@ from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
+def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
                         nativespace_resampling='origin', commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
@@ -159,10 +159,22 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
+    if apply_despiking:
+        despike = pe.Node(
+            afni.Despike(outputtype='NIFTI_GZ'),
+            name='despike')
+        workflow.connect([
+            (inputnode, despike, [('bold', 'in_file')]),
+            (despike, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+            ])
+    else:
+        workflow.connect([
+            (inputnode, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
+            ])
+
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (inputnode, bold_reference_wf, [('bold', 'inputnode.bold_file')]),
         (inputnode, bias_cor_wf, [
             ('anat_preproc', 'inputnode.anat'),
             ('anat_mask', 'inputnode.anat_mask'),
@@ -283,7 +295,7 @@ def init_bold_main_wf(data_dir_path, tr='1.0s', tpattern='altplus', apply_STC=Tr
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -594,9 +606,22 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         ])
 
+    if apply_despiking:
+        despike = pe.Node(
+            afni.Despike(outputtype='NIFTI_GZ'),
+            name='despike')
+        workflow.connect([
+            (bold_selectfiles, despike, [('out_file', 'in_file')]),
+            (despike, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+            ])
+    else:
+        workflow.connect([
+            (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+            ])
+
+
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
         (bold_selectfiles, bold_bold_trans_wf, [('out_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
@@ -727,12 +752,16 @@ def commonspace_reg_function(file_list, output_folder):
     print('Running commonspace registration.')
     command='bash %s %s' % (model_script_path,csv_path)
     if os.system(command) != 0:
-        raise ValueError('Error in running commonspace registration with: '+os.system(command))
+        raise ValueError('Error in running commonspace registration with: '+command)
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
-    os.system('mkdir -p %s' % (template_folder,))
-    os.system('cp -r * %s' % (template_folder,))
+    command='mkdir -p %s' % (template_folder,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
+    command='cp -r * %s' % (template_folder,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
 
     ###verify that all outputs are present
     #ants dbm outputs

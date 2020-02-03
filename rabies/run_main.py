@@ -23,6 +23,9 @@ def get_parser():
                         help="Apply preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPI-generated template from ants_dbm"
                               " to a common template atlas.")
+    parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
+                        help="Whether to apply despiking of the EPI timeseries based on AFNI's "
+                             "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. This registration step"
                         " consists of aligning the volume with the commonspace template to provide"
@@ -33,16 +36,13 @@ def get_parser():
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
-    parser.add_argument(
-        '--local_threads',
-        type=int,
-        default=multiprocessing.cpu_count(),
+    parser.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
         defaults to number of CPUs""")
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
-                        help="Specify data format outputs to control for file size and/or information loss. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
+                        help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
@@ -145,6 +145,21 @@ def execute_workflow():
     os.environ["min_proc"]=str(opts.min_proc)
     os.environ["local_threads"]=str(opts.local_threads)
     detect_dummy=opts.detect_dummy
+    apply_despiking=opts.apply_despiking
+
+    import SimpleITK as sitk
+    if str(opts.data_type)=='int16':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt16)
+    elif str(opts.data_type)=='int32':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt32)
+    elif str(opts.data_type)=='float32':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat32)
+    elif str(opts.data_type)=='float64':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat64)
+    else:
+        raise ValueError('Invalid --data_type provided.')
+
+
 
     #STC options
     stc_bool=opts.STC
@@ -159,7 +174,6 @@ def execute_workflow():
     #resampling options
     nativespace_resampling=opts.nativespace_resampling
     commonspace_resampling=opts.commonspace_resampling
-    os.environ["rabies_data_type"]=opts.data_type
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
@@ -197,10 +211,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

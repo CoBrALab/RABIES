@@ -91,7 +91,8 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template)
     print("Registration call: "+registration_call)
     log.info("Registration call: "+registration_call)
-    os.system(registration_call)
+    if os.system(registration_call) != 0:
+        raise ValueError('Error in '+registration_call)
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
@@ -105,8 +106,7 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         warp='NULL'
         inverse_warp='NULL'
 
-    from rabies.preprocess_bold_pkg.utils import resample_image
-    import nibabel as nb
-    resample_image(nb.load(warped_image), os.environ["rabies_data_type"]).to_filename(warped_image)
+    import SimpleITK as sitk
+    sitk.WriteImage(sitk.ReadImage(warped_image, int(os.environ["rabies_data_type"])), warped_image)
 
     return [affine, warp, inverse_warp, warped_image]

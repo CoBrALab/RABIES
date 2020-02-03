@@ -25,13 +25,11 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
 
     **Outputs**
 
-        xforms
-            Transform file aligning each volume to ``ref_image``
         movpar_file
             CSV file with antsMotionCorr motion parameters
     """
     import os
-    
+
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
                         name='inputnode')
@@ -73,7 +71,6 @@ class EstimateMotion(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        import nibabel as nb
         from .utils import antsMotionCorr
         res = antsMotionCorr(in_file=self.inputs.in_file, ref_file=self.inputs.ref_file, second=False).run()
         csv_params = os.path.abspath(res.outputs.csv_params)

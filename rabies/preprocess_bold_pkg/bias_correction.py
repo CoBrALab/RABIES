@@ -65,8 +65,7 @@ class EPIBiasCorrection(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import numpy as np
-        import nibabel as nb
-        from nibabel import processing
+        import SimpleITK as sitk
 
         subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
@@ -107,21 +106,24 @@ class EPIBiasCorrection(BaseInterface):
         biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_template)
 
         #resample to isotropic resolution based on lowest dimension
-        dim=nb.load(self.inputs.input_ref_EPI).header.get_zooms()
+        input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))
+        dim=input_ref_EPI.GetSpacing()
         low_dim=np.asarray(dim).min()
-        processing.resample_to_output(nb.load(self.inputs.input_ref_EPI), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(cwd+'/resampled.nii.gz')
+        from rabies.preprocess_bold_pkg.utils import resample_image_spacing
+        sitk.WriteImage(resample_image_spacing(input_ref_EPI, (low_dim,low_dim,low_dim)), cwd+'/resampled.nii.gz')
 
-        os.system('bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path))
+        command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         #resample to anatomical image resolution
-        dim=nb.load(self.inputs.anat).header.get_zooms()
+        dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()
         low_dim=np.asarray(dim).min()
-        processing.resample_to_output(nb.load(cwd+'/iter_corrected.nii.gz'), voxel_sizes=(low_dim,low_dim,low_dim), order=4).to_filename(biascor_EPI)
+        sitk.WriteImage(resample_image_spacing(sitk.ReadImage(cwd+'/iter_corrected.nii.gz', int(os.environ["rabies_data_type"])), (low_dim,low_dim,low_dim)), biascor_EPI)
 
-        from .utils import resample_image
-        resample_image(nb.load(biascor_EPI), os.environ["rabies_data_type"]).to_filename(biascor_EPI)
-        resample_image(nb.load(warped_image), os.environ["rabies_data_type"]).to_filename(warped_image)
-        resample_image(nb.load(resampled_mask), os.environ["rabies_data_type"]).to_filename(resampled_mask)
+        sitk.WriteImage(sitk.ReadImage(biascor_EPI, int(os.environ["rabies_data_type"])), biascor_EPI)
+        sitk.WriteImage(sitk.ReadImage(warped_image, int(os.environ["rabies_data_type"])), warped_image)
+        sitk.WriteImage(sitk.ReadImage(resampled_mask, int(os.environ["rabies_data_type"])), resampled_mask)
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)
