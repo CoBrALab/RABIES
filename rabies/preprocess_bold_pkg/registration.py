@@ -107,6 +107,6 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         inverse_warp='NULL'
 
     import SimpleITK as sitk
-    sitk.WriteImage(sitk.ReadImage(warped_image, os.environ["rabies_data_type"]), warped_image)
+    sitk.WriteImage(sitk.ReadImage(warped_image, int(os.environ["rabies_data_type"])), warped_image)
 
     return [affine, warp, inverse_warp, warped_image]

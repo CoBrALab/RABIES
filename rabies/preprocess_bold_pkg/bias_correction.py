@@ -106,7 +106,7 @@ class EPIBiasCorrection(BaseInterface):
         biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_template)
 
         #resample to isotropic resolution based on lowest dimension
-        input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, os.environ["rabies_data_type"])
+        input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))
         dim=input_ref_EPI.GetSpacing()
         low_dim=np.asarray(dim).min()
         from rabies.preprocess_bold_pkg.utils import resample_image_spacing
@@ -117,13 +117,13 @@ class EPIBiasCorrection(BaseInterface):
             raise ValueError('Error in '+command)
 
         #resample to anatomical image resolution
-        dim=sitk.ReadImage(self.inputs.anat, os.environ["rabies_data_type"]).GetSpacing()
+        dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()
         low_dim=np.asarray(dim).min()
-        sitk.WriteImage(resample_image_spacing(cwd+'/iter_corrected.nii.gz', (low_dim,low_dim,low_dim)), biascor_EPI)
+        sitk.WriteImage(resample_image_spacing(sitk.ReadImage(cwd+'/iter_corrected.nii.gz', int(os.environ["rabies_data_type"])), (low_dim,low_dim,low_dim)), biascor_EPI)
 
-        sitk.WriteImage(sitk.ReadImage(biascor_EPI, os.environ["rabies_data_type"]), biascor_EPI)
-        sitk.WriteImage(sitk.ReadImage(warped_image, os.environ["rabies_data_type"]), warped_image)
-        sitk.WriteImage(sitk.ReadImage(resampled_mask, os.environ["rabies_data_type"]), resampled_mask)
+        sitk.WriteImage(sitk.ReadImage(biascor_EPI, int(os.environ["rabies_data_type"])), biascor_EPI)
+        sitk.WriteImage(sitk.ReadImage(warped_image, int(os.environ["rabies_data_type"])), warped_image)
+        sitk.WriteImage(sitk.ReadImage(resampled_mask, int(os.environ["rabies_data_type"])), resampled_mask)
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)

@@ -56,7 +56,7 @@ class AnatPreproc(BaseInterface):
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
 
         #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration
-        anat_image=sitk.ReadImage(self.inputs.nii_anat, os.environ["rabies_data_type"])
+        anat_image=sitk.ReadImage(self.inputs.nii_anat, int(os.environ["rabies_data_type"]))
         dim=anat_image.GetSpacing()
         low_dim=np.asarray(dim).min()
         if not (dim==low_dim).sum()==3:
@@ -72,7 +72,7 @@ class AnatPreproc(BaseInterface):
         os.system('bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat))
 
         #resample image to specified data format
-        sitk.WriteImage(sitk.ReadImage(output_anat, os.environ["rabies_data_type"]), output_anat)
+        sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)
 
         setattr(self, 'preproc_anat', output_anat)
         return runtime

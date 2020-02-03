@@ -191,10 +191,11 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
     import numpy as np
     from sklearn.decomposition import PCA
 
-    WM_data=sitk.GetArrayFromImage(sitk.ReadImage(WM_mask, os.environ["rabies_data_type"]))
-    CSF_data=sitk.GetArrayFromImage(sitk.ReadImage(CSF_mask, os.environ["rabies_data_type"]))
+    WM_data=sitk.GetArrayFromImage(sitk.ReadImage(WM_mask, int(os.environ["rabies_data_type"])))
+    CSF_data=sitk.GetArrayFromImage(sitk.ReadImage(CSF_mask, int(os.environ["rabies_data_type"])))
     combined=(WM_data+CSF_data)>0
-    noise_mask=sitk.GetImageFromArray(combined).CopyInformation(sitk.ReadImage(WM_mask, os.environ[rabies_data_type"]))
+    from .utils import copyInfo_3DImage
+    noise_mask=copyInfo_3DImage(sitk.GetImageFromArray(combined.astype(int), isVector=False), sitk.ReadImage(WM_mask, sitk.sitkInt16))
     sitk.WriteImage(noise_mask,'noise_mask.nii.gz')
 
     from nilearn.input_data import NiftiMasker
@@ -285,7 +286,6 @@ class MaskEPI(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import SimpleITK as sitk
-        from nipype.interfaces.base import CommandLine
 
         subject_id=os.path.basename(self.inputs.ref_EPI).split('_ses-')[0]
         session=os.path.basename(self.inputs.ref_EPI).split('_ses-')[1][0]
@@ -301,7 +301,7 @@ class MaskEPI(BaseInterface):
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
 
-        sitk.WriteImage(sitk.ReadImage(new_mask_path, os.environ["rabies_data_type"]), new_mask_path)
+        sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)
 
         setattr(self, 'EPI_mask', new_mask_path)
         return runtime

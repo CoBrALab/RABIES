@@ -3,7 +3,6 @@ from os.path import join as opj
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
-from .preprocess_anat_pkg.anat_mask_prep import init_anat_mask_prep_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
 from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter

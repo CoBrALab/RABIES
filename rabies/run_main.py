@@ -36,16 +36,13 @@ def get_parser():
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
-    parser.add_argument(
-        '--local_threads',
-        type=int,
-        default=multiprocessing.cpu_count(),
+    parser.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
         defaults to number of CPUs""")
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
-                        help="Specify data format outputs to control for file size and/or information loss. Can specify a numpy data type from https://docs.scipy.org/doc/numpy/user/basics.types.html.")
+                        help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
@@ -150,6 +147,20 @@ def execute_workflow():
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
 
+    import SimpleITK as sitk
+    if str(opts.data_type)=='int16':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt16)
+    elif str(opts.data_type)=='int32':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt32)
+    elif str(opts.data_type)=='float32':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat32)
+    elif str(opts.data_type)=='float64':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat64)
+    else:
+        raise ValueError('Invalid --data_type provided.')
+
+
+
     #STC options
     stc_bool=opts.STC
     stc_TR=opts.TR
@@ -163,7 +174,6 @@ def execute_workflow():
     #resampling options
     nativespace_resampling=opts.nativespace_resampling
     commonspace_resampling=opts.commonspace_resampling
-    os.environ["rabies_data_type"]=opts.data_type
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type

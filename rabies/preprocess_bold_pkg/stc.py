@@ -104,7 +104,7 @@ class CopyXForm(SimpleInterface):
 
         import os
         import SimpleITK as sitk
-        sitk.WriteImage(sitk.ReadImage(out_name, os.environ["rabies_data_type"]), out_name)
+        sitk.WriteImage(sitk.ReadImage(out_name, int(os.environ["rabies_data_type"])), out_name)
 
         self._results['out_file'] = out_name
         return runtime

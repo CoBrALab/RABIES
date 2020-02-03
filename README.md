@@ -66,9 +66,8 @@ optional arguments:
                         nodes to be assigned. (default: 1)
   --data_type DATA_TYPE
                         Specify data format outputs to control for file size
-                        and/or information loss. Can specify a numpy data type
-                        from https://docs.scipy.org/doc/numpy/user/basics.type
-                        s.html. (default: float32)
+                        among 'int16','int32','float32' and 'float64'.
+                        (default: float32)
   --debug               Run in debug mode. (default: False)
 
 Options for the resampling of the EPI for::

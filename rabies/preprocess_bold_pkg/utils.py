@@ -182,8 +182,8 @@ class EstimateReferenceImage(BaseInterface):
         import SimpleITK as sitk
         import numpy as np
 
-        in_nii=sitk.ReadImage(self.inputs.in_file, os.environ["rabies_data_type"])
-        data_slice = sitk.GetArrayFromImage(in_nii)[:, :, :, :50]
+        in_nii=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
+        data_slice = sitk.GetArrayFromImage(in_nii)[:50, :, :, :]
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
@@ -197,34 +197,39 @@ class EstimateReferenceImage(BaseInterface):
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
-                data_slice[:, :, :, :n_volumes_to_discard], axis=3)
+                data_slice[:n_volumes_to_discard, :, :, :], axis=0)
         else:
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
-            if in_nii.shape[-1] > 40:
+            if in_nii.GetSize()[-1] > 40:
                 slice_fname = os.path.abspath("slice.nii.gz")
-                sitk.WriteImage(sitk.GetImageFromArray(data_slice[:, :, :, 20:40], isVector=False).CopyInformation(in_nii), slice_fname)
+                image_4d=copyInfo_4DImage(sitk.GetImageFromArray(data_slice[20:40, :, :, :], isVector=False), in_nii, in_nii)
+                sitk.WriteImage(image_4d, slice_fname)
                 median_fname = os.path.abspath("median.nii.gz")
-                sitk.WriteImage(sitk.GetImageFromArray(np.median(data_slice[:, :, :, 20:40], axis=3), isVector=False).CopyInformation(in_nii), median_fname)
+                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice[20:40, :, :, :], axis=0), isVector=False), in_nii)
+                sitk.WriteImage(image_3d, median_fname)
             else:
                 slice_fname = self.inputs.in_file
                 median_fname = os.path.abspath("median.nii.gz")
-                sitk.WriteImage(sitk.GetImageFromArray(np.median(data_slice, axis=3), isVector=False).CopyInformation(in_nii), median_fname)
+                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice, axis=0), isVector=False), in_nii)
+                sitk.WriteImage(image_3d, median_fname)
 
             print("First iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=median_fname, second=False).run()
-            median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, os.environ["rabies_data_type"])), axis=3)
+            median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
             tmp_median_fname = os.path.abspath("tmp_median.nii.gz")
-            sitk.WriteImage(sitk.GetImageFromArray(median, isVector=False).CopyInformation(in_nii), tmp_median_fname)
+            image_3d=copyInfo_3DImage(sitk.GetImageFromArray(median, isVector=False), in_nii)
+            sitk.WriteImage(image_3d, tmp_median_fname)
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
-            median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, os.environ["rabies_data_type"])), axis=3)
+            median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
-        sitk.WriteImage(sitk.GetImageFromArray(median_image_data, isVector=False).CopyInformation(in_nii), out_ref_fname)
+        image_3d=copyInfo_3DImage(sitk.GetImageFromArray(median_image_data, isVector=False), in_nii)
+        sitk.WriteImage(image_3d, out_ref_fname)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -242,8 +247,8 @@ def _get_vols_to_discard(img):
     is_outlier function: computes Modified Z-Scores (https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm) to determine which volumes are outliers.
     '''
     from nipype.algorithms.confounds import is_outlier
-    data_slice = sitk.GetArrayFromImage(img)[:, :, :, :50]
-    global_signal = data_slice.mean(axis=0).mean(axis=0).mean(axis=0)
+    data_slice = sitk.GetArrayFromImage(img)[:50, :, :, :]
+    global_signal = data_slice.mean(axis=-1).mean(axis=-1).mean(axis=-1)
     return is_outlier(global_signal)
 
 
@@ -279,7 +284,7 @@ class antsMotionCorr(BaseInterface):
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
-                -m MI[ %s , %s , 1 , 20 , None ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f 4x2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file)
+                -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f 4x2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file)
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
 
@@ -323,14 +328,14 @@ class slice_applyTransforms(BaseInterface):
         import SimpleITK as sitk
         import os
 
-        img=sitk.ReadImage(self.inputs.in_file, os.environ["rabies_data_type"])
+        img=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
 
         if not self.inputs.resampling_dim=='origin':
             shape=self.inputs.resampling_dim.split('x')
             spacing=tuple(float(shape[0]),float(shape[1]),float(shape[2]))
         else:
-            spacing=img.GetSpacing()
-        resampled=resample_image_spacing(sitk.ReadImage(self.inputs.ref_file, os.environ["rabies_data_type"]), spacing)
+            spacing=img.GetSpacing()[:3]
+        resampled=resample_image_spacing(sitk.ReadImage(self.inputs.ref_file, int(os.environ["rabies_data_type"])), spacing)
         sitk.WriteImage(resampled,'resampled.nii.gz')
 
         #tranforms is a list of transform files, set in order of call within antsApplyTransforms
@@ -363,7 +368,7 @@ class slice_applyTransforms(BaseInterface):
                 if os.system(command) != 0:
                     raise ValueError('Error in '+command)
             #change image to specified data type
-            sitk.WriteImage(sitk.ReadImage(warped_vol_fname, os.environ["rabies_data_type"]), warped_vol_fname)
+            sitk.WriteImage(sitk.ReadImage(warped_vol_fname, int(os.environ["rabies_data_type"])), warped_vol_fname)
 
         setattr(self, 'out_files', warped_volumes)
         return runtime
@@ -378,9 +383,9 @@ def split_volumes(in_file, output_prefix):
     '''
     import os
     import numpy as np
-    in_nii = sitk.ReadImage(in_file, os.environ["rabies_data_type"])
+    in_nii = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
     num_dimensions = len(in_nii.GetSize())
-    num_volumes = in_nii.GetSize().shape[3]
+    num_volumes = in_nii.GetSize()[3]
 
     if num_dimensions!=4:
         print("the input file must be of dimensions 4")
@@ -388,9 +393,10 @@ def split_volumes(in_file, output_prefix):
 
     volumes = []
     for x in range(0, num_volumes):
-        data_slice = sitk.GetArrayFromImage(in_nii)[:, :, :, x]
+        data_slice = sitk.GetArrayFromImage(in_nii)[x, :, :, :]
         slice_fname = os.path.abspath(output_prefix + "vol" + str(x) + ".nii.gz")
-        sitk.WriteImage(sitk.GetImageFromArray(data_slice, isVector=False).CopyInformation(in_nii), slice_fname)
+        image_3d=copyInfo_3DImage(sitk.GetImageFromArray(data_slice, isVector=False), in_nii)
+        sitk.WriteImage(image_3d, slice_fname)
         volumes.append(slice_fname)
 
     return [volumes, num_volumes]
@@ -423,33 +429,23 @@ class Merge(BaseInterface):
         run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
         filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
 
-        sample_volume = sitk.ReadImage(self.inputs.in_files[0], os.environ["rabies_data_type"])
+        sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
-        combined = np.zeros((sample_volume.shape[0], sample_volume.shape[1], sample_volume.shape[2], length))
+        shape=sitk.GetArrayFromImage(sample_volume).shape
+        combined = np.zeros((length, shape[0], shape[1], shape[2]))
 
         i=0
         for file in self.inputs.in_files:
-            combined[:,:,:,i] = sitk.GetArrayFromImage(sitk.ReadImage(file, os.environ["rabies_data_type"]))[:,:,:]
+            combined[i,:,:,:] = sitk.GetArrayFromImage(sitk.ReadImage(file, int(os.environ["rabies_data_type"])))[:,:,:]
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
-        combined_image=sitk.GetArrayFromImage(combined, isVector=False)
+        combined_image=sitk.GetImageFromArray(combined, isVector=False)
 
         #set metadata and affine for the newly constructed 4D image
-        keys=sample_volume.GetMetaDataKeys()
-        for key in keys:
-            combined_image.SetMetaData(key,sample_volume.GetMetaData(key))
-        header_source = sitk.ReadImage(self.inputs.header_source, os.environ["rabies_data_type"])
-        combined_image.SetMetaData('dim[0]',header_source.GetMetaData('dim[0]'))
-        combined_image.SetMetaData('dim[4]',str(length))
-        combined_image.SetMetaData('qform_code',header_source.GetMetaData('qform_code'))
-        combined_image.SetSpacing(tuple(list(sample_volume.GetSpacing()).append(header_source.GetSpacing()[3])))
-        combined_image.SetOrigin(tuple(list(sample_volume.GetOrigin()).append(header_source.GetOrigin()[3])))
-        dim_3d=list(sample_volume.GetDirection())
-        dim_4d=list(header_source.GetDirection())
-        combined_image.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[3:6]+[dim_4d[7]]+dim_3d[6:9]+dim_4d[11:]))
-
+        header_source = sitk.ReadImage(self.inputs.header_source, int(os.environ["rabies_data_type"]))
+        combined_image=copyInfo_4DImage(combined_image, sample_volume, header_source)
         sitk.WriteImage(combined_image, combined_files)
 
         setattr(self, 'out_file', combined_files)
@@ -457,6 +453,49 @@ class Merge(BaseInterface):
 
     def _list_outputs(self):
         return {'out_file': getattr(self, 'out_file')}
+
+
+def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
+    #function to establish metadata of an input 4d image. The ref_3d will provide
+    #the information for the first 3 dimensions, and the ref_4d for the 4th.
+    keys=ref_3d.GetMetaDataKeys()
+    for key in keys:
+        image_4d.SetMetaData(key,ref_3d.GetMetaData(key))
+    image_4d.SetMetaData('dim[0]',ref_4d.GetMetaData('dim[0]'))
+    image_4d.SetMetaData('dim[4]',str(image_4d.GetSize()[3]))
+    image_4d.SetMetaData('qform_code',ref_4d.GetMetaData('qform_code'))
+    if ref_3d.GetMetaData('dim[0]')=='4':
+        image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing()[:3])+[ref_4d.GetSpacing()[3]]))
+        image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin()[:3])+[ref_4d.GetOrigin()[3]]))
+        dim_3d=list(ref_3d.GetDirection())
+        dim_4d=list(ref_4d.GetDirection())
+        image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[4:7]+[dim_4d[7]]+dim_3d[8:11]+dim_4d[11:]))
+    else:
+        image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing())+[ref_4d.GetSpacing()[3]]))
+        image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin())+[ref_4d.GetOrigin()[3]]))
+        dim_3d=list(ref_3d.GetDirection())
+        dim_4d=list(ref_4d.GetDirection())
+        image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[3:6]+[dim_4d[7]]+dim_3d[6:9]+dim_4d[11:]))
+    return image_4d
+
+def copyInfo_3DImage(image_3d, ref_3d):
+    keys=ref_3d.GetMetaDataKeys()
+    for key in keys:
+        image_3d.SetMetaData(key,ref_3d.GetMetaData(key))
+    image_3d.SetMetaData('dim[0]','3')
+    image_3d.SetMetaData('dim[4]','1')
+    if ref_3d.GetMetaData('dim[0]')=='4':
+        image_3d.SetSpacing(ref_3d.GetSpacing()[:3])
+        image_3d.SetOrigin(ref_3d.GetOrigin()[:3])
+        dim_3d=list(ref_3d.GetDirection())
+        image_3d.SetDirection(tuple(dim_3d[:3]+dim_3d[4:7]+dim_3d[8:11]))
+    elif ref_3d.GetMetaData('dim[0]')=='3':
+        image_3d.SetSpacing(ref_3d.GetSpacing())
+        image_3d.SetOrigin(ref_3d.GetOrigin())
+        image_3d.SetDirection(ref_3d.GetDirection())
+    else:
+        raise ValueError('Unknown reference image dimensions.')
+    return image_3d
 
 
 def resample_image_spacing(image,output_spacing):
