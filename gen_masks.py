@@ -40,7 +40,7 @@ def compute_masks(atlas, csv_labels, prefix):
         CSF_labels_list[x]=int(CSF_labels[x])
 
     '''extract the voxels which fall into the labels'''
-    atlas_img=sitk.ReadImage(os.path.abspath(atlas), sitk.sitkFloat32)
+    atlas_img=sitk.ReadImage(os.path.abspath(atlas), sitk.sitkInt32)
     atlas_data=sitk.GetArrayFromImage(atlas_img)
     shape=atlas_data.shape
     vector_atlas=np.transpose(np.reshape(atlas_data, [shape[0]*shape[1]*shape[2]]))
@@ -50,10 +50,12 @@ def compute_masks(atlas, csv_labels, prefix):
     #for each WM/CSF label, establish which voxels are part of these labels
     for x in range(0,len(WM_labels_list)):
         WM_voxels=WM_voxels+(vector_atlas==WM_labels_list[x])
+
     WM_voxels=(WM_voxels>=1).astype(int) #binarize the mask
 
     for x in range(0,len(CSF_labels_list)):
         CSF_voxels=CSF_voxels+(vector_atlas==CSF_labels_list[x])
+
     CSF_voxels=(CSF_voxels>=1).astype(int) #binarize the mask
 
     WM_mask=np.reshape(WM_voxels, shape)
@@ -62,10 +64,10 @@ def compute_masks(atlas, csv_labels, prefix):
     WM_mask_file='%s_WM_mask.nii.gz' % (prefix,)
     CSF_mask_file='%s_CSF_mask.nii.gz' % (prefix,)
 
-    WM_mask_img=sitk.GetImageFromArray(WM_mask, isVector=False)
+    WM_mask_img=sitk.GetImageFromArray(WM_mask.astype('int16'), isVector=False)
     WM_mask_img.CopyInformation(atlas_img)
     sitk.WriteImage(WM_mask_img, WM_mask_file)
-    CSF_mask_img=sitk.GetImageFromArray(CSF_mask, isVector=False)
+    CSF_mask_img=sitk.GetImageFromArray(CSF_mask.astype('int16'), isVector=False)
     CSF_mask_img.CopyInformation(atlas_img)
     sitk.WriteImage(CSF_mask_img, CSF_mask_file)
 
@@ -77,10 +79,10 @@ def compute_masks(atlas, csv_labels, prefix):
     eroded_WM_mask_file='%s_eroded_WM_mask.nii.gz' % (prefix,)
     eroded_CSF_mask_file='%s_eroded_CSF_mask.nii.gz' % (prefix,)
 
-    eroded_WM_mask_img=sitk.GetImageFromArray(eroded_WM_mask, isVector=False)
+    eroded_WM_mask_img=sitk.GetImageFromArray(eroded_WM_mask.astype('int16'), isVector=False)
     eroded_WM_mask_img.CopyInformation(atlas_img)
     sitk.WriteImage(eroded_WM_mask_img, eroded_WM_mask_file)
-    eroded_CSF_mask_img=sitk.GetImageFromArray(eroded_CSF_mask, isVector=False)
+    eroded_CSF_mask_img=sitk.GetImageFromArray(eroded_CSF_mask.astype('int16'), isVector=False)
     eroded_CSF_mask_img.CopyInformation(atlas_img)
     sitk.WriteImage(eroded_CSF_mask_img, eroded_CSF_mask_file)
 

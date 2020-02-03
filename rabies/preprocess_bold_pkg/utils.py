@@ -224,12 +224,22 @@ class EstimateReferenceImage(BaseInterface):
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
-            median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
+
+            #evaluate a trimmed mean instead of a median, trimming the 5% extreme values
+            from scipy import stats
+            median_image_data = stats.trim_mean(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), 0.05, axis=0)
+            #median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
         image_3d=copyInfo_3DImage(sitk.GetImageFromArray(median_image_data, isVector=False), in_nii)
         sitk.WriteImage(image_3d, out_ref_fname)
+
+        #denoise the resulting reference image through non-local mean denoising
+        print('Denoising reference image.')
+        command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -458,32 +468,23 @@ class Merge(BaseInterface):
 def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
     #function to establish metadata of an input 4d image. The ref_3d will provide
     #the information for the first 3 dimensions, and the ref_4d for the 4th.
-    keys=ref_3d.GetMetaDataKeys()
-    for key in keys:
-        image_4d.SetMetaData(key,ref_3d.GetMetaData(key))
-    image_4d.SetMetaData('dim[0]',ref_4d.GetMetaData('dim[0]'))
-    image_4d.SetMetaData('dim[4]',str(image_4d.GetSize()[3]))
-    image_4d.SetMetaData('qform_code',ref_4d.GetMetaData('qform_code'))
     if ref_3d.GetMetaData('dim[0]')=='4':
         image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing()[:3])+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin()[:3])+[ref_4d.GetOrigin()[3]]))
         dim_3d=list(ref_3d.GetDirection())
         dim_4d=list(ref_4d.GetDirection())
         image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[4:7]+[dim_4d[7]]+dim_3d[8:11]+dim_4d[11:]))
-    else:
+    elif ref_3d.GetMetaData('dim[0]')=='3':
         image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing())+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin())+[ref_4d.GetOrigin()[3]]))
         dim_3d=list(ref_3d.GetDirection())
         dim_4d=list(ref_4d.GetDirection())
         image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[3:6]+[dim_4d[7]]+dim_3d[6:9]+dim_4d[11:]))
+    else:
+        raise ValueError('Unknown reference image dimensions.')
     return image_4d
 
 def copyInfo_3DImage(image_3d, ref_3d):
-    keys=ref_3d.GetMetaDataKeys()
-    for key in keys:
-        image_3d.SetMetaData(key,ref_3d.GetMetaData(key))
-    image_3d.SetMetaData('dim[0]','3')
-    image_3d.SetMetaData('dim[4]','1')
     if ref_3d.GetMetaData('dim[0]')=='4':
         image_3d.SetSpacing(ref_3d.GetSpacing()[:3])
         image_3d.SetOrigin(ref_3d.GetOrigin()[:3])
