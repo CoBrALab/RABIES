@@ -202,12 +202,12 @@ class EstimateReferenceImage(BaseInterface):
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
-            if in_nii.GetSize()[-1] > 40:
+            if in_nii.GetSize()[-1] > 100:
                 slice_fname = os.path.abspath("slice.nii.gz")
-                image_4d=copyInfo_4DImage(sitk.GetImageFromArray(data_slice[20:40, :, :, :], isVector=False), in_nii, in_nii)
+                image_4d=copyInfo_4DImage(sitk.GetImageFromArray(data_slice[20:100, :, :, :], isVector=False), in_nii, in_nii)
                 sitk.WriteImage(image_4d, slice_fname)
                 median_fname = os.path.abspath("median.nii.gz")
-                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice[20:40, :, :, :], axis=0), isVector=False), in_nii)
+                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice[20:100, :, :, :], axis=0), isVector=False), in_nii)
                 sitk.WriteImage(image_3d, median_fname)
             else:
                 slice_fname = self.inputs.in_file
