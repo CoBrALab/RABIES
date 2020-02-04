@@ -451,6 +451,9 @@ class Merge(BaseInterface):
         if (i!=length):
             raise ValueError("Error occured with Merge.")
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
+
+        #clip potential negative values
+        combined[(combined<0).astype(bool)]=0
         combined_image=sitk.GetImageFromArray(combined, isVector=False)
 
         #set metadata and affine for the newly constructed 4D image
@@ -511,6 +514,10 @@ def resample_image_spacing(image,output_spacing):
     output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
 
     resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSplineResamplerOrder4, image.GetOrigin(), output_spacing, image.GetDirection())
+    #clip potential negative values
+    array=sitk.GetArrayFromImage(resampled_image)
+    array[(array<0).astype(bool)]=0
+    resampled_image=sitk.GetImageFromArray(array, isVector=False)
     return resampled_image
 
 def convert_to_RAS(img_file, out_dir=None):
