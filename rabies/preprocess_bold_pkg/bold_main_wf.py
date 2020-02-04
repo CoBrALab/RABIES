@@ -6,7 +6,7 @@ from nipype.interfaces import utility as niu, afni
 from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
-from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter
+from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
 from .bias_correction import bias_correction_wf
@@ -466,6 +466,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                              container="confounds_datasink"),
                     name="confounds_datasink")
 
+    #node to conver input image to consistent RAS orientation
+    convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
+                              output_names=['RAS_file'],
+                              function=convert_to_RAS),
+                     name='convert_to_RAS')
+
     bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
     bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
@@ -606,23 +612,27 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         ])
 
+    #convert file to RAS orientation before any operation in the workflow
+    workflow.connect([
+        (bold_selectfiles, convert_to_RAS_node, [('out_file', 'img_file')]),
+        ])
     if apply_despiking:
         despike = pe.Node(
             afni.Despike(outputtype='NIFTI_GZ'),
             name='despike')
         workflow.connect([
-            (bold_selectfiles, despike, [('out_file', 'in_file')]),
+            (convert_to_RAS_node, despike, [('RAS_file', 'in_file')]),
             (despike, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
             ])
     else:
         workflow.connect([
-            (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+            (convert_to_RAS_node, bold_reference_wf, [('RAS_file', 'inputnode.bold_file')]),
             ])
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (bold_selectfiles, bold_bold_trans_wf, [('out_file', 'inputnode.name_source')]),
+        (convert_to_RAS_node, bold_bold_trans_wf, [('RAS_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),

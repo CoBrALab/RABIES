@@ -5,7 +5,7 @@ from nipype.interfaces import utility as niu
 from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
-from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter
+from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
@@ -229,6 +229,16 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             ]),
         ])
 
+    #node to conver input image to consistent RAS orientation
+    anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
+                              output_names=['RAS_file'],
+                              function=convert_to_RAS),
+                     name='anat_convert_to_RAS')
+    bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
+                              output_names=['RAS_file'],
+                              function=convert_to_RAS),
+                     name='bold_convert_to_RAS')
+
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()
 
@@ -424,13 +434,15 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (anat_selectfiles, anat_preproc_wf, [("out_file", "inputnode.anat_file")]),
+        (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
+        (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
         (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
         (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
             ]),
-        (bold_selectfiles, bold_main_wf, [
-            ("out_file", "inputnode.bold"),
+        (bold_selectfiles, bold_convert_to_RAS_node, [('out_file', 'img_file')]),
+        (bold_convert_to_RAS_node, bold_main_wf, [
+            ("RAS_file", "inputnode.bold"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),

@@ -512,3 +512,19 @@ def resample_image_spacing(image,output_spacing):
 
     resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSplineResamplerOrder4, image.GetOrigin(), output_spacing, image.GetDirection())
     return resampled_image
+
+def convert_to_RAS(img_file, out_dir=None):
+    #convert the input image to the RAS orientation convention
+    import nibabel as nb
+    img=nb.load(img_file)
+    if nb.aff2axcodes(img.affine)==('R','A','S'):
+        return img_file
+    else:
+        import os
+        split=os.path.basename(img_file).split('.nii')
+        if out_dir==None:
+            out_file=os.path.abspath(split[0]+'_RAS.nii'+split[1])
+        else:
+            out_file=out_dir+'/'+split[0]+'_RAS.nii'+split[1]
+        nb.as_closest_canonical(img).to_filename(out_file)
+        return out_file

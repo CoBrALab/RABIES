@@ -145,6 +145,15 @@ RUN export RABIES_VERSION=0.1.2-dev && \
   DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
   csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron
+  #convert templates to the RAS axis convention
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_average.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_mask.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_WM_mask.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_CSF_mask.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_WM_mask.nii.gz && \
+  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_CSF_mask.nii.gz
+
 
 RUN export RABIES_VERSION=0.1.2-dev && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \

@@ -43,6 +43,15 @@ DSURQE_100micron_labels=$template_dir/DSURQE_100micron_labels.nii.gz
 csv_labels=$template_dir/DSURQE_40micron_R_mapping.csv
 python $RABIES/gen_masks.py $DSURQE_100micron_labels $csv_labels $template_dir/DSURQE_100micron
 
+#convert templates to the RAS axis convention
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_average.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_mask.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_labels.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_WM_mask.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_CSF_mask.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_eroded_WM_mask.nii.gz
+python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_eroded_CSF_mask.nii.gz
+
 # install twolevel_ants_dbm
 git clone https://github.com/CoBrALab/twolevel_ants_dbm.git $RABIES/twolevel_ants_dbm
 cd $RABIES/twolevel_ants_dbm

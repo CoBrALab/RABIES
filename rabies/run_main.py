@@ -46,7 +46,8 @@ def get_parser():
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
-    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for:')
+    g_resampling = parser.add_argument_group("Options for the resampling of the EPI. "
+        "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAF axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Front-Back).")
     g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
                         help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
                              "'origin' is specified.")
@@ -183,29 +184,31 @@ def execute_workflow():
     template_reg_script=define_reg_script(template_reg_option)
 
     #template options
-    # set OS paths to template and atlas files
-    os.environ["template_anat"] = str(opts.anat_template)
-    if not os.path.isfile(os.environ["template_anat"]):
+    # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
+    from rabies.preprocess_bold_pkg.utils import convert_to_RAS
+    if not os.path.isfile(str(opts.anat_template)):
         raise ValueError("--anat_template file doesn't exists.")
+    os.environ["template_anat"] = convert_to_RAS(str(opts.anat_template), os.environ["RABIES"]+'/template_files')
 
-    os.environ["template_mask"] = str(opts.brain_mask)
-    if not os.path.isfile(os.environ["template_mask"]):
+    if not os.path.isfile(str(opts.brain_mask)):
         raise ValueError("--brain_mask file doesn't exists.")
+    os.environ["template_mask"] = convert_to_RAS(str(opts.brain_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["WM_mask"] = str(opts.WM_mask)
-    if not os.path.isfile(os.environ["WM_mask"]):
+    if not os.path.isfile(str(opts.WM_mask)):
         raise ValueError("--WM_mask file doesn't exists.")
+    os.environ["WM_mask"] = convert_to_RAS(str(opts.WM_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["CSF_mask"] = str(opts.CSF_mask)
-    if not os.path.isfile(os.environ["CSF_mask"]):
+    if not os.path.isfile(str(opts.CSF_mask)):
         raise ValueError("--CSF_mask file doesn't exists.")
-    os.environ["vascular_mask"] = str(opts.vascular_mask)
-    if not os.path.isfile(os.environ["vascular_mask"]):
-        raise ValueError("--vascular_mask file doesn't exists.")
+    os.environ["CSF_mask"] = convert_to_RAS(str(opts.CSF_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["atlas_labels"] = str(opts.labels)
-    if not os.path.isfile(os.environ["atlas_labels"]):
+    if not os.path.isfile(str(opts.vascular_mask)):
+        raise ValueError("--vascular_mask file doesn't exists.")
+    os.environ["vascular_mask"] = convert_to_RAS(str(opts.vascular_mask), os.environ["RABIES"]+'/template_files')
+
+    if not os.path.isfile(str(opts.labels)):
         raise ValueError("--labels file doesn't exists.")
+    os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
     data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
 
