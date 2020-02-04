@@ -310,6 +310,105 @@ class antsMotionCorr(BaseInterface):
                 'avg_image': getattr(self, 'avg_image')}
 
 
+class SliceMotionCorrectionInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
+    ref_file = File(exists=True, mandatory=True, desc='ref file to realignment time series')
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
+
+class SliceMotionCorrectionOutputSpec(TraitedSpec):
+    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
+
+class SliceMotionCorrection(BaseInterface):
+    """
+    This interface performs slice-specific motion realignment of coronal slices to correct for interslice
+    misalignment issues that arise from within-TR motion. It relies on 2D Rigid registration to the
+    reference 3D EPI volume provided.
+    """
+
+    input_spec = SliceMotionCorrectionInputSpec
+    output_spec = SliceMotionCorrectionOutputSpec
+
+    def _run_interface(self, runtime):
+
+        import os
+        import SimpleITK as sitk
+        ref_image = sitk.ReadImage(self.inputs.ref_file, sitk.sitkFloat32)
+        timeseries_image = sitk.ReadImage(self.inputs.in_file, sitk.sitkFloat32)
+
+        def register(fixed_image, moving_image):
+            #function for 2D registration
+            initial_transform = sitk.CenteredTransformInitializer(fixed_image,
+                                                                 moving_image,
+                                                                  sitk.Euler2DTransform(),
+                                                                  sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+            registration_method = sitk.ImageRegistrationMethod()
+
+            # Similarity metric settings.
+            registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=20)
+            registration_method.SetMetricSamplingStrategy(registration_method.NONE)
+            #registration_method.SetMetricSamplingPercentage(0.01)
+
+            registration_method.SetInterpolator(sitk.sitkLinear)
+
+            # Optimizer settings.
+            registration_method.SetOptimizerAsGradientDescent(learningRate=0.05, numberOfIterations=100, convergenceMinimumValue=1e-6, convergenceWindowSize=10)
+            #registration_method.SetOptimizerScalesFromPhysicalShift()
+
+            # Setup for the multi-resolution framework.
+            registration_method.SetShrinkFactorsPerLevel(shrinkFactors = [4,2,1])
+            registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2,1,0])
+            #registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+            # Don't optimize in-place, we would possibly like to run this cell multiple times.
+            registration_method.SetInitialTransform(initial_transform, inPlace=False)
+
+            final_transform = registration_method.Execute(sitk.Cast(fixed_image, sitk.sitkFloat32),
+                                                           sitk.Cast(moving_image, sitk.sitkFloat32))
+            return final_transform
+
+        def slice_specific_registration(ref_image,timeseries_image):
+            timeseries_array = sitk.GetArrayFromImage(timeseries_image)
+            for i in range(timeseries_array.shape[0]):
+                print('Corrected volume '+str(i+1))
+                volume=sitk.GetImageFromArray(timeseries_array[i,:,:,:], isVector=False)
+                volume.CopyInformation(ref_image)
+                volume_array=sitk.GetArrayFromImage(volume)
+                for j in range(volume_array.shape[0]):
+                    array=sitk.GetArrayFromImage(volume[:,:,j])
+                    moving_image=sitk.GetImageFromArray(array)
+                    array=sitk.GetArrayFromImage(ref_image[:,:,j])
+                    fixed_image=sitk.GetImageFromArray(array)
+
+                    moving_image.SetSpacing(ref_image.GetSpacing()[:2])
+                    fixed_image.SetSpacing(ref_image.GetSpacing()[:2])
+                    final_transform=register(fixed_image, moving_image)
+                    moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkBSplineResamplerOrder4, 0.0, moving_image.GetPixelID())
+
+                    resampled_slice=sitk.GetArrayFromImage(moving_resampled)
+                    volume_array[j,:,:]=resampled_slice
+                timeseries_array[i,:,:,:]=volume_array
+
+            #clip potential negative values
+            timeseries_array[(timeseries_array<0).astype(bool)]=0
+            resampled_timeseries=sitk.GetImageFromArray(timeseries_array, isVector=False)
+            resampled_timeseries.CopyInformation(timeseries_image)
+            return resampled_timeseries
+
+        resampled_timeseries=slice_specific_registration(ref_image,timeseries_image)
+
+        split=os.path.basename(self.inputs.name_source).split('.nii')
+        out_name = os.path.abspath(split[0]+'_slice_mc.nii'+split[1])
+        sitk.WriteImage(resampled_timeseries, out_name)
+
+        setattr(self, 'mc_corrected_bold', out_name)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold')}
+
+
 class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
     ref_file = File(exists=True, mandatory=True, desc="The reference 3D space to which the EPI will be warped.")

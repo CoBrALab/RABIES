@@ -26,6 +26,11 @@ def get_parser():
     parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                         help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                              "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
+    parser.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
+                        help="Whether to apply a slice-specific motion correction after initial volumetric rigid correction. "
+                             "This second motion correction can correct for interslice misalignment resulting from within-TR motion."
+                             "With this option, motion corrections and the subsequent resampling from registration are applied sequentially,"
+                             "since the 2D slice registrations cannot be concatenate with 3D transforms.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. This registration step"
                         " consists of aligning the volume with the commonspace template to provide"
@@ -147,6 +152,7 @@ def execute_workflow():
     os.environ["local_threads"]=str(opts.local_threads)
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
+    apply_slice_mc=opts.apply_slice_mc
 
     import SimpleITK as sitk
     if str(opts.data_type)=='int16':
@@ -214,10 +220,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

@@ -14,7 +14,7 @@ from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
+def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN',
                         nativespace_resampling='origin', commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
@@ -143,7 +143,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
+    bold_hmc_wf = init_bold_hmc_wf(slice_mc=slice_mc, name='bold_hmc_wf')
 
     bold_reg_wf = init_bold_reg_wf(coreg_script=coreg_script)
 
@@ -295,7 +295,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -484,7 +484,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
+    bold_hmc_wf = init_bold_hmc_wf(slice_mc=slice_mc, name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, name='bold_bold_trans_wf')
@@ -766,7 +766,10 @@ def commonspace_reg_function(file_list, output_folder):
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
-    command='mkdir -p %s' % (template_folder,)
+    command='rm -r %s' % (template_folder,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
+    command='mkdir %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)
     command='cp -r * %s' % (template_folder,)
