@@ -6,6 +6,7 @@ from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
 from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
 from .preprocess_bold_pkg.registration import run_antsRegistration
 from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
+from .QC_report import PlotOverlap, PlotMotionTrace
 from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
@@ -269,11 +270,12 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
     anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
     anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
+    warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}_ses-{session}_*_preproc*WarpedToTemplate.nii.gz')
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
 
-    commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'template_to_common_affine':template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
+    commonspace_templates = {'anat_to_template_inverse_warp':anat_to_template_inverse_warp,'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine, 'template_to_common_affine':template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp, 'warped_anat':warped_anat}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
@@ -483,6 +485,39 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
             ("bias_cor_bold_warped2anat","bias_cor_bold_warped2anat"), #warped EPI to anat
             ("native_corrected_bold", "corrected_bold"), #resampled EPI after motion realignment and SDC
             ("corrected_bold_ref", "corrected_bold_ref"), #resampled EPI after motion realignment and SDC
+            ]),
+        ])
+
+    #organizing .png outputs for QC
+    PlotMotionTrace_node = pe.Node(PlotMotionTrace(), name='PlotMotionTrace')
+    PlotMotionTrace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Anat_node = pe.Node(PlotOverlap(), name='PlotOverlap_EPI2Anat')
+    PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Anat_node.inputs.reg_name = 'EPI2Anat'
+    PlotOverlap_Anat2Template_node = pe.Node(PlotOverlap(), name='PlotOverlap_Anat2Template')
+    PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_Anat2Template_node.inputs.reg_name = 'Anat2Template'
+    PlotOverlap_Template2Commonspace_node = pe.Node(PlotOverlap(), name='PlotOverlap_Template2Commonspace')
+    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
+    PlotOverlap_Template2Commonspace_node.inputs.fixed = os.environ["template_anat"]
+
+    workflow.connect([
+        (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
+        (outputnode, PlotOverlap_EPI2Anat_node, [
+            ("bias_cor_bold_warped2anat","moving"), #warped EPI to anat
+            ]),
+        (outputnode, PlotMotionTrace_node, [
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ]),
+        (commonspace_selectfiles, PlotOverlap_Anat2Template_node, [
+            ("warped_anat", "moving"),
+            ]),
+        (commonspace_reg, PlotOverlap_Anat2Template_node, [
+            ("ants_dbm_template", "fixed"),
+            ]),
+        (template_reg, PlotOverlap_Template2Commonspace_node, [
+            ("warped_image", "moving"),
             ]),
         ])
 

@@ -402,6 +402,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     """
 
     from nipype.interfaces.io import SelectFiles, DataSink
+    from .QC_report import PlotOverlap, PlotMotionTrace
 
     print("BOLD preproc only!")
 
@@ -563,11 +564,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
     ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
     ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
+    warped_bold = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{sub}_ses-{ses}_run-{run}_bias_cor*WarpedToTemplate.nii.gz')
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
 
-    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'template_to_common_affine':template_to_common_affine,'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
+    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'template_to_common_affine':template_to_common_affine,'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp, 'warped_bold':warped_bold}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
@@ -750,6 +752,32 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         ])
 
+    #organizing .png outputs for QC
+    PlotMotionTrace_node = pe.Node(PlotMotionTrace(), name='PlotMotionTrace')
+    PlotMotionTrace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Template_node = pe.Node(PlotOverlap(), name='PlotOverlap_EPI2Template')
+    PlotOverlap_EPI2Template_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Template_node.inputs.reg_name = 'EPI2Template'
+    PlotOverlap_Template2Commonspace_node = pe.Node(PlotOverlap(), name='PlotOverlap_Template2Commonspace')
+    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
+    PlotOverlap_Template2Commonspace_node.inputs.fixed = os.environ["template_anat"]
+
+    workflow.connect([
+        (outputnode, PlotMotionTrace_node, [
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ]),
+        (commonspace_selectfiles, PlotOverlap_EPI2Template_node, [
+            ("warped_bold", "moving"),
+            ]),
+        (commonspace_reg, PlotOverlap_EPI2Template_node, [
+            ("ants_dbm_template", "fixed"),
+            ]),
+        (template_reg, PlotOverlap_Template2Commonspace_node, [
+            ("warped_image", "moving"),
+            ]),
+        ])
+
     return workflow
 
 
@@ -775,9 +803,10 @@ def commonspace_reg_function(file_list, output_folder):
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
-    command='rm -r %s' % (template_folder,)
-    if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+    if os.path.isdir(template_folder):
+        command='rm -r %s' % (template_folder,)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
     command='mkdir %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)

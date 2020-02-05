@@ -5,7 +5,6 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, InputMultiPath, BaseInterface, SimpleInterface
 )
-from nipype.interfaces.base import CommandLine, CommandLineInputSpec
 
 def prep_bids_iter(layout):
     '''
