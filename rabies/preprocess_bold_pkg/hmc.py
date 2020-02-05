@@ -70,7 +70,7 @@ class EstimateMotionInputSpec(BaseInterfaceInputSpec):
 
 class EstimateMotionOutputSpec(TraitedSpec):
     motcorr_params = File(exists=True, desc="Motion estimation derived from antsMotionCorr")
-    csv_params = File(exists=True, desc="CSV file with motion parameters")
+    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
 
 
 class EstimateMotion(BaseInterface):

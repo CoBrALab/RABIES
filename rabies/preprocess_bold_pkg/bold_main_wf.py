@@ -155,7 +155,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=nativespace_resampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=nativespace_resampling, slice_mc=slice_mc, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -218,7 +218,6 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ]),
         (bold_reg_wf, bold_bold_trans_wf, [
             ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
-        (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (bold_bold_trans_wf, outputnode, [
             ('outputnode.bold_ref', 'resampled_ref_bold'),
@@ -261,7 +260,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
                               function=commonspace_transforms),
                      name='commonspace_transforms_prep')
 
-    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=commonspace_resampling, name='bold_commonspace_trans_wf')
+    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=commonspace_resampling, slice_mc=slice_mc, name='bold_commonspace_trans_wf')
 
     workflow.connect([
         (inputnode, commonspace_transforms_prep, [
@@ -278,7 +277,6 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ('transforms_list', 'inputnode.transforms_list'),
             ('inverses', 'inputnode.inverses'),
             ]),
-        (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (inputnode, bold_commonspace_trans_wf, [
             ('bold', 'inputnode.name_source'),
@@ -291,6 +289,17 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ('outputnode.labels', 'commonspace_labels'),
             ]),
     ])
+
+    if slice_mc:
+        workflow.connect([
+            (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+            (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+        ])
+    else:
+        workflow.connect([
+            (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+            (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+        ])
 
     return workflow
 
