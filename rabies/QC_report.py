@@ -34,10 +34,10 @@ class PlotOverlap(BaseInterface):
         script_path=dir_path+'/shell_scripts/plot_overlap.sh'
         if not os.environ["template_anat"]==self.inputs.fixed:
             os.makedirs(self.inputs.out_dir+'/'+subject_id, exist_ok=True)
-            out_name=self.inputs.out_dir+'/'+subject_id+'/'+filename_template+'_'+reg_name+'.png'
+            out_name=self.inputs.out_dir+'/'+subject_id+'/'+filename_template+'_'+self.inputs.reg_name+'.png'
         else:
             os.makedirs(self.inputs.out_dir, exist_ok=True)
-            out_name=self.inputs.out_dir+'/'+reg_name+'.png'
+            out_name=self.inputs.out_dir+'/'+self.inputs.reg_name+'.png'
         command = 'bash %s %s %s %s' % (script_path,self.inputs.moving,self.inputs.fixed,out_name)
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
@@ -58,8 +58,8 @@ class PlotMotionTraceOutputSpec(TraitedSpec):
 
 class PlotMotionTrace(BaseInterface):
 
-    input_spec = PlotOverlapInputSpec
-    output_spec = PlotOverlapOutputSpec
+    input_spec = PlotMotionTraceInputSpec
+    output_spec = PlotMotionTraceOutputSpec
 
     def _run_interface(self, runtime):
         import os

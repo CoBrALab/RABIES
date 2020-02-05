@@ -108,6 +108,40 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
     zenity libcurl4-openssl-dev bc gawk libxkbcommon-x11-0 \
     ttf-mscorefonts-installer bc
 
+
+# install FSL
+RUN sudo apt-get update && \
+  sudo apt-get install -y --no-install-recommends gnupg gnupg2 gnupg1
+RUN git clone https://github.com/poldracklab/mriqc.git && \
+  mv mriqc/docker/files/neurodebian.gpg $HOME && \
+  rm -rf mriqc
+
+RUN curl -sSL "http://neuro.debian.net/lists/$( lsb_release -c | cut -f2 ).us-ca.full" >> /etc/apt/sources.list.d/neurodebian.sources.list && \
+  sudo apt-key add $HOME/neurodebian.gpg && \
+  (apt-key adv --refresh-keys --keyserver hkp://ha.pool.sks-keyservers.net 0xA5D32F012649A5A9 || true)
+
+RUN sudo ln -fs /usr/share/zoneinfo/America/Montreal /etc/localtime && \
+  sudo apt-get install -y --no-install-recommends tzdata && \
+  sudo dpkg-reconfigure -f noninteractive tzdata && \
+  sudo apt-get update && \
+  sudo apt-get install -y --no-install-recommends fsl-core && \
+  sudo apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Configure FSL environment
+ENV export FSLDIR="/usr/share/fsl/5.0/" \
+  export FSL_DIR="${FSLDIR}" \
+  export FSLOUTPUTTYPE=NIFTI_GZ \
+  . ${FSLDIR}/etc/fslconf/fsl.sh \
+  export PATH="/usr/share/fsl/5.0/bin:$PATH" \
+  export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH
+
+# Configure FSL environment
+RUN echo "export FSLDIR='/usr/share/fsl/5.0/'" >> $HOME/.bashrc \
+  echo "export FSL_DIR='${FSLDIR}'" >> $HOME/.bashrc \
+  echo "export FSLOUTPUTTYPE=NIFTI_GZ" >> $HOME/.bashrc \
+  echo "export PATH='/usr/share/fsl/5.0/bin:$PATH'" >> $HOME/.bashrc \
+  "export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH" >> $HOME/.bashrc
+
 #Install python environment
 
 ENV CONDA_DIR="$HOME/miniconda-latest" \
@@ -154,12 +188,22 @@ RUN export RABIES_VERSION=0.1.2-dev && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_WM_mask.nii.gz && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_CSF_mask.nii.gz
 
-
-RUN export RABIES_VERSION=0.1.2-dev && \
+RUN export FSLDIR="/usr/share/fsl/5.0/" && \
+  export FSL_DIR="${FSLDIR}" && \
+  export FSLOUTPUTTYPE=NIFTI_GZ && \
+  . ${FSLDIR}/etc/fslconf/fsl.sh && \
+  export PATH="/usr/share/fsl/5.0/bin:$PATH" && \
+  export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH && \
+  export RABIES_VERSION=0.1.2-dev && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
   echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > ${RABIES}/exec.py && \
   echo "import os" >> ${RABIES}/exec.py && \
   echo "import sys" >> ${RABIES}/exec.py && \
+  echo "os.environ['FSLDIR'] = '/usr/share/fsl/5.0/'" >> ${RABIES}/exec.py && \
+  echo "os.environ['FSL_DIR'] = '${FSLDIR}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['FSLOUTPUTTYPE'] = 'NIFTI_GZ'" >> ${RABIES}/exec.py && \
+  echo "os.environ['PATH'] = '/usr/share/fsl/5.0/bin:${PATH}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['LD_LIBRARY_PATH'] = '/usr/lib/fsl/5.0:${LD_LIBRARY_PATH}'" >> ${RABIES}/exec.py && \
   echo "os.environ['RABIES'] = '${RABIES}'" >> ${RABIES}/exec.py && \
   echo "sys.path.insert(0,os.environ['RABIES'])" >> ${RABIES}/exec.py && \
   echo "os.environ['PATH'] = '${RABIES}/twolevel_ants_dbm:/home/rabies/miniconda-latest/envs/rabies/bin:${PATH}'" >> ${RABIES}/exec.py && \

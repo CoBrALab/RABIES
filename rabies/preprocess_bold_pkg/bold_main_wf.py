@@ -807,7 +807,7 @@ def commonspace_reg_function(file_list, output_folder):
         command='rm -r %s' % (template_folder,)
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
-    command='mkdir %s' % (template_folder,)
+    command='mkdir -p %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)
     command='cp -r * %s' % (template_folder,)
