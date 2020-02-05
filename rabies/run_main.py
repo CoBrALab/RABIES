@@ -26,6 +26,11 @@ def get_parser():
     parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                         help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                              "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
+    parser.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
+                        help="Whether to apply a slice-specific motion correction after initial volumetric rigid correction. "
+                             "This second motion correction can correct for interslice misalignment resulting from within-TR motion."
+                             "With this option, motion corrections and the subsequent resampling from registration are applied sequentially,"
+                             "since the 2D slice registrations cannot be concatenate with 3D transforms.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. This registration step"
                         " consists of aligning the volume with the commonspace template to provide"
@@ -46,7 +51,8 @@ def get_parser():
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
-    g_resampling = parser.add_argument_group('Options for the resampling of the EPI for:')
+    g_resampling = parser.add_argument_group("Options for the resampling of the EPI. "
+        "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAF axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Front-Back).")
     g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
                         help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
                              "'origin' is specified.")
@@ -146,6 +152,7 @@ def execute_workflow():
     os.environ["local_threads"]=str(opts.local_threads)
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
+    apply_slice_mc=opts.apply_slice_mc
 
     import SimpleITK as sitk
     if str(opts.data_type)=='int16':
@@ -183,38 +190,40 @@ def execute_workflow():
     template_reg_script=define_reg_script(template_reg_option)
 
     #template options
-    # set OS paths to template and atlas files
-    os.environ["template_anat"] = str(opts.anat_template)
-    if not os.path.isfile(os.environ["template_anat"]):
+    # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
+    from rabies.preprocess_bold_pkg.utils import convert_to_RAS
+    if not os.path.isfile(str(opts.anat_template)):
         raise ValueError("--anat_template file doesn't exists.")
+    os.environ["template_anat"] = convert_to_RAS(str(opts.anat_template), os.environ["RABIES"]+'/template_files')
 
-    os.environ["template_mask"] = str(opts.brain_mask)
-    if not os.path.isfile(os.environ["template_mask"]):
+    if not os.path.isfile(str(opts.brain_mask)):
         raise ValueError("--brain_mask file doesn't exists.")
+    os.environ["template_mask"] = convert_to_RAS(str(opts.brain_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["WM_mask"] = str(opts.WM_mask)
-    if not os.path.isfile(os.environ["WM_mask"]):
+    if not os.path.isfile(str(opts.WM_mask)):
         raise ValueError("--WM_mask file doesn't exists.")
+    os.environ["WM_mask"] = convert_to_RAS(str(opts.WM_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["CSF_mask"] = str(opts.CSF_mask)
-    if not os.path.isfile(os.environ["CSF_mask"]):
+    if not os.path.isfile(str(opts.CSF_mask)):
         raise ValueError("--CSF_mask file doesn't exists.")
-    os.environ["vascular_mask"] = str(opts.vascular_mask)
-    if not os.path.isfile(os.environ["vascular_mask"]):
-        raise ValueError("--vascular_mask file doesn't exists.")
+    os.environ["CSF_mask"] = convert_to_RAS(str(opts.CSF_mask), os.environ["RABIES"]+'/template_files')
 
-    os.environ["atlas_labels"] = str(opts.labels)
-    if not os.path.isfile(os.environ["atlas_labels"]):
+    if not os.path.isfile(str(opts.vascular_mask)):
+        raise ValueError("--vascular_mask file doesn't exists.")
+    os.environ["vascular_mask"] = convert_to_RAS(str(opts.vascular_mask), os.environ["RABIES"]+'/template_files')
+
+    if not os.path.isfile(str(opts.labels)):
         raise ValueError("--labels file doesn't exists.")
+    os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
     data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

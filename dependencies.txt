@@ -1,6 +1,7 @@
 # Minimal dependencies
 ANTs>=2.3.1
 AFNI>=17.0.18
+FSL
 
 # python dependencies
 conda channels:
@@ -16,7 +17,7 @@ python-graphviz
 pip
 cython
 setuptools
-simpleitk
+SimpleITK==1.2.3
 scikit-image
 scikit-learn>=0.20.0
 nibabel>=2.3.1
@@ -25,12 +26,3 @@ nipype>=1.1.4
 tqdm
 pathos
 pybids
-
-# Optional MINC dependencies
-minc-toolkit>=1.9.17
-pyminc>=0.52
-minc-stuffs>=0.1.24
-itksnap>=3.4.0
-pydpiper>=2.0.13
-bpipe>=0.9.9.6
-qbatch>=2.1.5

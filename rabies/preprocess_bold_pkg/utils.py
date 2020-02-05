@@ -5,7 +5,6 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, InputMultiPath, BaseInterface, SimpleInterface
 )
-from nipype.interfaces.base import CommandLine, CommandLineInputSpec
 
 def prep_bids_iter(layout):
     '''
@@ -202,12 +201,12 @@ class EstimateReferenceImage(BaseInterface):
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 40
             #slices of the time series
-            if in_nii.GetSize()[-1] > 40:
+            if in_nii.GetSize()[-1] > 100:
                 slice_fname = os.path.abspath("slice.nii.gz")
-                image_4d=copyInfo_4DImage(sitk.GetImageFromArray(data_slice[20:40, :, :, :], isVector=False), in_nii, in_nii)
+                image_4d=copyInfo_4DImage(sitk.GetImageFromArray(data_slice[20:100, :, :, :], isVector=False), in_nii, in_nii)
                 sitk.WriteImage(image_4d, slice_fname)
                 median_fname = os.path.abspath("median.nii.gz")
-                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice[20:40, :, :, :], axis=0), isVector=False), in_nii)
+                image_3d=copyInfo_3DImage(sitk.GetImageFromArray(np.median(data_slice[20:100, :, :, :], axis=0), isVector=False), in_nii)
                 sitk.WriteImage(image_3d, median_fname)
             else:
                 slice_fname = self.inputs.in_file
@@ -224,12 +223,22 @@ class EstimateReferenceImage(BaseInterface):
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname, ref_file=tmp_median_fname, second=True).run()
-            median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
+
+            #evaluate a trimmed mean instead of a median, trimming the 5% extreme values
+            from scipy import stats
+            median_image_data = stats.trim_mean(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), 0.05, axis=0)
+            #median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
 
         #median_image_data is a 3D array of the median image, so creates a new nii image
         #saves it
         image_3d=copyInfo_3DImage(sitk.GetImageFromArray(median_image_data, isVector=False), in_nii)
         sitk.WriteImage(image_3d, out_ref_fname)
+
+        #denoise the resulting reference image through non-local mean denoising
+        print('Denoising reference image.')
+        command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -298,6 +307,105 @@ class antsMotionCorr(BaseInterface):
         return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
                 'csv_params': getattr(self, 'csv_params'),
                 'avg_image': getattr(self, 'avg_image')}
+
+
+class SliceMotionCorrectionInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
+    ref_file = File(exists=True, mandatory=True, desc='ref file to realignment time series')
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
+
+class SliceMotionCorrectionOutputSpec(TraitedSpec):
+    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
+
+class SliceMotionCorrection(BaseInterface):
+    """
+    This interface performs slice-specific motion realignment of coronal slices to correct for interslice
+    misalignment issues that arise from within-TR motion. It relies on 2D Rigid registration to the
+    reference 3D EPI volume provided.
+    """
+
+    input_spec = SliceMotionCorrectionInputSpec
+    output_spec = SliceMotionCorrectionOutputSpec
+
+    def _run_interface(self, runtime):
+
+        import os
+        import SimpleITK as sitk
+        ref_image = sitk.ReadImage(self.inputs.ref_file, sitk.sitkFloat32)
+        timeseries_image = sitk.ReadImage(self.inputs.in_file, sitk.sitkFloat32)
+
+        def register(fixed_image, moving_image):
+            #function for 2D registration
+            initial_transform = sitk.CenteredTransformInitializer(fixed_image,
+                                                                 moving_image,
+                                                                  sitk.Euler2DTransform(),
+                                                                  sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+            registration_method = sitk.ImageRegistrationMethod()
+
+            # Similarity metric settings.
+            registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=20)
+            registration_method.SetMetricSamplingStrategy(registration_method.NONE)
+            #registration_method.SetMetricSamplingPercentage(0.01)
+
+            registration_method.SetInterpolator(sitk.sitkLinear)
+
+            # Optimizer settings.
+            registration_method.SetOptimizerAsGradientDescent(learningRate=0.05, numberOfIterations=100, convergenceMinimumValue=1e-6, convergenceWindowSize=10)
+            #registration_method.SetOptimizerScalesFromPhysicalShift()
+
+            # Setup for the multi-resolution framework.
+            registration_method.SetShrinkFactorsPerLevel(shrinkFactors = [4,2,1])
+            registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2,1,0])
+            #registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+            # Don't optimize in-place, we would possibly like to run this cell multiple times.
+            registration_method.SetInitialTransform(initial_transform, inPlace=False)
+
+            final_transform = registration_method.Execute(sitk.Cast(fixed_image, sitk.sitkFloat32),
+                                                           sitk.Cast(moving_image, sitk.sitkFloat32))
+            return final_transform
+
+        def slice_specific_registration(ref_image,timeseries_image):
+            timeseries_array = sitk.GetArrayFromImage(timeseries_image)
+            for i in range(timeseries_array.shape[0]):
+                print('Corrected volume '+str(i+1))
+                volume=sitk.GetImageFromArray(timeseries_array[i,:,:,:], isVector=False)
+                volume.CopyInformation(ref_image)
+                volume_array=sitk.GetArrayFromImage(volume)
+                for j in range(volume_array.shape[0]):
+                    array=sitk.GetArrayFromImage(volume[:,:,j])
+                    moving_image=sitk.GetImageFromArray(array)
+                    array=sitk.GetArrayFromImage(ref_image[:,:,j])
+                    fixed_image=sitk.GetImageFromArray(array)
+
+                    moving_image.SetSpacing(ref_image.GetSpacing()[:2])
+                    fixed_image.SetSpacing(ref_image.GetSpacing()[:2])
+                    final_transform=register(fixed_image, moving_image)
+                    moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkBSplineResamplerOrder4, 0.0, moving_image.GetPixelID())
+
+                    resampled_slice=sitk.GetArrayFromImage(moving_resampled)
+                    volume_array[j,:,:]=resampled_slice
+                timeseries_array[i,:,:,:]=volume_array
+
+            #clip potential negative values
+            timeseries_array[(timeseries_array<0).astype(bool)]=0
+            resampled_timeseries=sitk.GetImageFromArray(timeseries_array, isVector=False)
+            resampled_timeseries.CopyInformation(timeseries_image)
+            return resampled_timeseries
+
+        resampled_timeseries=slice_specific_registration(ref_image,timeseries_image)
+
+        split=os.path.basename(self.inputs.name_source).split('.nii')
+        out_name = os.path.abspath(split[0]+'_slice_mc.nii'+split[1])
+        sitk.WriteImage(resampled_timeseries, out_name)
+
+        setattr(self, 'mc_corrected_bold', out_name)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold')}
 
 
 class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
@@ -441,6 +549,9 @@ class Merge(BaseInterface):
         if (i!=length):
             raise ValueError("Error occured with Merge.")
         combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
+
+        #clip potential negative values
+        combined[(combined<0).astype(bool)]=0
         combined_image=sitk.GetImageFromArray(combined, isVector=False)
 
         #set metadata and affine for the newly constructed 4D image
@@ -458,32 +569,23 @@ class Merge(BaseInterface):
 def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
     #function to establish metadata of an input 4d image. The ref_3d will provide
     #the information for the first 3 dimensions, and the ref_4d for the 4th.
-    keys=ref_3d.GetMetaDataKeys()
-    for key in keys:
-        image_4d.SetMetaData(key,ref_3d.GetMetaData(key))
-    image_4d.SetMetaData('dim[0]',ref_4d.GetMetaData('dim[0]'))
-    image_4d.SetMetaData('dim[4]',str(image_4d.GetSize()[3]))
-    image_4d.SetMetaData('qform_code',ref_4d.GetMetaData('qform_code'))
     if ref_3d.GetMetaData('dim[0]')=='4':
         image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing()[:3])+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin()[:3])+[ref_4d.GetOrigin()[3]]))
         dim_3d=list(ref_3d.GetDirection())
         dim_4d=list(ref_4d.GetDirection())
         image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[4:7]+[dim_4d[7]]+dim_3d[8:11]+dim_4d[11:]))
-    else:
+    elif ref_3d.GetMetaData('dim[0]')=='3':
         image_4d.SetSpacing(tuple(list(ref_3d.GetSpacing())+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(tuple(list(ref_3d.GetOrigin())+[ref_4d.GetOrigin()[3]]))
         dim_3d=list(ref_3d.GetDirection())
         dim_4d=list(ref_4d.GetDirection())
         image_4d.SetDirection(tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[3:6]+[dim_4d[7]]+dim_3d[6:9]+dim_4d[11:]))
+    else:
+        raise ValueError('Unknown reference image dimensions.')
     return image_4d
 
 def copyInfo_3DImage(image_3d, ref_3d):
-    keys=ref_3d.GetMetaDataKeys()
-    for key in keys:
-        image_3d.SetMetaData(key,ref_3d.GetMetaData(key))
-    image_3d.SetMetaData('dim[0]','3')
-    image_3d.SetMetaData('dim[4]','1')
     if ref_3d.GetMetaData('dim[0]')=='4':
         image_3d.SetSpacing(ref_3d.GetSpacing()[:3])
         image_3d.SetOrigin(ref_3d.GetOrigin()[:3])
@@ -510,4 +612,24 @@ def resample_image_spacing(image,output_spacing):
     output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
 
     resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSplineResamplerOrder4, image.GetOrigin(), output_spacing, image.GetDirection())
+    #clip potential negative values
+    array=sitk.GetArrayFromImage(resampled_image)
+    array[(array<0).astype(bool)]=0
+    resampled_image=sitk.GetImageFromArray(array, isVector=False)
     return resampled_image
+
+def convert_to_RAS(img_file, out_dir=None):
+    #convert the input image to the RAS orientation convention
+    import nibabel as nb
+    img=nb.load(img_file)
+    if nb.aff2axcodes(img.affine)==('R','A','S'):
+        return img_file
+    else:
+        import os
+        split=os.path.basename(img_file).split('.nii')
+        if out_dir==None:
+            out_file=os.path.abspath(split[0]+'_RAS.nii'+split[1])
+        else:
+            out_file=out_dir+'/'+split[0]+'_RAS.nii'+split[1]
+        nb.as_closest_canonical(img).to_filename(out_file)
+        return out_file

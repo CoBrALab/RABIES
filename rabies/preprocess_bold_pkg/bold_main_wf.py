@@ -6,7 +6,7 @@ from nipype.interfaces import utility as niu, afni
 from nipype.interfaces.io import SelectFiles
 
 from .hmc import init_bold_hmc_wf
-from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter
+from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
 from .bias_correction import bias_correction_wf
@@ -14,7 +14,7 @@ from .registration import init_bold_reg_wf, run_antsRegistration
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
-def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN',
+def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN',
                         nativespace_resampling='origin', commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
@@ -143,7 +143,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
+    bold_hmc_wf = init_bold_hmc_wf(slice_mc=slice_mc, name='bold_hmc_wf')
 
     bold_reg_wf = init_bold_reg_wf(coreg_script=coreg_script)
 
@@ -155,7 +155,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
                      name='transforms_prep')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=nativespace_resampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=nativespace_resampling, slice_mc=slice_mc, name='bold_bold_trans_wf')
 
     bold_confs_wf = init_bold_confs_wf(aCompCor_method=aCompCor_method, name="bold_confs_wf")
 
@@ -218,7 +218,6 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ]),
         (bold_reg_wf, bold_bold_trans_wf, [
             ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
-        (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (bold_bold_trans_wf, outputnode, [
             ('outputnode.bold_ref', 'resampled_ref_bold'),
@@ -261,7 +260,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
                               function=commonspace_transforms),
                      name='commonspace_transforms_prep')
 
-    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=commonspace_resampling, name='bold_commonspace_trans_wf')
+    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=commonspace_resampling, slice_mc=slice_mc, name='bold_commonspace_trans_wf')
 
     workflow.connect([
         (inputnode, commonspace_transforms_prep, [
@@ -278,7 +277,6 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ('transforms_list', 'inputnode.transforms_list'),
             ('inverses', 'inputnode.inverses'),
             ]),
-        (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (inputnode, bold_commonspace_trans_wf, [
             ('bold', 'inputnode.name_source'),
@@ -292,10 +290,21 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
             ]),
     ])
 
+    if slice_mc:
+        workflow.connect([
+            (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+            (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+        ])
+    else:
+        workflow.connect([
+            (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+            (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+        ])
+
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -393,6 +402,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     """
 
     from nipype.interfaces.io import SelectFiles, DataSink
+    from .QC_report import PlotOverlap, PlotMotionTrace
 
     print("BOLD preproc only!")
 
@@ -466,6 +476,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                              container="confounds_datasink"),
                     name="confounds_datasink")
 
+    #node to conver input image to consistent RAS orientation
+    convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
+                              output_names=['RAS_file'],
+                              function=convert_to_RAS),
+                     name='convert_to_RAS')
+
     bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
     bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
@@ -478,7 +494,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='boldbuffer')
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(name='bold_hmc_wf')
+    bold_hmc_wf = init_bold_hmc_wf(slice_mc=slice_mc, name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, name='bold_bold_trans_wf')
@@ -548,11 +564,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
     ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
     ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
+    warped_bold = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{sub}_ses-{ses}_run-{run}_bias_cor*WarpedToTemplate.nii.gz')
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
 
-    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'template_to_common_affine':template_to_common_affine,'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp}
+    commonspace_templates = {'ants_dbm_inverse_warp':ants_dbm_inverse_warp,'ants_dbm_warp': ants_dbm_warp, 'ants_dbm_affine': ants_dbm_affine, 'template_to_common_affine':template_to_common_affine,'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp':template_to_common_inverse_warp, 'warped_bold':warped_bold}
 
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
@@ -606,23 +623,27 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         ])
 
+    #convert file to RAS orientation before any operation in the workflow
+    workflow.connect([
+        (bold_selectfiles, convert_to_RAS_node, [('out_file', 'img_file')]),
+        ])
     if apply_despiking:
         despike = pe.Node(
             afni.Despike(outputtype='NIFTI_GZ'),
             name='despike')
         workflow.connect([
-            (bold_selectfiles, despike, [('out_file', 'in_file')]),
+            (convert_to_RAS_node, despike, [('RAS_file', 'in_file')]),
             (despike, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
             ])
     else:
         workflow.connect([
-            (bold_selectfiles, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
+            (convert_to_RAS_node, bold_reference_wf, [('RAS_file', 'inputnode.bold_file')]),
             ])
 
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (bold_selectfiles, bold_bold_trans_wf, [('out_file', 'inputnode.name_source')]),
+        (convert_to_RAS_node, bold_bold_trans_wf, [('RAS_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),
@@ -731,6 +752,32 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             ]),
         ])
 
+    #organizing .png outputs for QC
+    PlotMotionTrace_node = pe.Node(PlotMotionTrace(), name='PlotMotionTrace')
+    PlotMotionTrace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Template_node = pe.Node(PlotOverlap(), name='PlotOverlap_EPI2Template')
+    PlotOverlap_EPI2Template_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_EPI2Template_node.inputs.reg_name = 'EPI2Template'
+    PlotOverlap_Template2Commonspace_node = pe.Node(PlotOverlap(), name='PlotOverlap_Template2Commonspace')
+    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
+    PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
+    PlotOverlap_Template2Commonspace_node.inputs.fixed = os.environ["template_anat"]
+
+    workflow.connect([
+        (outputnode, PlotMotionTrace_node, [
+            ("confounds_csv", "confounds_csv"), #confounds file
+            ]),
+        (commonspace_selectfiles, PlotOverlap_EPI2Template_node, [
+            ("warped_bold", "moving"),
+            ]),
+        (commonspace_reg, PlotOverlap_EPI2Template_node, [
+            ("ants_dbm_template", "fixed"),
+            ]),
+        (template_reg, PlotOverlap_Template2Commonspace_node, [
+            ("warped_image", "moving"),
+            ]),
+        ])
+
     return workflow
 
 
@@ -756,6 +803,10 @@ def commonspace_reg_function(file_list, output_folder):
 
     #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
+    if os.path.isdir(template_folder):
+        command='rm -r %s' % (template_folder,)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
     command='mkdir -p %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)

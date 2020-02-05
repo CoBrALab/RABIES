@@ -4,10 +4,10 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
+from .utils import SliceMotionCorrection
 
 
-
-def init_bold_hmc_wf(name='bold_hmc_wf'):
+def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
     """
     This workflow estimates the motion parameters to perform HMC over the BOLD image.
 
@@ -34,7 +34,7 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
                         name='inputnode')
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['motcorr_params']),
+        niu.IdentityInterface(fields=['motcorr_params', 'slice_corrected_bold']),
         name='outputnode')
 
     # Head motion correction (hmc)
@@ -48,6 +48,18 @@ def init_bold_hmc_wf(name='bold_hmc_wf'):
         (motion_estimation, outputnode, [('motcorr_params', 'motcorr_params')]),
     ])
 
+    if slice_mc:
+        slice_mc_node = pe.Node(SliceMotionCorrection(), name='slice_mc', mem_gb=3)
+        slice_mc_node.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+
+        #conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
+        workflow.connect([
+            (inputnode, slice_mc_node, [('ref_image', 'ref_file'),
+                                        ('bold_file', 'name_source')]),
+            (motion_estimation, slice_mc_node, [('mc_corrected_bold', 'in_file')]),
+            (slice_mc_node, outputnode, [('mc_corrected_bold', 'slice_corrected_bold')]),
+        ])
+
     return workflow
 
 
@@ -58,7 +70,7 @@ class EstimateMotionInputSpec(BaseInterfaceInputSpec):
 
 class EstimateMotionOutputSpec(TraitedSpec):
     motcorr_params = File(exists=True, desc="Motion estimation derived from antsMotionCorr")
-    csv_params = File(exists=True, desc="CSV file with motion parameters")
+    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
 
 
 class EstimateMotion(BaseInterface):
@@ -76,8 +88,10 @@ class EstimateMotion(BaseInterface):
         csv_params = os.path.abspath(res.outputs.csv_params)
 
         setattr(self, 'csv_params', csv_params)
+        setattr(self, 'mc_corrected_bold', os.path.abspath(res.outputs.mc_corrected_bold))
 
         return runtime
 
     def _list_outputs(self):
-        return {'motcorr_params': getattr(self, 'csv_params')}
+        return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
+                'motcorr_params': getattr(self, 'csv_params')}
