@@ -178,11 +178,13 @@ Docker execution
 
 # Input data folder structure
 Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/) or the following:
-* CSV file with dataset information: input_folder/data_info.csv (with columns header: group,subject_id,num_session,num_run)
+* CSV file with dataset information: input_folder/data_info.csv with columns headers "group,subject_id,num_session,num_run", where num_session is the number of sessions there is for the given subject, and num_run is the number of runs per session (e.g. if the subject "test_001" has 2 sessions and 3 runs per session, it's row will be "group,test_001,2,3")
 * BOLD scan: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_run-{run_number}_bold.nii.gz
 * Anatomical scan: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_anat.nii.gz
 
 ##Example Directory Tree
+
+<br/>
 
 <!DOCTYPE html>
 <html>
@@ -276,8 +278,11 @@ Registration overlaps and motion timecourses are presented in .png format in the
 * EPI2Anat: registration of the EPI to the anatomical image within subject
 * Anat2Template: registration of the anatomical image to the dataset-generated template
 * Template2Commonspace: registration of the dataset template to the provided commonspace template
+The following image presents an example of the overlap for the EPI2Anat registration:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/sub-jgrAesMEDISOc11L_ses-1_run-1_EPI2Anat.png)
 <br/>
 For direct investigation of the output .nii files relevant for QC:
+<br/>
 * bias correction: can visualize if bias correction was correctly applied to correct intensity inhomogeneities for the anatomical scan (anat_datasink/anat_preproc/) and EPI reference image (bold_datasink/bias_cor_bold/)
 * commonspace registration: verify that each anatomical image (commonspace_datasink/ants_dbm_outputs/ants_dbm/output/secondlevel/secondlevel_template0sub-*_ses-*_preproc0WarpedToTemplate.nii.gz) was properly realigned to the dataset-generated template (commonspace_datasink/ants_dbm_template/secondlevel_template0.nii.gz)
 * template registration: verify that the dataset-generated template (commonspace_datasink/warped_template/secondlevel_template0_output_warped_image.nii.gz) was realigned properly to the provided commonspace template (--anat_template input)

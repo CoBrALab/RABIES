@@ -69,7 +69,9 @@ class AnatPreproc(BaseInterface):
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
-        os.system('bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat))
+        command='bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat)
+        if os.system(command) != 0:
+            raise ValueError('Error in '+command)
 
         #resample image to specified data format
         sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)

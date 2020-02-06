@@ -615,7 +615,8 @@ def resample_image_spacing(image,output_spacing):
     #clip potential negative values
     array=sitk.GetArrayFromImage(resampled_image)
     array[(array<0).astype(bool)]=0
-    resampled_image=sitk.GetImageFromArray(array, isVector=False)
+    pos_resampled_image=sitk.GetImageFromArray(array, isVector=False)
+    pos_resampled_image.CopyInformation(resampled_image)
     return resampled_image
 
 def convert_to_RAS(img_file, out_dir=None):
