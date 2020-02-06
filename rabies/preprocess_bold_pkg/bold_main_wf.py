@@ -402,7 +402,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     """
 
     from nipype.interfaces.io import SelectFiles, DataSink
-    from .QC_report import PlotOverlap, PlotMotionTrace
+    from rabies.QC_report import PlotOverlap, PlotMotionTrace
 
     print("BOLD preproc only!")
 
@@ -497,7 +497,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     bold_hmc_wf = init_bold_hmc_wf(slice_mc=slice_mc, name='bold_hmc_wf')
 
     # Apply transforms in 1 shot
-    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, name='bold_bold_trans_wf')
+    bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, slice_mc=slice_mc, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
     bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
@@ -650,7 +650,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
         (bold_reference_wf, bold_hmc_wf, [
             ('outputnode.ref_image', 'inputnode.ref_image'),
             ('outputnode.bold_file', 'inputnode.bold_file')]),
-        (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (commonspace_selectfiles, transforms_prep, [
             ("template_to_common_warp", "template_to_common_warp"),
@@ -681,6 +680,16 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             (bold_reference_wf, boldbuffer, [
                 ('outputnode.bold_file', 'bold_file')]),
             ])
+
+    if slice_mc:
+        workflow.connect([
+            (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+        ])
+    else:
+        workflow.connect([
+            (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
+        ])
+
 
     # set outputs
     workflow.connect([
