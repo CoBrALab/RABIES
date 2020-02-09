@@ -31,6 +31,8 @@ def get_parser():
                              "This second motion correction can correct for interslice misalignment resulting from within-TR motion."
                              "With this option, motion corrections and the subsequent resampling from registration are applied sequentially,"
                              "since the 2D slice registrations cannot be concatenate with 3D transforms.")
+    parser.add_argument('--commonspace_reg_previous_run', dest='commonspace_reg_previous_run', action='store_true',
+                        help="Whether to pursue a previous run of commonspace registration.")
     parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
                         help="specify a registration script for iterative bias field correction. This registration step"
                         " consists of aligning the volume with the commonspace template to provide"
@@ -144,6 +146,7 @@ def execute_workflow():
     #obtain parser parameters
     bids_input=opts.bids_input
     bold_preproc_only=opts.bold_only
+    commonspace_reg_previous_run=opts.commonspace_reg_previous_run
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
     data_dir_path=os.path.abspath(str(opts.input_dir))
@@ -220,10 +223,10 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, commonspace_reg_previous_run=commonspace_reg_previous_run, bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR, tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool, commonspace_reg_previous_run=commonspace_reg_previous_run, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

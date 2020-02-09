@@ -304,7 +304,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, commonspace_reg_previous_run=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -544,11 +544,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     if int(os.environ["local_threads"])<num_bold:
         num_bold=int(os.environ["local_threads"])
 
-    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder', 'previous_run'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
+    commonspace_reg.inputs.previous_run = commonspace_reg_previous_run
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -790,7 +791,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     return workflow
 
 
-def commonspace_reg_function(file_list, output_folder):
+def commonspace_reg_function(file_list, output_folder, previous_run=False):
     import os
     import numpy as np
     import pandas as pd
@@ -805,23 +806,20 @@ def commonspace_reg_function(file_list, output_folder):
 
     model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
 
-    print('Running commonspace registration.')
-    command='bash %s %s' % (model_script_path,csv_path)
-    if os.system(command) != 0:
-        raise ValueError('Error in running commonspace registration with: '+command)
-
-    #copy all outputs to provided output folder to prevent deletion of the files after the node has run
     template_folder=output_folder+'/ants_dbm_outputs/'
-    if os.path.isdir(template_folder):
-        command='rm -r %s' % (template_folder,)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+
+    if not previous_run:
+        if os.path.isdir(template_folder):
+            command='rm -r %s' % (template_folder,)
+            if os.system(command) != 0:
+                raise ValueError('Error in '+command)
+    print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)
-    command='cp -r * %s' % (template_folder,)
+    command='cd %s ; bash %s %s' % (template_folder, model_script_path,csv_path)
     if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+        raise ValueError('Error in running commonspace registration with: '+command)
 
     ###verify that all outputs are present
     #ants dbm outputs

@@ -440,7 +440,7 @@ class slice_applyTransforms(BaseInterface):
 
         if not self.inputs.resampling_dim=='origin':
             shape=self.inputs.resampling_dim.split('x')
-            spacing=tuple(float(shape[0]),float(shape[1]),float(shape[2]))
+            spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
         else:
             spacing=img.GetSpacing()[:3]
         resampled=resample_image_spacing(sitk.ReadImage(self.inputs.ref_file, int(os.environ["rabies_data_type"])), spacing)
