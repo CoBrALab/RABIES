@@ -45,7 +45,8 @@ def get_parser():
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
     parser.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
-        defaults to number of CPUs""")
+        defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
+        it is set to 1.""")
     parser.add_argument("--min_proc", type=int, default=1,
                         help="For parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
@@ -152,7 +153,10 @@ def execute_workflow():
     data_dir_path=os.path.abspath(str(opts.input_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
-    os.environ["local_threads"]=str(opts.local_threads)
+    if plugin=='MultiProc':
+        os.environ["local_threads"]=str(opts.local_threads)
+    else:
+        os.environ["local_threads"]='1'
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
     apply_slice_mc=opts.apply_slice_mc
