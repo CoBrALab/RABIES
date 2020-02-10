@@ -12,7 +12,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
-                bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
+                commonspace_reg_previous_run=False, bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
 
@@ -250,11 +250,12 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     if int(os.environ["local_threads"])<num_anat:
         num_anat=int(os.environ["local_threads"])
 
-    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder'],
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder', 'previous_run'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
+    commonspace_reg.inputs.previous_run = commonspace_reg_previous_run
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
