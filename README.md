@@ -182,7 +182,7 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
 * BOLD scan: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_run-{run_number}_bold.nii.gz
 * Anatomical scan: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_anat.nii.gz
 
-##Example Directory Tree
+## Example Directory Tree
 
 <br/>
 
