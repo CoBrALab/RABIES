@@ -342,29 +342,21 @@ def register_slice(fixed_image, moving_image):
     return final_transform
 
 def slice_specific_registration(i, ref_file, timeseries_file):
+    print('Slice-specific correction on volume '+str(i+1))
     ref_image = sitk.ReadImage(ref_file, sitk.sitkFloat32)
     timeseries_image = sitk.ReadImage(timeseries_file, sitk.sitkFloat32)
-    timeseries_array = sitk.GetArrayFromImage(timeseries_image)
+    volume_array = sitk.GetArrayFromImage(timeseries_image)[i,:,:,:]
 
-    print('Slice-specific correction on volume '+str(i+1))
-    volume=sitk.GetImageFromArray(timeseries_array[i,:,:,:], isVector=False)
-    volume.CopyInformation(ref_image)
-    volume_array=sitk.GetArrayFromImage(volume)
-
-    for j in range(volume_array.shape[0]):
-        array=sitk.GetArrayFromImage(volume[:,:,j])
-        moving_image=sitk.GetImageFromArray(array)
-        array=sitk.GetArrayFromImage(ref_image[:,:,j])
-        fixed_image=sitk.GetImageFromArray(array)
-
-        moving_image.SetSpacing(ref_image.GetSpacing()[:2])
-        fixed_image.SetSpacing(ref_image.GetSpacing()[:2])
+    for j in range(volume_array.shape[1]):
+        moving_image=sitk.GetImageFromArray(volume_array[:,j,:])
+        fixed_image=ref_image[:,j,:]
+        moving_image.CopyInformation(fixed_image)
 
         final_transform=register_slice(fixed_image, moving_image)
         moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkBSplineResamplerOrder4, 0.0, moving_image.GetPixelID())
 
         resampled_slice=sitk.GetArrayFromImage(moving_resampled)
-        volume_array[j,:,:]=resampled_slice
+        volume_array[:,j,:]=resampled_slice
     return [i,volume_array]
 
 class SliceMotionCorrectionInputSpec(BaseInterfaceInputSpec):

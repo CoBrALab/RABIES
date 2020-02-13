@@ -50,7 +50,7 @@ def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
 
     if slice_mc:
         slice_mc_n_procs=int(int(os.environ["local_threads"])/4)+1
-        slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs), name='slice_mc', mem_gb=0.5*slice_mc_n_procs, n_procs=slice_mc_n_procs)
+        slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs), name='slice_mc', mem_gb=1*slice_mc_n_procs, n_procs=slice_mc_n_procs)
         slice_mc_node.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
         #conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
