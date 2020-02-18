@@ -640,3 +640,26 @@ def convert_to_RAS(img_file, out_dir=None):
             out_file=out_dir+'/'+split[0]+'_RAS.nii'+split[1]
         nb.as_closest_canonical(img).to_filename(out_file)
         return out_file
+
+def resample_template(template_file, file_list, spacing='inputs_defined'):
+    import os
+    import SimpleITK as sitk
+    import numpy as np
+    if spacing=='inputs_defined':
+        img = sitk.ReadImage(file_list[0], int(os.environ["rabies_data_type"]))
+        low_dim=np.asarray(img.GetSpacing()[:3]).min()
+        for file in file_list[1:]:
+            img = sitk.ReadImage(file, int(os.environ["rabies_data_type"]))
+            new_low_dim=np.asarray(img.GetSpacing()[:3]).min()
+            if new_low_dim<low_dim:
+                low_dim=new_low_dim
+        spacing=(low_dim,low_dim,low_dim)
+    else:
+        shape=spacing.split('x')
+        spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+
+    resampled_template = os.path.abspath("resampled_template.nii.gz")
+    sitk.WriteImage(resample_image_spacing(template_file,spacing), resampled_template)
+    os.environ["template_anat"]=resampled_template
+
+    return resampled_template

@@ -16,23 +16,23 @@ def init_anat_preproc_wf(name='anat_preproc_wf'):
     '''
 
     workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(fields=['anat_file']), name='inputnode')
+    inputnode = pe.Node(niu.IdentityInterface(fields=['anat_file', 'template_anat']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['preproc_anat']), name='outputnode')
 
     anat_preproc = pe.Node(AnatPreproc(), name='Anat_Preproc')
 
 
     workflow.connect([
-        (inputnode, anat_preproc, [("anat_file", "nii_anat")]),
+        (inputnode, anat_preproc, [("anat_file", "nii_anat"), ("template_anat", "template_anat")]),
         (anat_preproc, outputnode, [("preproc_anat", "preproc_anat")]),
     ])
 
     return workflow
 
 
-
 class AnatPreprocInputSpec(BaseInterfaceInputSpec):
     nii_anat = File(exists=True, mandatory=True, desc="Anatomical image to preprocess")
+    template_anat = File(exists=True, mandatory=True, desc="anatomical template for registration.")
 
 class AnatPreprocOutputSpec(TraitedSpec):
     preproc_anat = File(exists=True, desc="Preprocessed anatomical image.")
@@ -69,7 +69,7 @@ class AnatPreproc(BaseInterface):
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
         output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
-        command='bash %s/../shell_scripts/anat_preproc.sh %s %s' % (dir_path,input_anat,output_anat)
+        command='bash %s/../shell_scripts/anat_preproc.sh %s %s %s' % (dir_path,input_anat,self.inputs.template_anat, output_anat)
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
 

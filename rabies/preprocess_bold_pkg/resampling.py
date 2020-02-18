@@ -66,7 +66,6 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
 
     bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
     bold_transform.inputs.apply_motcorr = (not slice_mc)
-    bold_transform.inputs.ref_file = os.environ["template_anat"]
     bold_transform.inputs.resampling_dim = resampling_dim
 
     merge = pe.Node(Merge(), name='merge', mem_gb=3)
