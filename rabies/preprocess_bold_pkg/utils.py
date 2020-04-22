@@ -50,7 +50,7 @@ class BIDSDataGraber(BaseInterface):
     def _run_interface(self, runtime):
         import os
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(self.inputs.bids_dir)
+        layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
             if self.inputs.datatype=='func':
                 bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)

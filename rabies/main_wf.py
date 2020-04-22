@@ -120,7 +120,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     if bids_input:
         #with BIDS input data
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(data_dir_path)
+        layout = BIDSLayout(data_dir_path, validate=False)
         subject_list, session_iter, run_iter=prep_bids_iter(layout)
         #set SelectFiles nodes
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')

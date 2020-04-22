@@ -417,7 +417,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     if bids_input:
         #with BIDS input data
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(data_dir_path)
+        layout = BIDSLayout(data_dir_path, validate=False)
         subject_list, session_iter, run_iter=prep_bids_iter(layout)
         #set SelectFiles nodes
         bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
@@ -568,7 +568,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     if int(os.environ["local_threads"])<num_bold:
         num_bold=int(os.environ["local_threads"])
 
-    commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat' 'output_folder'],
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
