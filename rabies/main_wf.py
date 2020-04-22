@@ -466,7 +466,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     workflow.connect([
         (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
         (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
-        (resample_template_node, anat_preproc_wf, [("resampled_template", "template_anat")]),
+        (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
         (resample_template_node, commonspace_reg, [("resampled_template", "template_anat")]),
         (resample_template_node, template_reg, [("resampled_template", "fixed_image")]),
         (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),

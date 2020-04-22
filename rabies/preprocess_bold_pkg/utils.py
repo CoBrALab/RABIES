@@ -647,9 +647,8 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
     import numpy as np
     from rabies.preprocess_bold_pkg.utils import resample_image_spacing
 
-    file_list=list(np.asarray(file_list).flatten())
-
     if spacing=='inputs_defined':
+        file_list=list(np.asarray(file_list).flatten())
         img = sitk.ReadImage(file_list[0], int(os.environ["rabies_data_type"]))
         low_dim=np.asarray(img.GetSpacing()[:3]).min()
         for file in file_list[1:]:
@@ -662,6 +661,7 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
         shape=spacing.split('x')
         spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
 
+    print("Resampling template to %sx%sx%smm dimensions." % (spacing[0],spacing[1],spacing[2],))
     resampled_template = os.path.abspath("resampled_template.nii.gz")
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(template_file, int(os.environ["rabies_data_type"])), spacing), resampled_template)
     os.environ["template_anat"]=resampled_template

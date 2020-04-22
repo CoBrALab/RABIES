@@ -56,7 +56,7 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-        'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses']),
+        'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file']),
         name='inputnode'
     )
 
@@ -99,6 +99,7 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
             ('motcorr_params', 'motcorr_params'),
             ('transforms_list', 'transforms'),
             ('inverses', 'inverses'),
+            ('ref_file','ref_file')
             ]),
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
