@@ -132,6 +132,9 @@ def execute_workflow():
     opts = get_parser().parse_args()
     output_folder=os.path.abspath(str(opts.output_dir))
 
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+
     ###managing log info
     import logging
     logging.basicConfig(filename=output_folder+'/rabies.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
