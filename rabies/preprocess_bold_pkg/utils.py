@@ -50,7 +50,7 @@ class BIDSDataGraber(BaseInterface):
     def _run_interface(self, runtime):
         import os
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(self.inputs.bids_dir)
+        layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
             if self.inputs.datatype=='func':
                 bids_file=layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
@@ -640,3 +640,30 @@ def convert_to_RAS(img_file, out_dir=None):
             out_file=out_dir+'/'+split[0]+'_RAS.nii'+split[1]
         nb.as_closest_canonical(img).to_filename(out_file)
         return out_file
+
+def resample_template(template_file, file_list, spacing='inputs_defined'):
+    import os
+    import SimpleITK as sitk
+    import numpy as np
+    from rabies.preprocess_bold_pkg.utils import resample_image_spacing
+
+    if spacing=='inputs_defined':
+        file_list=list(np.asarray(file_list).flatten())
+        img = sitk.ReadImage(file_list[0], int(os.environ["rabies_data_type"]))
+        low_dim=np.asarray(img.GetSpacing()[:3]).min()
+        for file in file_list[1:]:
+            img = sitk.ReadImage(file, int(os.environ["rabies_data_type"]))
+            new_low_dim=np.asarray(img.GetSpacing()[:3]).min()
+            if new_low_dim<low_dim:
+                low_dim=new_low_dim
+        spacing=(low_dim,low_dim,low_dim)
+    else:
+        shape=spacing.split('x')
+        spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+
+    print("Resampling template to %sx%sx%smm dimensions." % (spacing[0],spacing[1],spacing[2],))
+    resampled_template = os.path.abspath("resampled_template.nii.gz")
+    sitk.WriteImage(resample_image_spacing(sitk.ReadImage(template_file, int(os.environ["rabies_data_type"])), spacing), resampled_template)
+    os.environ["template_anat"]=resampled_template
+
+    return resampled_template

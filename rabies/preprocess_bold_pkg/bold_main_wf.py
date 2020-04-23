@@ -125,7 +125,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp','anat_to_template_affine','anat_to_template_warp']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp','anat_to_template_affine','anat_to_template_warp', 'template_anat']),
                       name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -280,6 +280,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
         (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (inputnode, bold_commonspace_trans_wf, [
             ('bold', 'inputnode.name_source'),
+            ('template_anat', 'inputnode.ref_file'),
             ]),
         (bold_commonspace_trans_wf, outputnode, [
             ('outputnode.bold', 'commonspace_bold'),
@@ -304,7 +305,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, commonspace_reg_previous_run=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -416,7 +417,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     if bids_input:
         #with BIDS input data
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(data_dir_path)
+        layout = BIDSLayout(data_dir_path, validate=False)
         subject_list, session_iter, run_iter=prep_bids_iter(layout)
         #set SelectFiles nodes
         bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
@@ -482,9 +483,33 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                               function=convert_to_RAS),
                      name='convert_to_RAS')
 
+    #resampling of the anatomical template
+    resampling_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='resampling_joinnode_run',
+                     joinsource='inforun',
+                     joinfield=['file_list'])
+
+    resampling_joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='resampling_joinnode_session',
+                     joinsource='infosession',
+                     joinfield=['file_list'])
+
+    resampling_joinnode_sub_id = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='resampling_joinnode_sub_id',
+                     joinsource='infosub_id',
+                     joinfield=['file_list'])
+
+    from rabies.preprocess_bold_pkg.utils import resample_template
+    resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
+                              output_names=['resampled_template'],
+                              function=resample_template),
+                     name='resample_template', mem_gb=3)
+    resample_template_node.inputs.template_file=os.environ["template_anat"]
+    resample_template_node.inputs.spacing=os.environ["template_resampling"]
+
+
     bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
     bias_cor_wf = bias_correction_wf(bias_reg_script=bias_reg_script)
-    bias_cor_wf.inputs.inputnode.anat=os.environ["template_anat"]
     bias_cor_wf.inputs.inputnode.anat_mask=os.environ["template_mask"]
 
     if apply_STC:
@@ -499,7 +524,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     # Apply transforms in 1 shot
     bold_bold_trans_wf = init_bold_preproc_trans_wf(resampling_dim=commonspace_resampling, slice_mc=slice_mc, name='bold_bold_trans_wf')
     #the EPIs are resampled to the template common space to correct for susceptibility distortion based on non-linear registration
-    bold_bold_trans_wf.inputs.inputnode.ref_file = os.environ["template_anat"]
 
 
     def to_commonspace_transforms_prep(template_to_common_warp, template_to_common_affine, ants_dbm_warp, ants_dbm_affine):
@@ -544,12 +568,11 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     if int(os.environ["local_threads"])<num_bold:
         num_bold=int(os.environ["local_threads"])
 
-    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder', 'previous_run'],
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
-    commonspace_reg.inputs.previous_run = commonspace_reg_previous_run
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -557,7 +580,6 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                               function=run_antsRegistration),
                      name='template_reg', mem_gb=3)
     template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
-    template_reg.inputs.fixed_image = os.environ["template_anat"]
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
 
@@ -641,6 +663,30 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
             (convert_to_RAS_node, bold_reference_wf, [('RAS_file', 'inputnode.bold_file')]),
             ])
 
+    workflow.connect([
+        (convert_to_RAS_node, resampling_joinnode_run, [("RAS_file", "file_list")]),
+        (resampling_joinnode_run, resampling_joinnode_session, [
+            ("file_list", "file_list"),
+            ]),
+        (resampling_joinnode_session, resampling_joinnode_sub_id, [
+            ("file_list", "file_list"),
+            ]),
+        (resampling_joinnode_sub_id, resample_template_node, [
+            ("file_list", "file_list"),
+            ]),
+        (resample_template_node, bias_cor_wf, [
+            ("resampled_template", "inputnode.anat"),
+            ]),
+        (resample_template_node, bold_bold_trans_wf, [
+            ("resampled_template", "inputnode.ref_file"),
+            ]),
+        (resample_template_node, commonspace_reg, [
+            ("resampled_template", "template_anat"),
+            ]),
+        (resample_template_node, template_reg, [
+            ("resampled_template", "fixed_image"),
+            ]),
+        ])
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
@@ -771,9 +817,11 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     PlotOverlap_Template2Commonspace_node = pe.Node(PlotOverlap(), name='PlotOverlap_Template2Commonspace')
     PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
     PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
-    PlotOverlap_Template2Commonspace_node.inputs.fixed = os.environ["template_anat"]
 
     workflow.connect([
+        (resample_template_node, PlotOverlap_Template2Commonspace_node, [
+            ("resampled_template", "fixed"),
+            ]),
         (outputnode, PlotMotionTrace_node, [
             ("confounds_csv", "confounds_csv"), #confounds file
             ]),
@@ -791,7 +839,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     return workflow
 
 
-def commonspace_reg_function(file_list, output_folder, previous_run=False):
+def commonspace_reg_function(file_list, template_anat, output_folder):
     import os
     import numpy as np
     import pandas as pd
@@ -808,16 +856,13 @@ def commonspace_reg_function(file_list, output_folder, previous_run=False):
 
     template_folder=output_folder+'/ants_dbm_outputs/'
 
-    if not previous_run:
-        if os.path.isdir(template_folder):
-            command='rm -r %s' % (template_folder,)
-            if os.system(command) != 0:
-                raise ValueError('Error in '+command)
+    if os.path.isdir(template_folder):
+        print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
     print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
     if os.system(command) != 0:
         raise ValueError('Error in '+command)
-    command='cd %s ; bash %s %s' % (template_folder, model_script_path,csv_path)
+    command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
     if os.system(command) != 0:
         raise ValueError('Error in running commonspace registration with: '+command)
 

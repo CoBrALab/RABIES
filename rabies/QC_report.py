@@ -20,7 +20,8 @@ class PlotOverlap(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        if not os.environ["template_anat"]==self.inputs.fixed:
+        #if not os.environ["template_anat"]==self.inputs.fixed:
+        if not 'resampled_template.nii.gz'==os.path.basename(self.inputs.fixed):
             subject_id='sub-'+(os.path.basename(self.inputs.moving).split('_ses-')[0]).split('sub-')[1]
             session=os.path.basename(self.inputs.moving).split('_ses-')[1][0]
             if 'run' in os.path.basename(self.inputs.moving):
@@ -32,7 +33,8 @@ class PlotOverlap(BaseInterface):
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         script_path=dir_path+'/shell_scripts/plot_overlap.sh'
-        if not os.environ["template_anat"]==self.inputs.fixed:
+        #if not os.environ["template_anat"]==self.inputs.fixed:
+        if not 'resampled_template.nii.gz'==os.path.basename(self.inputs.fixed):
             os.makedirs(self.inputs.out_dir+'/'+subject_id, exist_ok=True)
             out_name=self.inputs.out_dir+'/'+subject_id+'/'+filename_template+'_'+self.inputs.reg_name+'.png'
         else:

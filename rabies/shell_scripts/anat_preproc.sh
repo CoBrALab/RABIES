@@ -10,13 +10,14 @@
 
 set -euo pipefail
 
-REGTARGET=$template_anat
+#REGTARGET=$template_anat
 REGMASK=$template_mask
 
 tmpdir=$(mktemp -d)
 
 input=$1
-output=$2
+REGTARGET=$2
+output=$3
 
 echo "Running anatomical preprocessing"
 ImageMath 3 ${tmpdir}/fullmask.nii.gz ThresholdAtMean ${input} 0

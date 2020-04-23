@@ -12,7 +12,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 from nipype.interfaces.utility import Function
 
 def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
-                commonspace_reg_previous_run=False, bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
+                bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
 
@@ -120,7 +120,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     if bids_input:
         #with BIDS input data
         from bids.layout import BIDSLayout
-        layout = BIDSLayout(data_dir_path)
+        layout = BIDSLayout(data_dir_path, validate=False)
         subject_list, session_iter, run_iter=prep_bids_iter(layout)
         #set SelectFiles nodes
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
@@ -240,6 +240,35 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                               function=convert_to_RAS),
                      name='bold_convert_to_RAS')
 
+    #resampling of the anatomical template
+    resampling_joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='resampling_joinnode_session',
+                     joinsource='infosession',
+                     joinfield=['file_list'])
+
+    resampling_joinnode_sub_id = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                     name='resampling_joinnode_sub_id',
+                     joinsource='infosub_id',
+                     joinfield=['file_list'])
+
+    from rabies.preprocess_bold_pkg.utils import resample_template
+    resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
+                              output_names=['resampled_template'],
+                              function=resample_template),
+                     name='resample_template', mem_gb=3)
+    resample_template_node.inputs.template_file=os.environ["template_anat"]
+    resample_template_node.inputs.spacing=os.environ["template_resampling"]
+
+    workflow.connect([
+        (anat_convert_to_RAS_node, resampling_joinnode_session, [("RAS_file", "file_list")]),
+        (resampling_joinnode_session, resampling_joinnode_sub_id, [
+            ("file_list", "file_list"),
+            ]),
+        (resampling_joinnode_sub_id, resample_template_node, [
+            ("file_list", "file_list"),
+            ]),
+        ])
+
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()
 
@@ -250,12 +279,11 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     if int(os.environ["local_threads"])<num_anat:
         num_anat=int(os.environ["local_threads"])
 
-    commonspace_reg = pe.Node(Function(input_names=['file_list', 'output_folder', 'previous_run'],
+    commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
                      name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat)
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
-    commonspace_reg.inputs.previous_run = commonspace_reg_previous_run
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
@@ -263,7 +291,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
                               function=run_antsRegistration),
                      name='template_reg', mem_gb=3)
     template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
-    template_reg.inputs.fixed_image = os.environ["template_anat"]
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
 
@@ -439,6 +466,9 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     workflow.connect([
         (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
         (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
+        (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
+        (resample_template_node, commonspace_reg, [("resampled_template", "template_anat")]),
+        (resample_template_node, template_reg, [("resampled_template", "fixed_image")]),
         (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
         (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
@@ -447,6 +477,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
         (bold_convert_to_RAS_node, bold_main_wf, [
             ("RAS_file", "inputnode.bold"),
             ]),
+        (resample_template_node, bold_main_wf, [("resampled_template", "inputnode.template_anat")]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
             ("outputnode.corrected_EPI", "bias_cor_bold"),
@@ -501,10 +532,10 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=Fals
     PlotOverlap_Template2Commonspace_node = pe.Node(PlotOverlap(), name='PlotOverlap_Template2Commonspace')
     PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
     PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
-    PlotOverlap_Template2Commonspace_node.inputs.fixed = os.environ["template_anat"]
 
     workflow.connect([
         (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
+        (resample_template_node, PlotOverlap_Template2Commonspace_node, [("resampled_template", "fixed")]),
         (outputnode, PlotOverlap_EPI2Anat_node, [
             ("bias_cor_bold_warped2anat","moving"), #warped EPI to anat
             ]),
