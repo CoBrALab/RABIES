@@ -23,7 +23,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     **Parameters**
 
         data_dir_path
-            Path to the input data directory with proper input folder structure.
+            Path to the input data directory with proper BIDS folder structure.
         tr
             repetition time for the EPI
         tpattern
@@ -305,7 +305,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -316,13 +316,11 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
     **Parameters**
 
         data_dir_path
-            Path to the input data directory with proper input folder structure.
+            Path to the input data directory with proper BIDS folder structure.
         data_csv
             csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
-        bids_input
-            specify if the provided input folder is in a BIDS format to use BIDS reader
         tr
             repetition time for the EPI
         tpattern
@@ -414,34 +412,12 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input
                         'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv']),
                 name='outputnode')
 
-    if bids_input:
-        #with BIDS input data
-        from bids.layout import BIDSLayout
-        layout = BIDSLayout(data_dir_path, validate=False)
-        subject_list, session_iter, run_iter=prep_bids_iter(layout)
-        #set SelectFiles nodes
-        bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
-    else:
-        import pandas as pd
-        data_df=pd.read_csv(data_csv, sep=',', dtype=str)
-        subject_list=data_df['subject_id'].values.tolist()
-        session_list=data_df['num_session'].values.tolist()
-        run_list=data_df['num_run'].values.tolist()
-
-        #create a dictionary with list of bold session numbers for each subject
-        session_iter={}
-        for i in range(len(subject_list)):
-            session_iter[subject_list[i]] = list(range(1,int(session_list[i])+1))
-
-        #create a dictionary with list of bold run numbers for each subject
-        run_iter={}
-        for i in range(len(subject_list)):
-            run_iter[subject_list[i]] = list(range(1,int(run_list[i])+1))
-
-        bold_file = opj('sub-{subject_id}', 'ses-{session}', 'func', 'sub-{subject_id}_ses-{session}_run-{run}_bold.nii.gz')
-        bold_selectfiles = pe.Node(SelectFiles({'out_file': bold_file},
-                                       base_directory=data_dir_path),
-                           name="bold_selectfiles")
+    #with BIDS input data
+    from bids.layout import BIDSLayout
+    layout = BIDSLayout(data_dir_path, validate=False)
+    subject_list, session_iter, run_iter=prep_bids_iter(layout)
+    #set SelectFiles nodes
+    bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
 
 
     ####setting up all iterables
