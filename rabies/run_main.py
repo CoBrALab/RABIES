@@ -153,7 +153,7 @@ def execute_workflow():
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
-    data_dir_path=os.path.abspath(str(opts.input_dir))
+    data_dir_path=os.path.abspath(str(opts.bids_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
     if plugin=='MultiProc':

@@ -208,34 +208,18 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
                               function=convert_to_RAS),
                      name='bold_convert_to_RAS')
 
-    #resampling of the anatomical template
-    resampling_joinnode_session = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                     name='resampling_joinnode_session',
-                     joinsource='infosession',
-                     joinfield=['file_list'])
-
-    resampling_joinnode_sub_id = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                     name='resampling_joinnode_sub_id',
-                     joinsource='infosub_id',
-                     joinfield=['file_list'])
+    #Resample the anatomical template according to the resolution of the provided input data
+    layout = BIDSLayout(data_dir_path, validate=False)
+    anat_file_list=layout.get(extension=['nii', 'nii.gz'], datatype='anat', return_type='filename')
 
     from rabies.preprocess_bold_pkg.utils import resample_template
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
                      name='resample_template', mem_gb=3)
+    resample_template_node.inputs.file_list=anat_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["template_resampling"]
-
-    workflow.connect([
-        (anat_convert_to_RAS_node, resampling_joinnode_session, [("RAS_file", "file_list")]),
-        (resampling_joinnode_session, resampling_joinnode_sub_id, [
-            ("file_list", "file_list"),
-            ]),
-        (resampling_joinnode_sub_id, resample_template_node, [
-            ("file_list", "file_list"),
-            ]),
-        ])
 
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()
