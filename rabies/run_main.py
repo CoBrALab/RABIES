@@ -13,12 +13,10 @@ def get_parser():
         to the README documentation for the input folder structure.""",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('input_dir', action='store', type=Path,
-                        help='the root folder of the input data directory.')
+    parser.add_argument('bids_dir', action='store', type=Path,
+                        help='the root folder of the BIDS-formated input data directory.')
     parser.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
-    parser.add_argument("--bids_input", dest='bids_input', action='store_true',
-                        help="Specify a BIDS input data format to use the BIDS reader.")
     parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
                         help="Apply preprocessing with only EPI scans. commonspace registration and distortion correction"
                               " is executed through registration of the EPI-generated template from ants_dbm"
@@ -152,11 +150,10 @@ def execute_workflow():
     log.info(args)
 
     #obtain parser parameters
-    bids_input=opts.bids_input
     bold_preproc_only=opts.bold_only
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
-    data_dir_path=os.path.abspath(str(opts.input_dir))
+    data_dir_path=os.path.abspath(str(opts.bids_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
     if plugin=='MultiProc':
@@ -234,12 +231,12 @@ def execute_workflow():
 
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR,
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, bids_input=bids_input, apply_despiking=apply_despiking, tr=stc_TR,
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
             commonspace_resampling=commonspace_resampling)
