@@ -55,13 +55,15 @@ class AnatPreproc(BaseInterface):
             raise ValueError('Error in '+command)
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
 
-        #resample the anatomical image to isotropic rez if it is not already the case to facilitate registration
+        #resample the anatomical image to the resolution of the provided template
         anat_image=sitk.ReadImage(self.inputs.nii_anat, int(os.environ["rabies_data_type"]))
-        dim=anat_image.GetSpacing()
-        low_dim=np.asarray(dim).min()
-        if not (dim==low_dim).sum()==3:
-            print('ANAT IMAGE NOT ISOTROPIC. WILL RESAMPLE TO ISOTROPIC RESOLUTION BASED ON LOWEST AVAILABLE RESOLUTION.')
-            resampled_anat=resample_image_spacing(anat_image,(low_dim,low_dim,low_dim))
+        anat_dim=anat_image.GetSpacing()
+
+        template_image=sitk.ReadImage(self.inputs.template_anat, int(os.environ["rabies_data_type"]))
+        template_dim=template_image.GetSpacing()
+        if not (np.array(anat_dim)==np.array(template_dim)).sum()==3:
+            print('Anat image will be resampled to the template resolution.')
+            resampled_anat=resample_image_spacing(anat_image,template_dim)
             input_anat=out_dir+anat_file+'_resampled.nii.gz'
             sitk.WriteImage(resampled_anat, input_anat)
         else:

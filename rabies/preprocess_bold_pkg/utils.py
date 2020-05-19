@@ -657,6 +657,12 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
             if new_low_dim<low_dim:
                 low_dim=new_low_dim
         spacing=(low_dim,low_dim,low_dim)
+
+        template_image=sitk.ReadImage(template_file, int(os.environ["rabies_data_type"]))
+        template_dim=template_image.GetSpacing()
+        if np.asarray(template_dim[:3]).min()>low_dim:
+            print("The template retains its original resolution.")
+            return os.environ["template_anat"]
     else:
         shape=spacing.split('x')
         spacing=(float(shape[0]),float(shape[1]),float(shape[2]))

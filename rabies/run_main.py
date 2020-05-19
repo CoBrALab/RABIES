@@ -60,11 +60,12 @@ def get_parser():
                              "'origin' is specified."
                              "***this option specifies the resampling for the --bold_only workflow")
     g_resampling.add_argument(
-        '--template_resampling',type=str,default='inputs_defined',
-        help="""The provided template gets resampled to isotropic resolution, using the lowest dimension among images in the provided inputs.
-        If the --bold_only options is True, then the EPI images will be the basis for selecting the lowest dimension. Otherwise the
-        anatomical images offer a reference. The user can also provide a custom resampling dimension. This allows to accelerate the
-        commonspace registration with minimal sampling dimensions.""")
+        '--anatomical_resampling',type=str,default='inputs_defined',
+        help="""To optimize the efficiency of registration, the provided anatomical template is resampled based on the provided
+        input images. The dimension with the lowest resolution among the provided anatomical images (EPI images instead if --bold_only is True)
+        is selected as a basis for resampling the template to isotropic resolution, if the provided resolution is lower than the original
+        resolution of the template. Alternatively, the user can provide a custom resampling dimension. This allows to accelerate
+        registration steps with minimal sampling dimensions.""")
 
     g_ants_dbm = parser.add_argument_group('cluster options for running ants_dbm (options copied from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
@@ -191,7 +192,7 @@ def execute_workflow():
     #resampling options
     nativespace_resampling=opts.nativespace_resampling
     commonspace_resampling=opts.commonspace_resampling
-    os.environ["template_resampling"]=opts.template_resampling
+    os.environ["anatomical_resampling"]=opts.anatomical_resampling
 
     #setting absolute paths for ants_dbm options options
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
