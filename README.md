@@ -4,12 +4,13 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [--bids_input] [-e] [--apply_despiking] [--apply_slice_mc]
+usage: rabies [-h] [-e] [--apply_despiking] [--apply_slice_mc]
               [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
               [--local_threads LOCAL_THREADS] [--min_proc MIN_PROC]
               [--data_type DATA_TYPE] [--debug]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
+              [--anatomical_resampling ANATOMICAL_RESAMPLING]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
               [--memory_request MEMORY_REQUEST]
               [--template_reg_script TEMPLATE_REG_SCRIPT] [--detect_dummy]
@@ -17,21 +18,20 @@ usage: rabies [-h] [--bids_input] [-e] [--apply_despiking] [--apply_slice_mc]
               [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK]
               [--WM_mask WM_MASK] [--CSF_mask CSF_MASK]
               [--vascular_mask VASCULAR_MASK] [--labels LABELS]
-              input_dir output_dir
+              bids_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
 datasets that only contain EPI images, or both structural and EPI images.
 Refer to the README documentation for the input folder structure.
 
 positional arguments:
-  input_dir             the root folder of the input data directory.
+  bids_dir              the root folder of the BIDS-formated input data
+                        directory.
   output_dir            the output path to drop outputs from major
                         preprocessing steps.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --bids_input          Specify a BIDS input data format to use the BIDS
-                        reader. (default: False)
   -e, --bold_only       Apply preprocessing with only EPI scans. commonspace
                         registration and distortion correction is executed
                         through registration of the EPI-generated template
@@ -60,7 +60,7 @@ optional arguments:
                         and 'light_SyN', but can specify a custom registration
                         script following the template script structure (see
                         RABIES/rabies/shell_scripts/ for template). (default:
-                        SyN)
+                        light_SyN)
   -p PLUGIN, --plugin PLUGIN
                         Specify the nipype plugin for workflow execution.
                         Consult nipype plugin documentation for detailed
@@ -69,7 +69,9 @@ optional arguments:
   --local_threads LOCAL_THREADS
                         For local MultiProc execution, set the maximum number
                         of processors run in parallel, defaults to number of
-                        CPUs (default: 8)
+                        CPUs. This option only applies to the MultiProc
+                        execution plugin, otherwise it is set to 1. (default:
+                        12)
   --min_proc MIN_PROC   For parallel processing, specify the minimal number of
                         nodes to be assigned. (default: 1)
   --data_type DATA_TYPE
@@ -90,6 +92,19 @@ Options for the resampling of the EPI. Axis resampling specifications must follo
                         The original dimensions are conserved'origin' is
                         specified.***this option specifies the resampling for
                         the --bold_only workflow (default: origin)
+  --anatomical_resampling ANATOMICAL_RESAMPLING
+                        To optimize the efficiency of registration, the
+                        provided anatomical template is resampled based on the
+                        provided input images. The dimension with the lowest
+                        resolution among the provided anatomical images (EPI
+                        images instead if --bold_only is True) is selected as
+                        a basis for resampling the template to isotropic
+                        resolution, if the provided resolution is lower than
+                        the original resolution of the template.
+                        Alternatively, the user can provide a custom
+                        resampling dimension. This allows to accelerate
+                        registration steps with minimal sampling dimensions.
+                        (default: inputs_defined)
 
 cluster options for running ants_dbm (options copied from twolevel_dbm.py)::
   --cluster_type {local,sge,pbs,slurm}
@@ -105,7 +120,8 @@ cluster options for running ants_dbm (options copied from twolevel_dbm.py)::
                         of the generated template to the provided atlas for
                         masking and labeling. Can choose a predefined
                         registration script among Rigid,Affine,SyN or
-                        light_SyN, or provide a custom script. (default: SyN)
+                        light_SyN, or provide a custom script. (default:
+                        light_SyN)
 
 Options for the generation of EPI reference volume.:
   --detect_dummy        Detect and remove dummy volumes, and generate a
@@ -122,34 +138,34 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
 Template files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/cic/desgab/RABIES-0.1.2-dev/template_f
-                        iles/DSURQE_100micron_average.nii.gz)
+                        (default: /home/gabriel/RABIES-0.1.2-dev/template_file
+                        s/DSURQE_40micron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/cic/desga
-                        b/RABIES-0.1.2-dev/template_files/DSURQE_100micron_mas
-                        k.nii.gz)
-  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ci
-                        c/desgab/RABIES-0.1.2-dev/template_files/DSURQE_100mic
-                        ron_eroded_WM_mask.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/cic/desgab/
-                        RABIES-0.1.2-dev/template_files/DSURQE_100micron_erode
-                        d_CSF_mask.nii.gz)
+                        Brain mask for the template. (default: /home/gabriel/R
+                        ABIES-0.1.2-dev/template_files/DSURQE_100micron_mask.n
+                        ii.gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
+                        briel/RABIES-0.1.2-dev/template_files/DSURQE_100micron
+                        _eroded_WM_mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
+                        IES-0.1.2-dev/template_files/DSURQE_100micron_eroded_C
+                        SF_mask.nii.gz)
   --vascular_mask VASCULAR_MASK
                         Can provide a mask of major blood vessels for
                         computing confound timeseries. The default mask was
                         generated by applying MELODIC ICA and selecting the
                         resulting component mapping onto major veins.
                         (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/cic/desgab/RABIES-0.1.2-dev/temp
-                        late_files/vascular_mask.nii.gz)
-  --labels LABELS       Atlas file with anatomical labels. (default: /home/cic
-                        /desgab/RABIES-0.1.2-dev/template_files/DSURQE_100micr
-                        on_labels.nii.gz)
+                        2005) (default: /home/gabriel/RABIES-0.1.2-dev/templat
+                        e_files/vascular_mask.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
+                        riel/RABIES-0.1.2-dev/template_files/DSURQE_40micron_l
+                        abels.nii.gz)
 ```
 
 ## Execution syntax
 ```
-  rabies nii_inputs/ rabies_outputs/ --bids_input -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
+  rabies bids_inputs/ rabies_outputs/ -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
 ```
 ### Running RABIES interactively within a container
 Singularity execution
@@ -169,20 +185,13 @@ Docker execution
 
 <br/>
 
-## Detailed graph for the nipype workflow structure:
-### main_wf:
-![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_orig.png)
-### bold_main_wf:
-![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_bold_workflow.png)
-
 
 # Input data folder structure
-Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/) or the following:
-* CSV file with dataset information: input_folder/data_info.csv with columns headers "group,subject_id,num_session,num_run", where num_session is the number of sessions there is for the given subject, and num_run is the number of runs per session (e.g. if the subject "test_001" has 2 sessions and 3 runs per session, it's row will be "group,test_001,2,3")
-* BOLD scan: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_run-{run_number}_bold.nii.gz
-* Anatomical scan: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_anat.nii.gz
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'.
+* Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_task-rest_acq-EPI_run-{run_number}_bold.nii.gz
+* Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_acq-FLASH_T1w.nii.gz
 
-## Example Directory Tree
+## Directory Tree of an example input folder
 
 <br/>
 
@@ -192,6 +201,7 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <meta name="Author" content="Made by 'tree'">
  <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
+ <style type="text/css">
   <!--
   BODY { font-family : ariel, monospace, sans-serif; }
   P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
@@ -210,46 +220,28 @@ Input folder can follow either the BIDS structure (https://bids.neuroimaging.io/
   .SOCK  { color: fuchsia;background-color: transparent;}
   .EXEC  { color: green;  background-color: transparent;}
   -->
+ </style>
 </head>
 <body>
-  <h1></h1><p>
-	<a href="nii_input">nii_input</a><br>
-	├── <a href="nii_input/data_info.csv">data_info.csv</a><br>
-	├── <a href="nii_input/sub-jgrAesAWc11L/">sub-jgrAesAWc11L</a><br>
-	│   ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/">ses-1</a><br>
-	│   │   ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/anat/">anat</a><br>
-	│   │   │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/anat/sub-jgrAesAWc11L_ses-1_anat.nii.gz">sub-jgrAesAWc11L_ses-1_anat.nii.gz</a><br>
-	│   │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/">func</a><br>
-	│   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-1_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-1_bold.nii.gz</a><br>
-	│   │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-2_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-2_bold.nii.gz</a><br>
-	│   │   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-1/func/sub-jgrAesAWc11L_ses-1_run-3_bold.nii.gz">sub-jgrAesAWc11L_ses-1_run-3_bold.nii.gz</a><br>
-	│   └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/">ses-2</a><br>
-	│   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/anat/">anat</a><br>
-	│   &nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/anat/sub-jgrAesAWc11L_ses-2_anat.nii.gz">sub-jgrAesAWc11L_ses-2_anat.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/">func</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-1_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-1_bold.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-2_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-2_bold.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11L/ses-2/func/sub-jgrAesAWc11L_ses-2_run-3_bold.nii.gz">sub-jgrAesAWc11L_ses-2_run-3_bold.nii.gz</a><br>
-	└── <a href="nii_input/sub-jgrAesAWc11R/">sub-jgrAesAWc11R</a><br>
-	&nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; │   ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; │   │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/anat/sub-jgrAesAWc11R_ses-1_anat.nii.gz">sub-jgrAesAWc11R_ses-1_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/">func</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-1_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-2_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; │   &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-1/func/sub-jgrAesAWc11R_ses-1_run-3_bold.nii.gz">sub-jgrAesAWc11R_ses-1_run-3_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/">ses-2</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/anat/sub-jgrAesAWc11R_ses-2_anat.nii.gz">sub-jgrAesAWc11R_ses-2_anat.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/">func</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-1_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-1_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-2_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-2_bold.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="nii_input/sub-jgrAesAWc11R/ses-2/func/sub-jgrAesAWc11R_ses-2_run-3_bold.nii.gz">sub-jgrAesAWc11R_ses-2_run-3_bold.nii.gz</a><br>
+	<h1>Directory Tree</h1><p>
+	<a href="bids_input">bids_input</a><br>
+	├── <a href="bids_input/sub-MFC067/">sub-MFC067</a><br>
+	│   └── <a href="bids_input/sub-MFC067/ses-1/">ses-1</a><br>
+	│   &nbsp;&nbsp;&nbsp; ├── <a href="bids_input/sub-MFC067/ses-1/anat/">anat</a><br>
+	│   &nbsp;&nbsp;&nbsp; │   └── <a href="bids_input/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; └── <a href="bids_input/sub-MFC067/ses-1/func/">func</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="bids_input/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+	└── <a href="bids_input/sub-MFC068/">sub-MFC068</a><br>
+	&nbsp;&nbsp;&nbsp; └── <a href="bids_input/sub-MFC068/ses-1/">ses-1</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="bids_input/sub-MFC068/ses-1/anat/">anat</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="bids_input/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="bids_input/sub-MFC068/ses-1/func/">func</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="bids_input/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
 	<br><br>
 	</p>
 	<p>
 
-14 directories, 17 files
+8 directories, 4 files
 	<br><br>
 	</p>
 	<hr>
@@ -289,6 +281,12 @@ For direct investigation of the output .nii files relevant for QC:
 * EPI_Coregistration: verify for each session that the bias field-corrected reference EPI (bold_datasink/bias_cor_bold_warped2anat/) was appropriately registered to the anatomical scan of that session (anat_datasink/anat_preproc/)
 
 <br/>
+
+## Detailed graph for the nipype workflow structure:
+### main_wf:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_orig.png)
+### bold_main_wf:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/graph_bold_workflow.png)
 
 ## Publications
 * Gabriel Desrosiers-Gregoire, Gabriel A. Devenyi, Joanes Grandjean, M. Mallar Chakravarty. Recurrent functional connectivity gradients identified along specific frequency bands of oscillatory coherence and across anesthesia protocols for mouse fMRI. Presented at Society for Neuroscience 2019, Chicago, IL
