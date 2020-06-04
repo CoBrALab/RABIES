@@ -114,35 +114,22 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
     """
     from nipype.pipeline import engine as pe
     from nipype.interfaces import utility as niu
-    from .interfaces import ValidateImage
-
 
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file']), name='inputnode')
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['bold_file', 'skip_vols', 'ref_image', 'validation_report']),
+        niu.IdentityInterface(fields=['bold_file', 'skip_vols', 'ref_image']),
         name='outputnode')
 
-
-    '''
-    Check the correctness of x-form headers (matrix and code)
-
-        This interface implements the `following logic
-        <https://github.com/poldracklab/fmriprep/issues/873#issuecomment-349394544>
-    '''
-    validate = pe.Node(ValidateImage(), name='validate', mem_gb=2)
-    validate.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2)
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
-        (inputnode, validate, [('bold_file', 'in_file')]),
-        (validate, gen_ref, [('out_file', 'in_file')]),
-        (validate, outputnode, [('out_file', 'bold_file'),
-                                ('out_report', 'validation_report')]),
+        (inputnode, gen_ref, [('bold_file', 'in_file')]),
+        (inputnode, outputnode, [('bold_file', 'bold_file')]),
         (gen_ref, outputnode, [('ref_image', 'ref_image'),
                                ('n_volumes_to_discard', 'skip_vols')]),
     ])
