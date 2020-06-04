@@ -85,6 +85,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     from rabies.preprocess_bold_pkg.utils import copyInfo_4DImage
     image_out=copyInfo_4DImage(image_out, img, img)
 
-    out_file=os.path.abspath(in_file.split('.nii.gz')[0]+'_tshift.nii.gz')
+    out_file=os.path.abspath(os.path.basename(in_file).split('.nii.gz')[0]+'_tshift.nii.gz')
+    print(out_file)
     sitk.WriteImage(image_out, out_file)
     return out_file
