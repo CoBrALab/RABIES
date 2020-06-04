@@ -199,7 +199,7 @@ class EstimateReferenceImage(BaseInterface):
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
         else:
             print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
-            #if no dummy scans, will generate a median from a subset of max 40
+            #if no dummy scans, will generate a median from a subset of max 100
             #slices of the time series
             if in_nii.GetSize()[-1] > 100:
                 slice_fname = os.path.abspath("slice.nii.gz")

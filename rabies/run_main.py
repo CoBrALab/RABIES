@@ -96,7 +96,9 @@ def get_parser():
                         help="Detect and remove dummy volumes, and generate "
                              "a reference EPI based on these volumes if detected.")
 
-    g_stc = parser.add_argument_group('Specify Slice Timing Correction info that is fed to AFNI 3dTshift (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html).')
+    g_stc = parser.add_argument_group("""Specify Slice Timing Correction info that is fed to AFNI 3dTshift
+    (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
+    anterior-posterior orientation, assuming slices were acquired in this direction.""")
     g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
                         help="Select this option to ignore the STC step.")
     g_stc.add_argument('--TR', type=str, default='1.0s',
@@ -183,9 +185,9 @@ def execute_workflow():
     stc_bool=not opts.no_STC
     stc_TR=opts.TR
     if opts.tpattern=="alt":
-        stc_tpattern='altplus'
+        stc_tpattern='alt-z'
     elif opts.tpattern=="seq":
-        stc_tpattern='seqplus'
+        stc_tpattern='seq-z'
     else:
         raise ValueError('Invalid --tpattern provided.')
 
