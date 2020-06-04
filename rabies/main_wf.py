@@ -219,7 +219,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
                      name='resample_template', mem_gb=3)
     resample_template_node.inputs.file_list=anat_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
-    resample_template_node.inputs.spacing=os.environ["template_resampling"]
+    resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
 
     #setting anat preprocessing nodes
     anat_preproc_wf = init_anat_preproc_wf()

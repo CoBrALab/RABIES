@@ -1,35 +1,11 @@
-# -*- coding: utf-8 -*-
-# emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
-# vi: set ft=python sts=4 ts=4 sw=4 et:
-"""
-Slice-Timing Correction (STC) of BOLD images
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. autofunction:: init_bold_stc_wf
-
-"""
-from nipype import logging
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu, afni
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, SimpleInterface
-)
+from nipype.interfaces.utility import Function
+from nipype.interfaces import utility as niu
 
 def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
-
-    .. workflow::
-        :graph2use: orig
-        :simple_form: yes
-
-        from fmriprep.workflows.bold import init_bold_stc_wf
-        wf = init_bold_stc_wf(
-            metadata={"RepetitionTime": 2.0,
-                      "SliceTiming": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
-            )
 
     **Parameters**
 
@@ -53,86 +29,63 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['stc_file']), name='outputnode')
 
-
-    # It would be good to fingerprint memory use of afni.TShift
-    slice_timing_correction = pe.Node(
-        afni.TShift(tr=tr, tpattern=tpattern, outputtype='NIFTI_GZ'),
-        name='slice_timing_correction')
-
-    copy_xform = pe.Node(CopyXForm(), name='copy_xform')
+    slice_timing_correction = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
+                              output_names=['out_file'],
+                              function=apply_STC),
+                     name='slice_timing_correction')
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
                                               ('skip_vols', 'ignore')]),
-        (slice_timing_correction, copy_xform, [('out_file', 'in_file')]),
-        (inputnode, copy_xform, [('bold_file', 'hdr_file')]),
-        (copy_xform, outputnode, [('out_file', 'stc_file')]),
+        (slice_timing_correction, outputnode, [('out_file', 'stc_file')]),
     ])
 
     return workflow
 
+def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
+    '''
+    This functions applies slice-timing correction on the anterior-posterior
+    slice acquisition direction. The input image, assumed to be in RAS orientation
+    (accoring to nibabel; note that the nibabel reading of RAS corresponds to
+     LPI for AFNI). The A and S dimensions will be swapped to apply AFNI's
+    3dTshift STC with a quintic fitting function, which can only be applied to
+    the Z dimension of the data matrix. The corrected image is then re-created with
+    proper axes and the corrected timeseries.
+    '''
 
-
-
-from nipype.utils.filemanip import fname_presuffix
-import shutil
-
-
-class CopyXFormInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc='the file we get the data from')
-    hdr_file = File(exists=True, mandatory=True, desc='the file we get the header from')
-
-
-class CopyXFormOutputSpec(TraitedSpec):
-    out_file = File(exists=True, desc='written file path')
-
-
-class CopyXForm(SimpleInterface):
-    """
-    Copy the x-form matrices from `hdr_file` to `out_file`.
-    """
-    input_spec = CopyXFormInputSpec
-    output_spec = CopyXFormOutputSpec
-
-    def _run_interface(self, runtime):
-        out_name = fname_presuffix(self.inputs.in_file,
-                                   suffix='_xform',
-                                   newpath=runtime.cwd)
-        # Copy and replace header
-        shutil.copy(self.inputs.in_file, out_name)
-        _copyxform(self.inputs.hdr_file, out_name)
-
-        import os
-        import SimpleITK as sitk
-        sitk.WriteImage(sitk.ReadImage(out_name, int(os.environ["rabies_data_type"])), out_name)
-
-        self._results['out_file'] = out_name
-        return runtime
-
-
-
-def _copyxform(ref_image, out_image, message=None):
-    # Read in reference and output
-    # Use mmap=False because we will be overwriting the output image
-    import nibabel as nb
+    import os
+    import SimpleITK as sitk
     import numpy as np
-    resampled = nb.load(out_image, mmap=False)
-    orig = nb.load(ref_image)
 
-    if not np.allclose(orig.affine, resampled.affine):
-        LOG.debug(
-            'Affines of input and reference images do not match, '
-            'FMRIPREP will set the reference image headers. '
-            'Please, check that the x-form matrices of the input dataset'
-            'are correct and manually verify the alignment of results.')
+    img = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
 
-    # Copy xform infos
-    qform, qform_code = orig.header.get_qform(coded=True)
-    sform, sform_code = orig.header.get_sform(coded=True)
-    header = resampled.header.copy()
-    header.set_qform(qform, int(qform_code))
-    header.set_sform(sform, int(sform_code))
-    header['descrip'] = 'xform matrices modified by %s.' % (message or '(unknown)')
+    #get image data
+    img_array=sitk.GetArrayFromImage(img)[ignore:,:,:,:]
 
-    newimg = resampled.__class__(resampled.get_data(), orig.affine, header)
-    newimg.to_filename(out_image)
+    shape=img_array.shape
+    new_array=np.zeros([shape[0],shape[2],shape[1],shape[3]])
+    for i in range(shape[2]):
+        new_array[:,i,:,:]=img_array[:,:,i,:]
+
+    image_out = sitk.GetImageFromArray(new_array, isVector=False)
+    sitk.WriteImage(image_out, 'STC_temp.nii.gz')
+
+    command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
+    if os.system(command) != 0:
+        raise ValueError('Error in '+command)
+
+    tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
+    tshift_array=sitk.GetArrayFromImage(tshift_img)
+
+    new_array=np.zeros(shape)
+    for i in range(shape[2]):
+        new_array[:,:,i,:]=tshift_array[:,i,:,:]
+    image_out = sitk.GetImageFromArray(new_array, isVector=False)
+
+    from rabies.preprocess_bold_pkg.utils import copyInfo_4DImage
+    image_out=copyInfo_4DImage(image_out, img, img)
+
+    out_file=os.path.abspath(os.path.basename(in_file).split('.nii.gz')[0]+'_tshift.nii.gz')
+    print(out_file)
+    sitk.WriteImage(image_out, out_file)
+    return out_file

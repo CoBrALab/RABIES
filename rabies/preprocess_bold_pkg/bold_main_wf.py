@@ -471,7 +471,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
                      name='resample_template', mem_gb=3)
     resample_template_node.inputs.file_list=bold_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
-    resample_template_node.inputs.spacing=os.environ["template_resampling"]
+    resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
 
 
     bold_reference_wf = init_bold_reference_wf(detect_dummy=detect_dummy)
