@@ -24,12 +24,19 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
 
         data_dir_path
             Path to the input data directory with proper BIDS folder structure.
+        apply_despiking
+            whether to apply despiking using AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
         tr
             repetition time for the EPI
         tpattern
             specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
         apply_STC
             whether to apply slice timing correction (STC) or not
+        detect_dummy
+            whether to detect and remove dummy volumes at the beginning of the EPI Sequences
+        slice_mc
+            whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
+            of within-TR motion
         bias_reg_script
             path to registration script that will be applied for bias field correction. The script must
             follow the template structure of registration scripts in shell_scripts/.
@@ -317,16 +324,23 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
         data_dir_path
             Path to the input data directory with proper BIDS folder structure.
-        data_csv
-            csv file specifying subject id and number of sessions and runs
         output_folder
             path to output folder for the workflow and datasink
+        apply_despiking
+            whether to apply despiking using AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
         tr
             repetition time for the EPI
         tpattern
             specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
         apply_STC
             whether to apply slice timing correction (STC) or not
+        detect_dummy
+            whether to detect and remove dummy volumes at the beginning of the EPI Sequences
+        slice_mc
+            whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
+            of within-TR motion
+        template_reg_script
+            registration script for the registration of the dataset template to the commonspace template
         bias_reg_script
             path to registration script that will be applied for bias field correction. The script must
             follow the template structure of registration scripts in shell_scripts/.
