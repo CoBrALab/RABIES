@@ -189,7 +189,8 @@ Docker execution
 
 
 # Input data folder structure
-Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'.
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'. The 'ses' and 'run' tags must
+have a numerical specification (i.e., ses-1, ses-2, ...)
 * Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_task-rest_acq-EPI_run-{run_number}_bold.nii.gz
 * Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_acq-FLASH_T1w.nii.gz
 
