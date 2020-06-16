@@ -270,6 +270,14 @@ class antsMotionCorr(BaseInterface):
     def _run_interface(self, runtime):
 
         import os
+        import SimpleITK as sitk
+        #check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
+        shrinking_factor=4
+        img = sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
+        low_dim=np.asarray(img.GetSize()[:3]).min()
+        if shrinking_factor>int(low_dim/4):
+            shrinking_factor=int(low_dim/4)
+
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command='mv ants_mc_tmp first_ants_mc_tmp'
@@ -280,7 +288,7 @@ class antsMotionCorr(BaseInterface):
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
-                -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f 4x2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file)
+                -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file,str(shrinking_factor))
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
 
