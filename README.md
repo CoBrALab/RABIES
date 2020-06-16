@@ -33,10 +33,9 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -e, --bold_only       Apply preprocessing with only EPI scans. commonspace
-                        registration and distortion correction is executed
-                        through registration of the EPI-generated template
-                        from ants_dbm to a common template atlas. (default:
-                        False)
+                        registration is executed through registration of the
+                        EPI-generated template from ants_dbm to the anatomical
+                        template. (default: False)
   --apply_despiking     Whether to apply despiking of the EPI timeseries based
                         on AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist
                         /doc/program_help/3dDespike.html. (default: False)
@@ -72,24 +71,24 @@ optional arguments:
                         CPUs. This option only applies to the MultiProc
                         execution plugin, otherwise it is set to 1. (default:
                         12)
-  --min_proc MIN_PROC   For parallel processing, specify the minimal number of
-                        nodes to be assigned. (default: 1)
+  --min_proc MIN_PROC   For SGE parallel processing, specify the minimal
+                        number of nodes to be assigned. (default: 1)
   --data_type DATA_TYPE
                         Specify data format outputs to control for file size
                         among 'int16','int32','float32' and 'float64'.
                         (default: float32)
   --debug               Run in debug mode. (default: False)
 
-Options for the resampling of the EPI. Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAF axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Front-Back).:
+Options for the resampling of the EPI. Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).:
   --nativespace_resampling NATIVESPACE_RESAMPLING
                         Can specify a resampling dimension for the nativespace
                         outputs. Must be of the form dim1xdim2xdim3 (in mm).
-                        The original dimensions are conserved'origin' is
+                        The original dimensions are conserved if 'origin' is
                         specified. (default: origin)
   --commonspace_resampling COMMONSPACE_RESAMPLING
                         Can specify a resampling dimension for the commonspace
                         outputs. Must be of the form dim1xdim2xdim3 (in mm).
-                        The original dimensions are conserved'origin' is
+                        The original dimensions are conserved if 'origin' is
                         specified.***this option specifies the resampling for
                         the --bold_only workflow (default: origin)
   --anatomical_resampling ANATOMICAL_RESAMPLING
@@ -128,8 +127,11 @@ Options for the generation of EPI reference volume.:
                         reference EPI based on these volumes if detected.
                         (default: False)
 
-Specify Slice Timing Correction info that is fed to AFNI 3dTshift.:
-  --no_STC              Don't run STC. (default: True)
+Specify Slice Timing Correction info that is fed to AFNI 3dTshift
+    (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
+    anterior-posterior orientation, assuming slices were acquired in this direction.:
+  --no_STC              Select this option to ignore the STC step. (default:
+                        False)
   --TR TR               Specify repetition time (TR). (default: 1.0s)
   --tpattern TPATTERN   Specify if interleaved or sequential acquisition.
                         'alt' for interleaved, 'seq' for sequential. (default:
@@ -187,7 +189,8 @@ Docker execution
 
 
 # Input data folder structure
-Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'.
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'. The 'ses' and 'run' tags must
+have a numerical specification (i.e., ses-1, ses-2, ...)
 * Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_task-rest_acq-EPI_run-{run_number}_bold.nii.gz
 * Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_acq-FLASH_T1w.nii.gz
 

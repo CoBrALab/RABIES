@@ -51,6 +51,25 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     3dTshift STC with a quintic fitting function, which can only be applied to
     the Z dimension of the data matrix. The corrected image is then re-created with
     proper axes and the corrected timeseries.
+
+    **Inputs**
+
+        in_file
+            BOLD series NIfTI file in RAS orientation.
+        ignore
+            Number of non-steady-state volumes detected at beginning of ``bold_file``
+        tr
+            TR of the BOLD image.
+        tpattern
+            Input to AFNI's 3dTshift -tpattern option, which specifies the
+            directionality of slice acquisition, or whether it is sequential or
+            interleaved.
+
+    **Outputs**
+
+        out_file
+            Slice-timing corrected BOLD series NIfTI file
+
     '''
 
     import os

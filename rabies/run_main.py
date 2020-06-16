@@ -18,9 +18,9 @@ def get_parser():
     parser.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
     parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
-                        help="Apply preprocessing with only EPI scans. commonspace registration and distortion correction"
+                        help="Apply preprocessing with only EPI scans. commonspace registration"
                               " is executed through registration of the EPI-generated template from ants_dbm"
-                              " to a common template atlas.")
+                              " to the anatomical template.")
     parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                         help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                              "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
@@ -44,20 +44,20 @@ def get_parser():
         defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
         it is set to 1.""")
     parser.add_argument("--min_proc", type=int, default=1,
-                        help="For parallel processing, specify the minimal number of nodes to be assigned.")
+                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned.")
     parser.add_argument("--data_type", type=str, default='float32',
                         help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
     parser.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
     g_resampling = parser.add_argument_group("Options for the resampling of the EPI. "
-        "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAF axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Front-Back).")
+        "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
     g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
-                        help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
-                             "'origin' is specified.")
+                        help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
+                             "if 'origin' is specified.")
     g_resampling.add_argument('--commonspace_resampling', type=str, default='origin',
-                        help="Can specify a resampling dimension for the commonspace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved"
-                             "'origin' is specified."
+                        help="Can specify a resampling dimension for the commonspace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
+                             "if 'origin' is specified."
                              "***this option specifies the resampling for the --bold_only workflow")
     g_resampling.add_argument(
         '--anatomical_resampling',type=str,default='inputs_defined',
