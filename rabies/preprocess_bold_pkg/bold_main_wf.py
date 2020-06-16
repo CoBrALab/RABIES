@@ -199,8 +199,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')]),
         (bold_reference_wf, bold_hmc_wf, [
-            ('outputnode.ref_image', 'inputnode.ref_image'),
-            ('outputnode.bold_file', 'inputnode.bold_file')]),
+            ('outputnode.ref_image', 'inputnode.ref_image')]),
         (bold_hmc_wf, outputnode, [
             ('outputnode.motcorr_params', 'motcorr_params')]),
         (bold_reference_wf, outputnode, [
@@ -300,11 +299,14 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
 
     if slice_mc:
         workflow.connect([
+            (boldbuffer, bold_hmc_wf, [('bold_file', 'inputnode.bold_file')]),
             (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
             (bold_hmc_wf, bold_commonspace_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
         ])
     else:
         workflow.connect([
+            (bold_reference_wf, bold_hmc_wf, [
+                ('outputnode.bold_file', 'inputnode.bold_file')]),
             (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
             (boldbuffer, bold_commonspace_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         ])
@@ -665,8 +667,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),
         (bold_reference_wf, bold_hmc_wf, [
-            ('outputnode.ref_image', 'inputnode.ref_image'),
-            ('outputnode.bold_file', 'inputnode.bold_file')]),
+            ('outputnode.ref_image', 'inputnode.ref_image')]),
         (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (commonspace_selectfiles, transforms_prep, [
             ("template_to_common_warp", "template_to_common_warp"),
@@ -700,10 +701,13 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
     if slice_mc:
         workflow.connect([
+            (boldbuffer, bold_hmc_wf, [('bold_file', 'inputnode.bold_file')]),
             (bold_hmc_wf, bold_bold_trans_wf, [('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
         ])
     else:
         workflow.connect([
+            (bold_reference_wf, bold_hmc_wf, [
+                ('outputnode.bold_file', 'inputnode.bold_file')]),
             (boldbuffer, bold_bold_trans_wf, [('bold_file', 'inputnode.bold_file')]),
         ])
 
