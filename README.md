@@ -4,10 +4,10 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [-e] [--apply_despiking] [--apply_slice_mc]
-              [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT] [-p PLUGIN]
-              [--local_threads LOCAL_THREADS] [--min_proc MIN_PROC]
-              [--data_type DATA_TYPE] [--debug]
+usage: rabies [-h] [-e] [--disable_anat_preproc] [--apply_despiking]
+              [--apply_slice_mc] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
+              [-p PLUGIN] [--local_threads LOCAL_THREADS]
+              [--min_proc MIN_PROC] [--data_type DATA_TYPE] [--debug]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--anatomical_resampling ANATOMICAL_RESAMPLING]
@@ -36,6 +36,10 @@ optional arguments:
                         registration is executed through registration of the
                         EPI-generated template from ants_dbm to the anatomical
                         template. (default: False)
+  --disable_anat_preproc
+                        This option disables the preprocessing of anatomical
+                        images before commonspace template generation.
+                        (default: False)
   --apply_despiking     Whether to apply despiking of the EPI timeseries based
                         on AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist
                         /doc/program_help/3dDespike.html. (default: False)

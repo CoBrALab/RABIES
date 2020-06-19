@@ -21,6 +21,8 @@ def get_parser():
                         help="Apply preprocessing with only EPI scans. commonspace registration"
                               " is executed through registration of the EPI-generated template from ants_dbm"
                               " to the anatomical template.")
+    parser.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
+                        help="This option disables the preprocessing of anatomical images before commonspace template generation.")
     parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                         help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                              "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
@@ -154,6 +156,7 @@ def execute_workflow():
 
     #obtain parser parameters
     bold_preproc_only=opts.bold_only
+    disable_anat_preproc=opts.disable_anat_preproc
     bias_reg_script=opts.bias_reg_script
     coreg_script=define_reg_script(opts.coreg_script)
     data_dir_path=os.path.abspath(str(opts.bids_dir))
@@ -239,7 +242,7 @@ def execute_workflow():
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
+        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_preproc=disable_anat_preproc, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
             commonspace_resampling=commonspace_resampling)

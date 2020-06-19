@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
+def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_preproc=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -331,7 +331,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
     bold_main_wf=init_bold_main_wf(apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, slice_mc=slice_mc, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
 
     workflow.connect([
-        (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
         (joinnode_sub_id, commonspace_reg, [
             ("file_list", "file_list"),
             ]),
@@ -357,12 +356,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
             ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
             ("anat_to_template_affine", "anat_to_template_affine"),
             ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
-            ]),
-        (anat_preproc_wf, transform_masks, [
-            ("outputnode.preproc_anat", "reference_image"),
-            ]),
-        (anat_preproc_wf, bold_main_wf, [
-            ("outputnode.preproc_anat", "inputnode.anat_preproc"),
             ]),
         (transform_masks, bold_main_wf, [
             ("anat_labels", 'inputnode.labels'),
@@ -424,11 +417,8 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
         (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
-        (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
-        (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
         (resample_template_node, commonspace_reg, [("resampled_template", "template_anat")]),
         (resample_template_node, template_reg, [("resampled_template", "fixed_image")]),
-        (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
         (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
             ]),
@@ -493,7 +483,6 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
     PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
 
     workflow.connect([
-        (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
         (resample_template_node, PlotOverlap_Template2Commonspace_node, [("resampled_template", "fixed")]),
         (outputnode, PlotOverlap_EPI2Anat_node, [
             ("bias_cor_bold_warped2anat","moving"), #warped EPI to anat
@@ -511,5 +500,32 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, apply_despiking
             ("warped_image", "moving"),
             ]),
         ])
+
+    if disable_anat_preproc:
+        workflow.connect([
+            (anat_convert_to_RAS_node, joinnode_session, [("RAS_file", "file_list")]),
+            (anat_convert_to_RAS_node, transform_masks, [
+                ("RAS_file", "reference_image"),
+                ]),
+            (anat_convert_to_RAS_node, bold_main_wf, [
+                ("RAS_file", "inputnode.anat_preproc"),
+                ]),
+            (anat_convert_to_RAS_node, anat_datasink, [("RAS_file", "anat_preproc")]),
+            (anat_convert_to_RAS_node, PlotOverlap_EPI2Anat_node, [("RAS_file", "fixed")]),
+            ])
+    else:
+        workflow.connect([
+            (anat_preproc_wf, joinnode_session, [("outputnode.preproc_anat", "file_list")]),
+            (anat_preproc_wf, transform_masks, [
+                ("outputnode.preproc_anat", "reference_image"),
+                ]),
+            (anat_preproc_wf, bold_main_wf, [
+                ("outputnode.preproc_anat", "inputnode.anat_preproc"),
+                ]),
+            (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
+            (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
+            (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
+            (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
+            ])
 
     return workflow
