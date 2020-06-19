@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_anat_preproc_wf(name='anat_preproc_wf'):
+def init_anat_preproc_wf(disable_anat_preproc=False, name='anat_preproc_wf'):
     '''
     This workflow executes anatomical preprocessing based on anat_preproc.sh,
     which includes initial N4 bias field correction and Adaptive
@@ -19,7 +19,7 @@ def init_anat_preproc_wf(name='anat_preproc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['anat_file', 'template_anat']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['preproc_anat']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(), name='Anat_Preproc')
+    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc), name='Anat_Preproc')
 
 
     workflow.connect([
@@ -33,6 +33,7 @@ def init_anat_preproc_wf(name='anat_preproc_wf'):
 class AnatPreprocInputSpec(BaseInterfaceInputSpec):
     nii_anat = File(exists=True, mandatory=True, desc="Anatomical image to preprocess")
     template_anat = File(exists=True, mandatory=True, desc="anatomical template for registration.")
+    disable_anat_preproc = traits.Bool(desc="If anatomical preprocessing is disabled, then only copy the input to a new file named _preproc.nii.gz.")
 
 class AnatPreprocOutputSpec(TraitedSpec):
     preproc_anat = File(exists=True, desc="Preprocessed anatomical image.")
@@ -54,6 +55,8 @@ class AnatPreproc(BaseInterface):
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
         anat_file=os.path.basename(self.inputs.nii_anat).split('.')[0]
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
 
         #resample the anatomical image to the resolution of the provided template
         anat_image=sitk.ReadImage(self.inputs.nii_anat, int(os.environ["rabies_data_type"]))
@@ -69,14 +72,16 @@ class AnatPreproc(BaseInterface):
         else:
             input_anat=self.inputs.nii_anat
 
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        output_anat='%s%s_preproc.nii.gz' % (out_dir,anat_file)
-        command='bash %s/../shell_scripts/anat_preproc.sh %s %s %s' % (dir_path,input_anat,self.inputs.template_anat, output_anat)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        if self.inputs.disable_anat_preproc:
+            #resample image to specified data format
+            sitk.WriteImage(sitk.ReadImage(input_anat, int(os.environ["rabies_data_type"])), output_anat)
+        else:
+            command='bash %s/../shell_scripts/anat_preproc.sh %s %s %s' % (dir_path,input_anat,self.inputs.template_anat, output_anat)
+            if os.system(command) != 0:
+                raise ValueError('Error in '+command)
 
-        #resample image to specified data format
-        sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)
+            #resample image to specified data format
+            sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)
 
         setattr(self, 'preproc_anat', output_anat)
         return runtime
