@@ -17,22 +17,30 @@ def prep_bids_iter(layout):
     run_iter={}
     for sub in subject_list:
         sub_func=layout.get(subject=sub, datatype='func', extension=['nii', 'nii.gz'])
-        session=0
-        run=0
+        sessions=[]
+        runs=[]
         for func_bids in sub_func:
-            if int(func_bids.get_entities()['session'])>session:
-                session=int(func_bids.get_entities()['session'])
-            if int(func_bids.get_entities()['run'])>run:
-                run=int(func_bids.get_entities()['run'])
-        session_iter[sub] = list(range(1,int(session)+1))
-        run_iter[sub] = list(range(1,int(run)+1))
+            try:
+                ses=func_bids.get_entities()['session']
+            except:
+                raise ValueError("Missing 'ses' BIDS information for subject %s." % (sub,))
+            try:
+                run=func_bids.get_entities()['run']
+            except:
+                raise ValueError("Missing 'run' BIDS information for subject %s." % (sub,))
+            if not func_bids.get_entities()['session'] in sessions:
+                sessions.append(func_bids.get_entities()['session'])
+            if not func_bids.get_entities()['run'] in runs:
+                runs.append(func_bids.get_entities()['run'])
+        session_iter[sub] = sessions
+        run_iter[sub] = runs
     return subject_list, session_iter, run_iter
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     bids_dir = traits.Str(exists=True, mandatory=True, desc="BIDS data directory")
     datatype = traits.Str(exists=True, mandatory=True, desc="datatype of the target file")
     subject_id = traits.Str(exists=True, mandatory=True, desc="Subject ID")
-    session = traits.Int(exists=True, mandatory=True, desc="Session number")
+    session = traits.Str(exists=True, mandatory=True, desc="Session specification")
     run = traits.Int(exists=True, default=None, desc="Run number")
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
@@ -173,10 +181,8 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        subject_id=os.path.basename(self.inputs.in_file).split('_ses-')[0]
-        session=os.path.basename(self.inputs.in_file).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.in_file).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_template=os.path.basename(self.inputs.in_file).split('.')[0]
+
 
         out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
 
@@ -533,10 +539,7 @@ class Merge(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.header_source).split('_ses-')[0]
-        session=os.path.basename(self.inputs.header_source).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_template = os.path.basename(self.inputs.header_source).split('.')[0]
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)

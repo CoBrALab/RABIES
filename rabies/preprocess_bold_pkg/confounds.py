@@ -106,10 +106,7 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        subject_id=os.path.basename(self.inputs.bold).split('_ses-')[0]
-        session=os.path.basename(self.inputs.bold).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.bold).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_template = os.path.basename(self.inputs.bold).split('.')[0]
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
@@ -287,10 +284,7 @@ class MaskEPI(BaseInterface):
         import os
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.ref_EPI).split('_ses-')[0]
-        session=os.path.basename(self.inputs.ref_EPI).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.ref_EPI).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_template = os.path.basename(self.inputs.ref_EPI).split('.')[0]
 
         if self.inputs.name_spec==None:
             new_mask_path=os.path.abspath('%s_EPI_mask.nii.gz' % (filename_template))

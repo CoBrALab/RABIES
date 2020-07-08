@@ -67,10 +67,7 @@ class EPIBiasCorrection(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
-        session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.input_ref_EPI).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_template = os.path.basename(self.inputs.input_ref_EPI).split('.')[0]
 
         if self.inputs.bias_cor_script=='Default':
             import rabies
