@@ -618,7 +618,7 @@ def resample_image_spacing(image,output_spacing):
     array[(array<0).astype(bool)]=0
     pos_resampled_image=sitk.GetImageFromArray(array, isVector=False)
     pos_resampled_image.CopyInformation(resampled_image)
-    return resampled_image
+    return pos_resampled_image
 
 def convert_to_RAS(img_file, out_dir=None):
     #convert the input image to the RAS orientation convention
