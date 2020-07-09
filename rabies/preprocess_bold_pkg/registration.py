@@ -82,23 +82,23 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     import logging
     log = logging.getLogger(__name__)
 
-    filename_template=os.path.basename(moving_image).split('.')[0]
+    filename_split=os.path.basename(moving_image).split('.')
 
     if os.path.isfile(reg_script):
         reg_script_path=reg_script
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template)
+    registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
     print("Registration call: "+registration_call)
     log.info("Registration call: "+registration_call)
     if os.system(registration_call) != 0:
         raise ValueError('Error in '+registration_call)
 
     cwd=os.getcwd()
-    warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
-    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_template)
-    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_template)
-    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_template)
+    warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0],)
+    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_split[0],)
+    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_split[0],)
+    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_split[0],)
     if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):

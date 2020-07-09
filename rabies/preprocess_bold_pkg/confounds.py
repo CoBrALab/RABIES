@@ -106,24 +106,24 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        filename_template = os.path.basename(self.inputs.bold).split('.')[0]
+        filename_split=os.path.basename(self.inputs.bold).split('.')
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
         command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
-                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
-        pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_template)
+        pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_split[0])
 
         #then the voxelwise framewise displacement map
         command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
-                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
+                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
         if os.system(command) != 0:
             raise ValueError('Error in '+command)
 
-        FD_csv=os.path.abspath("%s_FD_file.csv" % filename_template)
-        FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_template)
+        FD_csv=os.path.abspath("%s_FD_file.csv" % filename_split[0])
+        FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_split[0])
 
         confounds=[]
         csv_columns=[]
@@ -155,7 +155,7 @@ class ConfoundRegression(BaseInterface):
             confounds.append(motion_24[:,param])
         csv_columns+=['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
 
-        confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_template)
+        confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_split[0])
 
         setattr(self, 'FD_csv', FD_csv)
         setattr(self, 'FD_voxelwise', FD_voxelwise)
@@ -284,12 +284,12 @@ class MaskEPI(BaseInterface):
         import os
         import SimpleITK as sitk
 
-        filename_template = os.path.basename(self.inputs.ref_EPI).split('.')[0]
+        filename_split=os.path.basename(self.inputs.ref_EPI).split('.')
 
         if self.inputs.name_spec==None:
-            new_mask_path=os.path.abspath('%s_EPI_mask.nii.gz' % (filename_template))
+            new_mask_path=os.path.abspath('%s_EPI_mask.%s' % (filename_split[0],filename_split[1]))
         else:
-            new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_template, self.inputs.name_spec))
+            new_mask_path=os.path.abspath('%s_%s.%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
         if os.system(command) != 0:

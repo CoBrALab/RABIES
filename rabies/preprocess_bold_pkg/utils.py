@@ -75,14 +75,6 @@ class BIDSDataGraber(BaseInterface):
         except:
             raise ValueError('Error with BIDS spec: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
 
-        #RABIES only work with compressed .nii for now
-        if not '.nii.gz' in file:
-            print('Compressing BIDS input to .gz')
-            command='gzip %s' % (file,)
-            if os.system(command) != 0:
-                raise ValueError('Error in '+command)
-            file=file+'.gz'
-
         setattr(self, 'out_file', file)
 
         return runtime
@@ -181,17 +173,16 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        filename_template=os.path.basename(self.inputs.in_file).split('.')[0]
-
-
-        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
+        filename_split=os.path.basename(self.inputs.in_file).split('.')
+        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
         else:
-            print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
+            if self.inputs.detect_dummy:
+                print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 100
             #slices of the time series
             if in_nii.GetSize()[-1] > 100:
@@ -539,7 +530,8 @@ class Merge(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_template = os.path.basename(self.inputs.header_source).split('.')[0]
+        filename_split=os.path.basename(self.inputs.header_source).split('.')
+        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
@@ -552,7 +544,7 @@ class Merge(BaseInterface):
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
+        combined_files = os.path.abspath("%s_combined.%s" % (filename_split[0],filename_split[1]))
 
         #clip potential negative values
         combined[(combined<0).astype(bool)]=0
