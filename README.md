@@ -170,32 +170,33 @@ Template files.:
 ```
 
 ## Execution syntax
-```
-  rabies bids_inputs/ rabies_outputs/ -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
+```sh
+rabies bids_inputs/ rabies_outputs/ -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
 ```
 ### Running RABIES interactively within a container
 Singularity execution
 ```sh
-    singularity run -B /local_input_folder_path:/nii_inputs:ro \
-    -B /local_output_folder_path:/rabies_out \
-    /path_to_singularity_image/rabies.sif /nii_inputs /rabies_out \
-    --rabies_execution_specifications
+singularity run -B /local_input_folder_path:/nii_inputs:ro \
+-B /local_output_folder_path:/rabies_out \
+/path_to_singularity_image/rabies.sif /nii_inputs /rabies_out \
+--rabies_execution_specifications
 ```
 Docker execution
 ```sh
-    docker run -it --rm \
-		-v /local_input_folder_path:/nii_inputs:ro \
-		-v /local_output_folder_path:/outputs \
-		rabies /nii_inputs /outputs --further_execution_specifications
+docker run -it --rm \
+-v /local_input_folder_path:/nii_inputs:ro \
+-v /local_output_folder_path:/outputs \
+rabies /nii_inputs /outputs --further_execution_specifications
 ```
 
 <br/>
 
 
-# Input data folder structure
+# Input data format
 Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects, and for each session, select one anatomical scan (unless using --bold_only), and all the functional scans available in the func/ directory as different runs. Thus, the input folder must include ONLY one anatomical scan per session, and ONLY the functional scans from different runs in the same session with the 'run' BIDS specification (the functional scans must have a run-# specification).
 * Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_run-{run_number}.nii.gz
 * Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}.nii.gz
+* An example dataset for testing RABIES is available http://doi.org/10.5281/zenodo.3937697
 
 ## Directory Tree of an example input folder
 
