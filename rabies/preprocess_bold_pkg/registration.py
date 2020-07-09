@@ -79,6 +79,7 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
 def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
+    import subprocess
     import logging
     log = logging.getLogger(__name__)
 
@@ -88,11 +89,15 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         reg_script_path=reg_script
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
-    print("Registration call: "+registration_call)
-    log.info("Registration call: "+registration_call)
-    if os.system(registration_call) != 0:
-        raise ValueError('Error in '+registration_call)
+    command = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
+    log.info("Registration call: "+command)
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+        shell=True,
+    )
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0],)

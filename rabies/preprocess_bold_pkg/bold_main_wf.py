@@ -316,7 +316,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -819,6 +819,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
 def commonspace_reg_function(file_list, template_anat, output_folder):
     import os
+    import subprocess
     import numpy as np
     import pandas as pd
     #create a csv file of the input image list
@@ -838,11 +839,21 @@ def commonspace_reg_function(file_list, template_anat, output_folder):
         print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
     print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
-    if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+        shell=True,
+    )
     command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
-    if os.system(command) != 0:
-        raise ValueError('Error in running commonspace registration with: '+command)
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+        shell=True,
+    )
 
     ###verify that all outputs are present
     #ants dbm outputs

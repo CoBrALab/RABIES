@@ -45,6 +45,7 @@ class AnatPreproc(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import subprocess
         import numpy as np
         import SimpleITK as sitk
         from rabies.preprocess_bold_pkg.utils import resample_image_spacing
@@ -52,8 +53,13 @@ class AnatPreproc(BaseInterface):
         cwd = os.getcwd()
         out_dir='%s/anat_preproc/' % (cwd,)
         command='mkdir -p %s' % (out_dir,)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+        )
         filename_split=os.path.basename(self.inputs.nii_anat).split('.')
         out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -78,8 +84,13 @@ class AnatPreproc(BaseInterface):
             sitk.WriteImage(sitk.ReadImage(input_anat, int(os.environ["rabies_data_type"])), output_anat)
         else:
             command='bash %s/../shell_scripts/anat_preproc.sh %s %s %s' % (dir_path,input_anat,self.inputs.template_anat, output_anat)
-            if os.system(command) != 0:
-                raise ValueError('Error in '+command)
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+                shell=True,
+            )
 
             #resample image to specified data format
             sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)

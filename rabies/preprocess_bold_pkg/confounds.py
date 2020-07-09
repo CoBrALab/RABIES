@@ -111,21 +111,32 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
+        import subprocess
         filename_split=os.path.basename(self.inputs.bold).split('.')
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
         command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
                     -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+        )
         pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_split[0])
 
         #then the voxelwise framewise displacement map
         command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
                     -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+        )
 
         FD_csv=os.path.abspath("%s_FD_file.csv" % filename_split[0])
         FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_split[0])
@@ -288,6 +299,7 @@ class MaskEPI(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import subprocess
         import SimpleITK as sitk
 
         filename_split=os.path.basename(self.inputs.name_source).split('.')
@@ -298,8 +310,13 @@ class MaskEPI(BaseInterface):
             new_mask_path=os.path.abspath('%s_%s.%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+        )
 
         sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)
 

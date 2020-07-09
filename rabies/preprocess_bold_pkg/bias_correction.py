@@ -66,6 +66,7 @@ class EPIBiasCorrection(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import subprocess
         import numpy as np
         import SimpleITK as sitk
 
@@ -112,8 +113,13 @@ class EPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(input_ref_EPI, (low_dim,low_dim,low_dim)), cwd+'/resampled.nii.gz')
 
         command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+        )
 
         #resample to anatomical image resolution
         dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()

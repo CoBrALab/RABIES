@@ -73,6 +73,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     '''
 
     import os
+    import subprocess
     import SimpleITK as sitk
     import numpy as np
 
@@ -90,8 +91,13 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
-    if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+        shell=True,
+    )
 
     tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
     tshift_array=sitk.GetArrayFromImage(tshift_img)
@@ -106,6 +112,5 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
 
     filename_split=os.path.basename(in_file).split('.')
     out_file=os.path.abspath(filename_split[0]+'_tshift.'+filename_split[1])
-    print(out_file)
     sitk.WriteImage(image_out, out_file)
     return out_file
