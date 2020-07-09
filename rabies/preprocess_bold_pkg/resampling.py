@@ -104,18 +104,22 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
         (merge, outputnode, [('out_file', 'bold')]),
+        (inputnode, WM_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, WM_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (WM_mask_to_EPI, outputnode, [
             ('EPI_mask', 'WM_mask')]),
+        (inputnode, CSF_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, CSF_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (CSF_mask_to_EPI, outputnode, [
             ('EPI_mask', 'CSF_mask')]),
+        (inputnode, brain_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, brain_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (brain_mask_to_EPI, outputnode, [
             ('EPI_mask', 'brain_mask')]),
+        (inputnode, propagate_labels, [('name_source', 'name_source')]),
         (bold_reference_wf, propagate_labels, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (propagate_labels, outputnode, [

@@ -10,7 +10,7 @@ from nipype import Function
 def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask']),
+        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
@@ -38,19 +38,24 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
     workflow.connect([
         (inputnode, WM_mask_to_EPI, [
             ('WM_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, CSF_mask_to_EPI, [
             ('CSF_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, vascular_mask_to_EPI, [
             ('vascular_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, brain_mask_to_EPI, [
             ('t1_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, propagate_labels, [
             ('t1_labels', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, confound_regression, [
             ('movpar_file', 'movpar_file'),
             ]),
@@ -271,6 +276,7 @@ class MaskEPIInputSpec(BaseInterfaceInputSpec):
     mask = File(exists=True, mandatory=True, desc="Mask to transfer to EPI space.")
     ref_EPI = File(exists=True, mandatory=True, desc="Motion-realigned and SDC-corrected reference 3D EPI.")
     name_spec = traits.Str(desc="Specify the name of the mask.")
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
 
 class MaskEPIOutputSpec(TraitedSpec):
     EPI_mask = traits.File(desc="The generated EPI mask.")
@@ -284,7 +290,7 @@ class MaskEPI(BaseInterface):
         import os
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.ref_EPI).split('.')
+        filename_split=os.path.basename(self.inputs.name_source).split('.')
 
         if self.inputs.name_spec==None:
             new_mask_path=os.path.abspath('%s_EPI_mask.%s' % (filename_split[0],filename_split[1]))

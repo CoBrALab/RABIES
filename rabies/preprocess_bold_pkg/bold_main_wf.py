@@ -189,12 +189,14 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
         (inputnode, bold_reg_wf, [
             ('anat_preproc', 'inputnode.anat_preproc'),
             ('anat_mask', 'inputnode.anat_mask')]),
+        (inputnode, bias_cor_wf, [('bold', 'inputnode.name_source')]),
         (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
         (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
             ('WM_mask', 'inputnode.WM_mask'),
             ('CSF_mask', 'inputnode.CSF_mask'),
             ('vascular_mask', 'inputnode.vascular_mask'),
             ('labels', 'inputnode.t1_labels'),
+            ('bold', 'inputnode.name_source'),
             ]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')]),
@@ -662,7 +664,9 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
+        (convert_to_RAS_node, bias_cor_wf, [('RAS_file', 'inputnode.name_source')]),
         (convert_to_RAS_node, bold_bold_trans_wf, [('RAS_file', 'inputnode.name_source')]),
+        (convert_to_RAS_node, bold_confs_wf, [('RAS_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),

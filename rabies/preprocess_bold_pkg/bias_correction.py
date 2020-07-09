@@ -14,7 +14,7 @@ def bias_correction_wf(bias_cor_script='Default', bias_reg_script='Rigid', name=
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['ref_EPI', 'anat', 'anat_mask']), name='inputnode')
+    inputnode = pe.Node(niu.IdentityInterface(fields=['ref_EPI', 'anat', 'anat_mask', 'name_source']), name='inputnode')
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=['corrected_EPI', 'resampled_mask', 'warped_EPI']),
@@ -27,6 +27,7 @@ def bias_correction_wf(bias_cor_script='Default', bias_reg_script='Rigid', name=
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
                                       ('anat', 'anat'),
                                       ('anat_mask', 'anat_mask'),
+                                      ('name_source', 'name_source'),
                                       ]),
         (bias_correction, outputnode, [('corrected_EPI', 'corrected_EPI'),
                                       ('warped_EPI', 'warped_EPI'),
@@ -45,6 +46,7 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
     anat_mask = File(exists=True, mandatory=True, desc="Brain mask for the anatomical image")
     bias_cor_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
     reg_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(exists=True, desc="input ref EPI corrected for bias fields")
@@ -67,7 +69,7 @@ class EPIBiasCorrection(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.input_ref_EPI).split('.')
+        filename_split=os.path.basename(self.inputs.name_source).split('.')
 
         if self.inputs.bias_cor_script=='Default':
             import rabies
