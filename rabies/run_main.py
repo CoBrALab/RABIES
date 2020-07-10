@@ -45,8 +45,10 @@ def get_parser():
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
         defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
         it is set to 1.""")
+    parser.add_argument("--scale_min_memory", type=float, default=1.0,
+                        help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
     parser.add_argument("--min_proc", type=int, default=1,
-                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned.")
+                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
     parser.add_argument("--data_type", type=str, default='float32',
                         help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
     parser.add_argument("--debug", dest='debug', action='store_true',
@@ -233,6 +235,10 @@ def execute_workflow():
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
+    #set memory usage for MultiProc execution
+    memory_specs=eval_memory(data_dir_path,opts.nativespace_resampling,opts.commonspace_resampling,opts.anatomical_resampling, opts.scale_min_memory)
+    print(memory_specs)
+
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
         workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
@@ -295,3 +301,92 @@ def define_reg_script(reg_option):
         else:
             raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     return reg_script
+
+
+def eval_memory(data_dir_path,native_spacing,commonspace_spacing,anat_resampling_spacing,scale_memory):
+    import os
+    import numpy as np
+    import SimpleITK as sitk
+    from bids.layout import BIDSLayout
+    layout = BIDSLayout(data_dir_path, validate=False)
+    #subject_list, session_iter, run_iter=prep_bids_iter(layout)
+    func_list=layout.get(datatype='func', extension=['nii', 'nii.gz'], return_type='filename')
+    anat_list=layout.get(datatype='anat', extension=['nii', 'nii.gz'], return_type='filename')
+
+    #define the anatomical resampling
+    if anat_resampling_spacing=='inputs_defined':
+        img = sitk.ReadImage(anat_list[0], int(os.environ["rabies_data_type"]))
+        low_dim=np.asarray(img.GetSpacing()[:3]).min()
+        for file in anat_list[1:]:
+            img = sitk.ReadImage(file, int(os.environ["rabies_data_type"]))
+            new_low_dim=np.asarray(img.GetSpacing()[:3]).min()
+            if new_low_dim<low_dim:
+                low_dim=new_low_dim
+        anat_resampling_spacing=(low_dim,low_dim,low_dim)
+    else:
+        shape=anat_resampling_spacing.split('x')
+        anat_resampling_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+
+    def size_ratio(input_size,spacing,output_spacing):
+        #get the resampled size
+        sampling_ratio=np.asarray(spacing)/np.asarray(output_spacing)
+        output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+        size_ratio=np.array(output_size).prod()/np.array(input_size).prod()
+        return size_ratio
+
+    #determine the file sizes
+    EPI_mb=0
+    for file in func_list:
+        image = sitk.ReadImage(file)
+        bitpix=int(image.GetMetaData('bitpix'))
+        file_size64 = os.path.getsize(file)*1e-6*64/bitpix #the size is scaled to a 64bitpix
+        if file_size64>EPI_mb:
+            EPI_mb=file_size64
+            EPI_size=image.GetSize()
+            EPI_spacing=image.GetSpacing()
+
+    #if EPI_mb<100:
+    #    EPI_mb=100
+
+    anat_mb=0
+    for file in anat_list:
+        image = sitk.ReadImage(file)
+        bitpix=int(image.GetMetaData('bitpix'))
+        file_size64 = os.path.getsize(file)*1e-6*64/bitpix #the size is scaled to a 64bitpix
+        if file_size64>anat_mb:
+            anat_mb=file_size64
+            anat_size=image.GetSize()
+            anat_spacing=image.GetSpacing()
+
+    #if anat_mb<5:
+    #    anat_mb=5
+
+    anat_resampled_mb=anat_mb*size_ratio(anat_size,anat_spacing,anat_resampling_spacing)
+    if native_spacing=='origin':
+        EPI_native_mb=EPI_mb
+    else:
+        shape=native_spacing.split('x')
+        native_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+        EPI_native_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],native_spacing)
+    if commonspace_spacing=='origin':
+        EPI_commonspace_mb=EPI_mb
+    else:
+        shape=commonspace_spacing.split('x')
+        commonspace_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+        EPI_commonspace_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],commonspace_spacing)
+    low_dim=np.array(EPI_spacing[:3]).min()
+    EPI_biascor_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],(low_dim,low_dim,low_dim))/EPI_size[3]
+
+    os.environ["anat_resampled_gb"]=str(scale_memory*round(anat_resampled_mb,2)/1000)
+    os.environ["EPI_gb"]=str(scale_memory*round(EPI_mb,2)/1000)
+    os.environ["EPI_native_gb"]=str(scale_memory*round(EPI_native_mb,2)/1000)
+    os.environ["EPI_commonspace_gb"]=str(scale_memory*round(EPI_commonspace_mb,2)/1000)
+    os.environ["EPI_biascor_gb"]=str(scale_memory*round(EPI_biascor_mb,2)/1000)
+
+    print('STC mem '+os.environ["EPI_gb"])
+    print('HMC mem '+os.environ["EPI_gb"])
+    print('gen_ref mem '+os.environ["EPI_gb"])
+    print('anat_preproc mem '+os.environ["anat_resampled_gb"])
+
+    return {'anat_mb':round(anat_mb,2),'anat_resampled_mb':round(anat_resampled_mb,2),'EPI_mb':round(EPI_mb,2),'EPI_native_mb':round(EPI_native_mb,2),
+            'EPI_commonspace_mb':round(EPI_commonspace_mb,2),'EPI_biascor_mb':round(EPI_biascor_mb,2)}

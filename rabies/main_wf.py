@@ -223,7 +223,7 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
-                     name='resample_template', mem_gb=3)
+                     name='resample_template', mem_gb=1)
     resample_template_node.inputs.file_list=anat_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]

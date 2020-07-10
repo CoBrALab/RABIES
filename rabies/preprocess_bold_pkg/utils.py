@@ -124,7 +124,7 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
         name='outputnode')
 
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2)
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=float(os.environ["EPI_gb"])*3)
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([

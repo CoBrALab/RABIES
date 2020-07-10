@@ -14,12 +14,13 @@ def init_anat_preproc_wf(disable_anat_preproc=False, name='anat_preproc_wf'):
     registration to a template atlas to obtain brain mask to then compute an
     optimized N4 correction and denoising.
     '''
+    import os
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['anat_file', 'template_anat']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['preproc_anat']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc), name='Anat_Preproc')
+    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc), name='Anat_Preproc', mem_gb=float(os.environ["anat_resampled_gb"])*15)
 
 
     workflow.connect([

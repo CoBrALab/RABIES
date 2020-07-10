@@ -25,6 +25,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
             Slice-timing corrected BOLD series NIfTI file
 
     """
+    import os
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['stc_file']), name='outputnode')
@@ -32,7 +33,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     slice_timing_correction = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
                               output_names=['out_file'],
                               function=apply_STC),
-                     name='slice_timing_correction')
+                     name='slice_timing_correction', mem_gb=float(os.environ["EPI_gb"])*6)
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
