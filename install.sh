@@ -21,6 +21,7 @@ echo "export RABIES_VERSION=0.1.2-dev" >> $HOME/.bashrc
 echo "export RABIES=$RABIES" >> $HOME/.bashrc
 echo 'export PYTHONPATH="${PYTHONPATH}:$RABIES"' >> $HOME/.bashrc
 echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc
+echo 'export PATH=$PATH:$RABIES/rabies/shell_scripts' >> $HOME/.bashrc
 
 
 # Download DSURQE template

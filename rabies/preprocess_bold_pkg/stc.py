@@ -33,7 +33,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     slice_timing_correction = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
                               output_names=['out_file'],
                               function=apply_STC),
-                     name='slice_timing_correction', mem_gb=float(os.environ["EPI_gb"])*6)
+                     name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),

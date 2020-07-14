@@ -38,7 +38,7 @@ def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC', mem_gb=float(os.environ["EPI_gb"])*4)
+    motion_estimation = pe.Node(EstimateMotion(), name='ants_MC', mem_gb=1.1*float(os.environ["rabies_mem_scale"]))
     motion_estimation.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
 

@@ -20,7 +20,7 @@ def init_anat_preproc_wf(disable_anat_preproc=False, name='anat_preproc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['anat_file', 'template_anat']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['preproc_anat']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc), name='Anat_Preproc', mem_gb=float(os.environ["anat_resampled_gb"])*15)
+    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc), name='Anat_Preproc', mem_gb=0.6*float(os.environ["rabies_mem_scale"]))
 
 
     workflow.connect([

@@ -486,7 +486,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=Fals
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
-                     name='resample_template', mem_gb=1)
+                     name='resample_template', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     resample_template_node.inputs.file_list=bold_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
@@ -555,14 +555,14 @@ def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=Fals
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
+                     name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold*float(os.environ["rabies_mem_scale"]))
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
                               output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
                               function=run_antsRegistration),
-                     name='template_reg', mem_gb=3)
+                     name='template_reg', mem_gb=2*float(os.environ["rabies_mem_scale"]))
     template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script

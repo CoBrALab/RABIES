@@ -31,7 +31,7 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
     propagate_labels=pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='anat_labels'
 
-    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression', mem_gb=2)
+    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression', mem_gb=2.3*float(os.environ["rabies_mem_scale"]))
     confound_regression.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)

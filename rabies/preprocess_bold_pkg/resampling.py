@@ -21,11 +21,11 @@ def init_bold_preproc_trans_wf(resampling_dim, slice_mc=False, name='bold_prepro
         name='outputnode')
 
 
-    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(), name='merge', mem_gb=3)
+    merge = pe.Node(Merge(), name='merge', mem_gb=4*float(os.environ["rabies_mem_scale"]))
     merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -64,11 +64,11 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
         niu.IdentityInterface(fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'labels']),
         name='outputnode')
 
-    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(), name='merge', mem_gb=3)
+    merge = pe.Node(Merge(), name='merge', mem_gb=4*float(os.environ["rabies_mem_scale"]))
     merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference

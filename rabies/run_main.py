@@ -171,6 +171,7 @@ def execute_workflow():
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
     apply_slice_mc=opts.apply_slice_mc
+    os.environ["rabies_mem_scale"]=str(opts.scale_min_memory)
 
     import SimpleITK as sitk
     if str(opts.data_type)=='int16':
@@ -235,10 +236,6 @@ def execute_workflow():
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
-    #set memory usage for MultiProc execution
-    memory_specs=eval_memory(data_dir_path,opts.nativespace_resampling,opts.commonspace_resampling,opts.anatomical_resampling, opts.scale_min_memory)
-    print(memory_specs)
-
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
         workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
@@ -302,7 +299,7 @@ def define_reg_script(reg_option):
             raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     return reg_script
 
-
+'''
 def eval_memory(data_dir_path,native_spacing,commonspace_spacing,anat_resampling_spacing,scale_memory):
     import os
     import numpy as np
@@ -375,7 +372,13 @@ def eval_memory(data_dir_path,native_spacing,commonspace_spacing,anat_resampling
         commonspace_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
         EPI_commonspace_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],commonspace_spacing)
     low_dim=np.array(EPI_spacing[:3]).min()
-    EPI_biascor_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],(low_dim,low_dim,low_dim))/EPI_size[3]
+    output_spacing=(low_dim,low_dim,low_dim)
+    input_size=EPI_size[:3]
+    spacing=EPI_spacing[:3]
+    sampling_ratio=np.asarray(spacing)/np.asarray(output_spacing)
+    output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+    ratio=np.array(output_size).prod()/np.array(anat_size).prod()
+    EPI_biascor_mb=anat_mb*ratio
 
     os.environ["anat_resampled_gb"]=str(scale_memory*round(anat_resampled_mb,2)/1000)
     os.environ["EPI_gb"]=str(scale_memory*round(EPI_mb,2)/1000)
@@ -390,3 +393,4 @@ def eval_memory(data_dir_path,native_spacing,commonspace_spacing,anat_resampling
 
     return {'anat_mb':round(anat_mb,2),'anat_resampled_mb':round(anat_resampled_mb,2),'EPI_mb':round(EPI_mb,2),'EPI_native_mb':round(EPI_native_mb,2),
             'EPI_commonspace_mb':round(EPI_commonspace_mb,2),'EPI_biascor_mb':round(EPI_biascor_mb,2)}
+'''

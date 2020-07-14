@@ -21,7 +21,7 @@ def bias_correction_wf(bias_cor_script='Default', bias_reg_script='Rigid', name=
         name='outputnode')
 
 
-    bias_correction = pe.Node(EPIBiasCorrection(bias_cor_script=bias_cor_script, reg_script=bias_reg_script), name='bias_correction')
+    bias_correction = pe.Node(EPIBiasCorrection(bias_cor_script=bias_cor_script, reg_script=bias_reg_script), name='bias_correction', mem_gb=0.3*float(os.environ["rabies_mem_scale"]))
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
