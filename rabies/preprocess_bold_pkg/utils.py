@@ -17,22 +17,30 @@ def prep_bids_iter(layout):
     run_iter={}
     for sub in subject_list:
         sub_func=layout.get(subject=sub, datatype='func', extension=['nii', 'nii.gz'])
-        session=0
-        run=0
+        sessions=[]
+        runs=[]
         for func_bids in sub_func:
-            if int(func_bids.get_entities()['session'])>session:
-                session=int(func_bids.get_entities()['session'])
-            if int(func_bids.get_entities()['run'])>run:
-                run=int(func_bids.get_entities()['run'])
-        session_iter[sub] = list(range(1,int(session)+1))
-        run_iter[sub] = list(range(1,int(run)+1))
+            try:
+                ses=func_bids.get_entities()['session']
+            except:
+                raise ValueError("Missing 'ses' BIDS information for subject %s." % (sub,))
+            try:
+                run=func_bids.get_entities()['run']
+            except:
+                raise ValueError("Missing 'run' BIDS information for subject %s." % (sub,))
+            if not func_bids.get_entities()['session'] in sessions:
+                sessions.append(func_bids.get_entities()['session'])
+            if not func_bids.get_entities()['run'] in runs:
+                runs.append(func_bids.get_entities()['run'])
+        session_iter[sub] = sessions
+        run_iter[sub] = runs
     return subject_list, session_iter, run_iter
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     bids_dir = traits.Str(exists=True, mandatory=True, desc="BIDS data directory")
     datatype = traits.Str(exists=True, mandatory=True, desc="datatype of the target file")
     subject_id = traits.Str(exists=True, mandatory=True, desc="Subject ID")
-    session = traits.Int(exists=True, mandatory=True, desc="Session number")
+    session = traits.Str(exists=True, mandatory=True, desc="Session specification")
     run = traits.Int(exists=True, default=None, desc="Run number")
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
@@ -66,14 +74,6 @@ class BIDSDataGraber(BaseInterface):
                 raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
         except:
             raise ValueError('Error with BIDS spec: %s' % (str(self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
-
-        #RABIES only work with compressed .nii for now
-        if not '.nii.gz' in file:
-            print('Compressing BIDS input to .gz')
-            command='gzip %s' % (file,)
-            if os.system(command) != 0:
-                raise ValueError('Error in '+command)
-            file=file+'.gz'
 
         setattr(self, 'out_file', file)
 
@@ -124,7 +124,7 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
         name='outputnode')
 
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2)
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy), name='gen_ref', mem_gb=2*float(os.environ["rabies_mem_scale"]))
     gen_ref.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
@@ -165,6 +165,7 @@ class EstimateReferenceImage(BaseInterface):
     def _run_interface(self, runtime):
 
         import os
+        import subprocess
         import SimpleITK as sitk
         import numpy as np
 
@@ -173,19 +174,16 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        subject_id=os.path.basename(self.inputs.in_file).split('_ses-')[0]
-        session=os.path.basename(self.inputs.in_file).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.in_file).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
-
-        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_template))
+        filename_split=os.path.basename(self.inputs.in_file).split('.')
+        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
         else:
-            print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
+            if self.inputs.detect_dummy:
+                print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 100
             #slices of the time series
             if in_nii.GetSize()[-1] > 100:
@@ -224,8 +222,12 @@ class EstimateReferenceImage(BaseInterface):
         #denoise the resulting reference image through non-local mean denoising
         print('Denoising reference image.')
         command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -270,6 +272,7 @@ class antsMotionCorr(BaseInterface):
     def _run_interface(self, runtime):
 
         import os
+        import subprocess
         import SimpleITK as sitk
         #check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
         shrinking_factor=4
@@ -281,16 +284,24 @@ class antsMotionCorr(BaseInterface):
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command='mv ants_mc_tmp first_ants_mc_tmp'
-            if os.system(command) != 0:
-                raise ValueError('Error in '+command)
+            subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                check=True,
+                shell=True,
+            )
 
         #make a tmp directory to store the files
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
                 -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file,str(shrinking_factor))
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
 
         setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
         setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
@@ -436,6 +447,7 @@ class slice_applyTransforms(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
         import os
+        import subprocess
 
         img=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
 
@@ -467,15 +479,27 @@ class slice_applyTransforms(BaseInterface):
             warped_volumes.append(warped_vol_fname)
             if self.inputs.apply_motcorr:
                 command='antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x)
-                if os.system(command) != 0:
-                    raise ValueError('Error in '+command)
+                subprocess.run(
+                    command,
+                    stdout=subprocess.PIPE,
+                    check=True,
+                    shell=True,
+                )
                 command='antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
-                if os.system(command) != 0:
-                    raise ValueError('Error in '+command)
+                subprocess.run(
+                    command,
+                    stdout=subprocess.PIPE,
+                    check=True,
+                    shell=True,
+                )
             else:
                 command='antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname)
-                if os.system(command) != 0:
-                    raise ValueError('Error in '+command)
+                subprocess.run(
+                    command,
+                    stdout=subprocess.PIPE,
+                    check=True,
+                    shell=True,
+                )
             #change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname, int(os.environ["rabies_data_type"])), warped_vol_fname)
 
@@ -533,10 +557,8 @@ class Merge(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.header_source).split('_ses-')[0]
-        session=os.path.basename(self.inputs.header_source).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.header_source).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_split=os.path.basename(self.inputs.header_source).split('.')
+        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
@@ -549,7 +571,7 @@ class Merge(BaseInterface):
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_template))
+        combined_files = os.path.abspath("%s_combined.%s" % (filename_split[0],filename_split[1]))
 
         #clip potential negative values
         combined[(combined<0).astype(bool)]=0
@@ -618,7 +640,7 @@ def resample_image_spacing(image,output_spacing):
     array[(array<0).astype(bool)]=0
     pos_resampled_image=sitk.GetImageFromArray(array, isVector=False)
     pos_resampled_image.CopyInformation(resampled_image)
-    return resampled_image
+    return pos_resampled_image
 
 def convert_to_RAS(img_file, out_dir=None):
     #convert the input image to the RAS orientation convention

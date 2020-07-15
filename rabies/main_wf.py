@@ -11,7 +11,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_preproc=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
+def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=False, autoreg=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -223,13 +223,13 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_pr
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
-                     name='resample_template', mem_gb=3)
+                     name='resample_template', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     resample_template_node.inputs.file_list=anat_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
 
     #setting anat preprocessing nodes
-    anat_preproc_wf = init_anat_preproc_wf(disable_anat_preproc=disable_anat_preproc)
+    anat_preproc_wf = init_anat_preproc_wf(disable_anat_preproc=disable_anat_preproc,autoreg=autoreg)
 
     #calculate the number of anat scans that will be registered
     num_anat=0
@@ -241,23 +241,23 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_pr
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat)
+                     name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat*float(os.environ["rabies_mem_scale"]))
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
                               output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
                               function=run_antsRegistration),
-                     name='template_reg', mem_gb=3)
+                     name='template_reg', mem_gb=2*float(os.environ["rabies_mem_scale"]))
     template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
 
     #setting SelectFiles for the commonspace registration
-    anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1InverseWarp.nii.gz')
-    anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*1Warp.nii.gz')
-    anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}_ses-{session}_*_preproc*0GenericAffine.mat')
-    warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}_ses-{session}_*_preproc*WarpedToTemplate.nii.gz')
+    anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1InverseWarp.nii.gz')
+    anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1Warp.nii.gz')
+    anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*0GenericAffine.mat')
+    warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}*_ses-{session}*_preproc*WarpedToTemplate.nii.gz')
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
@@ -269,6 +269,7 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_pr
 
     def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
         import os
+        import subprocess
         cwd = os.getcwd()
         subject_id=os.path.basename(reference_image).split('_ses-')[0]
         session=os.path.basename(reference_image).split('_ses-')[1][0]
@@ -276,41 +277,61 @@ def init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_pr
 
         input_image=os.environ["template_mask"]
         brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
-        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
-        if os.system(antsApplyTransforms_call) != 0:
-            raise ValueError('Error in '+antsApplyTransforms_call)
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
         if not os.path.isfile(brain_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["WM_mask"]
         WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
-        if os.system(antsApplyTransforms_call) != 0:
-            raise ValueError('Error in '+antsApplyTransforms_call)
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
         if not os.path.isfile(WM_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["CSF_mask"]
         CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
-        if os.system(antsApplyTransforms_call) != 0:
-            raise ValueError('Error in '+antsApplyTransforms_call)
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
         if not os.path.isfile(CSF_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["vascular_mask"]
         vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
-        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
-        if os.system(antsApplyTransforms_call) != 0:
-            raise ValueError('Error in '+antsApplyTransforms_call)
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
         if not os.path.isfile(vascular_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["atlas_labels"]
         anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
-        antsApplyTransforms_call = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
-        if os.system(antsApplyTransforms_call) != 0:
-            raise ValueError('Error in '+antsApplyTransforms_call)
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
         if not os.path.isfile(anat_labels):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 

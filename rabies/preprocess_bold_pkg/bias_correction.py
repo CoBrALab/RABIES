@@ -10,23 +10,24 @@ from nipype.interfaces.ants import N4BiasFieldCorrection
 from nipype.interfaces.ants.resampling import ApplyTransforms
 
 
-def bias_correction_wf(bias_cor_script='Default', bias_reg_script='Rigid', name='bias_correction_wf'):
+def bias_correction_wf(bias_reg_script='Rigid', name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['ref_EPI', 'anat', 'anat_mask']), name='inputnode')
+    inputnode = pe.Node(niu.IdentityInterface(fields=['ref_EPI', 'anat', 'anat_mask', 'name_source']), name='inputnode')
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=['corrected_EPI', 'resampled_mask', 'warped_EPI']),
         name='outputnode')
 
 
-    bias_correction = pe.Node(EPIBiasCorrection(bias_cor_script=bias_cor_script, reg_script=bias_reg_script), name='bias_correction')
+    bias_correction = pe.Node(EPIBiasCorrection(reg_script=bias_reg_script), name='bias_correction', mem_gb=0.3*float(os.environ["rabies_mem_scale"]))
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
                                       ('anat', 'anat'),
                                       ('anat_mask', 'anat_mask'),
+                                      ('name_source', 'name_source'),
                                       ]),
         (bias_correction, outputnode, [('corrected_EPI', 'corrected_EPI'),
                                       ('warped_EPI', 'warped_EPI'),
@@ -43,8 +44,8 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
     input_ref_EPI = File(exists=True, mandatory=True, desc="The input 3D ref EPI to correct for bias fields")
     anat = File(exists=True, mandatory=True, desc="Anatomical reference image for registration")
     anat_mask = File(exists=True, mandatory=True, desc="Brain mask for the anatomical image")
-    bias_cor_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
     reg_script = traits.Str(exists=True, mandatory=True, desc="Specifying the script to use for registration.")
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(exists=True, desc="input ref EPI corrected for bias fields")
@@ -64,46 +65,26 @@ class EPIBiasCorrection(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import subprocess
         import numpy as np
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[0]
-        session=os.path.basename(self.inputs.input_ref_EPI).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.input_ref_EPI).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_split=os.path.basename(self.inputs.name_source).split('.')
 
-        if self.inputs.bias_cor_script=='Default':
-            import rabies
-            dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-            bias_cor_script_path=dir_path+'/shell_scripts/iter_bias_cor.sh'
-        else:
-            '''
-            For user-provided bias correction command.
-            '''
-            if os.path.isfile(self.inputs.bias_cor_script):
-                bias_cor_script_path=self.inputs.bias_cor_script
-            else:
-                msg='THE BIASCOR PATH %s DOES NOT EXISTS' % self.inputs.bias_cor_script
-                raise ValueError(msg)
+        import rabies
+        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
+        bias_cor_script_path=dir_path+'/shell_scripts/iter_bias_cor.sh'
 
-        if self.inputs.reg_script=='Rigid':
-            import rabies
-            dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-            reg_script_path=dir_path+'/shell_scripts/Rigid_registration.sh'
+        if os.path.isfile(self.inputs.reg_script):
+            reg_script_path=self.inputs.reg_script
         else:
-            '''
-            For user-provided reg script.
-            '''
-            if os.path.isfile(self.inputs.reg_script):
-                reg_script_path=self.inputs.reg_script
-            else:
-                msg='THE BIASCOR PATH %s DOES NOT EXISTS' % self.inputs.reg_script
-                raise ValueError(msg)
+            msg='THE BIASCOR PATH %s DOES NOT EXISTS' % self.inputs.reg_script
+            raise ValueError(msg)
 
         cwd=os.getcwd()
-        warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
-        resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_template)
-        biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_template)
+        warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0])
+        resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_split[0])
+        biascor_EPI='%s/%s_bias_cor.%s' % (cwd, filename_split[0],filename_split[1])
 
         #resample to isotropic resolution based on lowest dimension
         input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))
@@ -112,9 +93,13 @@ class EPIBiasCorrection(BaseInterface):
         from rabies.preprocess_bold_pkg.utils import resample_image_spacing
         sitk.WriteImage(resample_image_spacing(input_ref_EPI, (low_dim,low_dim,low_dim)), cwd+'/resampled.nii.gz')
 
-        command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_template, reg_script_path)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
 
         #resample to anatomical image resolution
         dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()

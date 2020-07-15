@@ -189,12 +189,14 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
         (inputnode, bold_reg_wf, [
             ('anat_preproc', 'inputnode.anat_preproc'),
             ('anat_mask', 'inputnode.anat_mask')]),
+        (inputnode, bias_cor_wf, [('bold', 'inputnode.name_source')]),
         (inputnode, bold_bold_trans_wf, [('bold', 'inputnode.name_source')]),
         (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
             ('WM_mask', 'inputnode.WM_mask'),
             ('CSF_mask', 'inputnode.CSF_mask'),
             ('vascular_mask', 'inputnode.vascular_mask'),
             ('labels', 'inputnode.t1_labels'),
+            ('bold', 'inputnode.name_source'),
             ]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')]),
@@ -314,7 +316,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
     return workflow
 
 
-def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
+def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
                         commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
@@ -484,7 +486,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
-                     name='resample_template', mem_gb=3)
+                     name='resample_template', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     resample_template_node.inputs.file_list=bold_file_list
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
@@ -553,23 +555,23 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
     commonspace_reg = pe.Node(Function(input_names=['file_list', 'template_anat', 'output_folder'],
                               output_names=['ants_dbm_template'],
                               function=commonspace_reg_function),
-                     name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold)
+                     name='commonspace_reg', n_procs=num_bold, mem_gb=1*num_bold*float(os.environ["rabies_mem_scale"]))
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask'],
                               output_names=['affine', 'warp', 'inverse_warp', 'warped_image'],
                               function=run_antsRegistration),
-                     name='template_reg', mem_gb=3)
+                     name='template_reg', mem_gb=2*float(os.environ["rabies_mem_scale"]))
     template_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
 
     #setting SelectFiles for the commonspace registration
-    ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1InverseWarp.nii.gz')
-    ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*1Warp.nii.gz')
-    ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}_ses-{ses}_run-{run}_bias_cor*0GenericAffine.mat')
-    warped_bold = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{sub}_ses-{ses}_run-{run}_bias_cor*WarpedToTemplate.nii.gz')
+    ants_dbm_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}*_ses-{ses}*_run-{run}*_bias_cor*1InverseWarp.nii.gz')
+    ants_dbm_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}*_ses-{ses}*_run-{run}*_bias_cor*1Warp.nii.gz')
+    ants_dbm_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{sub}*_ses-{ses}*_run-{run}*_bias_cor*0GenericAffine.mat')
+    warped_bold = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{sub}*_ses-{ses}*_run-{run}*_bias_cor*WarpedToTemplate.nii.gz')
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
@@ -662,7 +664,9 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
+        (convert_to_RAS_node, bias_cor_wf, [('RAS_file', 'inputnode.name_source')]),
         (convert_to_RAS_node, bold_bold_trans_wf, [('RAS_file', 'inputnode.name_source')]),
+        (convert_to_RAS_node, bold_confs_wf, [('RAS_file', 'inputnode.name_source')]),
         (bold_reference_wf, bias_cor_wf, [
             ('outputnode.ref_image', 'inputnode.ref_EPI')
             ]),
@@ -815,6 +819,7 @@ def init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_desp
 
 def commonspace_reg_function(file_list, template_anat, output_folder):
     import os
+    import subprocess
     import numpy as np
     import pandas as pd
     #create a csv file of the input image list
@@ -834,11 +839,19 @@ def commonspace_reg_function(file_list, template_anat, output_folder):
         print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
     print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
-    if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+    subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        check=True,
+        shell=True,
+    )
     command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
-    if os.system(command) != 0:
-        raise ValueError('Error in running commonspace registration with: '+command)
+    subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        check=True,
+        shell=True,
+    )
 
     ###verify that all outputs are present
     #ants dbm outputs

@@ -10,7 +10,7 @@ from nipype import Function
 def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask']),
+        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
@@ -31,26 +31,31 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
     propagate_labels=pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='anat_labels'
 
-    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression', mem_gb=2)
+    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression', mem_gb=2.3*float(os.environ["rabies_mem_scale"]))
     confound_regression.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
         (inputnode, WM_mask_to_EPI, [
             ('WM_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, CSF_mask_to_EPI, [
             ('CSF_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, vascular_mask_to_EPI, [
             ('vascular_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, brain_mask_to_EPI, [
             ('t1_mask', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, propagate_labels, [
             ('t1_labels', 'mask'),
-            ('ref_bold', 'ref_EPI')]),
+            ('ref_bold', 'ref_EPI'),
+            ('name_source', 'name_source')]),
         (inputnode, confound_regression, [
             ('movpar_file', 'movpar_file'),
             ]),
@@ -106,27 +111,33 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        subject_id=os.path.basename(self.inputs.bold).split('_ses-')[0]
-        session=os.path.basename(self.inputs.bold).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.bold).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        import subprocess
+        filename_split=os.path.basename(self.inputs.bold).split('.')
 
         #generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         #first the voxelwise positioning map
         command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
-                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
-        pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_template)
+                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
+        pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_split[0])
 
         #then the voxelwise framewise displacement map
         command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
-                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_template, self.inputs.brain_mask, self.inputs.bold, filename_template)
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
 
-        FD_csv=os.path.abspath("%s_FD_file.csv" % filename_template)
-        FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_template)
+        FD_csv=os.path.abspath("%s_FD_file.csv" % filename_split[0])
+        FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_split[0])
 
         confounds=[]
         csv_columns=[]
@@ -158,7 +169,7 @@ class ConfoundRegression(BaseInterface):
             confounds.append(motion_24[:,param])
         csv_columns+=['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der', 'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
 
-        confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_template)
+        confounds_csv=write_confound_csv(np.transpose(np.asarray(confounds)), csv_columns, filename_split[0])
 
         setattr(self, 'FD_csv', FD_csv)
         setattr(self, 'FD_voxelwise', FD_voxelwise)
@@ -274,6 +285,7 @@ class MaskEPIInputSpec(BaseInterfaceInputSpec):
     mask = File(exists=True, mandatory=True, desc="Mask to transfer to EPI space.")
     ref_EPI = File(exists=True, mandatory=True, desc="Motion-realigned and SDC-corrected reference 3D EPI.")
     name_spec = traits.Str(desc="Specify the name of the mask.")
+    name_source = File(exists=True, mandatory=True, desc='Reference BOLD file for naming the output.')
 
 class MaskEPIOutputSpec(TraitedSpec):
     EPI_mask = traits.File(desc="The generated EPI mask.")
@@ -285,21 +297,23 @@ class MaskEPI(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import subprocess
         import SimpleITK as sitk
 
-        subject_id=os.path.basename(self.inputs.ref_EPI).split('_ses-')[0]
-        session=os.path.basename(self.inputs.ref_EPI).split('_ses-')[1][0]
-        run=os.path.basename(self.inputs.ref_EPI).split('_run-')[1][0]
-        filename_template = '%s_ses-%s_run-%s' % (subject_id, session, run)
+        filename_split=os.path.basename(self.inputs.name_source).split('.')
 
         if self.inputs.name_spec==None:
-            new_mask_path=os.path.abspath('%s_EPI_mask.nii.gz' % (filename_template))
+            new_mask_path=os.path.abspath('%s_EPI_mask.%s' % (filename_split[0],filename_split[1]))
         else:
-            new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_template, self.inputs.name_spec))
+            new_mask_path=os.path.abspath('%s_%s.%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        if os.system(command) != 0:
-            raise ValueError('Error in '+command)
+        subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            check=True,
+            shell=True,
+        )
 
         sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)
 

@@ -6,8 +6,9 @@
 ```
 usage: rabies [-h] [-e] [--disable_anat_preproc] [--apply_despiking]
               [--apply_slice_mc] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
-              [-p PLUGIN] [--local_threads LOCAL_THREADS]
-              [--min_proc MIN_PROC] [--data_type DATA_TYPE] [--debug]
+              [--autoreg] [-p PLUGIN] [--local_threads LOCAL_THREADS]
+              [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
+              [--data_type DATA_TYPE] [--debug]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--anatomical_resampling ANATOMICAL_RESAMPLING]
@@ -64,6 +65,10 @@ optional arguments:
                         script following the template script structure (see
                         RABIES/rabies/shell_scripts/ for template). (default:
                         light_SyN)
+  --autoreg             Choosing this option will conduct an adaptive
+                        registration framework which will adjust parameters
+                        according to the input images.This option overrides
+                        other registration specifications. (default: False)
   -p PLUGIN, --plugin PLUGIN
                         Specify the nipype plugin for workflow execution.
                         Consult nipype plugin documentation for detailed
@@ -75,8 +80,13 @@ optional arguments:
                         CPUs. This option only applies to the MultiProc
                         execution plugin, otherwise it is set to 1. (default:
                         12)
+  --scale_min_memory SCALE_MIN_MEMORY
+                        For a parallel execution with MultiProc, the minimal
+                        memory attributed to nodes can be scaled with this
+                        multiplier to avoid memory crashes. (default: 1.0)
   --min_proc MIN_PROC   For SGE parallel processing, specify the minimal
-                        number of nodes to be assigned. (default: 1)
+                        number of nodes to be assigned to avoid memory
+                        crashes. (default: 1)
   --data_type DATA_TYPE
                         Specify data format outputs to control for file size
                         among 'int16','int32','float32' and 'float64'.
@@ -170,33 +180,33 @@ Template files.:
 ```
 
 ## Execution syntax
-```
-  rabies bids_inputs/ rabies_outputs/ -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
+```sh
+rabies bids_inputs/ rabies_outputs/ -e -r light_SyN --template_reg_script light_SyN --TR 1.0s --cluster_type sge -p SGEGraph
 ```
 ### Running RABIES interactively within a container
 Singularity execution
 ```sh
-    singularity run -B /local_input_folder_path:/nii_inputs:ro \
-    -B /local_output_folder_path:/rabies_out \
-    /path_to_singularity_image/rabies.sif /nii_inputs /rabies_out \
-    --rabies_execution_specifications
+singularity run -B /local_input_folder_path:/nii_inputs:ro \
+-B /local_output_folder_path:/rabies_out \
+/path_to_singularity_image/rabies.sif /nii_inputs /rabies_out \
+--rabies_execution_specifications
 ```
 Docker execution
 ```sh
-    docker run -it --rm \
-		-v /local_input_folder_path:/nii_inputs:ro \
-		-v /local_output_folder_path:/outputs \
-		rabies /nii_inputs /outputs --further_execution_specifications
+docker run -it --rm \
+-v /local_input_folder_path:/nii_inputs:ro \
+-v /local_output_folder_path:/outputs \
+rabies /nii_inputs /outputs --further_execution_specifications
 ```
 
 <br/>
 
 
-# Input data folder structure
-Input folder must follow the BIDS structure (https://bids.neuroimaging.io/), and must include the tags 'sub', 'ses' and 'run'. The 'ses' and 'run' tags must
-have a numerical specification (i.e., ses-1, ses-2, ...)
-* Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_task-rest_acq-EPI_run-{run_number}_bold.nii.gz
-* Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}_acq-FLASH_T1w.nii.gz
+# Input data format
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects, and for each session, select one anatomical scan (unless using --bold_only), and all the functional scans available in the func/ directory as different runs. Thus, the input folder must include ONLY one anatomical scan per session, and ONLY the functional scans from different runs in the same session with the 'run' BIDS specification (the functional scans must have a run-# specification).
+* Example BOLD scan format: input_folder/sub-{subject_id}/ses-{session_number}/func/sub-{subject_id}_ses-{session_number}_run-{run_number}.nii.gz
+* Example Anatomical scan format: input_folder/sub-{subject_id}/ses-{session_number}/anat/sub-{subject_id}_ses-{session_number}.nii.gz
+* An example dataset for testing RABIES is available http://doi.org/10.5281/zenodo.3937697
 
 ## Directory Tree of an example input folder
 

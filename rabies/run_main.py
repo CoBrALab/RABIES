@@ -38,6 +38,9 @@ def get_parser():
     parser.add_argument("-r", "--coreg_script", type=str, default='light_SyN',
                         help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear) and 'light_SyN', but"
                         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
+    parser.add_argument("--autoreg", dest='autoreg', action='store_true',
+                        help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
+                        "This option overrides other registration specifications.")
     parser.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
@@ -45,8 +48,10 @@ def get_parser():
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
         defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
         it is set to 1.""")
+    parser.add_argument("--scale_min_memory", type=float, default=1.0,
+                        help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
     parser.add_argument("--min_proc", type=int, default=1,
-                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned.")
+                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
     parser.add_argument("--data_type", type=str, default='float32',
                         help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
     parser.add_argument("--debug", dest='debug', action='store_true',
@@ -157,8 +162,6 @@ def execute_workflow():
     #obtain parser parameters
     bold_preproc_only=opts.bold_only
     disable_anat_preproc=opts.disable_anat_preproc
-    bias_reg_script=opts.bias_reg_script
-    coreg_script=define_reg_script(opts.coreg_script)
     data_dir_path=os.path.abspath(str(opts.bids_dir))
     plugin=opts.plugin
     os.environ["min_proc"]=str(opts.min_proc)
@@ -169,6 +172,21 @@ def execute_workflow():
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
     apply_slice_mc=opts.apply_slice_mc
+    os.environ["rabies_mem_scale"]=str(opts.scale_min_memory)
+
+    if opts.autoreg:
+        bias_reg_script=define_reg_script('autoreg_affine')
+    else:
+        bias_reg_script=define_reg_script(opts.bias_reg_script)
+    if opts.autoreg:
+        coreg_script=define_reg_script('autoreg_SyN')
+    else:
+        coreg_script=define_reg_script(opts.coreg_script)
+    if opts.autoreg:
+        template_reg_script=define_reg_script('autoreg_SyN')
+    else:
+        template_reg_script=define_reg_script(opts.template_reg_script)
+
 
     import SimpleITK as sitk
     if str(opts.data_type)=='int16':
@@ -203,8 +221,6 @@ def execute_workflow():
     os.environ["ants_dbm_cluster_type"]=opts.cluster_type
     os.environ["ants_dbm_walltime"]=opts.walltime
     os.environ["ants_dbm_memory_request"]=opts.memory_request
-    template_reg_option=opts.template_reg_script
-    template_reg_script=define_reg_script(template_reg_option)
 
     #template options
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
@@ -233,16 +249,14 @@ def execute_workflow():
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
-    data_csv=data_dir_path+'/data_info.csv' #this will be eventually replaced
-
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, data_csv, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
+        workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, data_csv, output_folder, disable_anat_preproc=disable_anat_preproc, apply_despiking=apply_despiking, tr=stc_TR,
+        workflow = init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
             commonspace_resampling=commonspace_resampling)
@@ -282,6 +296,10 @@ def define_reg_script(reg_option):
     dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
     if reg_option=='SyN':
         reg_script=dir_path+'/shell_scripts/SyN_registration.sh'
+    elif reg_option=='autoreg_affine':
+        reg_script=dir_path+'/shell_scripts/antsRegistration_affine.sh'
+    elif reg_option=='autoreg_SyN':
+        reg_script=dir_path+'/shell_scripts/antsRegistration_affine_SyN.sh'
     elif reg_option=='light_SyN':
         reg_script=dir_path+'/shell_scripts/light_SyN_registration.sh'
     elif reg_option=='Affine':
@@ -297,3 +315,99 @@ def define_reg_script(reg_option):
         else:
             raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     return reg_script
+
+'''
+def eval_memory(data_dir_path,native_spacing,commonspace_spacing,anat_resampling_spacing,scale_memory):
+    import os
+    import numpy as np
+    import SimpleITK as sitk
+    from bids.layout import BIDSLayout
+    layout = BIDSLayout(data_dir_path, validate=False)
+    #subject_list, session_iter, run_iter=prep_bids_iter(layout)
+    func_list=layout.get(datatype='func', extension=['nii', 'nii.gz'], return_type='filename')
+    anat_list=layout.get(datatype='anat', extension=['nii', 'nii.gz'], return_type='filename')
+
+    #define the anatomical resampling
+    if anat_resampling_spacing=='inputs_defined':
+        img = sitk.ReadImage(anat_list[0], int(os.environ["rabies_data_type"]))
+        low_dim=np.asarray(img.GetSpacing()[:3]).min()
+        for file in anat_list[1:]:
+            img = sitk.ReadImage(file, int(os.environ["rabies_data_type"]))
+            new_low_dim=np.asarray(img.GetSpacing()[:3]).min()
+            if new_low_dim<low_dim:
+                low_dim=new_low_dim
+        anat_resampling_spacing=(low_dim,low_dim,low_dim)
+    else:
+        shape=anat_resampling_spacing.split('x')
+        anat_resampling_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+
+    def size_ratio(input_size,spacing,output_spacing):
+        #get the resampled size
+        sampling_ratio=np.asarray(spacing)/np.asarray(output_spacing)
+        output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+        size_ratio=np.array(output_size).prod()/np.array(input_size).prod()
+        return size_ratio
+
+    #determine the file sizes
+    EPI_mb=0
+    for file in func_list:
+        image = sitk.ReadImage(file)
+        bitpix=int(image.GetMetaData('bitpix'))
+        file_size64 = os.path.getsize(file)*1e-6*64/bitpix #the size is scaled to a 64bitpix
+        if file_size64>EPI_mb:
+            EPI_mb=file_size64
+            EPI_size=image.GetSize()
+            EPI_spacing=image.GetSpacing()
+
+    #if EPI_mb<100:
+    #    EPI_mb=100
+
+    anat_mb=0
+    for file in anat_list:
+        image = sitk.ReadImage(file)
+        bitpix=int(image.GetMetaData('bitpix'))
+        file_size64 = os.path.getsize(file)*1e-6*64/bitpix #the size is scaled to a 64bitpix
+        if file_size64>anat_mb:
+            anat_mb=file_size64
+            anat_size=image.GetSize()
+            anat_spacing=image.GetSpacing()
+
+    #if anat_mb<5:
+    #    anat_mb=5
+
+    anat_resampled_mb=anat_mb*size_ratio(anat_size,anat_spacing,anat_resampling_spacing)
+    if native_spacing=='origin':
+        EPI_native_mb=EPI_mb
+    else:
+        shape=native_spacing.split('x')
+        native_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+        EPI_native_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],native_spacing)
+    if commonspace_spacing=='origin':
+        EPI_commonspace_mb=EPI_mb
+    else:
+        shape=commonspace_spacing.split('x')
+        commonspace_spacing=(float(shape[0]),float(shape[1]),float(shape[2]))
+        EPI_commonspace_mb=EPI_mb*size_ratio(EPI_size[:3],EPI_spacing[:3],commonspace_spacing)
+    low_dim=np.array(EPI_spacing[:3]).min()
+    output_spacing=(low_dim,low_dim,low_dim)
+    input_size=EPI_size[:3]
+    spacing=EPI_spacing[:3]
+    sampling_ratio=np.asarray(spacing)/np.asarray(output_spacing)
+    output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]*sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+    ratio=np.array(output_size).prod()/np.array(anat_size).prod()
+    EPI_biascor_mb=anat_mb*ratio
+
+    os.environ["anat_resampled_gb"]=str(scale_memory*round(anat_resampled_mb,2)/1000)
+    os.environ["EPI_gb"]=str(scale_memory*round(EPI_mb,2)/1000)
+    os.environ["EPI_native_gb"]=str(scale_memory*round(EPI_native_mb,2)/1000)
+    os.environ["EPI_commonspace_gb"]=str(scale_memory*round(EPI_commonspace_mb,2)/1000)
+    os.environ["EPI_biascor_gb"]=str(scale_memory*round(EPI_biascor_mb,2)/1000)
+
+    print('STC mem '+os.environ["EPI_gb"])
+    print('HMC mem '+os.environ["EPI_gb"])
+    print('gen_ref mem '+os.environ["EPI_gb"])
+    print('anat_preproc mem '+os.environ["anat_resampled_gb"])
+
+    return {'anat_mb':round(anat_mb,2),'anat_resampled_mb':round(anat_resampled_mb,2),'EPI_mb':round(EPI_mb,2),'EPI_native_mb':round(EPI_native_mb,2),
+            'EPI_commonspace_mb':round(EPI_commonspace_mb,2),'EPI_biascor_mb':round(EPI_biascor_mb,2)}
+'''

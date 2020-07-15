@@ -14,3 +14,6 @@ Containers are virtual computing environments where all dependencies required to
 2. Downloads the DSURQE mouse template as default template, and generates white matter and CSF masks from gen_masks.py
 <br/>
 3. Also installs https://github.com/CobraLab/twolevel_ants_dbm
+
+## Testing installation
+A testing dataset is available at this link http://doi.org/10.5281/zenodo.3937697. After downloading and unzipping the dataset folder, you can test the installation by running "rabies test_dataset/ output_folder/ --anatomical_resampling 0.4x0.4x0.4" to rapidly test the execution of the workflow, and "rabies test_dataset/ output_folder/" to make a complete run and evaluate the quality of the outputs.

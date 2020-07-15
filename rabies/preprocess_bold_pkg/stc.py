@@ -25,6 +25,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
             Slice-timing corrected BOLD series NIfTI file
 
     """
+    import os
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['stc_file']), name='outputnode')
@@ -32,7 +33,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     slice_timing_correction = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
                               output_names=['out_file'],
                               function=apply_STC),
-                     name='slice_timing_correction')
+                     name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
@@ -73,6 +74,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     '''
 
     import os
+    import subprocess
     import SimpleITK as sitk
     import numpy as np
 
@@ -90,8 +92,12 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
-    if os.system(command) != 0:
-        raise ValueError('Error in '+command)
+    subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        check=True,
+        shell=True,
+    )
 
     tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
     tshift_array=sitk.GetArrayFromImage(tshift_img)
@@ -104,7 +110,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     from rabies.preprocess_bold_pkg.utils import copyInfo_4DImage
     image_out=copyInfo_4DImage(image_out, img, img)
 
-    out_file=os.path.abspath(os.path.basename(in_file).split('.nii.gz')[0]+'_tshift.nii.gz')
-    print(out_file)
+    filename_split=os.path.basename(in_file).split('.')
+    out_file=os.path.abspath(filename_split[0]+'_tshift.'+filename_split[1])
     sitk.WriteImage(image_out, out_file)
     return out_file

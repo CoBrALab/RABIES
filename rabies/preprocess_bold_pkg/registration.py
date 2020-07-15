@@ -57,7 +57,7 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
                                             "anat_mask"],
                    output_names=['affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold'],
-                   function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3)
+                   function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*float(os.environ["rabies_mem_scale"]))
     run_reg.inputs.reg_script=coreg_script
     run_reg.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
@@ -79,26 +79,30 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
 def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
+    import subprocess
     import logging
     log = logging.getLogger(__name__)
 
-    filename_template=os.path.basename(moving_image).split('.')[0]
+    filename_split=os.path.basename(moving_image).split('.')
 
     if os.path.isfile(reg_script):
         reg_script_path=reg_script
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    registration_call = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_template)
-    print("Registration call: "+registration_call)
-    log.info("Registration call: "+registration_call)
-    if os.system(registration_call) != 0:
-        raise ValueError('Error in '+registration_call)
+    command = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
+    log.info("Registration call: "+command)
+    subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        check=True,
+        shell=True,
+    )
 
     cwd=os.getcwd()
-    warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_template)
-    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_template)
-    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_template)
-    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_template)
+    warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0],)
+    affine='%s/%s_output_0GenericAffine.mat' % (cwd, filename_split[0],)
+    warp='%s/%s_output_1Warp.nii.gz' % (cwd, filename_split[0],)
+    inverse_warp='%s/%s_output_1InverseWarp.nii.gz' % (cwd, filename_split[0],)
     if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError('REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):

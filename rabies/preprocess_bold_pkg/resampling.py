@@ -21,11 +21,11 @@ def init_bold_preproc_trans_wf(resampling_dim, slice_mc=False, name='bold_prepro
         name='outputnode')
 
 
-    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(), name='merge', mem_gb=3)
+    merge = pe.Node(Merge(), name='merge', mem_gb=4*float(os.environ["rabies_mem_scale"]))
     merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -64,11 +64,11 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
         niu.IdentityInterface(fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'labels']),
         name='outputnode')
 
-    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform')
+    bold_transform = pe.Node(slice_applyTransforms(), name='bold_transform', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(), name='merge', mem_gb=3)
+    merge = pe.Node(Merge(), name='merge', mem_gb=4*float(os.environ["rabies_mem_scale"]))
     merge.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -104,18 +104,22 @@ def init_bold_commonspace_trans_wf(resampling_dim, slice_mc=False, name='bold_co
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
         (merge, outputnode, [('out_file', 'bold')]),
+        (inputnode, WM_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, WM_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (WM_mask_to_EPI, outputnode, [
             ('EPI_mask', 'WM_mask')]),
+        (inputnode, CSF_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, CSF_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (CSF_mask_to_EPI, outputnode, [
             ('EPI_mask', 'CSF_mask')]),
+        (inputnode, brain_mask_to_EPI, [('name_source', 'name_source')]),
         (bold_reference_wf, brain_mask_to_EPI, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (brain_mask_to_EPI, outputnode, [
             ('EPI_mask', 'brain_mask')]),
+        (inputnode, propagate_labels, [('name_source', 'name_source')]),
         (bold_reference_wf, propagate_labels, [
             ('outputnode.ref_image', 'ref_EPI')]),
         (propagate_labels, outputnode, [
