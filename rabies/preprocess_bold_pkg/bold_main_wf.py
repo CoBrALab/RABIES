@@ -839,18 +839,16 @@ def commonspace_reg_function(file_list, template_anat, output_folder):
         print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
     print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
-    result = subprocess.run(
+    subprocess.run(
         command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
         check=True,
         shell=True,
     )
     command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
-    result = subprocess.run(
+    subprocess.run(
         command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
         check=True,
         shell=True,
     )

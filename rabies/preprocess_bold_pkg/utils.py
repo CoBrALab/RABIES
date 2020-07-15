@@ -222,10 +222,9 @@ class EstimateReferenceImage(BaseInterface):
         #denoise the resulting reference image through non-local mean denoising
         print('Denoising reference image.')
         command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
-        result = subprocess.run(
+        subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             check=True,
             shell=True,
         )
@@ -285,10 +284,9 @@ class antsMotionCorr(BaseInterface):
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command='mv ants_mc_tmp first_ants_mc_tmp'
-            result = subprocess.run(
+            subprocess.run(
                 command,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
                 check=True,
                 shell=True,
             )
@@ -298,10 +296,9 @@ class antsMotionCorr(BaseInterface):
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
                 -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file,str(shrinking_factor))
-        result = subprocess.run(
+        subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             check=True,
             shell=True,
         )
@@ -482,27 +479,24 @@ class slice_applyTransforms(BaseInterface):
             warped_volumes.append(warped_vol_fname)
             if self.inputs.apply_motcorr:
                 command='antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x)
-                result = subprocess.run(
+                subprocess.run(
                     command,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
                     check=True,
                     shell=True,
                 )
                 command='antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
-                result = subprocess.run(
+                subprocess.run(
                     command,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
                     check=True,
                     shell=True,
                 )
             else:
                 command='antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname)
-                result = subprocess.run(
+                subprocess.run(
                     command,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
                     check=True,
                     shell=True,
                 )

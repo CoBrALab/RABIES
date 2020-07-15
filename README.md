@@ -6,8 +6,9 @@
 ```
 usage: rabies [-h] [-e] [--disable_anat_preproc] [--apply_despiking]
               [--apply_slice_mc] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
-              [-p PLUGIN] [--local_threads LOCAL_THREADS]
-              [--min_proc MIN_PROC] [--data_type DATA_TYPE] [--debug]
+              [--autoreg] [-p PLUGIN] [--local_threads LOCAL_THREADS]
+              [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
+              [--data_type DATA_TYPE] [--debug]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--anatomical_resampling ANATOMICAL_RESAMPLING]
@@ -64,6 +65,10 @@ optional arguments:
                         script following the template script structure (see
                         RABIES/rabies/shell_scripts/ for template). (default:
                         light_SyN)
+  --autoreg             Choosing this option will conduct an adaptive
+                        registration framework which will adjust parameters
+                        according to the input images.This option overrides
+                        other registration specifications. (default: False)
   -p PLUGIN, --plugin PLUGIN
                         Specify the nipype plugin for workflow execution.
                         Consult nipype plugin documentation for detailed
@@ -75,8 +80,13 @@ optional arguments:
                         CPUs. This option only applies to the MultiProc
                         execution plugin, otherwise it is set to 1. (default:
                         12)
+  --scale_min_memory SCALE_MIN_MEMORY
+                        For a parallel execution with MultiProc, the minimal
+                        memory attributed to nodes can be scaled with this
+                        multiplier to avoid memory crashes. (default: 1.0)
   --min_proc MIN_PROC   For SGE parallel processing, specify the minimal
-                        number of nodes to be assigned. (default: 1)
+                        number of nodes to be assigned to avoid memory
+                        crashes. (default: 1)
   --data_type DATA_TYPE
                         Specify data format outputs to control for file size
                         among 'int16','int32','float32' and 'float64'.

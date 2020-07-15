@@ -91,10 +91,9 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     command = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
     log.info("Registration call: "+command)
-    result = subprocess.run(
+    subprocess.run(
         command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
         check=True,
         shell=True,
     )

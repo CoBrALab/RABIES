@@ -118,10 +118,9 @@ class ConfoundRegression(BaseInterface):
         #first the voxelwise positioning map
         command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
                     -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        result = subprocess.run(
+        subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             check=True,
             shell=True,
         )
@@ -130,10 +129,9 @@ class ConfoundRegression(BaseInterface):
         #then the voxelwise framewise displacement map
         command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
                     -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        result = subprocess.run(
+        subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             check=True,
             shell=True,
         )
@@ -310,10 +308,9 @@ class MaskEPI(BaseInterface):
             new_mask_path=os.path.abspath('%s_%s.%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        result = subprocess.run(
+        subprocess.run(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             check=True,
             shell=True,
         )
