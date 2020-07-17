@@ -5,20 +5,21 @@
 ## Command Line Interface
 ```
 usage: rabies [-h] [-e] [--disable_anat_preproc] [--apply_despiking]
-              [--apply_slice_mc] [-b BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
-              [--autoreg] [-p PLUGIN] [--local_threads LOCAL_THREADS]
+              [--apply_slice_mc] [--detect_dummy] [-p PLUGIN]
+              [--local_threads LOCAL_THREADS]
               [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
-              [--data_type DATA_TYPE] [--debug]
+              [--data_type DATA_TYPE] [--debug] [--autoreg]
+              [--bias_reg_script BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
+              [--template_reg_script TEMPLATE_REG_SCRIPT]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--anatomical_resampling ANATOMICAL_RESAMPLING]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
-              [--memory_request MEMORY_REQUEST]
-              [--template_reg_script TEMPLATE_REG_SCRIPT] [--detect_dummy]
-              [--no_STC] [--TR TR] [--tpattern TPATTERN]
-              [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK]
-              [--WM_mask WM_MASK] [--CSF_mask CSF_MASK]
-              [--vascular_mask VASCULAR_MASK] [--labels LABELS]
+              [--memory_request MEMORY_REQUEST] [--no_STC] [--TR TR]
+              [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
+              [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
+              [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
+              [--labels LABELS]
               bids_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -52,23 +53,12 @@ optional arguments:
                         resampling from registration are applied
                         sequentially,since the 2D slice registrations cannot
                         be concatenate with 3D transforms. (default: False)
-  -b BIAS_REG_SCRIPT, --bias_reg_script BIAS_REG_SCRIPT
-                        specify a registration script for iterative bias field
-                        correction. This registration step consists of
-                        aligning the volume with the commonspace template to
-                        provide a brain mask and optimize the bias field
-                        correction. (default: Rigid)
-  -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
-                        Specify EPI to anat coregistration script. Built-in
-                        options include 'Rigid', 'Affine', 'SyN' (non-linear)
-                        and 'light_SyN', but can specify a custom registration
-                        script following the template script structure (see
-                        RABIES/rabies/shell_scripts/ for template). (default:
-                        light_SyN)
-  --autoreg             Choosing this option will conduct an adaptive
-                        registration framework which will adjust parameters
-                        according to the input images.This option overrides
-                        other registration specifications. (default: False)
+  --detect_dummy        Detect and remove initial dummy volumes from the EPI,
+                        and generate a reference EPI based on these volumes if
+                        detected.Dummy volumes will be removed from the output
+                        preprocessed EPI. (default: False)
+
+Options for managing the execution of the workflow.:
   -p PLUGIN, --plugin PLUGIN
                         Specify the nipype plugin for workflow execution.
                         Consult nipype plugin documentation for detailed
@@ -92,6 +82,32 @@ optional arguments:
                         among 'int16','int32','float32' and 'float64'.
                         (default: float32)
   --debug               Run in debug mode. (default: False)
+
+Options for the registration steps.:
+  --autoreg             Choosing this option will conduct an adaptive
+                        registration framework which will adjust parameters
+                        according to the input images.This option overrides
+                        other registration specifications. (default: False)
+  --bias_reg_script BIAS_REG_SCRIPT
+                        specify a registration script for iterative bias field
+                        correction. This registration step consists of
+                        aligning the volume with the commonspace template to
+                        provide a brain mask and optimize the bias field
+                        correction. (default: Rigid)
+  -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
+                        Specify EPI to anat coregistration script. Built-in
+                        options include 'Rigid', 'Affine', 'SyN' (non-linear)
+                        and 'light_SyN', but can specify a custom registration
+                        script following the template script structure (see
+                        RABIES/rabies/shell_scripts/ for template). (default:
+                        light_SyN)
+  --template_reg_script TEMPLATE_REG_SCRIPT
+                        Registration script that will be used for registration
+                        of the generated dataset template to the provided
+                        commonspace atlas for masking and labeling. Can choose
+                        a predefined registration script among
+                        Rigid,Affine,SyN or light_SyN, or provide a custom
+                        script. (default: light_SyN)
 
 Options for the resampling of the EPI. Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).:
   --nativespace_resampling NATIVESPACE_RESAMPLING
@@ -128,18 +144,6 @@ cluster options for running ants_dbm (options copied from twolevel_dbm.py)::
   --memory_request MEMORY_REQUEST
                         Option for job submission specifying requested memory
                         per pairwise registration. (default: 8gb)
-  --template_reg_script TEMPLATE_REG_SCRIPT
-                        Registration script that will be used for registration
-                        of the generated template to the provided atlas for
-                        masking and labeling. Can choose a predefined
-                        registration script among Rigid,Affine,SyN or
-                        light_SyN, or provide a custom script. (default:
-                        light_SyN)
-
-Options for the generation of EPI reference volume.:
-  --detect_dummy        Detect and remove dummy volumes, and generate a
-                        reference EPI based on these volumes if detected.
-                        (default: False)
 
 Specify Slice Timing Correction info that is fed to AFNI 3dTshift
     (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
@@ -151,7 +155,7 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift
                         'alt' for interleaved, 'seq' for sequential. (default:
                         alt)
 
-Template files.:
+Provided commonspace atlas files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
                         (default: /home/gabriel/RABIES-0.1.2-dev/template_file

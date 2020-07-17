@@ -31,31 +31,46 @@ def get_parser():
                              "This second motion correction can correct for interslice misalignment resulting from within-TR motion."
                              "With this option, motion corrections and the subsequent resampling from registration are applied sequentially,"
                              "since the 2D slice registrations cannot be concatenate with 3D transforms.")
-    parser.add_argument("-b", "--bias_reg_script", type=str, default='Rigid',
-                        help="specify a registration script for iterative bias field correction. This registration step"
-                        " consists of aligning the volume with the commonspace template to provide"
-                        " a brain mask and optimize the bias field correction.")
-    parser.add_argument("-r", "--coreg_script", type=str, default='light_SyN',
-                        help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear) and 'light_SyN', but"
-                        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
-    parser.add_argument("--autoreg", dest='autoreg', action='store_true',
-                        help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
-                        "This option overrides other registration specifications.")
-    parser.add_argument("-p", "--plugin", type=str, default='Linear',
+    parser.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
+                        help="Detect and remove initial dummy volumes from the EPI, and generate "
+                             "a reference EPI based on these volumes if detected."
+                             "Dummy volumes will be removed from the output preprocessed EPI.")
+
+    g_execution = parser.add_argument_group("Options for managing the execution of the workflow.")
+    g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
-    parser.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
+    g_execution.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
         help="""For local MultiProc execution, set the maximum number of processors run in parallel,
         defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
         it is set to 1.""")
-    parser.add_argument("--scale_min_memory", type=float, default=1.0,
+    g_execution.add_argument("--scale_min_memory", type=float, default=1.0,
                         help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
-    parser.add_argument("--min_proc", type=int, default=1,
+    g_execution.add_argument("--min_proc", type=int, default=1,
                         help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
-    parser.add_argument("--data_type", type=str, default='float32',
+    g_execution.add_argument("--data_type", type=str, default='float32',
                         help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
-    parser.add_argument("--debug", dest='debug', action='store_true',
+    g_execution.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
+
+    g_registration = parser.add_argument_group("Options for the registration steps.")
+    g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
+                        help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
+                        "This option overrides other registration specifications.")
+    g_registration.add_argument("-r", "--coreg_script", type=str, default='light_SyN',
+                        help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
+                        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
+    g_registration.add_argument("--bias_reg_script", type=str, default='Rigid',
+                        help="specify a registration script for iterative bias field correction. This registration step"
+                        " consists of aligning the volume with the commonspace template to provide"
+                        " a brain mask and optimize the bias field correction. The registration script options are the same as --coreg_script.")
+    g_registration.add_argument(
+        '--template_reg_script',
+        type=str,
+        default='light_SyN',
+        help="""Registration script that will be used for registration of the generated dataset
+        template to the provided commonspace atlas for masking and labeling. Can choose a predefined
+        registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
 
     g_resampling = parser.add_argument_group("Options for the resampling of the EPI. "
         "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
@@ -90,18 +105,6 @@ def get_parser():
         default="8gb",
         help="""Option for job submission
         specifying requested memory per pairwise registration.""")
-    g_ants_dbm.add_argument(
-        '--template_reg_script',
-        type=str,
-        default='light_SyN',
-        help="""Registration script that will be used for registration of the generated
-        template to the provided atlas for masking and labeling. Can choose a predefined
-        registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
-
-    g_gen_ref = parser.add_argument_group('Options for the generation of EPI reference volume.')
-    g_gen_ref.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
-                        help="Detect and remove dummy volumes, and generate "
-                             "a reference EPI based on these volumes if detected.")
 
     g_stc = parser.add_argument_group("""Specify Slice Timing Correction info that is fed to AFNI 3dTshift
     (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
@@ -113,23 +116,23 @@ def get_parser():
     g_stc.add_argument('--tpattern', type=str, default='alt',
                         help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
-    g_template = parser.add_argument_group('Template files.')
-    g_template.add_argument('--anat_template', action='store', type=Path,
+    g_atlas = parser.add_argument_group('Provided commonspace atlas files.')
+    g_atlas.add_argument('--anat_template', action='store', type=Path,
                         default="%s/template_files/DSURQE_40micron_average.nii.gz" % (os.environ["RABIES"]),
                         help='Anatomical file for the commonspace template.')
-    g_template.add_argument('--brain_mask', action='store', type=Path,
+    g_atlas.add_argument('--brain_mask', action='store', type=Path,
                         default="%s/template_files/DSURQE_100micron_mask.nii.gz" % (os.environ["RABIES"]),
                         help='Brain mask for the template.')
-    g_template.add_argument('--WM_mask', action='store', type=Path,
+    g_atlas.add_argument('--WM_mask', action='store', type=Path,
                         default="%s/template_files/DSURQE_100micron_eroded_WM_mask.nii.gz" % (os.environ["RABIES"]),
                         help='White matter mask for the template.')
-    g_template.add_argument('--CSF_mask', action='store', type=Path,
+    g_atlas.add_argument('--CSF_mask', action='store', type=Path,
                         default="%s/template_files/DSURQE_100micron_eroded_CSF_mask.nii.gz" % (os.environ["RABIES"]),
                         help='CSF mask for the template.')
-    g_template.add_argument('--vascular_mask', action='store', type=Path,
+    g_atlas.add_argument('--vascular_mask', action='store', type=Path,
                         default="%s/template_files/vascular_mask.nii.gz" % (os.environ["RABIES"]),
                         help='Can provide a mask of major blood vessels for computing confound timeseries. The default mask was generated by applying MELODIC ICA and selecting the resulting component mapping onto major veins. (Grandjean et al. 2020, NeuroImage; Beckmann et al. 2005)')
-    g_template.add_argument('--labels', action='store', type=Path,
+    g_atlas.add_argument('--labels', action='store', type=Path,
                         default="%s/template_files/DSURQE_40micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
     return parser
