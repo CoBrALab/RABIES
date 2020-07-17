@@ -34,6 +34,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
                               output_names=['out_file'],
                               function=apply_STC),
                      name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
+    slice_timing_correction.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
