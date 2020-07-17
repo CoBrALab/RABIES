@@ -182,6 +182,7 @@ class EstimateReferenceImage(BaseInterface):
             median_image_data = np.median(
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
         else:
+            n_volumes_to_discard = 0
             if self.inputs.detect_dummy:
                 print("Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             #if no dummy scans, will generate a median from a subset of max 100
