@@ -79,10 +79,6 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
 
 def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
     import os
-    import subprocess
-    import logging
-    log = logging.getLogger(__name__)
-
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
 
@@ -91,13 +87,8 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     command = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
-    log.info("Registration call: "+command)
-    subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        check=True,
-        shell=True,
-    )
+    from rabies.preprocess_bold_pkg.utils import run_command
+    rc = run_command(command)
 
     cwd=os.getcwd()
     warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0],)

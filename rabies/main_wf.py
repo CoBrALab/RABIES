@@ -269,7 +269,7 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
 
     def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
         import os
-        import subprocess
+        from rabies.preprocess_bold_pkg.utils import run_command
         cwd = os.getcwd()
         subject_id=os.path.basename(reference_image).split('_ses-')[0]
         session=os.path.basename(reference_image).split('_ses-')[1][0]
@@ -278,60 +278,35 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
         input_image=os.environ["template_mask"]
         brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
         command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         if not os.path.isfile(brain_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["WM_mask"]
         WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
         command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         if not os.path.isfile(WM_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["CSF_mask"]
         CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
         command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         if not os.path.isfile(CSF_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["vascular_mask"]
         vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
         command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         if not os.path.isfile(vascular_mask):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
         input_image=os.environ["atlas_labels"]
         anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
         command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         if not os.path.isfile(anat_labels):
             raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 

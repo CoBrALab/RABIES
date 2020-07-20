@@ -95,12 +95,8 @@ class EPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(input_ref_EPI, (low_dim,low_dim,low_dim)), cwd+'/resampled.nii.gz')
 
         command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         #resample to anatomical image resolution
         dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()

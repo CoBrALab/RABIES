@@ -839,19 +839,10 @@ def commonspace_reg_function(file_list, template_anat, output_folder):
         print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
     print('Running commonspace registration.')
     command='mkdir -p %s' % (template_folder,)
-    subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        check=True,
-        shell=True,
-    )
+    from rabies.preprocess_bold_pkg.utils import run_command
+    rc = run_command(command)
     command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
-    subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        check=True,
-        shell=True,
-    )
+    rc = run_command(command)
 
     ###verify that all outputs are present
     #ants dbm outputs

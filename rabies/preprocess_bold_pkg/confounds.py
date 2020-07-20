@@ -111,7 +111,7 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        import subprocess
+        from rabies.preprocess_bold_pkg.utils import run_command
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.bold).name.rsplit(".nii")
 
@@ -119,23 +119,13 @@ class ConfoundRegression(BaseInterface):
         #first the voxelwise positioning map
         command='antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
                     -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
         pos_voxelwise=os.path.abspath("%s_pos_file.nii.gz" % filename_split[0])
 
         #then the voxelwise framewise displacement map
         command='antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
                     -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
 
         FD_csv=os.path.abspath("%s_FD_file.csv" % filename_split[0])
         FD_voxelwise=os.path.abspath("%s_FD_file.nii.gz" % filename_split[0])
@@ -298,7 +288,6 @@ class MaskEPI(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        import subprocess
         import SimpleITK as sitk
 
         import pathlib  # Better path manipulation
@@ -310,12 +299,8 @@ class MaskEPI(BaseInterface):
             new_mask_path=os.path.abspath('%s_%s.nii%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)
 

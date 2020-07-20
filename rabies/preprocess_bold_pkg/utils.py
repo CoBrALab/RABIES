@@ -224,12 +224,8 @@ class EstimateReferenceImage(BaseInterface):
         #denoise the resulting reference image through non-local mean denoising
         print('Denoising reference image.')
         command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -276,6 +272,7 @@ class antsMotionCorr(BaseInterface):
         import os
         import subprocess
         import SimpleITK as sitk
+        from rabies.preprocess_bold_pkg.utils import run_command
         #check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
         shrinking_factor=4
         img = sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
@@ -286,24 +283,14 @@ class antsMotionCorr(BaseInterface):
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command='mv ants_mc_tmp first_ants_mc_tmp'
-            subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                check=True,
-                shell=True,
-            )
+            rc = run_command(command)
 
         #make a tmp directory to store the files
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
                 -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file,str(shrinking_factor))
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
 
         setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
         setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
@@ -450,7 +437,7 @@ class slice_applyTransforms(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
         import os
-        import subprocess
+        from rabies.preprocess_bold_pkg.utils import run_command
 
         img=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
 
@@ -482,27 +469,12 @@ class slice_applyTransforms(BaseInterface):
             warped_volumes.append(warped_vol_fname)
             if self.inputs.apply_motcorr:
                 command='antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
                 command='antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
             else:
                 command='antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
             #change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname, int(os.environ["rabies_data_type"])), warped_vol_fname)
 

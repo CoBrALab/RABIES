@@ -93,12 +93,8 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
-    subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        check=True,
-        shell=True,
-    )
+    from rabies.preprocess_bold_pkg.utils import run_command
+    rc = run_command(command)
 
     tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
     tshift_array=sitk.GetArrayFromImage(tshift_img)

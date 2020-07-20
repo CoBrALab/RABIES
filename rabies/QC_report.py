@@ -42,13 +42,8 @@ class PlotOverlap(BaseInterface):
             os.makedirs(self.inputs.out_dir, exist_ok=True)
             out_name=self.inputs.out_dir+'/'+self.inputs.reg_name+'.png'
         command = 'bash %s %s %s %s' % (script_path,self.inputs.moving,self.inputs.fixed,out_name)
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         setattr(self, 'out_png', out_name)
         return runtime
@@ -98,13 +93,8 @@ class PlotMotionTrace(BaseInterface):
         os.makedirs(self.inputs.out_dir+'/'+subject_id, exist_ok=True)
         prefix=self.inputs.out_dir+'/'+subject_id+'/'+filename_template
         command = 'bash %s %s %s' % (script_path,par_file,prefix)
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         setattr(self, 'out_png', '%s_motion_traces.png' % (prefix))
         return runtime
