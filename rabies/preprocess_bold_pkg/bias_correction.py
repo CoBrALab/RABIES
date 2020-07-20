@@ -69,7 +69,8 @@ class EPIBiasCorrection(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.name_source).split('.')
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
 
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
@@ -84,7 +85,7 @@ class EPIBiasCorrection(BaseInterface):
         cwd=os.getcwd()
         warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0])
         resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_split[0])
-        biascor_EPI='%s/%s_bias_cor.%s' % (cwd, filename_split[0],filename_split[1])
+        biascor_EPI='%s/%s_bias_cor.nii%s' % (cwd, filename_split[0],filename_split[1])
 
         #resample to isotropic resolution based on lowest dimension
         input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))
@@ -94,12 +95,8 @@ class EPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(input_ref_EPI, (low_dim,low_dim,low_dim)), cwd+'/resampled.nii.gz')
 
         command='bash %s %s %s %s %s %s' % (bias_cor_script_path,cwd+'/resampled.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         #resample to anatomical image resolution
         dim=sitk.ReadImage(self.inputs.anat, int(os.environ["rabies_data_type"])).GetSpacing()

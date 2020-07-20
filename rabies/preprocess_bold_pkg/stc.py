@@ -34,6 +34,7 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
                               output_names=['out_file'],
                               function=apply_STC),
                      name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
+    slice_timing_correction.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow.connect([
         (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
@@ -92,12 +93,8 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
-    subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        check=True,
-        shell=True,
-    )
+    from rabies.preprocess_bold_pkg.utils import run_command
+    rc = run_command(command)
 
     tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
     tshift_array=sitk.GetArrayFromImage(tshift_img)
@@ -110,7 +107,8 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     from rabies.preprocess_bold_pkg.utils import copyInfo_4DImage
     image_out=copyInfo_4DImage(image_out, img, img)
 
-    filename_split=os.path.basename(in_file).split('.')
-    out_file=os.path.abspath(filename_split[0]+'_tshift.'+filename_split[1])
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(in_file).name.rsplit(".nii")
+    out_file=os.path.abspath(filename_split[0]+'_tshift.nii'+filename_split[1])
     sitk.WriteImage(image_out, out_file)
     return out_file

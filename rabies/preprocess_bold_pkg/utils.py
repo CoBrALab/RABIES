@@ -174,8 +174,9 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        filename_split=os.path.basename(self.inputs.in_file).split('.')
-        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
@@ -223,12 +224,8 @@ class EstimateReferenceImage(BaseInterface):
         #denoise the resulting reference image through non-local mean denoising
         print('Denoising reference image.')
         command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        from rabies.preprocess_bold_pkg.utils import run_command
+        rc = run_command(command)
 
         setattr(self, 'ref_image', out_ref_fname)
         setattr(self, 'n_volumes_to_discard', n_volumes_to_discard)
@@ -275,6 +272,7 @@ class antsMotionCorr(BaseInterface):
         import os
         import subprocess
         import SimpleITK as sitk
+        from rabies.preprocess_bold_pkg.utils import run_command
         #check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
         shrinking_factor=4
         img = sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
@@ -285,24 +283,14 @@ class antsMotionCorr(BaseInterface):
         #change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command='mv ants_mc_tmp first_ants_mc_tmp'
-            subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                check=True,
-                shell=True,
-            )
+            rc = run_command(command)
 
         #make a tmp directory to store the files
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
         command='antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
                 -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file,self.inputs.in_file,str(shrinking_factor))
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
+        rc = run_command(command)
 
         setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
         setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
@@ -409,7 +397,8 @@ class SliceMotionCorrection(BaseInterface):
         resampled_timeseries=sitk.GetImageFromArray(timeseries_array, isVector=False)
         resampled_timeseries.CopyInformation(timeseries_image)
 
-        split=os.path.basename(self.inputs.name_source).split('.nii')
+        import pathlib  # Better path manipulation
+        split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
         out_name = os.path.abspath(split[0]+'_slice_mc.nii'+split[1])
         sitk.WriteImage(resampled_timeseries, out_name)
 
@@ -448,7 +437,7 @@ class slice_applyTransforms(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
         import os
-        import subprocess
+        from rabies.preprocess_bold_pkg.utils import run_command
 
         img=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
 
@@ -480,27 +469,12 @@ class slice_applyTransforms(BaseInterface):
             warped_volumes.append(warped_vol_fname)
             if self.inputs.apply_motcorr:
                 command='antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (motcorr_params, x, x)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
                 command='antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
             else:
                 command='antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (bold_volumes[x], transform_string, ref_img, warped_vol_fname)
-                subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    check=True,
-                    shell=True,
-                )
+                rc = run_command(command)
             #change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname, int(os.environ["rabies_data_type"])), warped_vol_fname)
 
@@ -558,8 +532,9 @@ class Merge(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.header_source).split('.')
-        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.header_source).name.rsplit(".nii")
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
@@ -572,7 +547,7 @@ class Merge(BaseInterface):
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath("%s_combined.%s" % (filename_split[0],filename_split[1]))
+        combined_files = os.path.abspath("%s_combined.nii%s" % (filename_split[0],filename_split[1]))
 
         #clip potential negative values
         combined[(combined<0).astype(bool)]=0
@@ -650,8 +625,8 @@ def convert_to_RAS(img_file, out_dir=None):
     if nb.aff2axcodes(img.affine)==('R','A','S'):
         return img_file
     else:
-        import os
-        split=os.path.basename(img_file).split('.nii')
+        import pathlib  # Better path manipulation
+        split = pathlib.Path(img_file).name.rsplit(".nii")
         if out_dir==None:
             out_file=os.path.abspath(split[0]+'_RAS.nii'+split[1])
         else:
@@ -691,3 +666,28 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
     os.environ["template_anat"]=resampled_template
 
     return resampled_template
+
+def run_command(command):
+    # Run command and collect stdout
+    # http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html # noqa
+    import logging
+    log = logging.getLogger(__name__)
+
+    import subprocess
+    try:
+        process = subprocess.run(
+            command, stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+            )
+    except Exception as e:
+        log.warning(e.output.decode("utf-8"))
+        raise
+
+    out=process.stdout.decode("utf-8")
+    if not out == '':
+        log.info(out)
+    if not process.stderr == None:
+        log.warning(process.stderr)
+    rc = process.returncode
+    return rc

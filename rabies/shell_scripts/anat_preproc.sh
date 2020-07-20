@@ -32,7 +32,7 @@ if [[ ${autoreg} == "True" ]]; then
 else
   echo "Rigid registration to template"
   antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 \
-    --output ${tmpdir}/trans \
+    --output ${tmpdir}/trans_output_ \
     --use-histogram-matching 0 \
     --initial-moving-transform [${REGTARGET},${tmpdir}/denoise.nii.gz,1] \
     --transform Rigid[0.1] \
