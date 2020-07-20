@@ -69,7 +69,8 @@ class EPIBiasCorrection(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.name_source).split('.')
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
 
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
@@ -84,7 +85,7 @@ class EPIBiasCorrection(BaseInterface):
         cwd=os.getcwd()
         warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0])
         resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_split[0])
-        biascor_EPI='%s/%s_bias_cor.%s' % (cwd, filename_split[0],filename_split[1])
+        biascor_EPI='%s/%s_bias_cor.nii%s' % (cwd, filename_split[0],filename_split[1])
 
         #resample to isotropic resolution based on lowest dimension
         input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))

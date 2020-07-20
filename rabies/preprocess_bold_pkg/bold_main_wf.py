@@ -862,7 +862,8 @@ def commonspace_reg_function(file_list, template_anat, output_folder):
     i=0
     for file in merged:
         file=str(file)
-        filename_template=os.path.basename(file).split('.')[0]
+        import pathlib  # Better path manipulation
+        filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
         anat_to_template_inverse_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (template_folder,filename_template,str(i),)
         if not os.path.isfile(anat_to_template_inverse_warp):
             raise ValueError(anat_to_template_inverse_warp+" file doesn't exists.")

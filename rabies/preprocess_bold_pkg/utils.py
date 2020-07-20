@@ -174,8 +174,9 @@ class EstimateReferenceImage(BaseInterface):
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
-        filename_split=os.path.basename(self.inputs.in_file).split('.')
-        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
@@ -409,7 +410,8 @@ class SliceMotionCorrection(BaseInterface):
         resampled_timeseries=sitk.GetImageFromArray(timeseries_array, isVector=False)
         resampled_timeseries.CopyInformation(timeseries_image)
 
-        split=os.path.basename(self.inputs.name_source).split('.nii')
+        import pathlib  # Better path manipulation
+        split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
         out_name = os.path.abspath(split[0]+'_slice_mc.nii'+split[1])
         sitk.WriteImage(resampled_timeseries, out_name)
 
@@ -558,8 +560,9 @@ class Merge(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
 
-        filename_split=os.path.basename(self.inputs.header_source).split('.')
-        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.header_source).name.rsplit(".nii")
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
@@ -572,7 +575,7 @@ class Merge(BaseInterface):
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath("%s_combined.%s" % (filename_split[0],filename_split[1]))
+        combined_files = os.path.abspath("%s_combined.nii%s" % (filename_split[0],filename_split[1]))
 
         #clip potential negative values
         combined[(combined<0).astype(bool)]=0
@@ -650,8 +653,8 @@ def convert_to_RAS(img_file, out_dir=None):
     if nb.aff2axcodes(img.affine)==('R','A','S'):
         return img_file
     else:
-        import os
-        split=os.path.basename(img_file).split('.nii')
+        import pathlib  # Better path manipulation
+        split = pathlib.Path(img_file).name.rsplit(".nii")
         if out_dir==None:
             out_file=os.path.abspath(split[0]+'_RAS.nii'+split[1])
         else:
@@ -691,3 +694,28 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
     os.environ["template_anat"]=resampled_template
 
     return resampled_template
+
+def run_command(command):
+    # Run command and collect stdout
+    # http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html # noqa
+    import logging
+    log = logging.getLogger(__name__)
+
+    import subprocess
+    try:
+        process = subprocess.run(
+            command, stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            check=True,
+            shell=True,
+            )
+    except Exception as e:
+        log.warning(e.output.decode("utf-8"))
+        raise
+
+    out=process.stdout.decode("utf-8")
+    if not out == '':
+        log.info(out)
+    if not process.stderr == None:
+        log.warning(process.stderr)
+    rc = process.returncode
+    return rc

@@ -83,7 +83,8 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     import logging
     log = logging.getLogger(__name__)
 
-    filename_split=os.path.basename(moving_image).split('.')
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
 
     if os.path.isfile(reg_script):
         reg_script_path=reg_script

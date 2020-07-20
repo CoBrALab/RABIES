@@ -50,21 +50,18 @@ class AnatPreproc(BaseInterface):
         import subprocess
         import numpy as np
         import SimpleITK as sitk
-        from rabies.preprocess_bold_pkg.utils import resample_image_spacing
+        from rabies.preprocess_bold_pkg.utils import resample_image_spacing, run_command
 
         cwd = os.getcwd()
         out_dir='%s/anat_preproc/' % (cwd,)
         command='mkdir -p %s' % (out_dir,)
-        subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            check=True,
-            shell=True,
-        )
-        filename_split=os.path.basename(self.inputs.nii_anat).split('.')
-        out_ref_fname = os.path.abspath('%s_bold_ref.%s' % (filename_split[0],filename_split[1]))
+        rc = run_command(command)
+
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.nii_anat).name.rsplit(".nii")
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        output_anat='%s%s_preproc.%s' % (out_dir,filename_split[0],filename_split[1])
+        output_anat='%s%s_preproc.nii%s' % (out_dir,filename_split[0],filename_split[1])
 
         #resample the anatomical image to the resolution of the provided template
         anat_image=sitk.ReadImage(self.inputs.nii_anat, int(os.environ["rabies_data_type"]))
@@ -85,12 +82,7 @@ class AnatPreproc(BaseInterface):
             sitk.WriteImage(sitk.ReadImage(input_anat, int(os.environ["rabies_data_type"])), output_anat)
         else:
             command='bash %s/../shell_scripts/anat_preproc.sh %s %s %s %s' % (dir_path,input_anat,self.inputs.template_anat, output_anat, self.inputs.autoreg)
-            subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                check=True,
-                shell=True,
-            )
+            rc = run_command(command)
 
             #resample image to specified data format
             sitk.WriteImage(sitk.ReadImage(output_anat, int(os.environ["rabies_data_type"])), output_anat)
