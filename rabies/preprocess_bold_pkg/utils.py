@@ -620,6 +620,7 @@ def resample_image_spacing(image,output_spacing):
 
 def convert_to_RAS(img_file, out_dir=None):
     #convert the input image to the RAS orientation convention
+    import os
     import nibabel as nb
     img=nb.load(img_file)
     if nb.aff2axcodes(img.affine)==('R','A','S'):
