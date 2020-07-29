@@ -176,7 +176,7 @@ class EstimateReferenceImage(BaseInterface):
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
-        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_split[0],))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             print("Detected "+str(n_volumes_to_discard)+" dummy scans. Taking the median of these volumes as reference EPI.")
@@ -399,7 +399,7 @@ class SliceMotionCorrection(BaseInterface):
 
         import pathlib  # Better path manipulation
         split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
-        out_name = os.path.abspath(split[0]+'_slice_mc.nii'+split[1])
+        out_name = os.path.abspath(split[0]+'_slice_mc.nii.gz')
         sitk.WriteImage(resampled_timeseries, out_name)
 
         setattr(self, 'mc_corrected_bold', out_name)
@@ -534,7 +534,7 @@ class Merge(BaseInterface):
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.header_source).name.rsplit(".nii")
-        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_split[0],))
 
         sample_volume = sitk.ReadImage(self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
         length = len(self.inputs.in_files)
@@ -547,7 +547,7 @@ class Merge(BaseInterface):
             i = i+1
         if (i!=length):
             raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath("%s_combined.nii%s" % (filename_split[0],filename_split[1]))
+        combined_files = os.path.abspath("%s_combined.nii.gz" % (filename_split[0],))
 
         #clip potential negative values
         combined[(combined<0).astype(bool)]=0
@@ -629,9 +629,9 @@ def convert_to_RAS(img_file, out_dir=None):
         import pathlib  # Better path manipulation
         split = pathlib.Path(img_file).name.rsplit(".nii")
         if out_dir==None:
-            out_file=os.path.abspath(split[0]+'_RAS.nii'+split[1])
+            out_file=os.path.abspath(split[0]+'_RAS.nii.gz')
         else:
-            out_file=out_dir+'/'+split[0]+'_RAS.nii'+split[1]
+            out_file=out_dir+'/'+split[0]+'_RAS.nii.gz'
         nb.as_closest_canonical(img).to_filename(out_file)
         return out_file
 

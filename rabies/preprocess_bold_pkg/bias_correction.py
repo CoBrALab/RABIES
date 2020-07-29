@@ -85,7 +85,7 @@ class EPIBiasCorrection(BaseInterface):
         cwd=os.getcwd()
         warped_image='%s/%s_output_warped_image.nii.gz' % (cwd, filename_split[0])
         resampled_mask='%s/%s_resampled_mask.nii.gz' % (cwd, filename_split[0])
-        biascor_EPI='%s/%s_bias_cor.nii%s' % (cwd, filename_split[0],filename_split[1])
+        biascor_EPI='%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
 
         #resample to isotropic resolution based on lowest dimension
         input_ref_EPI=sitk.ReadImage(self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))

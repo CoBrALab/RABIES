@@ -294,9 +294,9 @@ class MaskEPI(BaseInterface):
         filename_split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")
 
         if self.inputs.name_spec==None:
-            new_mask_path=os.path.abspath('%s_EPI_mask.nii%s' % (filename_split[0],filename_split[1]))
+            new_mask_path=os.path.abspath('%s_EPI_mask.nii.gz' % (filename_split[0],))
         else:
-            new_mask_path=os.path.abspath('%s_%s.nii%s' % (filename_split[0], self.inputs.name_spec,filename_split[1]))
+            new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_split[0], self.inputs.name_spec,))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
         from rabies.preprocess_bold_pkg.utils import run_command

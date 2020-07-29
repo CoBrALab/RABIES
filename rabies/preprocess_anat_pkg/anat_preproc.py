@@ -59,9 +59,9 @@ class AnatPreproc(BaseInterface):
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.nii_anat).name.rsplit(".nii")
-        out_ref_fname = os.path.abspath('%s_bold_ref.nii%s' % (filename_split[0],filename_split[1]))
+        out_ref_fname = os.path.abspath('%s_bold_ref.nii.gz' % (filename_split[0],))
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        output_anat='%s%s_preproc.nii%s' % (out_dir,filename_split[0],filename_split[1])
+        output_anat='%s%s_preproc.nii.gz' % (out_dir,filename_split[0],)
 
         #resample the anatomical image to the resolution of the provided template
         anat_image=sitk.ReadImage(self.inputs.nii_anat, int(os.environ["rabies_data_type"]))

@@ -109,6 +109,6 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
 
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(in_file).name.rsplit(".nii")
-    out_file=os.path.abspath(filename_split[0]+'_tshift.nii'+filename_split[1])
+    out_file=os.path.abspath(filename_split[0]+'_tshift.nii.gz')
     sitk.WriteImage(image_out, out_file)
     return out_file
