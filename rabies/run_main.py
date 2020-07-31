@@ -17,6 +17,9 @@ def get_parser():
                         help='the root folder of the BIDS-formated input data directory.')
     parser.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
+    parser.add_argument('--TR', type=str, default='1.0s',
+                        help="Specify repetition time (TR) in seconds. This information is crucial for the steps of slice-timing correction "
+                        "and temporal filtering during confound regression.")
     parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
                         help="Apply preprocessing with only EPI scans. commonspace registration"
                               " is executed through registration of the EPI-generated template from ants_dbm"
@@ -111,8 +114,6 @@ def get_parser():
     anterior-posterior orientation, assuming slices were acquired in this direction.""")
     g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
                         help="Select this option to ignore the STC step.")
-    g_stc.add_argument('--TR', type=str, default='1.0s',
-                        help="Specify repetition time (TR).")
     g_stc.add_argument('--tpattern', type=str, default='alt',
                         help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
@@ -135,6 +136,55 @@ def get_parser():
     g_atlas.add_argument('--labels', action='store', type=Path,
                         default="%s/template_files/DSURQE_40micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
+
+    g_confound_regression = parser.add_argument_group("""Flexible options for confound regression (Optional).
+    The confound regression operates in the following sequential order:
+    1-Smoothing
+    2-ICA-AROMA
+    3-detrending
+    4-regression of confound timeseries orthogonal to the application of temporal filters (nilearn.clean_img, Lindquist 2018)
+    5-standardization of timeseries
+    6-scrubbing
+    """)
+    g_confound_regression.add_argument('--apply_CR', dest='apply_CR', action='store_true',
+                        help='Whether to conduct confound regression on the preprocessed BOLD timeseries.')
+    g_confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
+                        help='If should run confound regression on the commonspace bold output.')
+    g_confound_regression.add_argument('--highpass', type=float, default=None,
+                        help='Specify highpass filter frequency.')
+    g_confound_regression.add_argument('--lowpass', type=float, default=None,
+                        help='Specify lowpass filter frequency.')
+    g_confound_regression.add_argument('--smoothing_filter', type=float, default=0.3,
+                        help='Specify smoothing filter size in mm.')
+    g_confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
+                        default=False,
+                        help='Whether to run ICA AROMA or not.')
+    g_confound_regression.add_argument('--aroma_dim', type=int,
+                        default=0,
+                        help='Can specify a number of dimension for MELODIC.')
+    g_confound_regression.add_argument('--conf_list', type=str,
+                        nargs="*",  # 0 or more values expected => creates a list
+                        default=[],
+                        help='list of regressors. Possible options: WM_signal,CSF_signal,vascular_signal,aCompCor,global_signal,mot_6,mot_24, mean_FD')
+    g_confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
+                        default=False,
+                        help="""Whether to apply scrubbing or not. A temporal mask will be generated based on the FD threshold.
+                        The frames that exceed the given threshold together with 1 back and 2 forward frames will be masked out
+                        from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
+    g_confound_regression.add_argument('--scrubbing_threshold', type=float,
+                        default=0.1,
+                        help='Scrubbing threshold for the mean framewise displacement in mm? (averaged across the brain mask) to select corrupted volumes.')
+    g_confound_regression.add_argument('--timeseries_interval', type=str, default='all',
+                        help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
+    g_confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
+                        default=False,
+                        help="Run a diagnosis for each image by computing melodic-ICA on the corrected timeseries,"
+                             "and compute a tSNR map from the input uncorrected image.")
+    g_confound_regression.add_argument('--seed_list', type=str,
+                        nargs="*",  # 0 or more values expected => creates a list
+                        default=[],
+                        help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
+
     return parser
 
 
@@ -252,17 +302,23 @@ def execute_workflow():
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
+    #confound regression options
+    CR_meta = {'apply_CR':opts.apply_CR, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
+        'smoothing_filter':opts.smoothing_filter, 'run_aroma':opts.run_aroma, 'aroma_dim':opts.aroma_dim, 'conf_list':opts.conf_list, 'TR':opts.TR,
+        'apply_scrubbing':opts.apply_scrubbing, 'scrubbing_threshold':opts.scrubbing_threshold, 'timeseries_interval':opts.timeseries_interval,
+        'diagnosis_output':opts.diagnosis_output, 'seed_list':opts.seed_list}
+
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
         workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
-            bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
+            bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling, CR_meta=CR_meta)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
         workflow = init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
-            commonspace_resampling=commonspace_resampling)
+            commonspace_resampling=commonspace_resampling, CR_meta=CR_meta)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 

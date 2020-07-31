@@ -4,22 +4,29 @@
 
 ## Command Line Interface
 ```
-usage: rabies [-h] [-e] [--disable_anat_preproc] [--apply_despiking]
+usage: rabies [-h] [--TR TR] [-e] [--disable_anat_preproc] [--apply_despiking]
               [--apply_slice_mc] [--detect_dummy] [-p PLUGIN]
               [--local_threads LOCAL_THREADS]
               [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
-              [--data_type DATA_TYPE] [--debug] [--autoreg]
-              [--bias_reg_script BIAS_REG_SCRIPT] [-r COREG_SCRIPT]
+              [--data_type DATA_TYPE] [--debug] [--autoreg] [-r COREG_SCRIPT]
+              [--bias_reg_script BIAS_REG_SCRIPT]
               [--template_reg_script TEMPLATE_REG_SCRIPT]
               [--nativespace_resampling NATIVESPACE_RESAMPLING]
               [--commonspace_resampling COMMONSPACE_RESAMPLING]
               [--anatomical_resampling ANATOMICAL_RESAMPLING]
               [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME]
-              [--memory_request MEMORY_REQUEST] [--no_STC] [--TR TR]
+              [--memory_request MEMORY_REQUEST] [--no_STC]
               [--tpattern TPATTERN] [--anat_template ANAT_TEMPLATE]
               [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
               [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
-              [--labels LABELS]
+              [--labels LABELS] [--apply_CR] [--commonspace_bold]
+              [--highpass HIGHPASS] [--lowpass LOWPASS]
+              [--smoothing_filter SMOOTHING_FILTER] [--run_aroma]
+              [--aroma_dim AROMA_DIM]
+              [--conf_list [CONF_LIST [CONF_LIST ...]]] [--apply_scrubbing]
+              [--scrubbing_threshold SCRUBBING_THRESHOLD]
+              [--timeseries_interval TIMESERIES_INTERVAL] [--diagnosis_output]
+              [--seed_list [SEED_LIST [SEED_LIST ...]]]
               bids_dir output_dir
 
 RABIES performs preprocessing of rodent fMRI images. Can either run on
@@ -34,6 +41,10 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --TR TR               Specify repetition time (TR) in seconds. This
+                        information is crucial for the steps of slice-timing
+                        correction and temporal filtering during confound
+                        regression. (default: 1.0s)
   -e, --bold_only       Apply preprocessing with only EPI scans. commonspace
                         registration is executed through registration of the
                         EPI-generated template from ants_dbm to the anatomical
@@ -88,19 +99,21 @@ Options for the registration steps.:
                         registration framework which will adjust parameters
                         according to the input images.This option overrides
                         other registration specifications. (default: False)
+  -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
+                        Specify EPI to anat coregistration script. Built-in
+                        options include 'Rigid', 'Affine', 'autoreg_affine',
+                        'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but
+                        can specify a custom registration script following the
+                        template script structure (see
+                        RABIES/rabies/shell_scripts/ for template). (default:
+                        light_SyN)
   --bias_reg_script BIAS_REG_SCRIPT
                         specify a registration script for iterative bias field
                         correction. This registration step consists of
                         aligning the volume with the commonspace template to
                         provide a brain mask and optimize the bias field
-                        correction. (default: Rigid)
-  -r COREG_SCRIPT, --coreg_script COREG_SCRIPT
-                        Specify EPI to anat coregistration script. Built-in
-                        options include 'Rigid', 'Affine', 'SyN' (non-linear)
-                        and 'light_SyN', but can specify a custom registration
-                        script following the template script structure (see
-                        RABIES/rabies/shell_scripts/ for template). (default:
-                        light_SyN)
+                        correction. The registration script options are the
+                        same as --coreg_script. (default: Rigid)
   --template_reg_script TEMPLATE_REG_SCRIPT
                         Registration script that will be used for registration
                         of the generated dataset template to the provided
@@ -150,7 +163,6 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift
     anterior-posterior orientation, assuming slices were acquired in this direction.:
   --no_STC              Select this option to ignore the STC step. (default:
                         False)
-  --TR TR               Specify repetition time (TR). (default: 1.0s)
   --tpattern TPATTERN   Specify if interleaved or sequential acquisition.
                         'alt' for interleaved, 'seq' for sequential. (default:
                         alt)
@@ -158,29 +170,77 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift
 Provided commonspace atlas files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/gabriel/RABIES-0.1.3/template_file
-                        s/DSURQE_40micron_average.nii.gz)
+                        (default: /home/gabriel/RABIES-0.1.3/template_files/DS
+                        URQE_40micron_average.nii.gz)
   --brain_mask BRAIN_MASK
                         Brain mask for the template. (default: /home/gabriel/R
-                        ABIES-0.1.3/template_files/DSURQE_100micron_mask.n
-                        ii.gz)
+                        ABIES-0.1.3/template_files/DSURQE_100micron_mask.nii.g
+                        z)
   --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
-                        briel/RABIES-0.1.3/template_files/DSURQE_100micron
-                        _eroded_WM_mask.nii.gz)
+                        briel/RABIES-0.1.3/template_files/DSURQE_100micron_ero
+                        ded_WM_mask.nii.gz)
   --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
-                        IES-0.1.3/template_files/DSURQE_100micron_eroded_C
-                        SF_mask.nii.gz)
+                        IES-0.1.3/template_files/DSURQE_100micron_eroded_CSF_m
+                        ask.nii.gz)
   --vascular_mask VASCULAR_MASK
                         Can provide a mask of major blood vessels for
                         computing confound timeseries. The default mask was
                         generated by applying MELODIC ICA and selecting the
                         resulting component mapping onto major veins.
                         (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/gabriel/RABIES-0.1.3/templat
-                        e_files/vascular_mask.nii.gz)
+                        2005) (default: /home/gabriel/RABIES-0.1.3/template_fi
+                        les/vascular_mask.nii.gz)
   --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
-                        riel/RABIES-0.1.3/template_files/DSURQE_40micron_l
-                        abels.nii.gz)
+                        riel/RABIES-0.1.3/template_files/DSURQE_40micron_label
+                        s.nii.gz)
+
+Flexible options for confound regression (Optional).
+    The confound regression operates in the following sequential order:
+    1-Smoothing
+    2-ICA-AROMA
+    3-detrending
+    4-regression of confound timeseries orthogonal to the application of temporal filters (nilearn.clean_img, Lindquist 2018)
+    5-standardization of timeseries
+    6-scrubbing
+    :
+  --apply_CR            Whether to conduct confound regression on the
+                        preprocessed BOLD timeseries. (default: False)
+  --commonspace_bold    If should run confound regression on the commonspace
+                        bold output. (default: False)
+  --highpass HIGHPASS   Specify highpass filter frequency. (default: None)
+  --lowpass LOWPASS     Specify lowpass filter frequency. (default: None)
+  --smoothing_filter SMOOTHING_FILTER
+                        Specify smoothing filter size in mm. (default: 0.3)
+  --run_aroma           Whether to run ICA AROMA or not. (default: False)
+  --aroma_dim AROMA_DIM
+                        Can specify a number of dimension for MELODIC.
+                        (default: 0)
+  --conf_list [CONF_LIST [CONF_LIST ...]]
+                        list of regressors. Possible options: WM_signal,CSF_si
+                        gnal,vascular_signal,aCompCor,global_signal,mot_6,mot_
+                        24, mean_FD (default: [])
+  --apply_scrubbing     Whether to apply scrubbing or not. A temporal mask
+                        will be generated based on the FD threshold. The
+                        frames that exceed the given threshold together with 1
+                        back and 2 forward frames will be masked out from the
+                        data after the application of all other confound
+                        regression steps (as in Power et al. 2012). (default:
+                        False)
+  --scrubbing_threshold SCRUBBING_THRESHOLD
+                        Scrubbing threshold for the mean framewise
+                        displacement in mm? (averaged across the brain mask)
+                        to select corrupted volumes. (default: 0.1)
+  --timeseries_interval TIMESERIES_INTERVAL
+                        Specify a time interval in the timeseries to keep.
+                        e.g. "0,80". By default all timeseries are kept.
+                        (default: all)
+  --diagnosis_output    Run a diagnosis for each image by computing melodic-
+                        ICA on the corrected timeseries,and compute a tSNR map
+                        from the input uncorrected image. (default: False)
+  --seed_list [SEED_LIST [SEED_LIST ...]]
+                        Can provide a list of seed .nii images that will be
+                        used to evaluate seed-based correlation maps during
+                        data diagnosis. (default: [])
 ```
 
 ## Execution syntax

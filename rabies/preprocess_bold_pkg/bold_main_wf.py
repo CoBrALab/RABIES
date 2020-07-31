@@ -317,7 +317,7 @@ def init_bold_main_wf(data_dir_path, apply_despiking=False, tr='1.0s', tpattern=
 
 
 def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, bias_reg_script='Rigid', coreg_script='SyN', template_reg_script=None,
-                        commonspace_resampling='origin', aCompCor_method='50%', name='bold_main_wf'):
+                        commonspace_resampling='origin', aCompCor_method='50%', CR_meta={'apply_CR':False}, name='bold_main_wf'):
     """
     This is an alternative workflow for EPI-only preprocessing, inluding commonspace
     registration based on the generation of a EPI template from the provided sample
@@ -813,6 +813,38 @@ def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=Fals
             ("warped_image", "moving"),
             ]),
         ])
+
+    ###Confound regression step
+    if CR_meta['apply_CR']:
+        from rabies.conf_reg.confound_regression import init_confound_regression_wf
+
+        confound_regression_wf=init_confound_regression_wf(lowpass=CR_meta['lowpass'], highpass=CR_meta['highpass'],
+            smoothing_filter=CR_meta['smoothing_filter'], run_aroma=CR_meta['run_aroma'], aroma_dim=CR_meta['aroma_dim'], conf_list=CR_meta['conf_list'], TR=CR_meta['TR'], apply_scrubbing=CR_meta['apply_scrubbing'],
+            scrubbing_threshold=CR_meta['scrubbing_threshold'], timeseries_interval=CR_meta['timeseries_interval'], diagnosis_output=CR_meta['diagnosis_output'], seed_list=CR_meta['seed_list'])
+        workflow.connect([
+            (outputnode, confound_regression_wf, [
+                ("confounds_csv", "inputnode.confounds_file"), #confounds file
+                ("FD_csv", "inputnode.FD_file"),
+                ("resampled_bold", "inputnode.bold_file"),
+                ("EPI_brain_mask","inputnode.brain_mask"),
+                ("EPI_CSF_mask","inputnode.csf_mask"),
+                ]),
+            ])
+
+        confound_regression_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                 container="confound_regression_datasink"),
+                        name="confound_regression_datasink")
+
+        workflow.connect([
+            (confound_regression_wf, confound_regression_datasink, [
+                ("outputnode.cleaned_path", "cleaned_timeseries"),
+                ("outputnode.aroma_out","aroma_outputs"),
+                ("outputnode.mel_out","subject_melodic_ICA"),
+                ("outputnode.tSNR_file","tSNR_map"),
+                ("outputnode.corr_map_list","seed_correlation_maps"),
+                ]),
+            ])
+
 
     return workflow
 
