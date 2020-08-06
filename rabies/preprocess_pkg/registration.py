@@ -87,7 +87,7 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     else:
         raise ValueError('REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
     command = 'bash %s %s %s %s %s' % (reg_script_path,moving_image, fixed_image, anat_mask, filename_split[0])
-    from rabies.preprocess_bold_pkg.utils import run_command
+    from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
     cwd=os.getcwd()

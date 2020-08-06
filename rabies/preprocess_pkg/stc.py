@@ -93,7 +93,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
-    from rabies.preprocess_bold_pkg.utils import run_command
+    from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
     tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
@@ -104,7 +104,7 @@ def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
         new_array[:,:,i,:]=tshift_array[:,i,:,:]
     image_out = sitk.GetImageFromArray(new_array, isVector=False)
 
-    from rabies.preprocess_bold_pkg.utils import copyInfo_4DImage
+    from rabies.preprocess_pkg.utils import copyInfo_4DImage
     image_out=copyInfo_4DImage(image_out, img, img)
 
     import pathlib  # Better path manipulation

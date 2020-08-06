@@ -164,6 +164,10 @@ def get_parser():
                         default="%s/template_files/DSURQE_40micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
 
+    confound_regression.add_argument('preprocess_out', action='store', type=Path,
+                        help='path to RABIES preprocessing output directory with the datasinks.')
+    confound_regression.add_argument('output_dir', action='store', type=Path,
+                        help='the output path to drop confound regression outputs.')
     confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
                         help='If should run confound regression on the commonspace bold output.')
     confound_regression.add_argument('--TR', type=str, default='1.0s',
@@ -203,26 +207,26 @@ def get_parser():
                         default=[],
                         help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
 
+    analysis.add_argument('preprocess_out', action='store', type=Path,
+                        help='path to RABIES preprocessing output directory with the datasinks.')
+    analysis.add_argument('output_dir', action='store', type=Path,
+                        help='the output path to drop analysis outputs.')
+
     return parser
 
 
 def execute_workflow():
     #generates the parser CLI and execute the workflow based on specified parameters.
-    opts = get_parser().parse_args()
+    parser = get_parser()
+    opts = parser.parse_args()
 
-    print(vars(opts))
-
-    if opts.rabies_step == 'preprocess':
-        preprocess(opts)
-
-def preprocess(opts):
     output_folder=os.path.abspath(str(opts.output_dir))
 
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
     ###managing log info
-    logging.basicConfig(filename=output_folder+'/rabies_preprocess.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
+    logging.basicConfig(filename='%s/rabies_%s.log' % (output_folder, opts.rabies_step, ), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger(__name__)
 
     from ._info import __version__
@@ -236,6 +240,16 @@ def preprocess(opts):
         args+=input
     log.info(args)
 
+    if opts.rabies_step == 'preprocess':
+        preprocess(opts)
+    elif opts.rabies_step == 'confound_regression':
+        confound_regression(opts)
+    elif opts.rabies_step == 'analysis':
+        analysis(opts)
+    else:
+        parser.print_help()
+
+def preprocess(opts):
     #obtain parser parameters
     bold_preproc_only=opts.bold_only
     disable_anat_preproc=opts.disable_anat_preproc
@@ -301,7 +315,7 @@ def preprocess(opts):
 
     #template options
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
-    from rabies.preprocess_bold_pkg.utils import convert_to_RAS
+    from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(str(opts.anat_template)):
         raise ValueError("--anat_template file doesn't exists.")
     os.environ["template_anat"] = convert_to_RAS(str(opts.anat_template), os.environ["RABIES"]+'/template_files')
@@ -327,7 +341,7 @@ def preprocess(opts):
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
     if bold_preproc_only:
-        from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
+        from rabies.preprocess_pkg.bold_main_wf import init_EPIonly_bold_main_wf
         workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
@@ -367,14 +381,55 @@ def preprocess(opts):
         log.critical('RABIES failed: %s', e)
         raise
 
+def confound_regression(opts):
 
-'''
     #confound regression options
-    CR_meta = {'apply_CR':opts.apply_CR, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
+    CR_meta = {'preprocess_out':opts.preprocess_out, 'output_dir':opts.output_dir, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
         'smoothing_filter':opts.smoothing_filter, 'run_aroma':opts.run_aroma, 'aroma_dim':opts.aroma_dim, 'conf_list':opts.conf_list, 'TR':opts.TR,
         'apply_scrubbing':opts.apply_scrubbing, 'scrubbing_threshold':opts.scrubbing_threshold, 'timeseries_interval':opts.timeseries_interval,
         'diagnosis_output':opts.diagnosis_output, 'seed_list':opts.seed_list}
-'''
+
+    confound_regression_wf=init_confound_regression_wf(lowpass=CR_meta['lowpass'], highpass=CR_meta['highpass'],
+        smoothing_filter=CR_meta['smoothing_filter'], run_aroma=CR_meta['run_aroma'], aroma_dim=CR_meta['aroma_dim'], conf_list=CR_meta['conf_list'], TR=CR_meta['TR'], apply_scrubbing=CR_meta['apply_scrubbing'],
+        scrubbing_threshold=CR_meta['scrubbing_threshold'], timeseries_interval=CR_meta['timeseries_interval'], diagnosis_output=CR_meta['diagnosis_output'], seed_list=CR_meta['seed_list'])
+    workflow.connect([
+        (outputnode, confound_regression_wf, [
+            ("confounds_csv", "inputnode.confounds_file"), #confounds file
+            ("FD_csv", "inputnode.FD_file"),
+            ]),
+        ])
+    if CR_meta['commonspace_bold']:
+        workflow.connect([
+            (outputnode, confound_regression_wf, [
+                ("commonspace_bold", "inputnode.bold_file"),
+                ("commonspace_mask","inputnode.brain_mask"),
+                ("commonspace_CSF_mask","inputnode.csf_mask"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (outputnode, confound_regression_wf, [
+                ("native_corrected_bold", "inputnode.bold_file"),
+                ("bold_brain_mask","inputnode.brain_mask"),
+                ("bold_CSF_mask","inputnode.csf_mask"),
+                ]),
+            ])
+
+    confound_regression_datasink = pe.Node(DataSink(base_directory=output_folder,
+                             container="confound_regression_datasink"),
+                    name="confound_regression_datasink")
+
+    workflow.connect([
+        (confound_regression_wf, confound_regression_datasink, [
+            ("outputnode.cleaned_path", "cleaned_timeseries"),
+            ("outputnode.aroma_out","aroma_outputs"),
+            ("outputnode.mel_out","subject_melodic_ICA"),
+            ("outputnode.tSNR_file","tSNR_map"),
+            ("outputnode.corr_map_list","seed_correlation_maps"),
+            ]),
+        ])
+
+def analysis(opts):
 
 def define_reg_script(reg_option):
     import rabies

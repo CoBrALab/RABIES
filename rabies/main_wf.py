@@ -2,10 +2,10 @@ import os
 from os.path import join as opj
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from .preprocess_anat_pkg.anat_preproc import init_anat_preproc_wf
-from .preprocess_bold_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
-from .preprocess_bold_pkg.registration import run_antsRegistration
-from .preprocess_bold_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
+from .preprocess_pkg.anat_preproc import init_anat_preproc_wf
+from .preprocess_pkg.bold_main_wf import init_bold_main_wf, commonspace_reg_function
+from .preprocess_pkg.registration import run_antsRegistration
+from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .QC_report import PlotOverlap, PlotMotionTrace
 from .conf_reg.confound_regression import init_confound_regression_wf
 from nipype.interfaces.io import SelectFiles, DataSink
@@ -220,7 +220,7 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
     layout = BIDSLayout(data_dir_path, validate=False)
     anat_file_list=layout.get(extension=['nii', 'nii.gz'], datatype='anat', return_type='filename')
 
-    from rabies.preprocess_bold_pkg.utils import resample_template
+    from rabies.preprocess_pkg.utils import resample_template
     resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing'],
                               output_names=['resampled_template'],
                               function=resample_template),
@@ -270,7 +270,7 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
 
     def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
         import os
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
         cwd = os.getcwd()
         subject_id=os.path.basename(reference_image).split('_ses-')[0]
         session=os.path.basename(reference_image).split('_ses-')[1][0]
@@ -508,47 +508,5 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
             ("warped_image", "moving"),
             ]),
         ])
-
-    ###Confound regression step
-    if CR_meta['apply_CR']:
-        confound_regression_wf=init_confound_regression_wf(lowpass=CR_meta['lowpass'], highpass=CR_meta['highpass'],
-            smoothing_filter=CR_meta['smoothing_filter'], run_aroma=CR_meta['run_aroma'], aroma_dim=CR_meta['aroma_dim'], conf_list=CR_meta['conf_list'], TR=CR_meta['TR'], apply_scrubbing=CR_meta['apply_scrubbing'],
-            scrubbing_threshold=CR_meta['scrubbing_threshold'], timeseries_interval=CR_meta['timeseries_interval'], diagnosis_output=CR_meta['diagnosis_output'], seed_list=CR_meta['seed_list'])
-        workflow.connect([
-            (outputnode, confound_regression_wf, [
-                ("confounds_csv", "inputnode.confounds_file"), #confounds file
-                ("FD_csv", "inputnode.FD_file"),
-                ]),
-            ])
-        if CR_meta['commonspace_bold']:
-            workflow.connect([
-                (outputnode, confound_regression_wf, [
-                    ("commonspace_bold", "inputnode.bold_file"),
-                    ("commonspace_mask","inputnode.brain_mask"),
-                    ("commonspace_CSF_mask","inputnode.csf_mask"),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (outputnode, confound_regression_wf, [
-                    ("native_corrected_bold", "inputnode.bold_file"),
-                    ("bold_brain_mask","inputnode.brain_mask"),
-                    ("bold_CSF_mask","inputnode.csf_mask"),
-                    ]),
-                ])
-
-        confound_regression_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                 container="confound_regression_datasink"),
-                        name="confound_regression_datasink")
-
-        workflow.connect([
-            (confound_regression_wf, confound_regression_datasink, [
-                ("outputnode.cleaned_path", "cleaned_timeseries"),
-                ("outputnode.aroma_out","aroma_outputs"),
-                ("outputnode.mel_out","subject_melodic_ICA"),
-                ("outputnode.tSNR_file","tSNR_map"),
-                ("outputnode.corr_map_list","seed_correlation_maps"),
-                ]),
-            ])
 
     return workflow

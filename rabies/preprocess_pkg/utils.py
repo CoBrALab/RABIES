@@ -224,7 +224,7 @@ class EstimateReferenceImage(BaseInterface):
         #denoise the resulting reference image through non-local mean denoising
         print('Denoising reference image.')
         command='DenoiseImage -d 3 -i %s -o %s' % (out_ref_fname,out_ref_fname)
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
 
         setattr(self, 'ref_image', out_ref_fname)
@@ -272,7 +272,7 @@ class antsMotionCorr(BaseInterface):
         import os
         import subprocess
         import SimpleITK as sitk
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
         #check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
         shrinking_factor=4
         img = sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
@@ -437,7 +437,7 @@ class slice_applyTransforms(BaseInterface):
         import numpy as np
         import SimpleITK as sitk
         import os
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
 
         img=sitk.ReadImage(self.inputs.in_file, int(os.environ["rabies_data_type"]))
 
@@ -639,7 +639,7 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
     import os
     import SimpleITK as sitk
     import numpy as np
-    from rabies.preprocess_bold_pkg.utils import resample_image_spacing
+    from rabies.preprocess_pkg.utils import resample_image_spacing
 
     if spacing=='inputs_defined':
         file_list=list(np.asarray(file_list).flatten())

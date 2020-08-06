@@ -111,7 +111,7 @@ class ConfoundRegression(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.bold).name.rsplit(".nii")
 
@@ -299,7 +299,7 @@ class MaskEPI(BaseInterface):
             new_mask_path=os.path.abspath('%s_%s.nii.gz' % (filename_split[0], self.inputs.name_spec,))
 
         command='antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        from rabies.preprocess_bold_pkg.utils import run_command
+        from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
 
         sitk.WriteImage(sitk.ReadImage(new_mask_path, sitk.sitkInt16), new_mask_path)

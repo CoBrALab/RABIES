@@ -50,7 +50,7 @@ class AnatPreproc(BaseInterface):
         import subprocess
         import numpy as np
         import SimpleITK as sitk
-        from rabies.preprocess_bold_pkg.utils import resample_image_spacing, run_command
+        from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
 
         cwd = os.getcwd()
         out_dir='%s/anat_preproc/' % (cwd,)

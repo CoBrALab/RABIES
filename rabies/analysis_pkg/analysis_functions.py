@@ -134,7 +134,7 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
     df = pd.DataFrame(data=merged)
     df.to_csv(file_path, header=False, sep=',',index=False)
 
-    from rabies.preprocess_bold_pkg.utils import run_command
+    from rabies.preprocess_pkg.utils import run_command
     out_dir=os.path.abspath('group_melodic.ica')
     command='melodic -i %s -m %s -o %s --tr %s -d %s --report' % (file_path,mask_file,out_dir, tr, dim)
     rc = run_command(command)
