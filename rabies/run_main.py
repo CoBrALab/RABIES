@@ -1,6 +1,7 @@
 import os
 import sys
 
+import logging
 import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
@@ -8,38 +9,62 @@ import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 def get_parser():
     """Build parser object"""
     parser = argparse.ArgumentParser(
-        description="""RABIES performs preprocessing of rodent fMRI images. Can either run
-        on datasets that only contain EPI images, or both structural and EPI images. Refer
-        to the README documentation for the input folder structure.""",
+        description="""RABIES performs processing of rodent fMRI images. Can either run
+        on datasets that only contain EPI images, or both structural and EPI images.""",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('bids_dir', action='store', type=Path,
+    subparsers = parser.add_subparsers(title='Commands',
+                                       description='The RABIES workflow is seperated into three different processing steps: preprocessing, '
+                                                   'confound regression and analysis. Outputs from the preprocessing provides the inputs for '
+                                                   'the subsequent confound regression, and finally analysis.',
+                                       help='Description',
+                                       dest='rabies_step',
+                                       metavar='Processing step')
+
+    preprocess = subparsers.add_parser("preprocess",
+        help="""Conducts preprocessing on an input dataset in BIDS format.
+        Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear registration,
+        registration to a commonspace atlas and associated masks, as well as further options (see --help).
+        """)
+    confound_regression = subparsers.add_parser("confound_regression",
+        help="""Flexible options for confound regression.
+        The confound regression operates in the following sequential order:
+        1-Smoothing
+        2-ICA-AROMA
+        3-detrending
+        4-regression of confound timeseries orthogonal to the application of temporal filters (nilearn.clean_img, Lindquist 2018)
+        5-standardization of timeseries
+        6-scrubbing
+        """)
+    analysis = subparsers.add_parser("analysis",
+        help="""
+        Optional analysis to conduct on cleaned timeseries.
+        """)
+
+    preprocess.add_argument('bids_dir', action='store', type=Path,
                         help='the root folder of the BIDS-formated input data directory.')
-    parser.add_argument('output_dir', action='store', type=Path,
+    preprocess.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop outputs from major preprocessing steps.')
-    parser.add_argument('--TR', type=str, default='1.0s',
-                        help="Specify repetition time (TR) in seconds. This information is crucial for the steps of slice-timing correction "
-                        "and temporal filtering during confound regression.")
-    parser.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
+    preprocess.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
                         help="Apply preprocessing with only EPI scans. commonspace registration"
                               " is executed through registration of the EPI-generated template from ants_dbm"
                               " to the anatomical template.")
-    parser.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
+    preprocess.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
                         help="This option disables the preprocessing of anatomical images before commonspace template generation.")
-    parser.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
+    preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                         help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                              "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
-    parser.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
+    preprocess.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
                         help="Whether to apply a slice-specific motion correction after initial volumetric rigid correction. "
                              "This second motion correction can correct for interslice misalignment resulting from within-TR motion."
                              "With this option, motion corrections and the subsequent resampling from registration are applied sequentially,"
                              "since the 2D slice registrations cannot be concatenate with 3D transforms.")
-    parser.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
+    preprocess.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
                         help="Detect and remove initial dummy volumes from the EPI, and generate "
                              "a reference EPI based on these volumes if detected."
                              "Dummy volumes will be removed from the output preprocessed EPI.")
 
-    g_execution = parser.add_argument_group("Options for managing the execution of the workflow.")
+    g_execution = preprocess.add_argument_group("Options for managing the execution of the workflow.")
     g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
                         help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
@@ -56,7 +81,7 @@ def get_parser():
     g_execution.add_argument("--debug", dest='debug', action='store_true',
                         help="Run in debug mode.")
 
-    g_registration = parser.add_argument_group("Options for the registration steps.")
+    g_registration = preprocess.add_argument_group("Options for the registration steps.")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
                         help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
                         "This option overrides other registration specifications.")
@@ -75,7 +100,7 @@ def get_parser():
         template to the provided commonspace atlas for masking and labeling. Can choose a predefined
         registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
 
-    g_resampling = parser.add_argument_group("Options for the resampling of the EPI. "
+    g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
         "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
     g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
                         help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
@@ -92,7 +117,7 @@ def get_parser():
         resolution of the template. Alternatively, the user can provide a custom resampling dimension. This allows to accelerate
         registration steps with minimal sampling dimensions.""")
 
-    g_ants_dbm = parser.add_argument_group('cluster options for running ants_dbm (options copied from twolevel_dbm.py):')
+    g_ants_dbm = preprocess.add_argument_group('cluster options for running ants_dbm (options copied from twolevel_dbm.py):')
     g_ants_dbm.add_argument(
         '--cluster_type',
         default="local",
@@ -109,15 +134,17 @@ def get_parser():
         help="""Option for job submission
         specifying requested memory per pairwise registration.""")
 
-    g_stc = parser.add_argument_group("""Specify Slice Timing Correction info that is fed to AFNI 3dTshift
+    g_stc = preprocess.add_argument_group("""Specify Slice Timing Correction info that is fed to AFNI 3dTshift
     (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
     anterior-posterior orientation, assuming slices were acquired in this direction.""")
+    g_stc.add_argument('--TR', type=str, default='1.0s',
+                        help="Specify repetition time (TR) in seconds.")
     g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
                         help="Select this option to ignore the STC step.")
     g_stc.add_argument('--tpattern', type=str, default='alt',
                         help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
-    g_atlas = parser.add_argument_group('Provided commonspace atlas files.')
+    g_atlas = preprocess.add_argument_group('Provided commonspace atlas files.')
     g_atlas.add_argument('--anat_template', action='store', type=Path,
                         default="%s/template_files/DSURQE_40micron_average.nii.gz" % (os.environ["RABIES"]),
                         help='Anatomical file for the commonspace template.')
@@ -137,50 +164,41 @@ def get_parser():
                         default="%s/template_files/DSURQE_40micron_labels.nii.gz" % (os.environ["RABIES"]),
                         help='Atlas file with anatomical labels.')
 
-    g_confound_regression = parser.add_argument_group("""Flexible options for confound regression (Optional).
-    The confound regression operates in the following sequential order:
-    1-Smoothing
-    2-ICA-AROMA
-    3-detrending
-    4-regression of confound timeseries orthogonal to the application of temporal filters (nilearn.clean_img, Lindquist 2018)
-    5-standardization of timeseries
-    6-scrubbing
-    """)
-    g_confound_regression.add_argument('--apply_CR', dest='apply_CR', action='store_true',
-                        help='Whether to conduct confound regression on the preprocessed BOLD timeseries.')
-    g_confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
+    confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
                         help='If should run confound regression on the commonspace bold output.')
-    g_confound_regression.add_argument('--highpass', type=float, default=None,
+    confound_regression.add_argument('--TR', type=str, default='1.0s',
+                        help="Specify repetition time (TR) in seconds.")
+    confound_regression.add_argument('--highpass', type=float, default=None,
                         help='Specify highpass filter frequency.')
-    g_confound_regression.add_argument('--lowpass', type=float, default=None,
+    confound_regression.add_argument('--lowpass', type=float, default=None,
                         help='Specify lowpass filter frequency.')
-    g_confound_regression.add_argument('--smoothing_filter', type=float, default=0.3,
+    confound_regression.add_argument('--smoothing_filter', type=float, default=0.3,
                         help='Specify smoothing filter size in mm.')
-    g_confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
+    confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
                         default=False,
                         help='Whether to run ICA AROMA or not.')
-    g_confound_regression.add_argument('--aroma_dim', type=int,
+    confound_regression.add_argument('--aroma_dim', type=int,
                         default=0,
                         help='Can specify a number of dimension for MELODIC.')
-    g_confound_regression.add_argument('--conf_list', type=str,
+    confound_regression.add_argument('--conf_list', type=str,
                         nargs="*",  # 0 or more values expected => creates a list
                         default=[],
                         help='list of regressors. Possible options: WM_signal,CSF_signal,vascular_signal,aCompCor,global_signal,mot_6,mot_24, mean_FD')
-    g_confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
+    confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
                         default=False,
                         help="""Whether to apply scrubbing or not. A temporal mask will be generated based on the FD threshold.
                         The frames that exceed the given threshold together with 1 back and 2 forward frames will be masked out
                         from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
-    g_confound_regression.add_argument('--scrubbing_threshold', type=float,
+    confound_regression.add_argument('--scrubbing_threshold', type=float,
                         default=0.1,
                         help='Scrubbing threshold for the mean framewise displacement in mm? (averaged across the brain mask) to select corrupted volumes.')
-    g_confound_regression.add_argument('--timeseries_interval', type=str, default='all',
+    confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                         help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
-    g_confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
+    confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
                         default=False,
                         help="Run a diagnosis for each image by computing melodic-ICA on the corrected timeseries,"
                              "and compute a tSNR map from the input uncorrected image.")
-    g_confound_regression.add_argument('--seed_list', type=str,
+    confound_regression.add_argument('--seed_list', type=str,
                         nargs="*",  # 0 or more values expected => creates a list
                         default=[],
                         help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
@@ -191,14 +209,20 @@ def get_parser():
 def execute_workflow():
     #generates the parser CLI and execute the workflow based on specified parameters.
     opts = get_parser().parse_args()
+
+    print(vars(opts))
+
+    if opts.rabies_step == 'preprocess':
+        preprocess(opts)
+
+def preprocess(opts):
     output_folder=os.path.abspath(str(opts.output_dir))
 
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
     ###managing log info
-    import logging
-    logging.basicConfig(filename=output_folder+'/rabies.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
+    logging.basicConfig(filename=output_folder+'/rabies_preprocess.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger(__name__)
 
     from ._info import __version__
@@ -302,23 +326,17 @@ def execute_workflow():
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
-    #confound regression options
-    CR_meta = {'apply_CR':opts.apply_CR, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
-        'smoothing_filter':opts.smoothing_filter, 'run_aroma':opts.run_aroma, 'aroma_dim':opts.aroma_dim, 'conf_list':opts.conf_list, 'TR':opts.TR,
-        'apply_scrubbing':opts.apply_scrubbing, 'scrubbing_threshold':opts.scrubbing_threshold, 'timeseries_interval':opts.timeseries_interval,
-        'diagnosis_output':opts.diagnosis_output, 'seed_list':opts.seed_list}
-
     if bold_preproc_only:
         from rabies.preprocess_bold_pkg.bold_main_wf import init_EPIonly_bold_main_wf
         workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
-            bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling, CR_meta=CR_meta)
+            bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
     elif not bold_preproc_only:
         from rabies.main_wf import init_unified_main_wf
         workflow = init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
-            commonspace_resampling=commonspace_resampling, CR_meta=CR_meta)
+            commonspace_resampling=commonspace_resampling)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
@@ -349,6 +367,14 @@ def execute_workflow():
         log.critical('RABIES failed: %s', e)
         raise
 
+
+'''
+    #confound regression options
+    CR_meta = {'apply_CR':opts.apply_CR, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
+        'smoothing_filter':opts.smoothing_filter, 'run_aroma':opts.run_aroma, 'aroma_dim':opts.aroma_dim, 'conf_list':opts.conf_list, 'TR':opts.TR,
+        'apply_scrubbing':opts.apply_scrubbing, 'scrubbing_threshold':opts.scrubbing_threshold, 'timeseries_interval':opts.timeseries_interval,
+        'diagnosis_output':opts.diagnosis_output, 'seed_list':opts.seed_list}
+'''
 
 def define_reg_script(reg_option):
     import rabies
