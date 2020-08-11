@@ -1,6 +1,7 @@
 import os
 import sys
 
+import pickle
 import logging
 import argparse
 from pathlib import Path
@@ -27,19 +28,33 @@ def get_parser():
         registration to a commonspace atlas and associated masks, as well as further options (see --help).
         """)
     confound_regression = subparsers.add_parser("confound_regression",
-        help="""Flexible options for confound regression.
-        The confound regression operates in the following sequential order:
-        1-Smoothing
-        2-ICA-AROMA
-        3-detrending
-        4-regression of confound timeseries orthogonal to the application of temporal filters (nilearn.clean_img, Lindquist 2018)
-        5-standardization of timeseries
-        6-scrubbing
+        help="""Flexible options for confound regression applied
+        on preprocessing outputs from RABIES. Smoothing is applied first, followed by ICA-AROMA, detrending, then
+        regression of confound timeseries orthogonal to the application of temporal filters
+        (nilearn.clean_img, Lindquist 2018), standardization of timeseries and finally scrubbing. The corrections
+        follow user specifications.
         """)
     analysis = subparsers.add_parser("analysis",
         help="""
         Optional analysis to conduct on cleaned timeseries.
         """)
+
+    g_execution = parser.add_argument_group("Options for managing the execution of the workflow.")
+    g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
+                        help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
+                             " Linear, MultiProc, SGE and SGEGraph have been tested.")
+    g_execution.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
+        help="""For local MultiProc execution, set the maximum number of processors run in parallel,
+        defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
+        it is set to 1.""")
+    g_execution.add_argument("--scale_min_memory", type=float, default=1.0,
+                        help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
+    g_execution.add_argument("--min_proc", type=int, default=1,
+                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
+    g_execution.add_argument("--data_type", type=str, default='float32',
+                        help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
+    g_execution.add_argument("--debug", dest='debug', action='store_true',
+                        help="Run in debug mode.")
 
     preprocess.add_argument('bids_dir', action='store', type=Path,
                         help='the root folder of the BIDS-formated input data directory.')
@@ -63,23 +78,6 @@ def get_parser():
                         help="Detect and remove initial dummy volumes from the EPI, and generate "
                              "a reference EPI based on these volumes if detected."
                              "Dummy volumes will be removed from the output preprocessed EPI.")
-
-    g_execution = preprocess.add_argument_group("Options for managing the execution of the workflow.")
-    g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
-                        help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
-                             " Linear, MultiProc, SGE and SGEGraph have been tested.")
-    g_execution.add_argument('--local_threads',type=int,default=multiprocessing.cpu_count(),
-        help="""For local MultiProc execution, set the maximum number of processors run in parallel,
-        defaults to number of CPUs. This option only applies to the MultiProc execution plugin, otherwise
-        it is set to 1.""")
-    g_execution.add_argument("--scale_min_memory", type=float, default=1.0,
-                        help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
-    g_execution.add_argument("--min_proc", type=int, default=1,
-                        help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
-    g_execution.add_argument("--data_type", type=str, default='float32',
-                        help="Specify data format outputs to control for file size among 'int16','int32','float32' and 'float64'.")
-    g_execution.add_argument("--debug", dest='debug', action='store_true',
-                        help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group("Options for the registration steps.")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
@@ -167,7 +165,10 @@ def get_parser():
     confound_regression.add_argument('preprocess_out', action='store', type=Path,
                         help='path to RABIES preprocessing output directory with the datasinks.')
     confound_regression.add_argument('output_dir', action='store', type=Path,
-                        help='the output path to drop confound regression outputs.')
+                        help='path to drop confound regression output datasink.')
+    confound_regression.add_argument('--wf_name', type=str, default='confound_regression_wf',
+                        help='Can specify a name for the workflow of this confound regression run, to avoid potential '
+                             'overlaps with previous runs (can be useful if investigating multiple strategies).')
     confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
                         help='If should run confound regression on the commonspace bold output.')
     confound_regression.add_argument('--TR', type=str, default='1.0s',
@@ -207,8 +208,8 @@ def get_parser():
                         default=[],
                         help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
 
-    analysis.add_argument('preprocess_out', action='store', type=Path,
-                        help='path to RABIES preprocessing output directory with the datasinks.')
+    analysis.add_argument('confound_regression_out', action='store', type=Path,
+                        help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop analysis outputs.')
 
@@ -221,11 +222,34 @@ def execute_workflow():
     opts = parser.parse_args()
 
     output_folder=os.path.abspath(str(opts.output_dir))
-
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
+    #options for workflow execution
+    plugin=opts.plugin
+    os.environ["min_proc"]=str(opts.min_proc)
+    if plugin=='MultiProc':
+        os.environ["local_threads"]=str(opts.local_threads)
+    else:
+        os.environ["local_threads"]='1'
+    os.environ["rabies_mem_scale"]=str(opts.scale_min_memory)
+    import SimpleITK as sitk
+    if str(opts.data_type)=='int16':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt16)
+    elif str(opts.data_type)=='int32':
+        os.environ["rabies_data_type"]=str(sitk.sitkInt32)
+    elif str(opts.data_type)=='float32':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat32)
+    elif str(opts.data_type)=='float64':
+        os.environ["rabies_data_type"]=str(sitk.sitkFloat64)
+    else:
+        raise ValueError('Invalid --data_type provided.')
+
     ###managing log info
+    cli_file='%s/rabies_%s.pkl' % (output_folder, opts.rabies_step, )
+    with open(cli_file, 'wb') as handle:
+        pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     logging.basicConfig(filename='%s/rabies_%s.log' % (output_folder, opts.rabies_step, ), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger(__name__)
 
@@ -241,29 +265,50 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        preprocess(opts)
+        workflow = preprocess(opts,None,None)
     elif opts.rabies_step == 'confound_regression':
-        confound_regression(opts)
+        workflow = confound_regression(opts,None)
     elif opts.rabies_step == 'analysis':
-        analysis(opts)
+        workflow = analysis(opts)
     else:
         parser.print_help()
 
-def preprocess(opts):
+    #setting workflow options for debug mode
+    if opts.debug:
+        # Change execution parameters
+        workflow.config['execution'] = {'stop_on_first_crash' : 'true',
+                                'remove_unnecessary_outputs': 'false',
+                                'keep_inputs': 'true',
+                                'log_directory' : os.getcwd()}
+
+        # Change logging parameters
+        workflow.config['logging'] = {'workflow_level' : 'DEBUG',
+                                'filemanip_level' : 'DEBUG',
+                                'interface_level' : 'DEBUG',
+                                'utils_level' : 'DEBUG',
+                                'log_to_file' : 'True',
+                                'log_directory' : os.getcwd()}
+        print('Debug ON')
+
+    try:
+        print('Running workflow with %s plugin.' % plugin)
+        #execute workflow, with plugin_args limiting the cluster load for parallel execution
+        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'n_procs' : int(os.environ["local_threads"]), 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
+
+    except Exception as e:
+        log.critical('RABIES failed: %s', e)
+        raise
+
+
+def preprocess(opts, cr_opts, analysis_opts):
     #obtain parser parameters
+    output_folder=os.path.abspath(str(opts.output_dir))
     bold_preproc_only=opts.bold_only
     disable_anat_preproc=opts.disable_anat_preproc
     data_dir_path=os.path.abspath(str(opts.bids_dir))
-    plugin=opts.plugin
-    os.environ["min_proc"]=str(opts.min_proc)
-    if plugin=='MultiProc':
-        os.environ["local_threads"]=str(opts.local_threads)
-    else:
-        os.environ["local_threads"]='1'
     detect_dummy=opts.detect_dummy
     apply_despiking=opts.apply_despiking
     apply_slice_mc=opts.apply_slice_mc
-    os.environ["rabies_mem_scale"]=str(opts.scale_min_memory)
 
     if opts.autoreg:
         bias_reg_script=define_reg_script('autoreg_affine')
@@ -277,21 +322,6 @@ def preprocess(opts):
         template_reg_script=define_reg_script('autoreg_SyN')
     else:
         template_reg_script=define_reg_script(opts.template_reg_script)
-
-
-    import SimpleITK as sitk
-    if str(opts.data_type)=='int16':
-        os.environ["rabies_data_type"]=str(sitk.sitkInt16)
-    elif str(opts.data_type)=='int32':
-        os.environ["rabies_data_type"]=str(sitk.sitkInt32)
-    elif str(opts.data_type)=='float32':
-        os.environ["rabies_data_type"]=str(sitk.sitkFloat32)
-    elif str(opts.data_type)=='float64':
-        os.environ["rabies_data_type"]=str(sitk.sitkFloat64)
-    else:
-        raise ValueError('Invalid --data_type provided.')
-
-
 
     #STC options
     stc_bool=not opts.no_STC
@@ -350,86 +380,33 @@ def preprocess(opts):
         workflow = init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
             tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
             bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
-            commonspace_resampling=commonspace_resampling)
+            commonspace_resampling=commonspace_resampling, cr_opts=cr_opts, analysis_opts=analysis_opts)
     else:
         raise ValueError('bold_preproc_only must be true or false.')
 
     workflow.base_dir = output_folder
 
-    #setting workflow options for debug mode
-    if opts.debug:
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash' : 'true',
-                                'remove_unnecessary_outputs': 'false',
-                                'keep_inputs': 'true',
-                                'log_directory' : os.getcwd()}
+    return workflow
 
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level' : 'DEBUG',
-                                'filemanip_level' : 'DEBUG',
-                                'interface_level' : 'DEBUG',
-                                'utils_level' : 'DEBUG',
-                                'log_to_file' : 'True',
-                                'log_directory' : os.getcwd()}
-        print('Debug ON')
+def confound_regression(opts, analysis_opts):
 
-    try:
-        print('Running main workflow with %s plugin.' % plugin)
-        #execute workflow, with plugin_args limiting the cluster load for parallel execution
-        workflow.run(plugin=plugin, plugin_args = {'max_jobs':50,'dont_resubmit_completed_jobs': True, 'n_procs' : int(os.environ["local_threads"]), 'qsub_args': '-pe smp %s' % (os.environ["min_proc"])})
-    except Exception as e:
-        log.critical('RABIES failed: %s', e)
-        raise
+    cli_file='%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
+    with open(cli_file, 'rb') as handle:
+        preprocess_opts=pickle.load(handle)
 
-def confound_regression(opts):
+    workflow = preprocess(preprocess_opts, opts, analysis_opts)
 
-    #confound regression options
-    CR_meta = {'preprocess_out':opts.preprocess_out, 'output_dir':opts.output_dir, 'commonspace_bold':opts.commonspace_bold, 'lowpass':opts.lowpass, 'highpass':opts.highpass,
-        'smoothing_filter':opts.smoothing_filter, 'run_aroma':opts.run_aroma, 'aroma_dim':opts.aroma_dim, 'conf_list':opts.conf_list, 'TR':opts.TR,
-        'apply_scrubbing':opts.apply_scrubbing, 'scrubbing_threshold':opts.scrubbing_threshold, 'timeseries_interval':opts.timeseries_interval,
-        'diagnosis_output':opts.diagnosis_output, 'seed_list':opts.seed_list}
-
-    confound_regression_wf=init_confound_regression_wf(lowpass=CR_meta['lowpass'], highpass=CR_meta['highpass'],
-        smoothing_filter=CR_meta['smoothing_filter'], run_aroma=CR_meta['run_aroma'], aroma_dim=CR_meta['aroma_dim'], conf_list=CR_meta['conf_list'], TR=CR_meta['TR'], apply_scrubbing=CR_meta['apply_scrubbing'],
-        scrubbing_threshold=CR_meta['scrubbing_threshold'], timeseries_interval=CR_meta['timeseries_interval'], diagnosis_output=CR_meta['diagnosis_output'], seed_list=CR_meta['seed_list'])
-    workflow.connect([
-        (outputnode, confound_regression_wf, [
-            ("confounds_csv", "inputnode.confounds_file"), #confounds file
-            ("FD_csv", "inputnode.FD_file"),
-            ]),
-        ])
-    if CR_meta['commonspace_bold']:
-        workflow.connect([
-            (outputnode, confound_regression_wf, [
-                ("commonspace_bold", "inputnode.bold_file"),
-                ("commonspace_mask","inputnode.brain_mask"),
-                ("commonspace_CSF_mask","inputnode.csf_mask"),
-                ]),
-            ])
-    else:
-        workflow.connect([
-            (outputnode, confound_regression_wf, [
-                ("native_corrected_bold", "inputnode.bold_file"),
-                ("bold_brain_mask","inputnode.brain_mask"),
-                ("bold_CSF_mask","inputnode.csf_mask"),
-                ]),
-            ])
-
-    confound_regression_datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="confound_regression_datasink"),
-                    name="confound_regression_datasink")
-
-    workflow.connect([
-        (confound_regression_wf, confound_regression_datasink, [
-            ("outputnode.cleaned_path", "cleaned_timeseries"),
-            ("outputnode.aroma_out","aroma_outputs"),
-            ("outputnode.mel_out","subject_melodic_ICA"),
-            ("outputnode.tSNR_file","tSNR_map"),
-            ("outputnode.corr_map_list","seed_correlation_maps"),
-            ]),
-        ])
+    return workflow
 
 def analysis(opts):
+
+    cli_file='%s/rabies_confound_regression.pkl' % (opts.confound_regression_out, )
+    with open(cli_file, 'rb') as handle:
+        confound_regression_opts=pickle.load(handle)
+
+    workflow = confound_regression(confound_regression_opts, opts)
+
+    return workflow
 
 def define_reg_script(reg_option):
     import rabies

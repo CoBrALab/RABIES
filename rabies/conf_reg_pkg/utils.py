@@ -45,8 +45,8 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
 
 def exec_ICA_AROMA(inFile, outDir, mc_file, brain_mask, csf_mask, tr, aroma_dim):
     import os
-    import rabies.conf_reg.utils
-    from rabies.conf_reg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
+    import rabies.conf_reg_pkg.utils
+    from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
     run_ICA_AROMA(os.path.abspath(outDir),os.path.abspath(inFile),mc=os.path.abspath(mc_file),TR=float(tr),mask=os.path.abspath(brain_mask),mask_csf=os.path.abspath(csf_mask),denType="nonaggr",melDir="",dim=str(aroma_dim),overwrite=True)
     return os.path.abspath(outDir+'/denoised_func_data_nonaggr.nii.gz')
 
@@ -105,7 +105,7 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     import numpy as np
     import nibabel as nb
     import nilearn.image
-    from rabies.conf_reg.utils import find_scans,scrubbing,exec_ICA_AROMA,csv2par
+    from rabies.conf_reg_pkg.utils import find_scans,scrubbing,exec_ICA_AROMA,csv2par
 
     cwd = os.getcwd()
 

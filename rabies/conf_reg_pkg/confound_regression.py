@@ -5,8 +5,8 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 from .utils import regress,data_diagnosis, select_timeseries, seed_based_FC
 
-def init_confound_regression_wf(lowpass, highpass, smoothing_filter, run_aroma, aroma_dim, conf_list,
-    TR, apply_scrubbing, scrubbing_threshold, timeseries_interval, diagnosis_output, seed_list, name="confound_regression_wf"):
+def init_confound_regression_wf(lowpass = None, highpass = None, smoothing_filter = 0.3, run_aroma = False, aroma_dim = 0, conf_list = [],
+    TR = '1.0s', apply_scrubbing = False, scrubbing_threshold = 0.1, timeseries_interval = 'all', diagnosis_output = False, seed_list = [], name="confound_regression_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')

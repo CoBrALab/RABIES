@@ -8,33 +8,46 @@ from nipype.interfaces.base import (
 
 def prep_bids_iter(layout):
     '''
-    This function takes as input a BIDSLayout, and returns a list of subjects with
-    their associated number of sessions and runs.
+    This function takes as input a BIDSLayout, and iterates through the subjects and sessions to
+    produce a list of all subject by session interactions, and generates a dictionary of all runs
+    associated to each subject by session interactions to allow for proper iterations in the
+    workflow.
     '''
+    sub_list=[]
+    session_list=[]
+    sub_ses_info=[]
+
     subject_list=layout.get_subject()
     #create a dictionary with list of bold session and run numbers for each subject
-    session_iter={}
     run_iter={}
     for sub in subject_list:
         sub_func=layout.get(subject=sub, datatype='func', extension=['nii', 'nii.gz'])
         sessions=[]
-        runs=[]
         for func_bids in sub_func:
             try:
                 ses=func_bids.get_entities()['session']
             except:
                 raise ValueError("Missing 'ses' BIDS information for subject %s." % (sub,))
-            try:
-                run=func_bids.get_entities()['run']
-            except:
-                raise ValueError("Missing 'run' BIDS information for subject %s." % (sub,))
             if not func_bids.get_entities()['session'] in sessions:
                 sessions.append(func_bids.get_entities()['session'])
-            if not func_bids.get_entities()['run'] in runs:
-                runs.append(func_bids.get_entities()['run'])
-        session_iter[sub] = sessions
-        run_iter[sub] = runs
-    return subject_list, session_iter, run_iter
+
+        for session in sessions:
+            sub_ses_str='sub-'+sub+'_ses-'+session
+            sub_list.append(sub)
+            session_list.append(session)
+            sub_ses_info.append(sub_ses_str)
+            sub_func=layout.get(subject=sub, session=session, datatype='func', extension=['nii', 'nii.gz'])
+            runs=[]
+            for func_bids in sub_func:
+                try:
+                    run=func_bids.get_entities()['run']
+                except:
+                    raise ValueError("Missing 'run' BIDS information for subject %s." % (sub,))
+                if not func_bids.get_entities()['run'] in runs:
+                    runs.append(func_bids.get_entities()['run'])
+            run_iter[sub_ses_str]=runs
+
+    return sub_list, session_list, sub_ses_info, run_iter
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     bids_dir = traits.Str(exists=True, mandatory=True, desc="BIDS data directory")

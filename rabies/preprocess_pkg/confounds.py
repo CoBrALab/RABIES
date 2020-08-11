@@ -31,8 +31,8 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
     propagate_labels=pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec='anat_labels'
 
-    confound_regression=pe.Node(ConfoundRegression(aCompCor_method=aCompCor_method), name='confound_regression', mem_gb=2.3*float(os.environ["rabies_mem_scale"]))
-    confound_regression.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
+    estimate_confounds=pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method), name='estimate_confounds', mem_gb=2.3*float(os.environ["rabies_mem_scale"]))
+    estimate_confounds.plugin_args = {'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -56,29 +56,29 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
             ('t1_labels', 'mask'),
             ('ref_bold', 'ref_EPI'),
             ('name_source', 'name_source')]),
-        (inputnode, confound_regression, [
+        (inputnode, estimate_confounds, [
             ('movpar_file', 'movpar_file'),
             ]),
-        (inputnode, confound_regression, [
+        (inputnode, estimate_confounds, [
             ('bold', 'bold'),
             ]),
-        (WM_mask_to_EPI, confound_regression, [
+        (WM_mask_to_EPI, estimate_confounds, [
             ('EPI_mask', 'WM_mask')]),
         (WM_mask_to_EPI, outputnode, [
             ('EPI_mask', 'WM_mask')]),
-        (CSF_mask_to_EPI, confound_regression, [
+        (CSF_mask_to_EPI, estimate_confounds, [
             ('EPI_mask', 'CSF_mask')]),
         (CSF_mask_to_EPI, outputnode, [
             ('EPI_mask', 'CSF_mask')]),
-        (vascular_mask_to_EPI, confound_regression, [
+        (vascular_mask_to_EPI, estimate_confounds, [
             ('EPI_mask', 'vascular_mask')]),
-        (brain_mask_to_EPI, confound_regression, [
+        (brain_mask_to_EPI, estimate_confounds, [
             ('EPI_mask', 'brain_mask')]),
         (brain_mask_to_EPI, outputnode, [
             ('EPI_mask', 'brain_mask')]),
         (propagate_labels, outputnode, [
             ('EPI_mask', 'EPI_labels')]),
-        (confound_regression, outputnode, [
+        (estimate_confounds, outputnode, [
             ('confounds_csv', 'confounds_csv'),
             ('FD_csv', 'FD_csv'),
             ('FD_voxelwise', 'FD_voxelwise'),
@@ -88,7 +88,7 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
 
     return workflow
 
-class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
+class EstimateConfoundsInputSpec(BaseInterfaceInputSpec):
     bold = File(exists=True, mandatory=True, desc="Preprocessed bold file to clean")
     movpar_file = File(exists=True, mandatory=True, desc="CSV file with the 6 rigid body parameters")
     brain_mask = File(exists=True, mandatory=True, desc="EPI-formated whole brain mask")
@@ -97,16 +97,16 @@ class ConfoundRegressionInputSpec(BaseInterfaceInputSpec):
     vascular_mask = File(exists=True, mandatory=True, desc="EPI-formated vascular mask")
     aCompCor_method = traits.Str(desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
 
-class ConfoundRegressionOutputSpec(TraitedSpec):
+class EstimateConfoundsOutputSpec(TraitedSpec):
     confounds_csv = traits.File(desc="CSV file of confounds")
     FD_csv = traits.File(desc="CSV file with global framewise displacement.")
     FD_voxelwise = traits.File(desc=".nii file with voxelwise framewise displacement.")
     pos_voxelwise = traits.File(desc=".nii file with voxelwise Positioning.")
 
-class ConfoundRegression(BaseInterface):
+class EstimateConfounds(BaseInterface):
 
-    input_spec = ConfoundRegressionInputSpec
-    output_spec = ConfoundRegressionOutputSpec
+    input_spec = EstimateConfoundsInputSpec
+    output_spec = EstimateConfoundsOutputSpec
 
     def _run_interface(self, runtime):
         import numpy as np

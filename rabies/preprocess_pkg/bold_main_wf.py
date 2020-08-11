@@ -5,6 +5,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu, afni
 from nipype.interfaces.io import SelectFiles
 
+from .commonspace import ANTsDBM
 from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf, BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
@@ -847,55 +848,3 @@ def init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=Fals
 
 
     return workflow
-
-
-def commonspace_reg_function(file_list, template_anat, output_folder):
-    import os
-    import subprocess
-    import numpy as np
-    import pandas as pd
-    #create a csv file of the input image list
-    cwd = os.getcwd()
-    csv_path=cwd+'/commonspace_input_files.csv'
-
-    import itertools
-    merged = list(itertools.chain.from_iterable(file_list))
-    df = pd.DataFrame(data=merged)
-    df.to_csv(csv_path, header=False, sep=',',index=False)
-
-    model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
-
-    template_folder=output_folder+'/ants_dbm_outputs/'
-
-    if os.path.isdir(template_folder):
-        print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
-    print('Running commonspace registration.')
-    command='mkdir -p %s' % (template_folder,)
-    from rabies.preprocess_pkg.utils import run_command
-    rc = run_command(command)
-    command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, template_anat)
-    rc = run_command(command)
-
-    ###verify that all outputs are present
-    #ants dbm outputs
-    ants_dbm_template = template_folder+'/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
-    if not os.path.isfile(ants_dbm_template):
-        raise ValueError(ants_dbm_template+" doesn't exists.")
-
-    i=0
-    for file in merged:
-        file=str(file)
-        import pathlib  # Better path manipulation
-        filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-        anat_to_template_inverse_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (template_folder,filename_template,str(i),)
-        if not os.path.isfile(anat_to_template_inverse_warp):
-            raise ValueError(anat_to_template_inverse_warp+" file doesn't exists.")
-        anat_to_template_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (template_folder,filename_template,str(i),)
-        if not os.path.isfile(anat_to_template_warp):
-            raise ValueError(anat_to_template_warp+" file doesn't exists.")
-        anat_to_template_affine = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (template_folder,filename_template,str(i),)
-        if not os.path.isfile(anat_to_template_affine):
-            raise ValueError(anat_to_template_affine+" file doesn't exists.")
-        i+=1
-
-    return ants_dbm_template

@@ -5,6 +5,82 @@ import nipype.interfaces.ants as ants
 import nipype.pipeline.engine as pe  # pypeline engine
 from nipype.workflows.smri.ants import antsRegistrationTemplateBuildSingleIterationWF
 from nipype.interfaces.utility import Function
+from nipype.interfaces.base import (
+    traits, TraitedSpec, BaseInterfaceInputSpec,
+    File, BaseInterface
+)
+
+class ANTsDBMInputSpec(BaseInterfaceInputSpec):
+    file_list = traits.List(exists=True, mandatory=True, desc="List of anatomical images used for commonspace registration.")
+    template_anat = File(exists=True, mandatory=True, desc="Reference anatomical template to define the target space.")
+    output_folder = traits.Str(exists=True, mandatory=True, desc="Path to output folder.")
+
+class ANTsDBMOutputSpec(TraitedSpec):
+    ants_dbm_template = File(exists=True, desc="Output template generated from commonspace registration.")
+
+
+class ANTsDBM(BaseInterface):
+    """
+    Runs commonspace registration using ants_dbm.
+    """
+
+    input_spec = ANTsDBMInputSpec
+    output_spec = ANTsDBMOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        import numpy as np
+        import pandas as pd
+
+        #create a csv file of the input image list
+        cwd = os.getcwd()
+        csv_path=cwd+'/commonspace_input_files.csv'
+
+        import itertools
+        df = pd.DataFrame(data=self.inputs.file_list)
+        df.to_csv(csv_path, header=False, sep=',',index=False)
+
+        model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
+
+        template_folder=self.inputs.output_folder+'/ants_dbm_outputs/'
+
+        if os.path.isdir(template_folder):
+            print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
+        print('Running commonspace registration.')
+        command='mkdir -p %s' % (template_folder,)
+        from rabies.preprocess_pkg.utils import run_command
+        rc = run_command(command)
+        command='cd %s ; bash %s %s %s' % (template_folder, model_script_path,csv_path, self.inputs.template_anat)
+        rc = run_command(command)
+
+        ###verify that all outputs are present
+        #ants dbm outputs
+        ants_dbm_template = template_folder+'/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
+        if not os.path.isfile(ants_dbm_template):
+            raise ValueError(ants_dbm_template+" doesn't exists.")
+
+        i=0
+        for file in self.inputs.file_list:
+            file=str(file)
+            import pathlib  # Better path manipulation
+            filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
+            anat_to_template_inverse_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (template_folder,filename_template,str(i),)
+            if not os.path.isfile(anat_to_template_inverse_warp):
+                raise ValueError(anat_to_template_inverse_warp+" file doesn't exists.")
+            anat_to_template_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (template_folder,filename_template,str(i),)
+            if not os.path.isfile(anat_to_template_warp):
+                raise ValueError(anat_to_template_warp+" file doesn't exists.")
+            anat_to_template_affine = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (template_folder,filename_template,str(i),)
+            if not os.path.isfile(anat_to_template_affine):
+                raise ValueError(anat_to_template_affine+" file doesn't exists.")
+            i+=1
+
+        setattr(self, 'ants_dbm_template', ants_dbm_template)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'ants_dbm_template': getattr(self, 'ants_dbm_template')}
 
 def init_commonspace_wf(name="antsRegistrationTemplateBuilder"):
 
