@@ -518,42 +518,56 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
 
     ###Integrate analysis
     if not analysis_opts==None:
-        from rabies.analysis_pkg.analysis_wf import init_analysis_wf
-        analysis_wf = init_analysis_wf()
 
-        analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+        analysis_output = os.path.abspath(str(analysis_opts.output_dir))
+
+        from rabies.analysis_pkg.analysis_wf import init_analysis_wf
+        analysis_wf = init_analysis_wf(opts=analysis_opts, commonspace_cr=cr_opts.commonspace_bold)
+
+        analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                 container="analysis_datasink"),
+                        name="analysis_datasink")
+
+        analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
                          name='analysis_joinnode_run',
                          joinsource='run_split',
                          joinfield=['file_list'])
 
-        analysis_joinnode_sub_ses = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+        analysis_joinnode_sub_ses = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
                          name='analysis_joinnode_sub_ses',
                          joinsource='sub_ses_split',
                          joinfield=['file_list'])
 
-        print_file_node = pe.Node(Function(input_names=['file_list'],
-                                  function=print_file),
-                         name='print_file', mem_gb=1)
-
         workflow.connect([
+            (bold_main_wf, analysis_wf, [
+                ("outputnode.commonspace_mask", "subject_inputnode.mask_file"),
+                ("outputnode.commonspace_labels", "subject_inputnode.atlas_file"),
+                ]),
+            (bold_main_wf, analysis_joinnode_run, [
+                ("outputnode.commonspace_mask", "mask_file"),
+                ]),
             (confound_regression_wf, analysis_joinnode_run, [
                 ("outputnode.cleaned_path", "file_list"),
                 ]),
+            (confound_regression_wf, analysis_wf, [
+                ("outputnode.cleaned_path", "subject_inputnode.bold_file"),
+                ]),
             (analysis_joinnode_run, analysis_joinnode_sub_ses, [
                 ("file_list", "file_list"),
+                ("mask_file", "mask_file"),
                 ]),
-            (analysis_joinnode_sub_ses, print_file_node, [
-                ("file_list", "file_list"),
+            (analysis_joinnode_sub_ses, analysis_wf, [
+                ("file_list", "group_inputnode.bold_file_list"),
+                ("mask_file", "group_inputnode.commonspace_mask"),
                 ]),
-            #(analysis_joinnode_session, analysis_joinnode_sub_id, [
-            #    ("file_list", "file_list"),
-            #    ]),
-            #(analysis_joinnode_run, analysis_wf, [
-            #    ("file_list", "inputnode.bold_file_list"),
-            #    ]),
+            (analysis_wf, analysis_datasink, [
+                ("outputnode.group_ICA_dir", "group_ICA_dir"),
+                ("outputnode.IC_file", "group_IC_file"),
+                ("outputnode.DR_data_file", "DR_data_file"),
+                ("outputnode.DR_nii_file", "DR_nii_file"),
+                ("outputnode.matrix_data_file", "matrix_data_file"),
+                ("outputnode.matrix_fig", "matrix_fig"),
+                ]),
             ])
 
     return workflow
-
-def print_file(file_list):
-    print(file_list)

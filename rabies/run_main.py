@@ -212,6 +212,30 @@ def get_parser():
                         help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                         help='the output path to drop analysis outputs.')
+    g_fc_matrix = analysis.add_argument_group('Options for performing a whole-brain timeseries correlation matrix analysis.')
+    g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
+                        help="Choose this option to derive a whole-brain functional connectivity matrix, based on the correlation of regional timeseries "
+                        "for each subject cleaned timeseries.")
+    g_fc_matrix.add_argument("--ROI_type", type=str, default='parcellated',
+                        help="Define the types of ROI to extract regional timeseries for correlation matrix analysis. "
+                        "Options are 'parcellated', in which case the atlas labels provided for preprocessing are used as ROIs, or "
+                        "'voxelwise', in which case all voxel timeseries are cross-correlated.")
+    g_group_ICA = analysis.add_argument_group("Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries."
+                                              "Note that confound regression must have been conducted on commonspace outputs.")
+    g_group_ICA.add_argument("--group_ICA", dest='group_ICA', action='store_true',
+                        help="Choose this option to conduct group-ICA.")
+    g_group_ICA.add_argument('--TR', type=str, default='1.0s',
+                        help="Specify repetition time (TR) in seconds.")
+    g_group_ICA.add_argument('--dim', type=int, default=0,
+                        help="You can specify the number of ICA components to be derived. The default uses an automatic estimation.")
+    g_DR_ICA = analysis.add_argument_group("Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC. "
+                                              "Note that confound regression must have been conducted on commonspace outputs.")
+    g_DR_ICA.add_argument("--DR_ICA", dest='DR_ICA', action='store_true',
+                        help="Choose this option to conduct dual regression on each subject cleaned timeseries.")
+    g_DR_ICA.add_argument('--IC_file', action='store', type=Path,
+                        default=None,
+                        help="Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run. "
+                             "If none is provided, a group-ICA will be run with the dataset cleaned timeseries.")
 
     return parser
 

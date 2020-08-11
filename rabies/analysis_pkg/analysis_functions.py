@@ -50,17 +50,20 @@ def threshold_maps(vector_maps, fraction):
 FC matrix
 '''
 
-def run_FC_matrix(bold_file,mask_file,atlas, dim_type='parcellated'):
+def run_FC_matrix(bold_file,mask_file,atlas, roi_type='parcellated'):
     import os
     import pickle
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname=os.path.abspath(filename_split[0]+'_FC_matrix.png')
 
-    if dim_type=='parcellated':
+    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, voxelwise_FC_matrix, plot_matrix
+    if roi_type=='parcellated':
         corr_matrix=parcellated_FC_matrix(bold_file, atlas)
-    elif dim_type=='voxelwise':
+    elif roi_type=='voxelwise':
         corr_matrix=voxelwise_FC_matrix(bold_file, mask_file)
+    else:
+        raise ValueError("Invalid --ROI_type provided: %s. Must be either 'parcellated' or 'voxelwise.'" % (roi_type))
     plot_matrix(figname,corr_matrix)
 
     data_file=os.path.abspath(filename_split[0]+'_FC_matrix.pkl')
@@ -136,11 +139,10 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
 
     from rabies.preprocess_pkg.utils import run_command
     out_dir=os.path.abspath('group_melodic.ica')
-    command='melodic -i %s -m %s -o %s --tr %s -d %s --report' % (file_path,mask_file,out_dir, tr, dim)
+    command='melodic -i %s -m %s -o %s --tr=%s -d %s --report' % (file_path,mask_file,out_dir, tr, dim)
     rc = run_command(command)
     IC_file=out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file
-
 
 def run_DR_ICA(bold_file, mask_file, IC_file):
     import os
@@ -148,6 +150,7 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
+    from rabies.analysis_pkg.analysis_functions import sub_DR_ICA, recover_3D_mutiple
     sub_ICs=sub_DR_ICA(bold_file, mask_file, IC_file)
 
     data_file=os.path.abspath(filename_split[0]+'_DR_ICA.pkl')
