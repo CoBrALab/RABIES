@@ -132,8 +132,8 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
 
     #create a filelist.txt
     file_path=os.path.abspath('filelist.txt')
-    import itertools
-    merged = list(itertools.chain.from_iterable(bold_file_list))
+    from rabies.preprocess_pkg.utils import flatten_list
+    merged=flatten_list(list(bold_file_list))
     df = pd.DataFrame(data=merged)
     df.to_csv(file_path, header=False, sep=',',index=False)
 

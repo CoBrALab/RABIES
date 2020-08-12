@@ -394,19 +394,11 @@ def preprocess(opts, cr_opts, analysis_opts):
         raise ValueError("--labels file doesn't exists.")
     os.environ["atlas_labels"] = convert_to_RAS(str(opts.labels), os.environ["RABIES"]+'/template_files')
 
-    if bold_preproc_only:
-        from rabies.preprocess_pkg.bold_main_wf import init_EPIonly_bold_main_wf
-        workflow = init_EPIonly_bold_main_wf(data_dir_path, output_folder, apply_despiking=apply_despiking, tr=stc_TR,
-            tpattern=stc_tpattern, apply_STC=stc_bool, detect_dummy=detect_dummy, slice_mc=apply_slice_mc,
-            bias_reg_script=bias_reg_script, coreg_script=coreg_script, template_reg_script=template_reg_script, commonspace_resampling=commonspace_resampling)
-    elif not bold_preproc_only:
-        from rabies.main_wf import init_unified_main_wf
-        workflow = init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
-            tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
-            bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
-            commonspace_resampling=commonspace_resampling, cr_opts=cr_opts, analysis_opts=analysis_opts)
-    else:
-        raise ValueError('bold_preproc_only must be true or false.')
+    from rabies.main_wf import init_main_wf
+    workflow = init_main_wf(data_dir_path, output_folder, bold_only=bold_preproc_only, disable_anat_preproc=disable_anat_preproc, autoreg=opts.autoreg, apply_despiking=apply_despiking, tr=stc_TR,
+        tpattern=stc_tpattern, detect_dummy=detect_dummy, slice_mc=apply_slice_mc, template_reg_script=template_reg_script, apply_STC=stc_bool,
+        bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling,
+        commonspace_resampling=commonspace_resampling, cr_opts=cr_opts, analysis_opts=analysis_opts)
 
     workflow.base_dir = output_folder
 

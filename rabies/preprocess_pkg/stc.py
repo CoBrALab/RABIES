@@ -2,7 +2,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces.utility import Function
 from nipype.interfaces import utility as niu
 
-def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
+def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
@@ -30,21 +30,26 @@ def init_bold_stc_wf(tr, tpattern, name='bold_stc_wf'):
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['stc_file']), name='outputnode')
 
-    slice_timing_correction = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
-                              output_names=['out_file'],
-                              function=apply_STC),
-                     name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
-    slice_timing_correction.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+    if apply_STC:
+        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
+                                  output_names=['out_file'],
+                                  function=slice_timing_correction),
+                         name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
+        slice_timing_correction_node.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
-    workflow.connect([
-        (inputnode, slice_timing_correction, [('bold_file', 'in_file'),
-                                              ('skip_vols', 'ignore')]),
-        (slice_timing_correction, outputnode, [('out_file', 'stc_file')]),
-    ])
+        workflow.connect([
+            (inputnode, slice_timing_correction_node, [('bold_file', 'in_file'),
+                                                  ('skip_vols', 'ignore')]),
+            (slice_timing_correction_node, outputnode, [('out_file', 'stc_file')]),
+        ])
+    else:
+        workflow.connect([
+            (inputnode, outputnode, [('bold_file', 'stc_file')]),
+        ])
 
     return workflow
 
-def apply_STC(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
+def slice_timing_correction(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation

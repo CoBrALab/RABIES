@@ -12,7 +12,7 @@ from nipype.interfaces.io import SelectFiles, DataSink
 
 from nipype.interfaces.utility import Function
 
-def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=False, autoreg=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
+def init_main_wf(data_dir_path, output_folder, bold_only=False, disable_anat_preproc=False, autoreg=False, apply_despiking=False, tr='1.0s', tpattern='altplus', apply_STC=True, detect_dummy=False, slice_mc=False, template_reg_script=None,
                 bias_reg_script='Rigid', coreg_script='SyN', nativespace_resampling='origin', commonspace_resampling='origin', cr_opts=None, analysis_opts=None, name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
@@ -125,31 +125,30 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
 
     from bids.layout import BIDSLayout
     layout = BIDSLayout(data_dir_path, validate=False)
-    sub_list, session_list, sub_ses_info, run_iter=prep_bids_iter(layout)
+    sub_list, session_list, run_list, iter_info, run_iter, scan_list=prep_bids_iter(layout, bold_only)
+
     #set SelectFiles nodes
-    anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
+    if not bold_only:
+        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
     bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
 
     ####setting up all iterables
-    sub_ses_split = pe.Node(niu.IdentityInterface(fields=['run_iter_key', 'subject_id', 'session']),
-                      name="sub_ses_split")
-    sub_ses_split.iterables = [('run_iter_key', sub_ses_info), ('subject_id', sub_list), ('session', session_list)]
-    sub_ses_split.synchronize = True
+    main_split = pe.Node(niu.IdentityInterface(fields=['iter_key', 'subject_id', 'session', 'run']),
+                      name="main_split")
+    main_split.iterables = [('iter_key', iter_info), ('subject_id', sub_list), ('session', session_list), ('run', run_list)]
+    main_split.synchronize = True
 
-    run_split = pe.Node(niu.IdentityInterface(fields=['run', 'run_iter_key']),
-                      name="run_split")
-    run_split.itersource = ('sub_ses_split', 'run_iter_key')
-    run_split.iterables = [('run', run_iter)]
-
-    joinnode_sub_ses = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                     name='joinnode_sub_ses',
-                     joinsource='sub_ses_split',
-                     joinfield=['file_list'])
+    if not bold_only:
+        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'iter_key']),
+                          name="run_split")
+        run_split.itersource = ('main_split', 'iter_key')
+        run_split.iterables = [('run', run_iter)]
 
     # Datasink - creates output folder for important outputs
-    anat_datasink = pe.Node(DataSink(base_directory=output_folder,
-                             container="anat_datasink"),
-                    name="anat_datasink")
+    if not bold_only:
+        anat_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                 container="anat_datasink"),
+                        name="anat_datasink")
 
     bold_datasink = pe.Node(DataSink(base_directory=output_folder,
                              container="bold_datasink"),
@@ -168,10 +167,11 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                     name="confounds_datasink")
 
     #node to conver input image to consistent RAS orientation
-    anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
-                              output_names=['RAS_file'],
-                              function=convert_to_RAS),
-                     name='anat_convert_to_RAS')
+    if not bold_only:
+        anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
+                                  output_names=['RAS_file'],
+                                  function=convert_to_RAS),
+                         name='anat_convert_to_RAS')
     bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
                               output_names=['RAS_file'],
                               function=convert_to_RAS),
@@ -185,19 +185,21 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                      name='resample_template', mem_gb=1*float(os.environ["rabies_mem_scale"]))
     resample_template_node.inputs.template_file=os.environ["template_anat"]
     resample_template_node.inputs.spacing=os.environ["anatomical_resampling"]
+    resample_template_node.inputs.file_list=scan_list
 
-    #setting anat preprocessing nodes
-    anat_preproc_wf = init_anat_preproc_wf(disable_anat_preproc=disable_anat_preproc,autoreg=autoreg)
+    if not bold_only:
+        #setting anat preprocessing nodes
+        anat_preproc_wf = init_anat_preproc_wf(disable_anat_preproc=disable_anat_preproc,autoreg=autoreg)
 
-    #calculate the number of anat scans that will be registered
-    num_anat=len(sub_ses_info)
-    if int(os.environ["local_threads"])<num_anat:
-        num_anat=int(os.environ["local_threads"])
+    #calculate the number of scans that will be registered
+    num_scan=len(scan_list)
+    if int(os.environ["local_threads"])<num_scan:
+        num_scan=int(os.environ["local_threads"])
 
     #####setting up commonspace registration within the workflow
     commonspace_reg = pe.JoinNode(ANTsDBM(),
-                     joinsource='sub_ses_split', joinfield=['file_list'],
-                     name='commonspace_reg', n_procs=num_anat, mem_gb=1*num_anat*float(os.environ["rabies_mem_scale"]))
+                     joinsource='main_split', joinfield=['file_list'],
+                     name='commonspace_reg', n_procs=num_scan, mem_gb=1*num_scan*float(os.environ["rabies_mem_scale"]))
     commonspace_reg.inputs.output_folder = output_folder+'/commonspace_datasink/'
 
     #execute the registration of the generate anatomical template with the provided atlas for labeling and masking
@@ -209,11 +211,18 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
     template_reg.inputs.anat_mask = os.environ["template_mask"]
     template_reg.inputs.reg_script = template_reg_script
 
-    #setting SelectFiles for the commonspace registration
-    anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1InverseWarp.nii.gz')
-    anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1Warp.nii.gz')
-    anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*0GenericAffine.mat')
-    warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}*_ses-{session}*_preproc*WarpedToTemplate.nii.gz')
+    if not bold_only:
+        #setting SelectFiles for the commonspace registration
+        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1InverseWarp.nii.gz')
+        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1Warp.nii.gz')
+        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_preproc*0GenericAffine.mat')
+        warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}*_ses-{session}*_preproc*WarpedToTemplate.nii.gz')
+    else:
+        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*1InverseWarp.nii.gz')
+        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*1Warp.nii.gz')
+        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*0GenericAffine.mat')
+        warped_anat = output_folder+'/'+opj('commonspace_datasink','ants_dbm_outputs','ants_dbm','output','secondlevel','secondlevel_template0sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*WarpedToTemplate.nii.gz')
+
     template_to_common_affine = '/'+opj('{template_to_common_affine}')
     template_to_common_warp = '/'+opj('{template_to_common_warp}')
     template_to_common_inverse_warp = '/'+opj('{template_to_common_inverse_warp}')
@@ -223,101 +232,88 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
     commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
                    name="commonspace_selectfiles")
 
-    def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
-        import os
-        from rabies.preprocess_pkg.utils import run_command
-        cwd = os.getcwd()
-        subject_id=os.path.basename(reference_image).split('_ses-')[0]
-        session=os.path.basename(reference_image).split('_ses-')[1][0]
-        filename_template = '%s_ses-%s' % (subject_id, session)
+    if not bold_only:
+        def transform_masks(reference_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_affine,template_to_common_inverse_warp):
+            import os
+            from rabies.preprocess_pkg.utils import run_command
+            cwd = os.getcwd()
+            subject_id=os.path.basename(reference_image).split('_ses-')[0]
+            session=os.path.basename(reference_image).split('_ses-')[1][0]
+            filename_template = '%s_ses-%s' % (subject_id, session)
 
-        input_image=os.environ["template_mask"]
-        brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
-        rc = run_command(command)
-        if not os.path.isfile(brain_mask):
-            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+            input_image=os.environ["template_mask"]
+            brain_mask='%s/%s_%s' % (cwd, filename_template, 'anat_mask.nii.gz')
+            command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,brain_mask,)
+            rc = run_command(command)
+            if not os.path.isfile(brain_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-        input_image=os.environ["WM_mask"]
-        WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
-        rc = run_command(command)
-        if not os.path.isfile(WM_mask):
-            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+            input_image=os.environ["WM_mask"]
+            WM_mask='%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
+            command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,WM_mask,)
+            rc = run_command(command)
+            if not os.path.isfile(WM_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-        input_image=os.environ["CSF_mask"]
-        CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
-        rc = run_command(command)
-        if not os.path.isfile(CSF_mask):
-            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+            input_image=os.environ["CSF_mask"]
+            CSF_mask='%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
+            command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,CSF_mask,)
+            rc = run_command(command)
+            if not os.path.isfile(CSF_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-        input_image=os.environ["vascular_mask"]
-        vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
-        rc = run_command(command)
-        if not os.path.isfile(vascular_mask):
-            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+            input_image=os.environ["vascular_mask"]
+            vascular_mask='%s/%s_%s' % (cwd, filename_template, 'vascular_mask.nii.gz')
+            command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,vascular_mask,)
+            rc = run_command(command)
+            if not os.path.isfile(vascular_mask):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-        input_image=os.environ["atlas_labels"]
-        anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
-        rc = run_command(command)
-        if not os.path.isfile(anat_labels):
-            raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
+            input_image=os.environ["atlas_labels"]
+            anat_labels='%s/%s_%s' % (cwd, filename_template, 'atlas_labels.nii.gz')
+            command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (input_image,anat_to_template_inverse_warp, anat_to_template_affine,template_to_common_inverse_warp,template_to_common_affine,reference_image,anat_labels,)
+            rc = run_command(command)
+            if not os.path.isfile(anat_labels):
+                raise ValueError("Missing output mask. Transform call failed: "+antsApplyTransforms_call)
 
-        return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
+            return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
 
-    transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
-                              output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'anat_labels'],
-                              function=transform_masks),
-                     name='transform_masks')
+        transform_masks = pe.Node(Function(input_names=['reference_image','anat_to_template_inverse_warp', 'anat_to_template_affine','template_to_common_affine','template_to_common_inverse_warp'],
+                                  output_names=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'anat_labels'],
+                                  function=transform_masks),
+                         name='transform_masks')
 
-    def commonspace_transforms(template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine):
-        return [template_to_common_warp,template_to_common_affine,anat_to_template_warp, anat_to_template_affine],[0,0,0,0] #transforms_list,inverses
-    commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp','template_to_common_affine','anat_to_template_warp','anat_to_template_affine'],
-                              output_names=['transforms_list','inverses'],
-                              function=commonspace_transforms),
-                     name='commonspace_transforms_prep')
+    bold_main_wf=init_bold_main_wf(data_dir_path=data_dir_path, bold_only=bold_only, apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, slice_mc=slice_mc, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+    if bold_only:
+        bold_main_wf.inputs.inputnode.anat_mask = os.environ["template_mask"]
+        bold_main_wf.inputs.inputnode.WM_mask = os.environ["WM_mask"]
+        bold_main_wf.inputs.inputnode.CSF_mask = os.environ["CSF_mask"]
+        bold_main_wf.inputs.inputnode.vascular_mask = os.environ["vascular_mask"]
+        bold_main_wf.inputs.inputnode.labels = os.environ["atlas_labels"]
 
-    bold_main_wf=init_bold_main_wf(apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, slice_mc=slice_mc, data_dir_path=data_dir_path, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        bias_cor_bold_main_wf=init_bold_main_wf(bias_cor_only=True, name='bias_cor_bold_main_wf', data_dir_path=data_dir_path, bold_only=bold_only, apply_despiking=apply_despiking, tr=tr, tpattern=tpattern, apply_STC=apply_STC, detect_dummy=detect_dummy, slice_mc=slice_mc, bias_reg_script=bias_reg_script, coreg_script=coreg_script, nativespace_resampling=nativespace_resampling, commonspace_resampling=commonspace_resampling)
+        bias_cor_bold_main_wf.inputs.inputnode.anat_mask = os.environ["template_mask"]
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (sub_ses_split, run_split, [
-            ("run_iter_key", "run_iter_key"),
-            ]),
-        (sub_ses_split, anat_selectfiles, [
+        (main_split, bold_selectfiles, [
             ("subject_id", "subject_id"),
-            ("session", "session")
+            ("session", "session"),
             ]),
-        (sub_ses_split, bold_selectfiles, [
+        (main_split, commonspace_selectfiles, [
             ("subject_id", "subject_id"),
-            ("session", "session")
+            ("session", "session"),
             ]),
-        (sub_ses_split, commonspace_selectfiles, [
-            ("subject_id", "subject_id"),
-            ("session", "session")
+        (bold_selectfiles, bold_datasink, [
+            ("out_file", "input_bold"),
             ]),
-        (run_split, bold_selectfiles, [
-            ("run", "run")
+        (bold_selectfiles, bold_convert_to_RAS_node, [('out_file', 'img_file')]),
+        (bold_convert_to_RAS_node, bold_main_wf, [
+            ("RAS_file", "inputnode.bold"),
             ]),
-        (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
-        (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
-        (anat_convert_to_RAS_node, joinnode_sub_ses, [("RAS_file", "file_list")]),
-        (joinnode_sub_ses, resample_template_node, [("file_list", "file_list")]),
-        (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
         (resample_template_node, commonspace_reg, [("resampled_template", "template_anat")]),
         (resample_template_node, template_reg, [("resampled_template", "fixed_image")]),
         (resample_template_node, bold_main_wf, [("resampled_template", "inputnode.template_anat")]),
-        (anat_preproc_wf, commonspace_reg, [("outputnode.preproc_anat", "file_list")]),
-        (anat_preproc_wf, transform_masks, [
-            ("outputnode.preproc_anat", "reference_image"),
-            ]),
-        (anat_preproc_wf, bold_main_wf, [
-            ("outputnode.preproc_anat", "inputnode.anat_preproc"),
-            ]),
-        (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
         (commonspace_reg, template_reg, [
             ("ants_dbm_template", "moving_image"),
             ]),
@@ -340,42 +336,10 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
             ("warp", "template_to_common_warp"),
             ("inverse_warp", "template_to_common_inverse_warp"),
             ]),
-        (commonspace_selectfiles, transform_masks, [
-            ("template_to_common_affine","template_to_common_affine"),
-            ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
-            ("anat_to_template_affine", "anat_to_template_affine"),
-            ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
-            ]),
-        (commonspace_selectfiles, bold_main_wf, [
-            ("template_to_common_affine","inputnode.template_to_common_affine"),
-            ("template_to_common_warp","inputnode.template_to_common_warp"),
-            ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
-            ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
-            ]),
         (commonspace_selectfiles, transforms_datasink, [
             ("anat_to_template_affine", "anat_to_template_affine"),
             ("anat_to_template_warp", "anat_to_template_warp"),
             ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
-            ]),
-        (transform_masks, bold_main_wf, [
-            ("anat_labels", 'inputnode.labels'),
-            ("brain_mask", 'inputnode.anat_mask'),
-            ("WM_mask", "inputnode.WM_mask"),
-            ("CSF_mask", "inputnode.CSF_mask"),
-            ("vascular_mask", "inputnode.vascular_mask"),
-            ]),
-        (transform_masks, outputnode, [
-            ("anat_labels", 'anat_labels'),
-            ("brain_mask", 'anat_mask'),
-            ("WM_mask", "WM_mask"),
-            ("CSF_mask", "CSF_mask"),
-            ]),
-        (bold_selectfiles, bold_datasink, [
-            ("out_file", "input_bold"),
-            ]),
-        (bold_selectfiles, bold_convert_to_RAS_node, [('out_file', 'img_file')]),
-        (bold_convert_to_RAS_node, bold_main_wf, [
-            ("RAS_file", "inputnode.bold"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
@@ -411,12 +375,6 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
             ]),
-        (outputnode, anat_datasink, [
-            ("anat_labels", 'anat_labels'),
-            ("anat_mask", 'anat_mask'),
-            ("WM_mask", "WM_mask"),
-            ("CSF_mask", "CSF_mask"),
-            ]),
         (outputnode, bold_datasink, [
             ("initial_bold_ref","initial_bold_ref"), #inspect initial bold ref
             ("bias_cor_bold","bias_cor_bold"), #inspect bias correction
@@ -434,13 +392,91 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
             ("commonspace_labels", "commonspace_bold_labels"),
             ]),
         ])
+    if not bold_only:
+        workflow.connect([
+            (main_split, run_split, [
+                ("iter_key", "iter_key"),
+                ]),
+            (run_split, bold_selectfiles, [
+                ("run", "run")
+                ]),
+            (main_split, anat_selectfiles, [
+                ("subject_id", "subject_id"),
+                ("session", "session")
+                ]),
+            (anat_selectfiles, anat_convert_to_RAS_node, [("out_file", "img_file")]),
+            (anat_convert_to_RAS_node, anat_preproc_wf, [("RAS_file", "inputnode.anat_file")]),
+            (resample_template_node, anat_preproc_wf, [("resampled_template", "inputnode.template_anat")]),
+            (anat_preproc_wf, commonspace_reg, [("outputnode.preproc_anat", "file_list")]),
+            (anat_preproc_wf, transform_masks, [
+                ("outputnode.preproc_anat", "reference_image"),
+                ]),
+            (anat_preproc_wf, bold_main_wf, [
+                ("outputnode.preproc_anat", "inputnode.anat_preproc"),
+                ]),
+            (anat_preproc_wf, anat_datasink, [("outputnode.preproc_anat", "anat_preproc")]),
+            (commonspace_selectfiles, bold_main_wf, [
+                ("template_to_common_affine","inputnode.template_to_common_affine"),
+                ("template_to_common_warp","inputnode.template_to_common_warp"),
+                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
+                ]),
+            (commonspace_selectfiles, transform_masks, [
+                ("template_to_common_affine","template_to_common_affine"),
+                ("template_to_common_inverse_warp","template_to_common_inverse_warp"),
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
+                ]),
+            (transform_masks, bold_main_wf, [
+                ("anat_labels", 'inputnode.labels'),
+                ("brain_mask", 'inputnode.anat_mask'),
+                ("WM_mask", "inputnode.WM_mask"),
+                ("CSF_mask", "inputnode.CSF_mask"),
+                ("vascular_mask", "inputnode.vascular_mask"),
+                ]),
+            (transform_masks, outputnode, [
+                ("anat_labels", 'anat_labels'),
+                ("brain_mask", 'anat_mask'),
+                ("WM_mask", "WM_mask"),
+                ("CSF_mask", "CSF_mask"),
+                ]),
+            (outputnode, anat_datasink, [
+                ("anat_labels", 'anat_labels'),
+                ("anat_mask", 'anat_mask'),
+                ("WM_mask", "WM_mask"),
+                ("CSF_mask", "CSF_mask"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (main_split, bold_selectfiles, [
+                ("run", "run"),
+                ]),
+            (main_split, commonspace_selectfiles, [
+                ("run", "run"),
+                ]),
+            (bold_convert_to_RAS_node, bias_cor_bold_main_wf, [
+                ("RAS_file", "inputnode.bold"),
+                ]),
+            (resample_template_node, bias_cor_bold_main_wf, [("resampled_template", "inputnode.template_anat")]),
+            (bias_cor_bold_main_wf, bold_main_wf, [
+                ("transitionnode.bold_file", "transitionnode.bold_file"),
+                ("transitionnode.skip_vols", "transitionnode.skip_vols"),
+                ("transitionnode.bold_ref", "transitionnode.bold_ref"),
+                ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
+                ]),
+            (bias_cor_bold_main_wf, commonspace_reg, [("transitionnode.corrected_EPI", "file_list")]),
+            (commonspace_selectfiles, bold_main_wf, [
+                ("template_to_common_affine","inputnode.template_to_common_affine"),
+                ("template_to_common_warp","inputnode.template_to_common_warp"),
+                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
+                ]),
+            ])
 
     #organizing .png outputs for QC
     PlotMotionTrace_node = pe.Node(PlotMotionTrace(), name='PlotMotionTrace')
     PlotMotionTrace_node.inputs.out_dir = output_folder+'/QC_report'
-    PlotOverlap_EPI2Anat_node = pe.Node(PlotOverlap(), name='PlotOverlap_EPI2Anat')
-    PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report'
-    PlotOverlap_EPI2Anat_node.inputs.reg_name = 'EPI2Anat'
     PlotOverlap_Anat2Template_node = pe.Node(PlotOverlap(), name='PlotOverlap_Anat2Template')
     PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/QC_report'
     PlotOverlap_Anat2Template_node.inputs.reg_name = 'Anat2Template'
@@ -448,12 +484,19 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
     PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
     PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
 
+    if not bold_only:
+        PlotOverlap_EPI2Anat_node = pe.Node(PlotOverlap(), name='PlotOverlap_EPI2Anat')
+        PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report'
+        PlotOverlap_EPI2Anat_node.inputs.reg_name = 'EPI2Anat'
+        workflow.connect([
+            (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
+            (outputnode, PlotOverlap_EPI2Anat_node, [
+                ("bias_cor_bold_warped2anat","moving"), #warped EPI to anat
+                ]),
+            ])
+
     workflow.connect([
-        (anat_preproc_wf, PlotOverlap_EPI2Anat_node, [("outputnode.preproc_anat", "fixed")]),
         (resample_template_node, PlotOverlap_Template2Commonspace_node, [("resampled_template", "fixed")]),
-        (outputnode, PlotOverlap_EPI2Anat_node, [
-            ("bias_cor_bold_warped2anat","moving"), #warped EPI to anat
-            ]),
         (outputnode, PlotMotionTrace_node, [
             ("confounds_csv", "confounds_csv"), #confounds file
             ]),
@@ -484,6 +527,9 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                 ("FD_csv", "inputnode.FD_file"),
                 ]),
             ])
+
+        if bold_only and not cr_opts.commonspace_bold:
+            raise ValueError('Must select --commonspace option for running confound regression on outputs from --bold_only.')
 
         if cr_opts.commonspace_bold:
             workflow.connect([
@@ -528,14 +574,9 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                                  container="analysis_datasink"),
                         name="analysis_datasink")
 
-        analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                         name='analysis_joinnode_run',
-                         joinsource='run_split',
-                         joinfield=['file_list'])
-
-        analysis_joinnode_sub_ses = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                         name='analysis_joinnode_sub_ses',
-                         joinsource='sub_ses_split',
+        analysis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                         name='analysis_joinnode_main',
+                         joinsource='main_split',
                          joinfield=['file_list'])
 
         workflow.connect([
@@ -543,20 +584,10 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                 ("outputnode.commonspace_mask", "subject_inputnode.mask_file"),
                 ("outputnode.commonspace_labels", "subject_inputnode.atlas_file"),
                 ]),
-            (bold_main_wf, analysis_joinnode_run, [
-                ("outputnode.commonspace_mask", "mask_file"),
-                ]),
-            (confound_regression_wf, analysis_joinnode_run, [
-                ("outputnode.cleaned_path", "file_list"),
-                ]),
             (confound_regression_wf, analysis_wf, [
                 ("outputnode.cleaned_path", "subject_inputnode.bold_file"),
                 ]),
-            (analysis_joinnode_run, analysis_joinnode_sub_ses, [
-                ("file_list", "file_list"),
-                ("mask_file", "mask_file"),
-                ]),
-            (analysis_joinnode_sub_ses, analysis_wf, [
+            (analysis_joinnode_main, analysis_wf, [
                 ("file_list", "group_inputnode.bold_file_list"),
                 ("mask_file", "group_inputnode.commonspace_mask"),
                 ]),
@@ -569,5 +600,33 @@ def init_unified_main_wf(data_dir_path, output_folder, disable_anat_preproc=Fals
                 ("outputnode.matrix_fig", "matrix_fig"),
                 ]),
             ])
+        if bold_only:
+            workflow.connect([
+                (bold_main_wf, analysis_joinnode_main, [
+                    ("outputnode.commonspace_mask", "mask_file"),
+                    ]),
+                (confound_regression_wf, analysis_joinnode_main, [
+                    ("outputnode.cleaned_path", "file_list"),
+                    ]),
+                ])
+        else:
+            analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                             name='analysis_joinnode_run',
+                             joinsource='run_split',
+                             joinfield=['file_list'])
+
+            workflow.connect([
+                (bold_main_wf, analysis_joinnode_run, [
+                    ("outputnode.commonspace_mask", "mask_file"),
+                    ]),
+                (confound_regression_wf, analysis_joinnode_run, [
+                    ("outputnode.cleaned_path", "file_list"),
+                    ]),
+                (analysis_joinnode_run, analysis_joinnode_main, [
+                    ("file_list", "file_list"),
+                    ("mask_file", "mask_file"),
+                    ]),
+                ])
+
 
     return workflow

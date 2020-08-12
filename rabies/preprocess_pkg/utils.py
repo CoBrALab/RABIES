@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
     File, InputMultiPath, BaseInterface, SimpleInterface
 )
 
-def prep_bids_iter(layout):
+def prep_bids_iter(layout, bold_only=False):
     '''
     This function takes as input a BIDSLayout, and iterates through the subjects and sessions to
     produce a list of all subject by session interactions, and generates a dictionary of all runs
@@ -15,7 +15,9 @@ def prep_bids_iter(layout):
     '''
     sub_list=[]
     session_list=[]
-    sub_ses_info=[]
+    run_list=[]
+    iter_info=[]
+    scan_list=[]
 
     subject_list=layout.get_subject()
     #create a dictionary with list of bold session and run numbers for each subject
@@ -32,10 +34,7 @@ def prep_bids_iter(layout):
                 sessions.append(func_bids.get_entities()['session'])
 
         for session in sessions:
-            sub_ses_str='sub-'+sub+'_ses-'+session
-            sub_list.append(sub)
-            session_list.append(session)
-            sub_ses_info.append(sub_ses_str)
+
             sub_func=layout.get(subject=sub, session=session, datatype='func', extension=['nii', 'nii.gz'])
             runs=[]
             for func_bids in sub_func:
@@ -45,9 +44,37 @@ def prep_bids_iter(layout):
                     raise ValueError("Missing 'run' BIDS information for subject %s." % (sub,))
                 if not func_bids.get_entities()['run'] in runs:
                     runs.append(func_bids.get_entities()['run'])
-            run_iter[sub_ses_str]=runs
 
-    return sub_list, session_list, sub_ses_info, run_iter
+            sub_ses_str='sub-'+sub+'_ses-'+session
+            if not bold_only:
+                sub_list.append(sub)
+                session_list.append(session)
+                run_list.append('token')
+                iter_info.append(sub_ses_str)
+                run_iter[sub_ses_str]=runs
+
+                anat=layout.get(subject=sub, session=session, extension=['nii', 'nii.gz'], datatype='anat', return_type='filename')
+                file=anat[0]
+                scan_list.append(file)
+
+                if len(anat)>1:
+                    raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str('anat_'+sub+'_'+session)))
+
+            if bold_only:
+                for run in runs:
+                    func=layout.get(subject=sub, session=session, run=run, extension=['nii', 'nii.gz'], datatype='func', return_type='filename')
+                    file=func[0]
+                    scan_list.append(file)
+
+                    sub_list.append(sub)
+                    session_list.append(session)
+                    run_list.append(run)
+                    iter_info.append(sub_ses_str)
+
+                    if len(func)>1:
+                        raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str('func_'+sub+'_'+session+'_'+run)))
+
+    return sub_list, session_list, run_list, iter_info, run_iter, scan_list
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     bids_dir = traits.Str(exists=True, mandatory=True, desc="BIDS data directory")
@@ -705,3 +732,16 @@ def run_command(command):
         log.warning(process.stderr)
     rc = process.returncode
     return rc
+
+def flatten_list(l):
+    if type(l)==list:
+        flattened=[]
+        for e in l:
+            e=flatten_list(e)
+            if type(e)==list:
+                flattened+=e
+            else:
+                flattened+=[e]
+        return flattened
+    else:
+        return l

@@ -36,8 +36,9 @@ class ANTsDBM(BaseInterface):
         cwd = os.getcwd()
         csv_path=cwd+'/commonspace_input_files.csv'
 
-        import itertools
-        df = pd.DataFrame(data=self.inputs.file_list)
+        from rabies.preprocess_pkg.utils import flatten_list
+        merged=flatten_list(list(self.inputs.file_list))
+        df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',',index=False)
 
         model_script_path = os.environ["RABIES"]+ '/rabies/shell_scripts/ants_dbm.sh'
@@ -60,7 +61,7 @@ class ANTsDBM(BaseInterface):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
         i=0
-        for file in self.inputs.file_list:
+        for file in merged:
             file=str(file)
             import pathlib  # Better path manipulation
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
