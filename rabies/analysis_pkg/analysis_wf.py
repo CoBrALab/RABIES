@@ -5,14 +5,18 @@ from nipype import Function
 
 from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix
 
+
 def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
-    subject_inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
-    group_inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'DR_data_file', 'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'sub_token', 'group_token']), name='outputnode')
+    subject_inputnode = pe.Node(niu.IdentityInterface(
+        fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
+    group_inputnode = pe.Node(niu.IdentityInterface(
+        fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
+    outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'DR_data_file',
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'sub_token', 'group_token']), name='outputnode')
 
-    #connect the nodes so that they exist even without running analysis
+    # connect the nodes so that they exist even without running analysis
     workflow.connect([
         (subject_inputnode, outputnode, [
             ("token", "sub_token"),
@@ -22,11 +26,12 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             ]),
         ])
 
-    include_group_ICA=opts.group_ICA
+    include_group_ICA = opts.group_ICA
 
     if opts.DR_ICA:
         if not commonspace_cr:
-            raise ValueError('Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_bold.')
+            raise ValueError(
+                'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_bold.')
 
         DR_ICA = pe.Node(Function(input_names=['bold_file', 'mask_file', 'IC_file'],
                                   output_names=['data_file', 'nii_file'],
@@ -44,22 +49,23 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-        if opts.IC_file==None:
-            print('Group-ICA will be run on the processed dataset since no previous group-ICA file was provided.')
-            include_group_ICA=True
+        if opts.IC_file is None:
+            print(
+                'Group-ICA will be run on the processed dataset since no previous group-ICA file was provided.')
+            include_group_ICA = True
         elif not os.path.isfile(str(opts.IC_file)):
             raise ValueError("--IC_file doesn't exists.")
         else:
-            DR_ICA.inputs.IC_file=os.path.abspath(opts.IC_file)
-
+            DR_ICA.inputs.IC_file = os.path.abspath(opts.IC_file)
 
     if include_group_ICA:
         if not commonspace_cr:
-            raise ValueError('Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_bold.')
+            raise ValueError(
+                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_bold.')
         group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'tr'],
-                                  output_names=['out_dir', 'IC_file'],
-                                  function=run_group_ICA),
-                         name='group_ICA', mem_gb=1)
+                                     output_names=['out_dir', 'IC_file'],
+                                     function=run_group_ICA),
+                            name='group_ICA', mem_gb=1)
         group_ICA.inputs.tr = float(opts.TR.split('s')[0])
         group_ICA.inputs.dim = opts.dim
 
@@ -74,19 +80,18 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-        if (opts.IC_file==None) and opts.DR_ICA:
+        if (opts.IC_file is None) and opts.DR_ICA:
             workflow.connect([
                 (group_ICA, DR_ICA, [
                     ("IC_file", "IC_file"),
                     ]),
                 ])
 
-
     if opts.FC_matrix:
         FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'atlas', 'roi_type'],
-                                  output_names=['data_file', 'figname'],
-                                  function=run_FC_matrix),
-                         name='FC_matrix', mem_gb=1)
+                                     output_names=['data_file', 'figname'],
+                                     function=run_FC_matrix),
+                            name='FC_matrix', mem_gb=1)
         FC_matrix.inputs.roi_type = opts.ROI_type
 
         workflow.connect([

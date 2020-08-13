@@ -2,6 +2,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces.utility import Function
 from nipype.interfaces import utility as niu
 
+
 def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
@@ -27,20 +28,25 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     """
     import os
     workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols']), name='inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['stc_file']), name='outputnode')
+    inputnode = pe.Node(niu.IdentityInterface(
+        fields=['bold_file', 'skip_vols']), name='inputnode')
+    outputnode = pe.Node(niu.IdentityInterface(
+        fields=['stc_file']), name='outputnode')
 
     if apply_STC:
         slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
-                                  output_names=['out_file'],
-                                  function=slice_timing_correction),
-                         name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
-        slice_timing_correction_node.plugin_args = {'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+                                                        output_names=[
+                                                            'out_file'],
+                                                        function=slice_timing_correction),
+                                               name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
+        slice_timing_correction_node.plugin_args = {
+            'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
         workflow.connect([
             (inputnode, slice_timing_correction_node, [('bold_file', 'in_file'),
-                                                  ('skip_vols', 'ignore')]),
-            (slice_timing_correction_node, outputnode, [('out_file', 'stc_file')]),
+                                                       ('skip_vols', 'ignore')]),
+            (slice_timing_correction_node,
+             outputnode, [('out_file', 'stc_file')]),
         ])
     else:
         workflow.connect([
@@ -48,6 +54,7 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
         ])
 
     return workflow
+
 
 def slice_timing_correction(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     '''
@@ -80,40 +87,41 @@ def slice_timing_correction(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     '''
 
     import os
-    import subprocess
     import SimpleITK as sitk
     import numpy as np
 
     img = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
 
-    #get image data
-    img_array=sitk.GetArrayFromImage(img)[ignore:,:,:,:]
+    # get image data
+    img_array = sitk.GetArrayFromImage(img)[ignore:, :, :, :]
 
-    shape=img_array.shape
-    new_array=np.zeros([shape[0],shape[2],shape[1],shape[3]])
+    shape = img_array.shape
+    new_array = np.zeros([shape[0], shape[2], shape[1], shape[3]])
     for i in range(shape[2]):
-        new_array[:,i,:,:]=img_array[:,:,i,:]
+        new_array[:, i, :, :] = img_array[:, :, i, :]
 
     image_out = sitk.GetImageFromArray(new_array, isVector=False)
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
-    command='3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (tpattern,tr,)
+    command = '3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern %s -TR %s STC_temp.nii.gz' % (
+        tpattern, tr,)
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
-    tshift_img = sitk.ReadImage('temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
-    tshift_array=sitk.GetArrayFromImage(tshift_img)
+    tshift_img = sitk.ReadImage(
+        'temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
+    tshift_array = sitk.GetArrayFromImage(tshift_img)
 
-    new_array=np.zeros(shape)
+    new_array = np.zeros(shape)
     for i in range(shape[2]):
-        new_array[:,:,i,:]=tshift_array[:,i,:,:]
+        new_array[:, :, i, :] = tshift_array[:, i, :, :]
     image_out = sitk.GetImageFromArray(new_array, isVector=False)
 
     from rabies.preprocess_pkg.utils import copyInfo_4DImage
-    image_out=copyInfo_4DImage(image_out, img, img)
+    image_out = copyInfo_4DImage(image_out, img, img)
 
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(in_file).name.rsplit(".nii")
-    out_file=os.path.abspath(filename_split[0]+'_tshift.nii.gz')
+    out_file = os.path.abspath(filename_split[0]+'_tshift.nii.gz')
     sitk.WriteImage(image_out, out_file)
     return out_file
