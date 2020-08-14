@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_anat_preproc_wf(disable_anat_preproc=False, autoreg=False, name='anat_preproc_wf'):
+def init_anat_preproc_wf(disable_anat_preproc=False, autoreg=False, rabies_data_type=8, rabies_mem_scale=1.0, name='anat_preproc_wf'):
     '''
     This workflow executes anatomical preprocessing based on anat_preproc.sh,
     which includes initial N4 bias field correction and Adaptive
@@ -14,20 +14,22 @@ def init_anat_preproc_wf(disable_anat_preproc=False, autoreg=False, name='anat_p
     registration to a template atlas to obtain brain mask to then compute an
     optimized N4 correction and denoising.
     '''
-    import os
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_file', 'template_anat']), name='inputnode')
+        fields=['anat_file', 'template_anat', 'template_mask']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['preproc_anat']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc, autoreg=autoreg),
-                           name='Anat_Preproc', mem_gb=0.6*float(os.environ["rabies_mem_scale"]))
+    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc, autoreg=autoreg, rabies_data_type=rabies_data_type),
+                           name='Anat_Preproc', mem_gb=0.6*rabies_mem_scale)
 
     workflow.connect([
         (inputnode, anat_preproc, [
-         ("anat_file", "nii_anat"), ("template_anat", "template_anat")]),
+            ("anat_file", "nii_anat"),
+            ("template_anat", "template_anat"),
+            ("template_mask", "template_mask"),
+            ]),
         (anat_preproc, outputnode, [("preproc_anat", "preproc_anat")]),
     ])
 
@@ -39,10 +41,14 @@ class AnatPreprocInputSpec(BaseInterfaceInputSpec):
                     desc="Anatomical image to preprocess")
     template_anat = File(exists=True, mandatory=True,
                          desc="anatomical template for registration.")
+    template_mask = File(exists=True, mandatory=True,
+                         desc="The brain mask of the anatomical template.")
     disable_anat_preproc = traits.Bool(
         desc="If anatomical preprocessing is disabled, then only copy the input to a new file named _preproc.nii.gz.")
     autoreg = traits.Bool(
         desc="If an automated registration script should be used for affine registration.")
+    rabies_data_type = traits.Int(mandatory=True,
+        desc="Integer specifying SimpleITK data type.")
 
 
 class AnatPreprocOutputSpec(TraitedSpec):
@@ -72,11 +78,11 @@ class AnatPreproc(BaseInterface):
 
         # resample the anatomical image to the resolution of the provided template
         anat_image = sitk.ReadImage(
-            self.inputs.nii_anat, int(os.environ["rabies_data_type"]))
+            self.inputs.nii_anat, self.inputs.rabies_data_type)
         anat_dim = anat_image.GetSpacing()
 
         template_image = sitk.ReadImage(
-            self.inputs.template_anat, int(os.environ["rabies_data_type"]))
+            self.inputs.template_anat, self.inputs.rabies_data_type)
         template_dim = template_image.GetSpacing()
         if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
             print('Anat image will be resampled to the template resolution.')
@@ -88,16 +94,14 @@ class AnatPreproc(BaseInterface):
 
         if self.inputs.disable_anat_preproc:
             # resample image to specified data format
-            sitk.WriteImage(sitk.ReadImage(input_anat, int(
-                os.environ["rabies_data_type"])), output_anat)
+            sitk.WriteImage(sitk.ReadImage(input_anat, self.inputs.rabies_data_type), output_anat)
         else:
-            command = 'bash %s/../shell_scripts/anat_preproc.sh %s %s %s %s' % (
-                dir_path, input_anat, self.inputs.template_anat, output_anat, self.inputs.autoreg)
+            command = 'bash %s/../shell_scripts/anat_preproc.sh %s %s %s %s %s' % (
+                dir_path, input_anat, self.inputs.template_anat, self.inputs.template_mask, output_anat, self.inputs.autoreg)
             rc = run_command(command)
 
             # resample image to specified data format
-            sitk.WriteImage(sitk.ReadImage(output_anat, int(
-                os.environ["rabies_data_type"])), output_anat)
+            sitk.WriteImage(sitk.ReadImage(output_anat, self.inputs.rabies_data_type), output_anat)
 
         setattr(self, 'preproc_anat', output_anat)
         return runtime

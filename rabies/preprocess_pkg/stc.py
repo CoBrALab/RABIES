@@ -3,7 +3,7 @@ from nipype.interfaces.utility import Function
 from nipype.interfaces import utility as niu
 
 
-def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
+def init_bold_stc_wf(tr, tpattern, no_STC=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
@@ -33,14 +33,15 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
-    if apply_STC:
-        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern'],
+    if not no_STC:
+        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],
                                                         function=slice_timing_correction),
-                                               name='slice_timing_correction', mem_gb=1.5*float(os.environ["rabies_mem_scale"]))
+                                               name='slice_timing_correction', mem_gb=1.5*rabies_mem_scale)
+        slice_timing_correction_node.inputs.rabies_data_type = rabies_data_type
         slice_timing_correction_node.plugin_args = {
-            'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+            'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
         workflow.connect([
             (inputnode, slice_timing_correction_node, [('bold_file', 'in_file')]),
@@ -55,7 +56,7 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     return workflow
 
 
-def slice_timing_correction(in_file, tr='1.0s', tpattern='alt-z'):
+def slice_timing_correction(in_file, tr='1.0s', tpattern='alt', rabies_data_type=8):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation
@@ -89,7 +90,14 @@ def slice_timing_correction(in_file, tr='1.0s', tpattern='alt-z'):
     import SimpleITK as sitk
     import numpy as np
 
-    img = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
+    if tpattern == "alt":
+        tpattern = 'alt-z'
+    elif tpattern == "seq":
+        tpattern = 'seq-z'
+    else:
+        raise ValueError('Invalid --tpattern provided.')
+
+    img = sitk.ReadImage(in_file, rabies_data_type)
 
     # get image data
     img_array = sitk.GetArrayFromImage(img)
@@ -108,7 +116,7 @@ def slice_timing_correction(in_file, tr='1.0s', tpattern='alt-z'):
     rc = run_command(command)
 
     tshift_img = sitk.ReadImage(
-        'temp_tshift.nii.gz', int(os.environ["rabies_data_type"]))
+        'temp_tshift.nii.gz', rabies_data_type)
     tshift_array = sitk.GetArrayFromImage(tshift_img)
 
     new_array = np.zeros(shape)

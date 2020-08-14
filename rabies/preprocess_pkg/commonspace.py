@@ -16,6 +16,14 @@ class ANTsDBMInputSpec(BaseInterfaceInputSpec):
                          desc="Reference anatomical template to define the target space.")
     output_folder = traits.Str(
         exists=True, mandatory=True, desc="Path to output folder.")
+    cluster_type = traits.Str(
+        exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
+    walltime = traits.Str(
+        exists=True, mandatory=True, desc="Option for job submission specifying requested time per pairwise registration.")
+    memory_request = traits.Str(
+        exists=True, mandatory=True, desc="Option for job submission specifying requested memory per pairwise registration.")
+    local_threads = traits.Int(
+        exists=True, mandatory=True, desc="Number of threads to run in parallel if cluster_type is local.")
 
 
 class ANTsDBMOutputSpec(TraitedSpec):
@@ -44,8 +52,9 @@ class ANTsDBM(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        model_script_path = os.environ["RABIES"] + \
-            '/rabies/shell_scripts/ants_dbm.sh'
+        import rabies
+        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
+        model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
 
         template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
 
@@ -55,8 +64,9 @@ class ANTsDBM(BaseInterface):
         command = 'mkdir -p %s' % (template_folder,)
         from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
-        command = 'cd %s ; bash %s %s %s' % (
-            template_folder, model_script_path, csv_path, self.inputs.template_anat)
+
+        command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
+            template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
         rc = run_command(command)
 
         # verify that all outputs are present

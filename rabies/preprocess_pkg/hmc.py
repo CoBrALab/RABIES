@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 from .utils import SliceMotionCorrection
 
 
-def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
+def init_bold_hmc_wf(slice_mc=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, local_threads=1, name='bold_hmc_wf'):
     """
     This workflow estimates the motion parameters to perform HMC over the BOLD image.
 
@@ -39,10 +39,9 @@ def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(EstimateMotion(
-    ), name='ants_MC', mem_gb=1.1*float(os.environ["rabies_mem_scale"]))
+    motion_estimation = pe.Node(EstimateMotion(rabies_data_type=rabies_data_type), name='ants_MC', mem_gb=1.1*rabies_mem_scale)
     motion_estimation.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, motion_estimation, [('ref_image', 'ref_file'),
@@ -52,11 +51,11 @@ def init_bold_hmc_wf(slice_mc=False, name='bold_hmc_wf'):
     ])
 
     if slice_mc:
-        slice_mc_n_procs = int(int(os.environ["local_threads"])/4)+1
+        slice_mc_n_procs = int(local_threads/4)+1
         slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs),
                                 name='slice_mc', mem_gb=1*slice_mc_n_procs, n_procs=slice_mc_n_procs)
         slice_mc_node.plugin_args = {
-            'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+            'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
         # conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
         workflow.connect([
@@ -75,6 +74,8 @@ class EstimateMotionInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
     ref_file = File(exists=True, mandatory=True,
                     desc="Reference image to which timeseries are realigned for motion estimation")
+    rabies_data_type = traits.Int(mandatory=True,
+        desc="Integer specifying SimpleITK data type.")
 
 
 class EstimateMotionOutputSpec(TraitedSpec):
@@ -95,7 +96,7 @@ class EstimateMotion(BaseInterface):
         import os
         from .utils import antsMotionCorr
         res = antsMotionCorr(in_file=self.inputs.in_file,
-                             ref_file=self.inputs.ref_file, second=False).run()
+                             ref_file=self.inputs.ref_file, second=False, rabies_data_type=self.inputs.rabies_data_type).run()
         csv_params = os.path.abspath(res.outputs.csv_params)
 
         setattr(self, 'csv_params', csv_params)

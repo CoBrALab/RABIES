@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 )
 
 
-def bias_correction_wf(bias_reg_script='Rigid', name='bias_correction_wf'):
+def bias_correction_wf(bias_reg_script='Rigid', rabies_data_type=8, rabies_mem_scale=1.0, name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -19,8 +19,8 @@ def bias_correction_wf(bias_reg_script='Rigid', name='bias_correction_wf'):
             fields=['corrected_EPI', 'resampled_mask', 'warped_EPI']),
         name='outputnode')
 
-    bias_correction = pe.Node(EPIBiasCorrection(reg_script=bias_reg_script),
-                              name='bias_correction', mem_gb=0.3*float(os.environ["rabies_mem_scale"]))
+    bias_correction = pe.Node(EPIBiasCorrection(reg_script=bias_reg_script, rabies_data_type=rabies_data_type),
+                              name='bias_correction', mem_gb=0.3*rabies_mem_scale)
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
@@ -48,6 +48,8 @@ class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
                             desc="Specifying the script to use for registration.")
     name_source = File(exists=True, mandatory=True,
                        desc='Reference BOLD file for naming the output.')
+    rabies_data_type = traits.Int(mandatory=True,
+        desc="Integer specifying SimpleITK data type.")
 
 
 class EPIBiasCorrectionOutputSpec(TraitedSpec):
@@ -96,7 +98,7 @@ class EPIBiasCorrection(BaseInterface):
 
         # resample to isotropic resolution based on lowest dimension
         input_ref_EPI = sitk.ReadImage(
-            self.inputs.input_ref_EPI, int(os.environ["rabies_data_type"]))
+            self.inputs.input_ref_EPI, self.inputs.rabies_data_type)
         dim = input_ref_EPI.GetSpacing()
         low_dim = np.asarray(dim).min()
         from rabies.preprocess_pkg.utils import resample_image_spacing
@@ -109,18 +111,14 @@ class EPIBiasCorrection(BaseInterface):
         rc = run_command(command)
 
         # resample to anatomical image resolution
-        dim = sitk.ReadImage(self.inputs.anat, int(
-            os.environ["rabies_data_type"])).GetSpacing()
+        dim = sitk.ReadImage(self.inputs.anat, self.inputs.rabies_data_type).GetSpacing()
         low_dim = np.asarray(dim).min()
         sitk.WriteImage(resample_image_spacing(sitk.ReadImage(cwd+'/iter_corrected.nii.gz',
-                                                              int(os.environ["rabies_data_type"])), (low_dim, low_dim, low_dim)), biascor_EPI)
+                                                              self.inputs.rabies_data_type), (low_dim, low_dim, low_dim)), biascor_EPI)
 
-        sitk.WriteImage(sitk.ReadImage(biascor_EPI, int(
-            os.environ["rabies_data_type"])), biascor_EPI)
-        sitk.WriteImage(sitk.ReadImage(warped_image, int(
-            os.environ["rabies_data_type"])), warped_image)
-        sitk.WriteImage(sitk.ReadImage(resampled_mask, int(
-            os.environ["rabies_data_type"])), resampled_mask)
+        sitk.WriteImage(sitk.ReadImage(biascor_EPI, self.inputs.rabies_data_type), biascor_EPI)
+        sitk.WriteImage(sitk.ReadImage(warped_image, self.inputs.rabies_data_type), warped_image)
+        sitk.WriteImage(sitk.ReadImage(resampled_mask, self.inputs.rabies_data_type), resampled_mask)
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)

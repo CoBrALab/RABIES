@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
+def init_bold_confs_wf(aCompCor_method='50%', rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
@@ -31,10 +31,10 @@ def init_bold_confs_wf(aCompCor_method='50%', name="bold_confs_wf"):
     propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec = 'anat_labels'
 
-    estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method),
-                                 name='estimate_confounds', mem_gb=2.3*float(os.environ["rabies_mem_scale"]))
+    estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=rabies_data_type),
+                                 name='estimate_confounds', mem_gb=2.3*rabies_mem_scale)
     estimate_confounds.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(2*min_proc)), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -105,6 +105,8 @@ class EstimateConfoundsInputSpec(BaseInterfaceInputSpec):
                          desc="EPI-formated vascular mask")
     aCompCor_method = traits.Str(
         desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
+    rabies_data_type = traits.Int(mandatory=True,
+        desc="Integer specifying SimpleITK data type.")
 
 
 class EstimateConfoundsOutputSpec(TraitedSpec):
@@ -159,7 +161,7 @@ class EstimateConfounds(BaseInterface):
         csv_columns += ['vascular_signal']
 
         [aCompCor, num_comp] = compute_aCompCor(
-            self.inputs.bold, self.inputs.WM_mask, self.inputs.CSF_mask, method=self.inputs.aCompCor_method)
+            self.inputs.bold, self.inputs.WM_mask, self.inputs.CSF_mask, method=self.inputs.aCompCor_method, rabies_data_type=self.inputs.rabies_data_type)
         for param in range(aCompCor.shape[1]):
             confounds.append(aCompCor[:, param])
         comp_column = []
@@ -195,7 +197,6 @@ class EstimateConfounds(BaseInterface):
 
 def write_confound_csv(confound_array, column_names, filename_template):
     import pandas as pd
-    import os
     df = pd.DataFrame(confound_array)
     df.columns = column_names
     csv_path = os.path.abspath("%s_confounds.csv" % filename_template)
@@ -203,7 +204,7 @@ def write_confound_csv(confound_array, column_names, filename_template):
     return csv_path
 
 
-def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
+def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%', rabies_data_type=8):
     '''
     Compute the anatomical comp corr through PCA over a defined ROI (mask) within
     the EPI, and retain either the first 5 components' time series or up to 50% of
@@ -213,9 +214,9 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%'):
     from sklearn.decomposition import PCA
 
     WM_data = sitk.GetArrayFromImage(sitk.ReadImage(
-        WM_mask, int(os.environ["rabies_data_type"])))
+        WM_mask, rabies_data_type))
     CSF_data = sitk.GetArrayFromImage(sitk.ReadImage(
-        CSF_mask, int(os.environ["rabies_data_type"])))
+        CSF_mask, rabies_data_type))
     combined = (WM_data+CSF_data) > 0
     from .utils import copyInfo_3DImage
     noise_mask = copyInfo_3DImage(sitk.GetImageFromArray(combined.astype(

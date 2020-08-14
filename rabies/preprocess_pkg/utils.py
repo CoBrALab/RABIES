@@ -143,7 +143,7 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
-def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
+def init_bold_reference_wf(detect_dummy=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='gen_bold_ref'):
     """
     This workflow generates reference BOLD images for a series
 
@@ -180,10 +180,10 @@ def init_bold_reference_wf(detect_dummy=False, name='gen_bold_ref'):
         niu.IdentityInterface(fields=['bold_file', 'ref_image']),
         name='outputnode')
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy),
-                      name='gen_ref', mem_gb=2*float(os.environ["rabies_mem_scale"]))
+    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy, rabies_data_type=rabies_data_type),
+                      name='gen_ref', mem_gb=2*rabies_mem_scale)
     gen_ref.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(2*int(os.environ["min_proc"]))), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(2*min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, gen_ref, [('bold_file', 'in_file')]),
@@ -198,11 +198,14 @@ class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
+    rabies_data_type = traits.Int(mandatory=True,
+                                  desc="Integer specifying SimpleITK data type.")
 
 
 class EstimateReferenceImageOutputSpec(TraitedSpec):
     ref_image = File(exists=True, desc="3D reference image")
-    bold_file = File(exists=True, desc="Input bold file without dummy volumes if detect_dummy is True.")
+    bold_file = File(
+        exists=True, desc="Input bold file without dummy volumes if detect_dummy is True.")
 
 
 class EstimateReferenceImage(BaseInterface):
@@ -222,12 +225,11 @@ class EstimateReferenceImage(BaseInterface):
 
     def _run_interface(self, runtime):
 
-        import os
         import SimpleITK as sitk
         import numpy as np
 
-        in_nii = sitk.ReadImage(self.inputs.in_file, int(
-            os.environ["rabies_data_type"]))
+        in_nii = sitk.ReadImage(self.inputs.in_file,
+                                self.inputs.rabies_data_type)
         data_slice = sitk.GetArrayFromImage(in_nii)[:50, :, :, :]
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
@@ -245,7 +247,8 @@ class EstimateReferenceImage(BaseInterface):
 
             out_bold_file = os.path.abspath(
                 '%s_cropped_dummy.nii.gz' % (filename_split[0],))
-            img_array = sitk.GetArrayFromImage(in_nii)[n_volumes_to_discard:, :, :, :]
+            img_array = sitk.GetArrayFromImage(
+                in_nii)[n_volumes_to_discard:, :, :, :]
             sitk.WriteImage(img_array, out_bold_file)
 
         else:
@@ -275,9 +278,9 @@ class EstimateReferenceImage(BaseInterface):
 
             print("First iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=median_fname, second=False).run()
+                                 ref_file=median_fname, second=False, rabies_data_type=self.inputs.rabies_data_type).run()
             median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(
-                res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
+                res.outputs.mc_corrected_bold, self.inputs.rabies_data_type)), axis=0)
             tmp_median_fname = os.path.abspath("tmp_median.nii.gz")
             image_3d = copyInfo_3DImage(
                 sitk.GetImageFromArray(median, isVector=False), in_nii)
@@ -285,13 +288,12 @@ class EstimateReferenceImage(BaseInterface):
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=tmp_median_fname, second=True).run()
+                                 ref_file=tmp_median_fname, second=True,  rabies_data_type=self.inputs.rabies_data_type).run()
 
             # evaluate a trimmed mean instead of a median, trimming the 5% extreme values
             from scipy import stats
             median_image_data = stats.trim_mean(sitk.GetArrayFromImage(sitk.ReadImage(
-                res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), 0.05, axis=0)
-            # median_image_data = np.median(sitk.GetArrayFromImage(sitk.ReadImage(res.outputs.mc_corrected_bold, int(os.environ["rabies_data_type"]))), axis=0)
+                res.outputs.mc_corrected_bold, self.inputs.rabies_data_type)), 0.05, axis=0)
 
         # median_image_data is a 3D array of the median image, so creates a new nii image
         # saves it
@@ -332,6 +334,8 @@ class antsMotionCorrInputSpec(BaseInterfaceInputSpec):
     ref_file = File(exists=True, mandatory=True,
                     desc='ref file to realignment time series')
     second = traits.Bool(desc="specify if it is the second iteration")
+    rabies_data_type = traits.Int(mandatory=True,
+                                  desc="Integer specifying SimpleITK data type.")
 
 
 class antsMotionCorrOutputSpec(TraitedSpec):
@@ -358,8 +362,7 @@ class antsMotionCorr(BaseInterface):
         from rabies.preprocess_pkg.utils import run_command
         # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
         shrinking_factor = 4
-        img = sitk.ReadImage(self.inputs.in_file, int(
-            os.environ["rabies_data_type"]))
+        img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
         low_dim = np.asarray(img.GetSize()[:3]).min()
         if shrinking_factor > int(low_dim/4):
             shrinking_factor = int(low_dim/4)
@@ -520,6 +523,8 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
         exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(
         desc="Specification for the dimension of resampling.")
+    rabies_data_type = traits.Int(mandatory=True,
+                                  desc="Integer specifying SimpleITK data type.")
 
 
 class slice_applyTransformsOutputSpec(TraitedSpec):
@@ -543,8 +548,7 @@ class slice_applyTransforms(BaseInterface):
         import os
         from rabies.preprocess_pkg.utils import run_command
 
-        img = sitk.ReadImage(self.inputs.in_file, int(
-            os.environ["rabies_data_type"]))
+        img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
 
         if not self.inputs.resampling_dim == 'origin':
             shape = self.inputs.resampling_dim.split('x')
@@ -552,7 +556,7 @@ class slice_applyTransforms(BaseInterface):
         else:
             spacing = img.GetSpacing()[:3]
         resampled = resample_image_spacing(sitk.ReadImage(
-            self.inputs.ref_file, int(os.environ["rabies_data_type"])), spacing)
+            self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
         sitk.WriteImage(resampled, 'resampled.nii.gz')
 
         # tranforms is a list of transform files, set in order of call within antsApplyTransforms
@@ -565,7 +569,7 @@ class slice_applyTransforms(BaseInterface):
 
         print("Splitting bold file into lists of single volumes")
         [bold_volumes, num_volumes] = split_volumes(
-            self.inputs.in_file, "bold_")
+            self.inputs.in_file, "bold_", self.inputs.rabies_data_type)
 
         if self.inputs.apply_motcorr:
             motcorr_params = self.inputs.motcorr_params
@@ -587,8 +591,8 @@ class slice_applyTransforms(BaseInterface):
                     bold_volumes[x], transform_string, ref_img, warped_vol_fname)
                 rc = run_command(command)
             # change image to specified data type
-            sitk.WriteImage(sitk.ReadImage(warped_vol_fname, int(
-                os.environ["rabies_data_type"])), warped_vol_fname)
+            sitk.WriteImage(sitk.ReadImage(warped_vol_fname,
+                                           self.inputs.rabies_data_type), warped_vol_fname)
 
         setattr(self, 'out_files', warped_volumes)
         return runtime
@@ -597,13 +601,13 @@ class slice_applyTransforms(BaseInterface):
         return {'out_files': getattr(self, 'out_files')}
 
 
-def split_volumes(in_file, output_prefix):
+def split_volumes(in_file, output_prefix, rabies_data_type):
     '''
     Takes as input a 4D .nii file and splits it into separate time series
     volumes by splitting on the 4th dimension
     '''
     import os
-    in_nii = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
+    in_nii = sitk.ReadImage(in_file, rabies_data_type)
     num_dimensions = len(in_nii.GetSize())
     num_volumes = in_nii.GetSize()[3]
 
@@ -629,6 +633,8 @@ class MergeInputSpec(BaseInterfaceInputSpec):
                               desc='input list of files to merge, listed in the order to merge')
     header_source = File(exists=True, mandatory=True,
                          desc='a Nifti file from which the header should be copied')
+    rabies_data_type = traits.Int(mandatory=True,
+                                  desc="Integer specifying SimpleITK data type.")
 
 
 class MergeOutputSpec(TraitedSpec):
@@ -653,7 +659,7 @@ class Merge(BaseInterface):
             self.inputs.header_source).name.rsplit(".nii")
 
         sample_volume = sitk.ReadImage(
-            self.inputs.in_files[0], int(os.environ["rabies_data_type"]))
+            self.inputs.in_files[0], self.inputs.rabies_data_type)
         length = len(self.inputs.in_files)
         shape = sitk.GetArrayFromImage(sample_volume).shape
         combined = np.zeros((length, shape[0], shape[1], shape[2]))
@@ -661,7 +667,7 @@ class Merge(BaseInterface):
         i = 0
         for file in self.inputs.in_files:
             combined[i, :, :, :] = sitk.GetArrayFromImage(
-                sitk.ReadImage(file, int(os.environ["rabies_data_type"])))[:, :, :]
+                sitk.ReadImage(file, self.inputs.rabies_data_type))[:, :, :]
             i = i+1
         if (i != length):
             raise ValueError("Error occured with Merge.")
@@ -674,7 +680,7 @@ class Merge(BaseInterface):
 
         # set metadata and affine for the newly constructed 4D image
         header_source = sitk.ReadImage(
-            self.inputs.header_source, int(os.environ["rabies_data_type"]))
+            self.inputs.header_source, self.inputs.rabies_data_type)
         combined_image = copyInfo_4DImage(
             combined_image, sample_volume, header_source)
         sitk.WriteImage(combined_image, combined_files)
@@ -763,11 +769,13 @@ def convert_to_RAS(img_file, out_dir=None):
             out_file = os.path.abspath(split[0]+'_RAS.nii.gz')
         else:
             out_file = out_dir+'/'+split[0]+'_RAS.nii.gz'
+            if not os.path.isdir(out_dir):
+                os.makedirs(out_dir)
         nb.as_closest_canonical(img).to_filename(out_file)
         return out_file
 
 
-def resample_template(template_file, file_list, spacing='inputs_defined'):
+def resample_template(template_file, file_list, spacing='inputs_defined', rabies_data_type=8):
     import os
     import SimpleITK as sitk
     import numpy as np
@@ -775,21 +783,21 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
 
     if spacing == 'inputs_defined':
         file_list = list(np.asarray(file_list).flatten())
-        img = sitk.ReadImage(file_list[0], int(os.environ["rabies_data_type"]))
+        img = sitk.ReadImage(file_list[0], rabies_data_type)
         low_dim = np.asarray(img.GetSpacing()[:3]).min()
         for file in file_list[1:]:
-            img = sitk.ReadImage(file, int(os.environ["rabies_data_type"]))
+            img = sitk.ReadImage(file, rabies_data_type)
             new_low_dim = np.asarray(img.GetSpacing()[:3]).min()
             if new_low_dim < low_dim:
                 low_dim = new_low_dim
         spacing = (low_dim, low_dim, low_dim)
 
         template_image = sitk.ReadImage(
-            template_file, int(os.environ["rabies_data_type"]))
+            template_file, rabies_data_type)
         template_dim = template_image.GetSpacing()
         if np.asarray(template_dim[:3]).min() > low_dim:
             print("The template retains its original resolution.")
-            return os.environ["template_anat"]
+            return template_file
     else:
         shape = spacing.split('x')
         spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
@@ -797,9 +805,8 @@ def resample_template(template_file, file_list, spacing='inputs_defined'):
     print("Resampling template to %sx%sx%smm dimensions." %
           (spacing[0], spacing[1], spacing[2],))
     resampled_template = os.path.abspath("resampled_template.nii.gz")
-    sitk.WriteImage(resample_image_spacing(sitk.ReadImage(template_file, int(
-        os.environ["rabies_data_type"])), spacing), resampled_template)
-    os.environ["template_anat"] = resampled_template
+    sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
+        template_file, rabies_data_type), spacing), resampled_template)
 
     return resampled_template
 
@@ -824,7 +831,7 @@ def run_command(command):
     out = process.stdout.decode("utf-8")
     if not out == '':
         log.info(out)
-    if not process.stderr is None:
+    if process.stderr is not None:
         log.warning(process.stderr)
     rc = process.returncode
     return rc

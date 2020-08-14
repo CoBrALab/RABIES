@@ -4,7 +4,7 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 
 
-def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
+def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='bold_reg_wf'):
     """
     This workflow registers the reference BOLD image to anat-space, using
     antsRegistration, either applying Affine registration only, or the
@@ -53,13 +53,14 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     )
 
     run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
-                                            "anat_mask"],
+                                            "anat_mask", "rabies_data_type"],
                                output_names=['affine_bold2anat', 'warp_bold2anat',
                                              'inverse_warp_bold2anat', 'output_warped_bold'],
-                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*float(os.environ["rabies_mem_scale"]))
+                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*rabies_mem_scale)
     run_reg.inputs.reg_script = coreg_script
+    run_reg.inputs.rabies_data_type = rabies_data_type
     run_reg.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -77,7 +78,7 @@ def init_bold_reg_wf(coreg_script='SyN', name='bold_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL'):
+def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL', rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -108,7 +109,6 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
         inverse_warp = 'NULL'
 
     import SimpleITK as sitk
-    sitk.WriteImage(sitk.ReadImage(warped_image, int(
-        os.environ["rabies_data_type"])), warped_image)
+    sitk.WriteImage(sitk.ReadImage(warped_image, rabies_data_type), warped_image)
 
     return [affine, warp, inverse_warp, warped_image]
