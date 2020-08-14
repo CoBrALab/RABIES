@@ -73,8 +73,6 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
             The provided input BOLD file
         bold_ref
             Initial EPI median volume subsequently used as 3D reference EPI volume
-        skip_vols
-            Initial saturated volumes detected through the generation of the bold_ref
         motcorr_params
             motion parameters file provided from antsMotionCorr
         corrected_EPI
@@ -133,7 +131,7 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'skip_vols', 'motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                fields=['input_bold', 'bold_ref', 'motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_labels']),
                 name='outputnode')
 
@@ -141,7 +139,7 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
                          name="boldbuffer")
 
     # this node will serve as a relay of outputs from the bias_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'skip_vols', 'bold_ref', 'corrected_EPI']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'corrected_EPI']),
                              name="transitionnode")
 
     if bias_cor_only or (not bold_only):
@@ -161,6 +159,19 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
                 (inputnode, boldbuffer, [('bold', 'bold_file')]),
                 ])
 
+        if detect_dummy:
+            workflow.connect([
+                (bold_reference_wf, transitionnode, [
+                    ('outputnode.bold_file', 'bold_file'),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (boldbuffer, transitionnode, [
+                    ('bold_file', 'bold_file'),
+                    ]),
+                ])
+
         workflow.connect([
             (inputnode, bias_cor_wf, [
                 ('template_anat', 'inputnode.anat'),
@@ -170,15 +181,11 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
             (boldbuffer, bold_reference_wf, [
                 ('bold_file', 'inputnode.bold_file'),
                 ]),
-            (boldbuffer, transitionnode, [
-                ('bold_file', 'bold_file'),
-                ]),
             (bold_reference_wf, bias_cor_wf, [
                 ('outputnode.ref_image', 'inputnode.ref_EPI'),
                 ]),
             (bold_reference_wf, transitionnode, [
                 ('outputnode.ref_image', 'bold_ref'),
-                ('outputnode.skip_vols', 'skip_vols'),
                 ]),
             (bias_cor_wf, transitionnode, [
                 ('outputnode.corrected_EPI', 'corrected_EPI'),
@@ -250,7 +257,6 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
                                     ('bold', 'inputnode.name_source'),
                                     ]),
         (transitionnode, bold_stc_wf, [
-            ('skip_vols', 'inputnode.skip_vols'),
             ('bold_file', 'inputnode.bold_file'),
             ]),
         (transitionnode, bold_hmc_wf, [
@@ -300,9 +306,9 @@ def init_bold_main_wf(data_dir_path, bold_only=False, bias_cor_only=False, apply
                 ('anat_preproc', 'inputnode.anat_preproc'),
                 ('anat_mask', 'inputnode.anat_mask')]),
             (inputnode, bold_bold_trans_wf, [
-             ('bold', 'inputnode.name_source')]),
+                ('bold', 'inputnode.name_source')]),
             (transitionnode, bold_reg_wf, [
-                  ('corrected_EPI', 'inputnode.ref_bold_brain')]),
+                ('corrected_EPI', 'inputnode.ref_bold_brain')]),
             (bold_reg_wf, outputnode, [
                 ('outputnode.affine_bold2anat', 'affine_bold2anat'),
                 ('outputnode.warp_bold2anat', 'warp_bold2anat'),

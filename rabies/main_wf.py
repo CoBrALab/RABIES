@@ -511,7 +511,6 @@ def init_main_wf(data_dir_path, output_folder, bold_only=False, disable_anat_pre
              ("resampled_template", "inputnode.template_anat")]),
             (bias_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
-                ("transitionnode.skip_vols", "transitionnode.skip_vols"),
                 ("transitionnode.bold_ref", "transitionnode.bold_ref"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),

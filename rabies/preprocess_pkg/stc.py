@@ -29,12 +29,12 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     import os
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file', 'skip_vols']), name='inputnode')
+        fields=['bold_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
     if apply_STC:
-        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'ignore', 'tr', 'tpattern'],
+        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern'],
                                                         output_names=[
                                                             'out_file'],
                                                         function=slice_timing_correction),
@@ -43,8 +43,7 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
             'qsub_args': '-pe smp %s' % (str(3*int(os.environ["min_proc"]))), 'overwrite': True}
 
         workflow.connect([
-            (inputnode, slice_timing_correction_node, [('bold_file', 'in_file'),
-                                                       ('skip_vols', 'ignore')]),
+            (inputnode, slice_timing_correction_node, [('bold_file', 'in_file')]),
             (slice_timing_correction_node,
              outputnode, [('out_file', 'stc_file')]),
         ])
@@ -56,7 +55,7 @@ def init_bold_stc_wf(tr, tpattern, apply_STC=True, name='bold_stc_wf'):
     return workflow
 
 
-def slice_timing_correction(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
+def slice_timing_correction(in_file, tr='1.0s', tpattern='alt-z'):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation
@@ -93,7 +92,7 @@ def slice_timing_correction(in_file, ignore=0, tr='1.0s', tpattern='alt-z'):
     img = sitk.ReadImage(in_file, int(os.environ["rabies_data_type"]))
 
     # get image data
-    img_array = sitk.GetArrayFromImage(img)[ignore:, :, :, :]
+    img_array = sitk.GetArrayFromImage(img)
 
     shape = img_array.shape
     new_array = np.zeros([shape[0], shape[2], shape[1], shape[3]])
