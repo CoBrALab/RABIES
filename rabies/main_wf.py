@@ -516,123 +516,132 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # Integrate confound regression
     if cr_opts is not None:
+        workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, cr_opts, bold_only=opts.bold_only)
 
-        cr_output = os.path.abspath(str(cr_opts.output_dir))
+        # Integrate analysis
+        if analysis_opts is not None:
+            workflow = integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
 
-        from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
-        confound_regression_wf = init_confound_regression_wf(lowpass=cr_opts.lowpass, highpass=cr_opts.highpass,
-                                                             smoothing_filter=cr_opts.smoothing_filter, run_aroma=cr_opts.run_aroma, aroma_dim=cr_opts.aroma_dim, conf_list=cr_opts.conf_list, TR=cr_opts.TR, apply_scrubbing=cr_opts.apply_scrubbing,
-                                                             scrubbing_threshold=cr_opts.scrubbing_threshold, timeseries_interval=cr_opts.timeseries_interval, diagnosis_output=cr_opts.diagnosis_output, seed_list=cr_opts.seed_list, name=cr_opts.wf_name)
+    return workflow
 
+
+def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
+    cr_output = os.path.abspath(str(cr_opts.output_dir))
+
+    from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
+    confound_regression_wf = init_confound_regression_wf(lowpass=cr_opts.lowpass, highpass=cr_opts.highpass,
+                                                         smoothing_filter=cr_opts.smoothing_filter, run_aroma=cr_opts.run_aroma, aroma_dim=cr_opts.aroma_dim, conf_list=cr_opts.conf_list, TR=cr_opts.TR, apply_scrubbing=cr_opts.apply_scrubbing,
+                                                         scrubbing_threshold=cr_opts.scrubbing_threshold, timeseries_interval=cr_opts.timeseries_interval, diagnosis_output=cr_opts.diagnosis_output, seed_list=cr_opts.seed_list, name=cr_opts.wf_name)
+
+    workflow.connect([
+        (outputnode, confound_regression_wf, [
+            ("confounds_csv", "inputnode.confounds_file"),  # confounds file
+            ("FD_csv", "inputnode.FD_file"),
+            ]),
+        ])
+
+    if bold_only and not cr_opts.commonspace_bold:
+        raise ValueError(
+            'Must select --commonspace option for running confound regression on outputs from --bold_only.')
+
+    if cr_opts.commonspace_bold:
         workflow.connect([
             (outputnode, confound_regression_wf, [
-                ("confounds_csv", "inputnode.confounds_file"),  # confounds file
-                ("FD_csv", "inputnode.FD_file"),
+                ("commonspace_bold", "inputnode.bold_file"),
+                ("commonspace_mask", "inputnode.brain_mask"),
+                ("commonspace_CSF_mask", "inputnode.csf_mask"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (outputnode, confound_regression_wf, [
+                ("native_corrected_bold", "inputnode.bold_file"),
+                ("bold_brain_mask", "inputnode.brain_mask"),
+                ("bold_CSF_mask", "inputnode.csf_mask"),
                 ]),
             ])
 
-        if opts.bold_only and not cr_opts.commonspace_bold:
-            raise ValueError(
-                'Must select --commonspace option for running confound regression on outputs from --bold_only.')
+    confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
+                                                    container="confound_regression_datasink"),
+                                           name="confound_regression_datasink")
 
-        if cr_opts.commonspace_bold:
-            workflow.connect([
-                (outputnode, confound_regression_wf, [
-                    ("commonspace_bold", "inputnode.bold_file"),
-                    ("commonspace_mask", "inputnode.brain_mask"),
-                    ("commonspace_CSF_mask", "inputnode.csf_mask"),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (outputnode, confound_regression_wf, [
-                    ("native_corrected_bold", "inputnode.bold_file"),
-                    ("bold_brain_mask", "inputnode.brain_mask"),
-                    ("bold_CSF_mask", "inputnode.csf_mask"),
-                    ]),
-                ])
+    workflow.connect([
+        (confound_regression_wf, confound_regression_datasink, [
+            ("outputnode.cleaned_path", "cleaned_timeseries"),
+            ("outputnode.aroma_out", "aroma_outputs"),
+            ("outputnode.mel_out", "subject_melodic_ICA"),
+            ("outputnode.tSNR_file", "tSNR_map"),
+            ("outputnode.corr_map_list", "seed_correlation_maps"),
+            ]),
+        ])
 
-        confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
-                                                        container="confound_regression_datasink"),
-                                               name="confound_regression_datasink")
+    return workflow, confound_regression_wf
+
+
+def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, bold_only, commonspace_bold):
+    analysis_output = os.path.abspath(str(analysis_opts.output_dir))
+
+    from rabies.analysis_pkg.analysis_wf import init_analysis_wf
+    analysis_wf = init_analysis_wf(
+        opts=analysis_opts, commonspace_cr=commonspace_bold)
+
+    analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                         container="analysis_datasink"),
+                                name="analysis_datasink")
+
+    analysis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                                         name='analysis_joinnode_main',
+                                         joinsource='main_split',
+                                         joinfield=['file_list'])
+
+    workflow.connect([
+        (outputnode, analysis_wf, [
+            ("commonspace_mask", "subject_inputnode.mask_file"),
+            ("commonspace_labels", "subject_inputnode.atlas_file"),
+            ]),
+        (confound_regression_wf, analysis_wf, [
+            ("outputnode.cleaned_path", "subject_inputnode.bold_file"),
+            ]),
+        (analysis_joinnode_main, analysis_wf, [
+            ("file_list", "group_inputnode.bold_file_list"),
+            ("mask_file", "group_inputnode.commonspace_mask"),
+            ]),
+        (analysis_wf, analysis_datasink, [
+            ("outputnode.group_ICA_dir", "group_ICA_dir"),
+            ("outputnode.IC_file", "group_IC_file"),
+            ("outputnode.DR_data_file", "DR_data_file"),
+            ("outputnode.DR_nii_file", "DR_nii_file"),
+            ("outputnode.matrix_data_file", "matrix_data_file"),
+            ("outputnode.matrix_fig", "matrix_fig"),
+            ]),
+        ])
+    if bold_only:
+        workflow.connect([
+            (outputnode, analysis_joinnode_main, [
+                ("commonspace_mask", "mask_file"),
+                ]),
+            (confound_regression_wf, analysis_joinnode_main, [
+                ("outputnode.cleaned_path", "file_list"),
+                ]),
+            ])
+    else:
+        analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                                            name='analysis_joinnode_run',
+                                            joinsource='run_split',
+                                            joinfield=['file_list'])
 
         workflow.connect([
-            (confound_regression_wf, confound_regression_datasink, [
-                ("outputnode.cleaned_path", "cleaned_timeseries"),
-                ("outputnode.aroma_out", "aroma_outputs"),
-                ("outputnode.mel_out", "subject_melodic_ICA"),
-                ("outputnode.tSNR_file", "tSNR_map"),
-                ("outputnode.corr_map_list", "seed_correlation_maps"),
+            (outputnode, analysis_joinnode_run, [
+                ("commonspace_mask", "mask_file"),
+                ]),
+            (confound_regression_wf, analysis_joinnode_run, [
+                ("outputnode.cleaned_path", "file_list"),
+                ]),
+            (analysis_joinnode_run, analysis_joinnode_main, [
+                ("file_list", "file_list"),
+                ("mask_file", "mask_file"),
                 ]),
             ])
-
-    # Integrate analysis
-    if analysis_opts is not None:
-
-        analysis_output = os.path.abspath(str(analysis_opts.output_dir))
-
-        from rabies.analysis_pkg.analysis_wf import init_analysis_wf
-        analysis_wf = init_analysis_wf(
-            opts=analysis_opts, commonspace_cr=cr_opts.commonspace_bold)
-
-        analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                             container="analysis_datasink"),
-                                    name="analysis_datasink")
-
-        analysis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                                             name='analysis_joinnode_main',
-                                             joinsource='main_split',
-                                             joinfield=['file_list'])
-
-        workflow.connect([
-            (bold_main_wf, analysis_wf, [
-                ("outputnode.commonspace_mask", "subject_inputnode.mask_file"),
-                ("outputnode.commonspace_labels", "subject_inputnode.atlas_file"),
-                ]),
-            (confound_regression_wf, analysis_wf, [
-                ("outputnode.cleaned_path", "subject_inputnode.bold_file"),
-                ]),
-            (analysis_joinnode_main, analysis_wf, [
-                ("file_list", "group_inputnode.bold_file_list"),
-                ("mask_file", "group_inputnode.commonspace_mask"),
-                ]),
-            (analysis_wf, analysis_datasink, [
-                ("outputnode.group_ICA_dir", "group_ICA_dir"),
-                ("outputnode.IC_file", "group_IC_file"),
-                ("outputnode.DR_data_file", "DR_data_file"),
-                ("outputnode.DR_nii_file", "DR_nii_file"),
-                ("outputnode.matrix_data_file", "matrix_data_file"),
-                ("outputnode.matrix_fig", "matrix_fig"),
-                ]),
-            ])
-        if opts.bold_only:
-            workflow.connect([
-                (bold_main_wf, analysis_joinnode_main, [
-                    ("outputnode.commonspace_mask", "mask_file"),
-                    ]),
-                (confound_regression_wf, analysis_joinnode_main, [
-                    ("outputnode.cleaned_path", "file_list"),
-                    ]),
-                ])
-        else:
-            analysis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                                                name='analysis_joinnode_run',
-                                                joinsource='run_split',
-                                                joinfield=['file_list'])
-
-            workflow.connect([
-                (bold_main_wf, analysis_joinnode_run, [
-                    ("outputnode.commonspace_mask", "mask_file"),
-                    ]),
-                (confound_regression_wf, analysis_joinnode_run, [
-                    ("outputnode.cleaned_path", "file_list"),
-                    ]),
-                (analysis_joinnode_run, analysis_joinnode_main, [
-                    ("file_list", "file_list"),
-                    ("mask_file", "mask_file"),
-                    ]),
-                ])
-
     return workflow
 
 
