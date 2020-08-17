@@ -594,11 +594,22 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
                                          joinsource='main_split',
                                          joinfield=['file_list'])
 
+    if commonspace_bold or bold_only:
+        workflow.connect([
+            (outputnode, analysis_wf, [
+                ("commonspace_mask", "subject_inputnode.mask_file"),
+                ("commonspace_labels", "subject_inputnode.atlas_file"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (outputnode, analysis_wf, [
+                ("bold_brain_mask", "subject_inputnode.mask_file"),
+                ("bold_labels", "subject_inputnode.atlas_file"),
+                ]),
+            ])
+
     workflow.connect([
-        (outputnode, analysis_wf, [
-            ("commonspace_mask", "subject_inputnode.mask_file"),
-            ("commonspace_labels", "subject_inputnode.atlas_file"),
-            ]),
         (confound_regression_wf, analysis_wf, [
             ("outputnode.cleaned_path", "subject_inputnode.bold_file"),
             ]),
