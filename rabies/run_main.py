@@ -132,11 +132,6 @@ def get_parser():
         default="20:00:00",
         help="""Option for job submission
         specifying requested time per pairwise registration.""")
-    g_ants_dbm.add_argument(
-        '--memory_request',
-        default="8gb",
-        help="""Option for job submission
-        specifying requested memory per pairwise registration.""")
 
     g_stc = preprocess.add_argument_group("""Specify Slice Timing Correction info that is fed to AFNI 3dTshift
     (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the

@@ -180,10 +180,11 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         num_scan = opts.local_threads
 
     # setting up commonspace registration within the workflow
+    commonspace_mem = 1*num_scan*opts.scale_min_memory
     commonspace_reg = pe.JoinNode(ANTsDBM(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.cluster_type,
-                                          walltime=opts.walltime, memory_request=opts.memory_request, local_threads=opts.local_threads),
+                                          walltime=opts.walltime, memory_request=commonspace_mem, local_threads=opts.local_threads),
                                   joinsource='main_split', joinfield=['file_list'],
-                                  name='commonspace_reg', n_procs=num_scan, mem_gb=1*num_scan*opts.scale_min_memory)
+                                  name='commonspace_reg', n_procs=num_scan, mem_gb=commonspace_mem)
 
     # execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
