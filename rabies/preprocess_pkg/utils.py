@@ -815,7 +815,8 @@ def run_command(command):
     # Run command and collect stdout
     # http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html # noqa
     import logging
-    log = logging.getLogger(__name__)
+    log = logging.getLogger('root')
+    log.debug('Running: '+command)
 
     import subprocess
     try:

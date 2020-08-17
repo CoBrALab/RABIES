@@ -182,7 +182,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     # setting up commonspace registration within the workflow
     commonspace_mem = 1*num_scan*opts.scale_min_memory
     commonspace_reg = pe.JoinNode(ANTsDBM(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.cluster_type,
-                                          walltime=opts.walltime, memory_request=commonspace_mem, local_threads=opts.local_threads),
+                                          walltime=opts.walltime, memory_request=str(int(commonspace_mem))+'gb', local_threads=opts.local_threads),
                                   joinsource='main_split', joinfield=['file_list'],
                                   name='commonspace_reg', n_procs=num_scan, mem_gb=commonspace_mem)
 

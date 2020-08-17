@@ -284,7 +284,7 @@ def execute_workflow():
 
     logging.basicConfig(filename='%s/rabies_%s.log' % (output_folder, opts.rabies_step, ), filemode='w',
                         format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
-    log = logging.getLogger(__name__)
+    log = logging.getLogger('root')
 
     from ._info import __version__
     log.info('Running RABIES - version: '+__version__)
@@ -308,6 +308,8 @@ def execute_workflow():
 
     # setting workflow options for debug mode
     if opts.debug:
+        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
+
         # Change execution parameters
         workflow.config['execution'] = {'stop_on_first_crash': 'true',
                                         'remove_unnecessary_outputs': 'false',
