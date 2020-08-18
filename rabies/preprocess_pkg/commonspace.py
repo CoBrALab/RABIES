@@ -51,20 +51,44 @@ class ANTsDBM(BaseInterface):
         import os
         import pandas as pd
 
+        template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
+
         # create a csv file of the input image list
         cwd = os.getcwd()
         csv_path = cwd+'/commonspace_input_files.csv'
 
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.file_list))
+
+        if len(merged) == 1:
+            print("Only a single scan was provided as input for commonspace registration. Commonspace registration "
+                  "won't be run, and the output template will be the input scan.")
+
+            # create an identity transform as a surrogate for the commonspace transforms
+            import pathlib
+            import SimpleITK as sitk
+            dimension = 3
+            identity = sitk.Transform(dimension, sitk.sitkIdentity)
+
+            file = merged[0]
+            filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
+            transform_file = template_folder+filename_template+'_identity.mat'
+            sitk.WriteTransform(identity, transform_file)
+
+            setattr(self, 'ants_dbm_template', file)
+            setattr(self, 'affine_list', [transform_file])
+            setattr(self, 'warp_list', [transform_file])
+            setattr(self, 'inverse_warp_list', [transform_file])
+            setattr(self, 'warped_anat_list', [file])
+
+            return runtime
+
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
-
-        template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
 
         if os.path.isdir(template_folder):
             print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
