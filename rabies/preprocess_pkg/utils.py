@@ -13,10 +13,12 @@ def prep_bids_iter(layout, bold_only=False):
     for managing the workflow's iterables depending on whether --bold_only is
     selected or not.
     '''
+    import pathlib
+
     sub_list = []
     session_list = []
     run_list = []
-    iter_info = []
+    scan_info = []
     scan_list = []
 
     subject_list = layout.get_subject()
@@ -49,18 +51,19 @@ def prep_bids_iter(layout, bold_only=False):
                 if not func_bids.get_entities()['run'] in runs:
                     runs.append(func_bids.get_entities()['run'])
 
-            sub_ses_str = 'sub-'+sub+'_ses-'+session
             if not bold_only:
                 sub_list.append(sub)
                 session_list.append(session)
                 run_list.append('token')
-                iter_info.append(sub_ses_str)
-                run_iter[sub_ses_str] = runs
 
                 anat = layout.get(subject=sub, session=session, extension=[
                                   'nii', 'nii.gz'], datatype='anat', return_type='filename')
                 file = anat[0]
                 scan_list.append(file)
+
+                filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
+                scan_info.append(filename_template)
+                run_iter[filename_template] = runs
 
                 if len(anat) > 1:
                     raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
@@ -76,13 +79,15 @@ def prep_bids_iter(layout, bold_only=False):
                     sub_list.append(sub)
                     session_list.append(session)
                     run_list.append(run)
-                    iter_info.append(sub_ses_str)
+
+                    filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
+                    scan_info.append(filename_template)
 
                     if len(func) > 1:
                         raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
                             str('func_'+sub+'_'+session+'_'+run)))
 
-    return sub_list, session_list, run_list, iter_info, run_iter, scan_list
+    return sub_list, session_list, run_list, scan_info, run_iter, scan_list
 
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
@@ -850,3 +855,19 @@ def flatten_list(l):
         return flattened
     else:
         return l
+
+
+def select_from_list(filename, filelist):
+    selected_file = None
+    for file in filelist:
+        if filename in file:
+            if selected_file is None:
+                selected_file = file
+            else:
+                raise ValueError(
+                    "Found duplicates for filename %s." % (filename))
+
+    if selected_file is None:
+        raise ValueError("No file associated with %s were found." % (filename))
+    else:
+        return selected_file

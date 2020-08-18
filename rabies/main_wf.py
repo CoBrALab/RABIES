@@ -125,7 +125,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     from bids.layout import BIDSLayout
     layout = BIDSLayout(data_dir_path, validate=False)
-    sub_list, session_list, run_list, iter_info, run_iter, scan_list = prep_bids_iter(
+    sub_list, session_list, run_list, scan_info, run_iter, scan_list = prep_bids_iter(
         layout, opts.bold_only)
 
     # set SelectFiles nodes
@@ -133,10 +133,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
 
     # setting up all iterables
-    main_split = pe.Node(niu.IdentityInterface(fields=['iter_key', 'subject_id', 'session', 'run']),
+    main_split = pe.Node(niu.IdentityInterface(fields=['scan_info', 'subject_id', 'session', 'run']),
                          name="main_split")
-    main_split.iterables = [('iter_key', iter_info), ('subject_id',
-                                                      sub_list), ('session', session_list), ('run', run_list)]
+    main_split.iterables = [('scan_info', scan_info), ('subject_id',
+                                                       sub_list), ('session', session_list), ('run', run_list)]
     main_split.synchronize = True
 
     # Datasink - creates output folder for important outputs
@@ -198,36 +198,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     template_reg.inputs.reg_script = str(opts.template_reg_script)
     template_reg.inputs.rabies_data_type = opts.data_type
 
-    # setup the selectfiles node for commonspace registration outputs
-    template_to_common_affine = '/'+opj('{template_to_common_affine}')
-    template_to_common_warp = '/'+opj('{template_to_common_warp}')
-    template_to_common_inverse_warp = '/' + \
-        opj('{template_to_common_inverse_warp}')
-
-    if not opts.bold_only:
-        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm',
-                                                              'output', 'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1InverseWarp.nii.gz')
-        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm',
-                                                      'output', 'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_preproc*1Warp.nii.gz')
-        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm',
-                                                        'output', 'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_preproc*0GenericAffine.mat')
-        warped_anat = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm', 'output',
-                                            'secondlevel', 'secondlevel_template0sub-{subject_id}*_ses-{session}*_preproc*WarpedToTemplate.nii.gz')
-    else:
-        anat_to_template_inverse_warp = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm',
-                                                              'output', 'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*1InverseWarp.nii.gz')
-        anat_to_template_warp = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm',
-                                                      'output', 'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*1Warp.nii.gz')
-        anat_to_template_affine = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm', 'output',
-                                                        'secondlevel', 'secondlevel_sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*0GenericAffine.mat')
-        warped_anat = output_folder+'/'+opj('commonspace_datasink', 'ants_dbm_outputs', 'ants_dbm', 'output', 'secondlevel',
-                                            'secondlevel_template0sub-{subject_id}*_ses-{session}*_run-{run}*_bias_cor*WarpedToTemplate.nii.gz')
-
-    commonspace_templates = {'anat_to_template_inverse_warp': anat_to_template_inverse_warp, 'anat_to_template_warp': anat_to_template_warp, 'anat_to_template_affine': anat_to_template_affine,
-                             'template_to_common_affine': template_to_common_affine, 'template_to_common_warp': template_to_common_warp, 'template_to_common_inverse_warp': template_to_common_inverse_warp, 'warped_anat': warped_anat}
-
-    commonspace_selectfiles = pe.Node(SelectFiles(commonspace_templates),
-                                      name="commonspace_selectfiles")
+    # setup a node to select the proper files associated with a given input scan for commonspace registration
+    commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_anat_list'],
+                                               output_names=[
+                                                   'anat_to_template_affine', 'anat_to_template_warp', 'anat_to_template_inverse_warp', 'warped_anat'],
+                                               function=select_commonspace_outputs),
+                                      name='commonspace_selectfiles')
 
     bold_main_wf = init_bold_main_wf(opts=opts)
 
@@ -238,8 +214,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("session", "session"),
             ]),
         (main_split, commonspace_selectfiles, [
-            ("subject_id", "subject_id"),
-            ("session", "session"),
+            ("scan_info", "filename"),
             ]),
         (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
@@ -259,15 +234,17 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("ants_dbm_template", "moving_image"),
             ]),
         (commonspace_reg, commonspace_selectfiles, [
-            ("ants_dbm_template", "ants_dbm_template"),
+            ("affine_list", "affine_list"),
+            ("warp_list", "warp_list"),
+            ("inverse_warp_list", "inverse_warp_list"),
+            ("warped_anat_list", "warped_anat_list"),
             ]),
         (commonspace_reg, commonspace_datasink, [
             ("ants_dbm_template", "ants_dbm_template"),
             ]),
-        (template_reg, commonspace_selectfiles, [
-            ("affine", "template_to_common_affine"),
-            ("warp", "template_to_common_warp"),
-            ("inverse_warp", "template_to_common_inverse_warp"),
+        (template_reg, bold_main_wf, [
+            ("affine", "inputnode.template_to_common_affine"),
+            ("warp", "inputnode.template_to_common_warp"),
             ]),
         (template_reg, commonspace_datasink, [
             ("warped_image", "warped_template"),
@@ -276,6 +253,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("affine", "template_to_common_affine"),
             ("warp", "template_to_common_warp"),
             ("inverse_warp", "template_to_common_inverse_warp"),
+            ]),
+        (commonspace_selectfiles, bold_main_wf, [
+            ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
+            ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
             ]),
         (commonspace_selectfiles, transforms_datasink, [
             ("anat_to_template_affine", "anat_to_template_affine"),
@@ -341,9 +322,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         ])
 
     if not opts.bold_only:
-        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'iter_key']),
+        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'scan_info']),
                             name="run_split")
-        run_split.itersource = ('main_split', 'iter_key')
+        run_split.itersource = ('main_split', 'scan_info')
         run_split.iterables = [('run', run_iter)]
 
         anat_selectfiles = pe.Node(BIDSDataGraber(
@@ -376,7 +357,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         workflow.connect([
             (main_split, run_split, [
-                ("iter_key", "iter_key"),
+                ("scan_info", "scan_info"),
                 ]),
             (run_split, bold_selectfiles, [
                 ("run", "run")
@@ -401,16 +382,11 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (anat_preproc_wf, anat_datasink, [
              ("outputnode.preproc_anat", "anat_preproc")]),
-            (commonspace_selectfiles, bold_main_wf, [
-                ("template_to_common_affine", "inputnode.template_to_common_affine"),
-                ("template_to_common_warp", "inputnode.template_to_common_warp"),
-                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
-                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
+            (template_reg, transform_masks, [
+                ("affine", "template_to_common_affine"),
+                ("inverse_warp", "template_to_common_inverse_warp"),
                 ]),
             (commonspace_selectfiles, transform_masks, [
-                ("template_to_common_affine", "template_to_common_affine"),
-                ("template_to_common_inverse_warp",
-                 "template_to_common_inverse_warp"),
                 ("anat_to_template_affine", "anat_to_template_affine"),
                 ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
                 ]),
@@ -465,12 +441,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (bias_cor_bold_main_wf, commonspace_reg, [
              ("transitionnode.corrected_EPI", "file_list")]),
-            (commonspace_selectfiles, bold_main_wf, [
-                ("template_to_common_affine", "inputnode.template_to_common_affine"),
-                ("template_to_common_warp", "inputnode.template_to_common_warp"),
-                ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
-                ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
-                ]),
             ])
 
     # organizing .png outputs for QC
@@ -517,11 +487,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # Integrate confound regression
     if cr_opts is not None:
-        workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, cr_opts, bold_only=opts.bold_only)
+        workflow, confound_regression_wf = integrate_confound_regression(
+            workflow, outputnode, cr_opts, bold_only=opts.bold_only)
 
         # Integrate analysis
         if analysis_opts is not None:
-            workflow = integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
+            workflow = integrate_analysis(
+                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
 
     return workflow
 
@@ -655,6 +627,16 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
                 ]),
             ])
     return workflow
+
+
+def select_commonspace_outputs(filename, affine_list, warp_list, inverse_warp_list, warped_anat_list):
+    from rabies.preprocess_pkg.utils import select_from_list
+    anat_to_template_affine = select_from_list(filename, affine_list)
+    anat_to_template_warp = select_from_list(filename, warp_list)
+    anat_to_template_inverse_warp = select_from_list(
+        filename, inverse_warp_list)
+    warped_anat = select_from_list(filename, warped_anat_list)
+    return anat_to_template_affine, anat_to_template_warp, anat_to_template_inverse_warp, warped_anat
 
 
 def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_in, atlas_labels_in, reference_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_affine, template_to_common_inverse_warp):

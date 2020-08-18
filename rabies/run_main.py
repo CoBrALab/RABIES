@@ -313,16 +313,13 @@ def execute_workflow():
         # Change execution parameters
         workflow.config['execution'] = {'stop_on_first_crash': 'true',
                                         'remove_unnecessary_outputs': 'false',
-                                        'keep_inputs': 'true',
-                                        'log_directory': os.getcwd()}
+                                        'keep_inputs': 'true'}
 
         # Change logging parameters
         workflow.config['logging'] = {'workflow_level': 'DEBUG',
                                       'filemanip_level': 'DEBUG',
                                       'interface_level': 'DEBUG',
-                                      'utils_level': 'DEBUG',
-                                      'log_to_file': 'True',
-                                      'log_directory': os.getcwd()}
+                                      'utils_level': 'DEBUG'}
         print('Debug ON')
 
     try:

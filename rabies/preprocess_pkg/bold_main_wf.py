@@ -202,22 +202,6 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                                    rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc, local_threads=opts.local_threads)
 
     if not opts.bold_only:
-        bold_reg_wf = init_bold_reg_wf(coreg_script=opts.coreg_script, rabies_data_type=opts.data_type,
-                                       rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
-
-        def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
-            # transforms_list,inverses
-            return [warp_bold2anat, affine_bold2anat], [0, 0]
-        transforms_prep = pe.Node(Function(input_names=['warp_bold2anat', 'affine_bold2anat'],
-                                           output_names=[
-                                               'transforms_list', 'inverses'],
-                                           function=SyN_coreg_transforms_prep),
-                                  name='transforms_prep')
-
-        # Apply transforms in 1 shot
-        bold_bold_trans_wf = init_bold_preproc_trans_wf(
-            resampling_dim=opts.nativespace_resampling, slice_mc=opts.apply_slice_mc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
-
         def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
             # transforms_list,inverses
             return [template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat], [0, 0, 0, 0, 0, 0]
@@ -303,6 +287,22 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
         ])
 
     if not opts.bold_only:
+        bold_reg_wf = init_bold_reg_wf(coreg_script=opts.coreg_script, rabies_data_type=opts.data_type,
+                                       rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+
+        def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
+            # transforms_list,inverses
+            return [warp_bold2anat, affine_bold2anat], [0, 0]
+        transforms_prep = pe.Node(Function(input_names=['warp_bold2anat', 'affine_bold2anat'],
+                                           output_names=[
+                                               'transforms_list', 'inverses'],
+                                           function=SyN_coreg_transforms_prep),
+                                  name='transforms_prep')
+
+        # Apply transforms in 1 shot
+        bold_bold_trans_wf = init_bold_preproc_trans_wf(
+            resampling_dim=opts.nativespace_resampling, slice_mc=opts.apply_slice_mc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+
         workflow.connect([
             (inputnode, bold_reg_wf, [
                 ('anat_preproc', 'inputnode.anat_preproc'),

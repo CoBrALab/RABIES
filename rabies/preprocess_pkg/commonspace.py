@@ -29,6 +29,14 @@ class ANTsDBMInputSpec(BaseInterfaceInputSpec):
 class ANTsDBMOutputSpec(TraitedSpec):
     ants_dbm_template = File(
         exists=True, desc="Output template generated from commonspace registration.")
+    affine_list = traits.List(exists=True, mandatory=True,
+                              desc="List of affine transforms from anat to template space.")
+    warp_list = traits.List(exists=True, mandatory=True,
+                            desc="List of non-linear transforms from anat to template space.")
+    inverse_warp_list = traits.List(exists=True, mandatory=True,
+                                    desc="List of the inverse non-linear transforms from anat to template space.")
+    warped_anat_list = traits.List(exists=True, mandatory=True,
+                                   desc="List of anatomical images warped to template space..")
 
 
 class ANTsDBM(BaseInterface):
@@ -75,6 +83,11 @@ class ANTsDBM(BaseInterface):
         if not os.path.isfile(ants_dbm_template):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
+        affine_list = []
+        warp_list = []
+        inverse_warp_list = []
+        warped_anat_list = []
+
         i = 0
         for file in merged:
             file = str(file)
@@ -94,14 +107,31 @@ class ANTsDBM(BaseInterface):
             if not os.path.isfile(anat_to_template_affine):
                 raise ValueError(anat_to_template_affine
                                  + " file doesn't exists.")
+            warped_anat = '%s/ants_dbm/output/secondlevel/secondlevel_template0%s%sWarpedToTemplate.nii.gz' % (
+                template_folder, filename_template, str(i),)
+            if not os.path.isfile(warped_anat):
+                raise ValueError(warped_anat
+                                 + " file doesn't exists.")
+            inverse_warp_list.append(anat_to_template_inverse_warp)
+            warp_list.append(anat_to_template_warp)
+            affine_list.append(anat_to_template_affine)
+            warped_anat_list.append(warped_anat)
             i += 1
 
         setattr(self, 'ants_dbm_template', ants_dbm_template)
+        setattr(self, 'affine_list', affine_list)
+        setattr(self, 'warp_list', warp_list)
+        setattr(self, 'inverse_warp_list', inverse_warp_list)
+        setattr(self, 'warped_anat_list', warped_anat_list)
 
         return runtime
 
     def _list_outputs(self):
-        return {'ants_dbm_template': getattr(self, 'ants_dbm_template')}
+        return {'ants_dbm_template': getattr(self, 'ants_dbm_template'),
+                'affine_list': getattr(self, 'affine_list'),
+                'warp_list': getattr(self, 'warp_list'),
+                'inverse_warp_list': getattr(self, 'inverse_warp_list'),
+                'warped_anat_list': getattr(self, 'warped_anat_list'), }
 
 
 # workflow inspired from https://nipype.readthedocs.io/en/latest/users/examples/smri_antsregistration_build_template.html
