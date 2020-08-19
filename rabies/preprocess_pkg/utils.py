@@ -15,90 +15,96 @@ def prep_bids_iter(layout, bold_only=False):
     '''
     import pathlib
 
-    sub_list = []
-    session_list = []
-    run_list = []
     scan_info = []
+    split_name = []
     scan_list = []
+    run_iter = {}
 
     subject_list = layout.get_subject()
-    # create a dictionary with list of bold session and run numbers for each subject
-    run_iter = {}
-    for sub in subject_list:
-        sub_func = layout.get(subject=sub, datatype='func',
-                              extension=['nii', 'nii.gz'])
-        sessions = []
-        for func_bids in sub_func:
-            try:
-                ses = func_bids.get_entities()['session']
-            except:
-                raise ValueError(
-                    "Missing 'ses' BIDS information for subject %s." % (sub,))
-            if not func_bids.get_entities()['session'] in sessions:
-                sessions.append(func_bids.get_entities()['session'])
+    if len(subject_list) == 0:
+        raise ValueError(
+            "No subject information could be retrieved from the BIDS directory. The 'sub-' specification is mandatory.")
+    if not bold_only:
+        anat_bids = layout.get(subject=subject_list, suffix=[
+                               'T2w', 'T1w'], extension=['nii', 'nii.gz'])
+        if len(anat_bids) == 0:
+            raise ValueError(
+                "No anatomical file with the suffix 'T2w' or 'T1w' were found among the BIDS directory.")
+    bold_bids = layout.get(subject=subject_list, suffix=[
+                           'bold', 'cbv'], extension=['nii', 'nii.gz'])
+    if len(bold_bids) == 0:
+        raise ValueError(
+            "No functional file with the suffix 'bold' or 'cbv' were found among the BIDS directory.")
 
-        for session in sessions:
+    bold_dict = {}
+    for bold in bold_bids:
+        sub = bold.get_entities()['subject']
+        try:
+            ses = bold.get_entities()['session']
+        except:
+            ses = None
 
-            sub_func = layout.get(
-                subject=sub, session=session, datatype='func', extension=['nii', 'nii.gz'])
-            runs = []
-            for func_bids in sub_func:
-                try:
-                    run = func_bids.get_entities()['run']
-                except:
-                    raise ValueError(
-                        "Missing 'run' BIDS information for subject %s." % (sub,))
-                if not func_bids.get_entities()['run'] in runs:
-                    runs.append(func_bids.get_entities()['run'])
+        try:
+            run = bold.get_entities()['run']
+        except:
+            run = None
 
+        if sub not in list(bold_dict.keys()):
+            bold_dict[sub] = {}
+        if ses not in list(bold_dict[sub].keys()):
+            bold_dict[sub][ses] = {}
+
+        bold_list = layout.get(subject=sub, session=ses, run=run, suffix=[
+                               'bold', 'cbv'], extension=['nii', 'nii.gz'], return_type='filename')
+        bold_dict[sub][ses][run] = bold_list
+
+    # if bold_only, then the bold_list and run_iter will be a dictionary with keys being the anat filename
+    # otherwise, it will be a list of bold scans themselves
+    for sub in list(bold_dict.keys()):
+        for ses in list(bold_dict[sub].keys()):
             if not bold_only:
-                sub_list.append(sub)
-                session_list.append(session)
-                run_list.append('token')
-
-                anat = layout.get(subject=sub, session=session, extension=[
-                                  'nii', 'nii.gz'], datatype='anat', return_type='filename')
-                file = anat[0]
+                anat_list = layout.get(subject=sub, session=ses, suffix=[
+                                       'T2w', 'T1w'], extension=['nii', 'nii.gz'], return_type='filename')
+                if len(anat_list) == 0:
+                    raise ValueError(
+                        'Missing an anatomical image for sub %s and ses- %s' % (sub, ses))
+                if len(anat_list) > 1:
+                    raise ValueError(
+                        'Duplicate was found for the anatomical file sub- %s, ses- %s: %s' % (sub, ses, str(anat_list)))
+                file = anat_list[0]
                 scan_list.append(file)
-
                 filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-                scan_info.append(filename_template)
-                run_iter[filename_template] = runs
+                split_name.append(filename_template)
+                scan_info.append({'subject_id': sub, 'session': ses})
+                run_iter[filename_template] = []
 
-                if len(anat) > 1:
-                    raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
-                        str('anat_'+sub+'_'+session)))
-
-            else:
-                for run in runs:
-                    func = layout.get(subject=sub, session=session, run=run, extension=[
-                                      'nii', 'nii.gz'], datatype='func', return_type='filename')
-                    file = func[0]
+            for run in list(bold_dict[sub][ses].keys()):
+                bold_list = bold_dict[sub][ses][run]
+                if len(bold_list) > 1:
+                    raise ValueError(
+                        'Duplicate was found for bold files sub- %s, ses- %s and run %s: %s' % (sub, ses, run, str(bold_list)))
+                file = bold_list[0]
+                if bold_only:
                     scan_list.append(file)
+                    filename_template = pathlib.Path(
+                        file).name.rsplit(".nii")[0]
+                    split_name.append(filename_template)
+                    scan_info.append(
+                        {'subject_id': sub, 'session': ses, 'run': run})
+                else:
+                    run_iter[filename_template].append(run)
 
-                    sub_list.append(sub)
-                    session_list.append(session)
-                    run_list.append(run)
-
-                    filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-                    scan_info.append(filename_template)
-
-                    if len(func) > 1:
-                        raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
-                            str('func_'+sub+'_'+session+'_'+run)))
-
-    return sub_list, session_list, run_list, scan_info, run_iter, scan_list
+    return split_name, scan_info, run_iter, scan_list
 
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     bids_dir = traits.Str(exists=True, mandatory=True,
                           desc="BIDS data directory")
-    datatype = traits.Str(exists=True, mandatory=True,
-                          desc="datatype of the target file")
-    subject_id = traits.Str(exists=True, mandatory=True, desc="Subject ID")
-    session = traits.Str(exists=True, mandatory=True,
-                         desc="Session specification")
-    run = traits.Int(exists=True, default=None, desc="Run number")
+    suffix = traits.List(exists=True, mandatory=True,
+                         desc="Suffix to search for")
+    scan_info = traits.Dict(exists=True, mandatory=True,
+                            desc="Info required to find the scan")
+    run = traits.Int(exists=True, mandatory=True, desc="Run number")
 
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
@@ -116,31 +122,29 @@ class BIDSDataGraber(BaseInterface):
     output_spec = BIDSDataGraberOutputSpec
 
     def _run_interface(self, runtime):
+        print(self.inputs.run)
+        subject_id = self.inputs.scan_info['subject_id']
+        session = self.inputs.scan_info['session']
+        if 'run' in (self.inputs.scan_info.keys()):
+            run = self.inputs.scan_info['run']
+        else:
+            run = self.inputs.run
+            if run == 0:
+                run = None
+
         from bids.layout import BIDSLayout
         layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
-            if self.inputs.datatype == 'func':
-                bids_file = layout.get(subject=self.inputs.subject_id, session=self.inputs.session,
-                                       run=self.inputs.run, extension=['nii', 'nii.gz'], datatype=self.inputs.datatype)
-                func = layout.get(subject=self.inputs.subject_id, session=self.inputs.session, run=self.inputs.run, extension=[
-                                  'nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
-                file = func[0]
-            elif self.inputs.datatype == 'anat':
-                bids_file = layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=[
-                                       'nii', 'nii.gz'], datatype=self.inputs.datatype)
-                anat = layout.get(subject=self.inputs.subject_id, session=self.inputs.session, extension=[
-                                  'nii', 'nii.gz'], datatype=self.inputs.datatype, return_type='filename')
-                file = anat[0]
-            else:
-                raise ValueError('Wrong datatype %s' % (self.inputs.datatype))
-            if len(bids_file) > 1:
-                raise ValueError('Provided BIDS spec lead to duplicates: %s' % (str(
-                    self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
+            file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
+                              'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            if len(file_list) > 1:
+                raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
+                    str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
         except:
-            raise ValueError('Error with BIDS spec: %s' % (str(
-                self.inputs.datatype+'_'+self.inputs.subject_id+'_'+self.inputs.session+'_'+self.inputs.run)))
+            raise ValueError('Error with BIDS spec: %s' % (
+                str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
 
-        setattr(self, 'out_file', file)
+        setattr(self, 'out_file', file_list[0])
 
         return runtime
 

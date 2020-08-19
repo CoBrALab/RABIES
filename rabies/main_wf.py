@@ -125,19 +125,16 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     from bids.layout import BIDSLayout
     layout = BIDSLayout(data_dir_path, validate=False)
-    sub_list, session_list, run_list, scan_info, run_iter, scan_list = prep_bids_iter(
+    split_name, scan_info, run_iter, scan_list = prep_bids_iter(
         layout, opts.bold_only)
 
-    # set SelectFiles nodes
-    bold_selectfiles = pe.Node(BIDSDataGraber(
-        bids_dir=data_dir_path, datatype='func'), name='bold_selectfiles')
-
     # setting up all iterables
-    main_split = pe.Node(niu.IdentityInterface(fields=['scan_info', 'subject_id', 'session', 'run']),
+    main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
                          name="main_split")
-    main_split.iterables = [('scan_info', scan_info), ('subject_id',
-                                                       sub_list), ('session', session_list), ('run', run_list)]
+    main_split.iterables = [('split_name', split_name), ('scan_info', scan_info)]
     main_split.synchronize = True
+
+    bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=['bold', 'cbv']), name='bold_selectfiles')
 
     # Datasink - creates output folder for important outputs
     bold_datasink = pe.Node(DataSink(base_directory=output_folder,
@@ -172,7 +169,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     resample_template_node.inputs.template_file = str(opts.anat_template)
     resample_template_node.inputs.spacing = opts.anatomical_resampling
     resample_template_node.inputs.file_list = scan_list
-    resample_template_node.inputs.file_list = opts.data_type
+    resample_template_node.inputs.rabies_data_type = opts.data_type
 
     # calculate the number of scans that will be registered
     num_scan = len(scan_list)
@@ -210,17 +207,16 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
         (main_split, bold_selectfiles, [
-            ("subject_id", "subject_id"),
-            ("session", "session"),
+            ("scan_info", "scan_info"),
             ]),
         (main_split, commonspace_selectfiles, [
-            ("scan_info", "filename"),
-            ]),
-        (bold_selectfiles, bold_datasink, [
-            ("out_file", "input_bold"),
+            ("split_name", "filename"),
             ]),
         (bold_selectfiles, bold_convert_to_RAS_node,
          [('out_file', 'img_file')]),
+        (bold_selectfiles, bold_datasink, [
+            ("out_file", "input_bold"),
+            ]),
         (bold_convert_to_RAS_node, bold_main_wf, [
             ("RAS_file", "inputnode.bold"),
             ]),
@@ -322,13 +318,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         ])
 
     if not opts.bold_only:
-        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'scan_info']),
+        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
-        run_split.itersource = ('main_split', 'scan_info')
+        run_split.itersource = ('main_split', 'split_name')
         run_split.iterables = [('run', run_iter)]
 
-        anat_selectfiles = pe.Node(BIDSDataGraber(
-            bids_dir=data_dir_path, datatype='anat'), name='anat_selectfiles')
+        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=['T2w', 'T1w']), name='anat_selectfiles')
+        anat_selectfiles.inputs.run = 0
 
         anat_datasink = pe.Node(DataSink(base_directory=output_folder,
                                          container="anat_datasink"),
@@ -357,14 +353,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         workflow.connect([
             (main_split, run_split, [
-                ("scan_info", "scan_info"),
+                ("split_name", "split_name"),
                 ]),
+            (main_split, anat_selectfiles,
+             [("scan_info", "scan_info")]),
             (run_split, bold_selectfiles, [
-                ("run", "run")
-                ]),
-            (main_split, anat_selectfiles, [
-                ("subject_id", "subject_id"),
-                ("session", "session")
+                ("run", "run"),
                 ]),
             (anat_selectfiles, anat_convert_to_RAS_node,
              [("out_file", "img_file")]),
@@ -423,12 +417,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         bias_cor_bold_main_wf.inputs.inputnode.anat_mask = str(opts.brain_mask)
 
         workflow.connect([
-            (main_split, bold_selectfiles, [
-                ("run", "run"),
-                ]),
-            (main_split, commonspace_selectfiles, [
-                ("run", "run"),
-                ]),
             (bold_convert_to_RAS_node, bias_cor_bold_main_wf, [
                 ("RAS_file", "inputnode.bold"),
                 ]),
@@ -454,6 +442,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         PlotOverlap(), name='PlotOverlap_Template2Commonspace')
     PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
     PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
+    PlotOverlap_Template2Commonspace_node.inputs.split_name = ''
+    PlotOverlap_Template2Commonspace_node.inputs.name_source = ''
 
     if not opts.bold_only:
         PlotOverlap_EPI2Anat_node = pe.Node(
@@ -461,18 +451,39 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report'
         PlotOverlap_EPI2Anat_node.inputs.reg_name = 'EPI2Anat'
         workflow.connect([
+            (main_split, PlotOverlap_EPI2Anat_node,
+             [("split_name", "split_name")]),
+            (bold_selectfiles, PlotOverlap_EPI2Anat_node,
+             [("out_file", "name_source")]),
             (anat_preproc_wf, PlotOverlap_EPI2Anat_node,
              [("outputnode.preproc_anat", "fixed")]),
             (outputnode, PlotOverlap_EPI2Anat_node, [
                 ("bias_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                 ]),
+            (anat_selectfiles, PlotOverlap_Anat2Template_node, [
+                ("out_file", "name_source"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (bold_selectfiles, PlotOverlap_Anat2Template_node, [
+                ("out_file", "name_source"),
+                ]),
             ])
 
+
     workflow.connect([
+        (bold_selectfiles, PlotMotionTrace_node,
+         [("out_file", "name_source")]),
+        (main_split, PlotMotionTrace_node,
+         [("split_name", "split_name")]),
         (resample_template_node, PlotOverlap_Template2Commonspace_node,
          [("resampled_template", "fixed")]),
         (outputnode, PlotMotionTrace_node, [
             ("confounds_csv", "confounds_csv"),  # confounds file
+            ]),
+        (main_split, PlotOverlap_Anat2Template_node, [
+            ("split_name", "split_name"),
             ]),
         (commonspace_selectfiles, PlotOverlap_Anat2Template_node, [
             ("warped_anat", "moving"),
