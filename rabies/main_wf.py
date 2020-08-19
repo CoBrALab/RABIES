@@ -1,5 +1,4 @@
 import os
-from os.path import join as opj
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .preprocess_pkg.anat_preproc import init_anat_preproc_wf
@@ -8,7 +7,7 @@ from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .QC_report import PlotOverlap, PlotMotionTrace
-from nipype.interfaces.io import SelectFiles, DataSink
+from nipype.interfaces.io import DataSink
 
 from nipype.interfaces.utility import Function
 
@@ -324,7 +323,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         run_split.iterables = [('run', run_iter)]
 
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=['T2w', 'T1w']), name='anat_selectfiles')
-        anat_selectfiles.inputs.run = 0
+        anat_selectfiles.inputs.run = None
 
         anat_datasink = pe.Node(DataSink(base_directory=output_folder,
                                          container="anat_datasink"),

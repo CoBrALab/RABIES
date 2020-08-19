@@ -104,7 +104,7 @@ class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
                          desc="Suffix to search for")
     scan_info = traits.Dict(exists=True, mandatory=True,
                             desc="Info required to find the scan")
-    run = traits.Int(exists=True, mandatory=True, desc="Run number")
+    run = traits.Any(exists=True, desc="Run number")
 
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
@@ -122,15 +122,12 @@ class BIDSDataGraber(BaseInterface):
     output_spec = BIDSDataGraberOutputSpec
 
     def _run_interface(self, runtime):
-        print(self.inputs.run)
         subject_id = self.inputs.scan_info['subject_id']
         session = self.inputs.scan_info['session']
         if 'run' in (self.inputs.scan_info.keys()):
             run = self.inputs.scan_info['run']
         else:
             run = self.inputs.run
-            if run == 0:
-                run = None
 
         from bids.layout import BIDSLayout
         layout = BIDSLayout(self.inputs.bids_dir, validate=False)
