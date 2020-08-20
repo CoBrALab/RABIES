@@ -228,6 +228,13 @@ def dual_regression(IC_vectors, timeseries):
     X = IC_vectors.transpose()
     Y = timeseries.transpose()
 
+    # spatial and temporal centering of the matrices as suggested here https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero).
+    # spatial centering of the group ICs
+    X = X-X.mean(axis=0)
+    # spatial and temporal centering of the timeseries
+    Y = Y-Y.mean(axis=0)
+    Y = (Y.T-Y.mean(axis=1)).T
+
     # for one given volume, it's values can be expressed through a linear combination of the components ()
     w = closed_form(X, Y, intercept=False)
 
