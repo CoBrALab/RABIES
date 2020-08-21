@@ -54,11 +54,6 @@ def get_parser():
                              help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
     g_execution.add_argument("--min_proc", type=int, default=1,
                              help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
-    g_execution.add_argument("--data_type", type=str, default='float32',
-                             choices=['int16','int32','float32', 'float64'],
-                             help="Specify data format outputs to control for file size.")
-    g_execution.add_argument("--debug", dest='debug', action='store_true',
-                             help="Run in debug mode.")
 
     preprocess.add_argument('bids_dir', action='store', type=Path,
                             help='the root folder of the BIDS-formated input data directory.')
@@ -82,6 +77,11 @@ def get_parser():
                             help="Detect and remove initial dummy volumes from the EPI, and generate "
                             "a reference EPI based on these volumes if detected."
                             "Dummy volumes will be removed from the output preprocessed EPI.")
+    preprocess.add_argument("--data_type", type=str, default='float32',
+                             choices=['int16','int32','float32', 'float64'],
+                             help="Specify data format outputs to control for file size.")
+    preprocess.add_argument("--debug", dest='debug', action='store_true',
+                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
         "Options for the registration steps.")
@@ -206,7 +206,7 @@ def get_parser():
                         from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
     confound_regression.add_argument('--scrubbing_threshold', type=float,
                                      default=0.1,
-                                     help='Scrubbing threshold for the mean framewise displacement in mm? (averaged across the brain mask) to select corrupted volumes.')
+                                     help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
     confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                                      help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
     confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
@@ -265,18 +265,6 @@ def execute_workflow():
     if not opts.plugin == 'MultiProc':
         opts.local_threads = 1
 
-    import SimpleITK as sitk
-    if str(opts.data_type) == 'int16':
-        opts.data_type = sitk.sitkInt16
-    elif str(opts.data_type) == 'int32':
-        opts.data_type = sitk.sitkInt32
-    elif str(opts.data_type) == 'float32':
-        opts.data_type = sitk.sitkFloat32
-    elif str(opts.data_type) == 'float64':
-        opts.data_type = sitk.sitkFloat64
-    else:
-        raise ValueError('Invalid --data_type provided.')
-
     # managing log info
     cli_file = '%s/rabies_%s.pkl' % (output_folder, opts.rabies_step, )
     with open(cli_file, 'wb') as handle:
@@ -298,29 +286,13 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        workflow = preprocess(opts, None, None)
+        workflow = preprocess(opts, None, None, log)
     elif opts.rabies_step == 'confound_regression':
-        workflow = confound_regression(opts, None)
+        workflow = confound_regression(opts, None, log)
     elif opts.rabies_step == 'analysis':
-        workflow = analysis(opts)
+        workflow = analysis(opts, log)
     else:
         parser.print_help()
-
-    # setting workflow options for debug mode
-    if opts.debug:
-        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
-
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash': 'true',
-                                        'remove_unnecessary_outputs': 'false',
-                                        'keep_inputs': 'true'}
-
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level': 'DEBUG',
-                                      'filemanip_level': 'DEBUG',
-                                      'interface_level': 'DEBUG',
-                                      'utils_level': 'DEBUG'}
-        print('Debug ON')
 
     try:
         print('Running workflow with %s plugin.' % opts.plugin)
@@ -333,10 +305,22 @@ def execute_workflow():
         raise
 
 
-def preprocess(opts, cr_opts, analysis_opts):
+def preprocess(opts, cr_opts, analysis_opts, log):
     # obtain parser parameters
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
+
+    import SimpleITK as sitk
+    if str(opts.data_type) == 'int16':
+        opts.data_type = sitk.sitkInt16
+    elif str(opts.data_type) == 'int32':
+        opts.data_type = sitk.sitkInt32
+    elif str(opts.data_type) == 'float32':
+        opts.data_type = sitk.sitkFloat32
+    elif str(opts.data_type) == 'float64':
+        opts.data_type = sitk.sitkFloat64
+    else:
+        raise ValueError('Invalid --data_type provided.')
 
     if opts.autoreg:
         opts.bias_reg_script = define_reg_script('autoreg_affine')
@@ -389,28 +373,44 @@ def preprocess(opts, cr_opts, analysis_opts):
 
     workflow.base_dir = output_folder
 
+    # setting workflow options for debug mode
+    if opts.debug:
+        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
+
+        # Change execution parameters
+        workflow.config['execution'] = {'stop_on_first_crash': 'true',
+                                        'remove_unnecessary_outputs': 'false',
+                                        'keep_inputs': 'true'}
+
+        # Change logging parameters
+        workflow.config['logging'] = {'workflow_level': 'DEBUG',
+                                      'filemanip_level': 'DEBUG',
+                                      'interface_level': 'DEBUG',
+                                      'utils_level': 'DEBUG'}
+        print('Debug ON')
+
     return workflow
 
 
-def confound_regression(opts, analysis_opts):
+def confound_regression(opts, analysis_opts, log):
 
     cli_file = '%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
-    workflow = preprocess(preprocess_opts, opts, analysis_opts)
+    workflow = preprocess(preprocess_opts, opts, analysis_opts, log)
 
     return workflow
 
 
-def analysis(opts):
+def analysis(opts, log):
 
     cli_file = '%s/rabies_confound_regression.pkl' % (
         opts.confound_regression_out, )
     with open(cli_file, 'rb') as handle:
         confound_regression_opts = pickle.load(handle)
 
-    workflow = confound_regression(confound_regression_opts, opts)
+    workflow = confound_regression(confound_regression_opts, opts, log)
 
     return workflow
 
