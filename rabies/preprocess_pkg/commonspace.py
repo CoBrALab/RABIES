@@ -14,8 +14,6 @@ class ANTsDBMInputSpec(BaseInterfaceInputSpec):
                             desc="List of anatomical images used for commonspace registration.")
     template_anat = File(exists=True, mandatory=True,
                          desc="Reference anatomical template to define the target space.")
-    output_folder = traits.Str(
-        exists=True, mandatory=True, desc="Path to output folder.")
     cluster_type = traits.Str(
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
     walltime = traits.Str(
@@ -51,12 +49,11 @@ class ANTsDBM(BaseInterface):
         import os
         import pandas as pd
 
-        template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
+        cwd = os.getcwd()
+        template_folder = cwd+'/ants_dbm_outputs/'
 
         # create a csv file of the input image list
-        cwd = os.getcwd()
         csv_path = cwd+'/commonspace_input_files.csv'
-
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.file_list))
 
@@ -91,7 +88,7 @@ class ANTsDBM(BaseInterface):
         model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
 
         if os.path.isdir(template_folder):
-            print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
+            print('Previous ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
         print('Running commonspace registration.')
         command = 'mkdir -p %s' % (template_folder,)
         from rabies.preprocess_pkg.utils import run_command
