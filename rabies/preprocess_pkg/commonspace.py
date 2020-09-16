@@ -1,7 +1,6 @@
 from nipype.interfaces import utility as niu
 import nipype.interfaces.ants as ants
 import nipype.pipeline.engine as pe  # pypeline engine
-from nipype.workflows.smri.ants import antsRegistrationTemplateBuildSingleIterationWF
 from nipype.interfaces.utility import Function
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
@@ -168,6 +167,7 @@ class ANTsDBM(BaseInterface):
 
 # workflow inspired from https://nipype.readthedocs.io/en/latest/users/examples/smri_antsregistration_build_template.html
 def init_commonspace_wf(name="antsRegistrationTemplateBuilder"):
+    # from nipype.workflows.smri.ants import antsRegistrationTemplateBuildSingleIterationWF
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
