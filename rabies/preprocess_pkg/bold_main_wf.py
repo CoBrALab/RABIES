@@ -173,7 +173,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         workflow.connect([
             (inputnode, bias_cor_wf, [
-                ('template_anat', 'inputnode.anat'),
+                ('anat_preproc', 'inputnode.anat'),
                 ('anat_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),

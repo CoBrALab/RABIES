@@ -43,7 +43,8 @@ def get_parser():
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
-    g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
+    g_execution.add_argument("-p", "--plugin", default='Linear',
+                             choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph', 'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
                              help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
     g_execution.add_argument('--local_threads', type=int, default=multiprocessing.cpu_count(),
@@ -78,10 +79,10 @@ def get_parser():
                             "a reference EPI based on these volumes if detected."
                             "Dummy volumes will be removed from the output preprocessed EPI.")
     preprocess.add_argument("--data_type", type=str, default='float32',
-                             choices=['int16','int32','float32', 'float64'],
-                             help="Specify data format outputs to control for file size.")
+                            choices=['int16', 'int32', 'float32', 'float64'],
+                            help="Specify data format outputs to control for file size.")
     preprocess.add_argument("--debug", dest='debug', action='store_true',
-                             help="Run in debug mode.")
+                            help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
         "Options for the registration steps.")
@@ -141,7 +142,7 @@ def get_parser():
     g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
                        help="Select this option to ignore the STC step.")
     g_stc.add_argument('--tpattern', type=str, default='alt',
-                       choices=['alt','seq'],
+                       choices=['alt', 'seq'],
                        help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
     g_atlas = preprocess.add_argument_group(
@@ -197,7 +198,8 @@ def get_parser():
     confound_regression.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
-                                     choices=["WM_signal", "CSF_signal", "vascular_signal", "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
+                                     choices=["WM_signal", "CSF_signal", "vascular_signal",
+                                              "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
                                      help='list of regressors.')
     confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
                                      default=False,
@@ -228,7 +230,7 @@ def get_parser():
                              help="Choose this option to derive a whole-brain functional connectivity matrix, based on the correlation of regional timeseries "
                              "for each subject cleaned timeseries.")
     g_fc_matrix.add_argument("--ROI_type", type=str, default='parcellated',
-                             choices=['parcellated','voxelwise'],
+                             choices=['parcellated', 'voxelwise'],
                              help="Define the types of ROI to extract regional timeseries for correlation matrix analysis. "
                              "Options are 'parcellated', in which case the atlas labels provided for preprocessing are used as ROIs, or "
                              "'voxelwise', in which case all voxel timeseries are cross-correlated.")
@@ -369,7 +371,8 @@ def preprocess(opts, cr_opts, analysis_opts, log):
         str(opts.labels), output_folder+'/template_files')
 
     from rabies.main_wf import init_main_wf
-    workflow = init_main_wf(data_dir_path, output_folder, opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
+    workflow = init_main_wf(data_dir_path, output_folder,
+                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
 
     workflow.base_dir = output_folder
 
