@@ -1,7 +1,6 @@
 from nipype.interfaces import utility as niu
 import nipype.interfaces.ants as ants
 import nipype.pipeline.engine as pe  # pypeline engine
-from nipype.workflows.smri.ants import antsRegistrationTemplateBuildSingleIterationWF
 from nipype.interfaces.utility import Function
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
@@ -12,10 +11,10 @@ from nipype.interfaces.base import (
 class ANTsDBMInputSpec(BaseInterfaceInputSpec):
     file_list = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
-    template_anat = File(exists=True, mandatory=True,
-                         desc="Reference anatomical template to define the target space.")
     output_folder = traits.Str(
         exists=True, mandatory=True, desc="Path to output folder.")
+    template_anat = File(exists=True, mandatory=True,
+                         desc="Reference anatomical template to define the target space.")
     cluster_type = traits.Str(
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
     walltime = traits.Str(
@@ -50,13 +49,13 @@ class ANTsDBM(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import pandas as pd
+        import pathlib
 
+        cwd = os.getcwd()
         template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
 
         # create a csv file of the input image list
-        cwd = os.getcwd()
         csv_path = cwd+'/commonspace_input_files.csv'
-
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.file_list))
 
@@ -65,7 +64,6 @@ class ANTsDBM(BaseInterface):
                   "won't be run, and the output template will be the input scan.")
 
             # create an identity transform as a surrogate for the commonspace transforms
-            import pathlib
             import SimpleITK as sitk
             dimension = 3
             identity = sitk.Transform(dimension, sitk.sitkIdentity)
@@ -91,19 +89,29 @@ class ANTsDBM(BaseInterface):
         model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
 
         if os.path.isdir(template_folder):
-            print('Previous commonspace_datasink/ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
-        print('Running commonspace registration.')
+            print('Previous ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
         command = 'mkdir -p %s' % (template_folder,)
         from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
 
         command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
             template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
-        rc = run_command(command)
+        import subprocess
+        try:
+            process = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                check=True,
+                shell=True,
+                )
+        except Exception as e:
+            print(e.output.decode("utf-8"))
+            #log.warning(e.output.decode("utf-8"))
+
+        #rc = run_command(command)
 
         # verify that all outputs are present
         ants_dbm_template = template_folder + \
-            '/ants_dbm/output/secondlevel/secondlevel_template0.nii.gz'
+            '/output/secondlevel/secondlevel_template0.nii.gz'
         if not os.path.isfile(ants_dbm_template):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
@@ -115,23 +123,22 @@ class ANTsDBM(BaseInterface):
         i = 0
         for file in merged:
             file = str(file)
-            import pathlib  # Better path manipulation
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            anat_to_template_inverse_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (
+            anat_to_template_inverse_warp = '%s/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (
                 template_folder, filename_template, str(i),)
             if not os.path.isfile(anat_to_template_inverse_warp):
                 raise ValueError(
                     anat_to_template_inverse_warp+" file doesn't exists.")
-            anat_to_template_warp = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (
+            anat_to_template_warp = '%s/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (
                 template_folder, filename_template, str(i),)
             if not os.path.isfile(anat_to_template_warp):
                 raise ValueError(anat_to_template_warp+" file doesn't exists.")
-            anat_to_template_affine = '%s/ants_dbm/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (
+            anat_to_template_affine = '%s/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (
                 template_folder, filename_template, str(i),)
             if not os.path.isfile(anat_to_template_affine):
                 raise ValueError(anat_to_template_affine
                                  + " file doesn't exists.")
-            warped_anat = '%s/ants_dbm/output/secondlevel/secondlevel_template0%s%sWarpedToTemplate.nii.gz' % (
+            warped_anat = '%s/output/secondlevel/secondlevel_template0%s%sWarpedToTemplate.nii.gz' % (
                 template_folder, filename_template, str(i),)
             if not os.path.isfile(warped_anat):
                 raise ValueError(warped_anat
@@ -160,6 +167,7 @@ class ANTsDBM(BaseInterface):
 
 # workflow inspired from https://nipype.readthedocs.io/en/latest/users/examples/smri_antsregistration_build_template.html
 def init_commonspace_wf(name="antsRegistrationTemplateBuilder"):
+    # from nipype.workflows.smri.ants import antsRegistrationTemplateBuildSingleIterationWF
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(

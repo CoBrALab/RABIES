@@ -43,7 +43,8 @@ def get_parser():
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
-    g_execution.add_argument("-p", "--plugin", type=str, default='Linear',
+    g_execution.add_argument("-p", "--plugin", default='Linear',
+                             choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph', 'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
                              help="Specify the nipype plugin for workflow execution. Consult nipype plugin documentation for detailed options."
                              " Linear, MultiProc, SGE and SGEGraph have been tested.")
     g_execution.add_argument('--local_threads', type=int, default=multiprocessing.cpu_count(),
@@ -54,11 +55,6 @@ def get_parser():
                              help="For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes.")
     g_execution.add_argument("--min_proc", type=int, default=1,
                              help="For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes.")
-    g_execution.add_argument("--data_type", type=str, default='float32',
-                             choices=['int16','int32','float32', 'float64'],
-                             help="Specify data format outputs to control for file size.")
-    g_execution.add_argument("--debug", dest='debug', action='store_true',
-                             help="Run in debug mode.")
 
     preprocess.add_argument('bids_dir', action='store', type=Path,
                             help='the root folder of the BIDS-formated input data directory.')
@@ -82,26 +78,32 @@ def get_parser():
                             help="Detect and remove initial dummy volumes from the EPI, and generate "
                             "a reference EPI based on these volumes if detected."
                             "Dummy volumes will be removed from the output preprocessed EPI.")
+    preprocess.add_argument("--data_type", type=str, default='float32',
+                            choices=['int16', 'int32', 'float32', 'float64'],
+                            help="Specify data format outputs to control for file size.")
+    preprocess.add_argument("--debug", dest='debug', action='store_true',
+                            help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps.")
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
+        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
                                 help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
                                 "This option overrides other registration specifications.")
-    g_registration.add_argument("-r", "--coreg_script", type=str, default='light_SyN',
-                                help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
-                                " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
+    g_registration.add_argument("--coreg_script", type=str, default='autoreg_SyN',
+                                help="Specify EPI to anat coregistration script.")
+    g_registration.add_argument("--anat_reg_script", type=str, default='Rigid',
+                                help="specify a registration script for the preprocessing of the anatomical images.")
     g_registration.add_argument("--bias_reg_script", type=str, default='Rigid',
                                 help="specify a registration script for iterative bias field correction. This registration step"
                                 " consists of aligning the volume with the commonspace template to provide"
-                                " a brain mask and optimize the bias field correction. The registration script options are the same as --coreg_script.")
+                                " a brain mask and optimize the bias field correction.")
     g_registration.add_argument(
         '--template_reg_script',
         type=str,
-        default='light_SyN',
+        default='autoreg_SyN',
         help="""Registration script that will be used for registration of the generated dataset
-        template to the provided commonspace atlas for masking and labeling. Can choose a predefined
-        registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
+        template to the provided commonspace atlas for masking and labeling.""")
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
@@ -141,7 +143,7 @@ def get_parser():
     g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
                        help="Select this option to ignore the STC step.")
     g_stc.add_argument('--tpattern', type=str, default='alt',
-                       choices=['alt','seq'],
+                       choices=['alt', 'seq'],
                        help="Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.")
 
     g_atlas = preprocess.add_argument_group(
@@ -197,7 +199,8 @@ def get_parser():
     confound_regression.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
-                                     choices=["WM_signal", "CSF_signal", "vascular_signal", "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
+                                     choices=["WM_signal", "CSF_signal", "vascular_signal",
+                                              "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
                                      help='list of regressors.')
     confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
                                      default=False,
@@ -206,7 +209,7 @@ def get_parser():
                         from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
     confound_regression.add_argument('--scrubbing_threshold', type=float,
                                      default=0.1,
-                                     help='Scrubbing threshold for the mean framewise displacement in mm? (averaged across the brain mask) to select corrupted volumes.')
+                                     help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
     confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                                      help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
     confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
@@ -228,7 +231,7 @@ def get_parser():
                              help="Choose this option to derive a whole-brain functional connectivity matrix, based on the correlation of regional timeseries "
                              "for each subject cleaned timeseries.")
     g_fc_matrix.add_argument("--ROI_type", type=str, default='parcellated',
-                             choices=['parcellated','voxelwise'],
+                             choices=['parcellated', 'voxelwise'],
                              help="Define the types of ROI to extract regional timeseries for correlation matrix analysis. "
                              "Options are 'parcellated', in which case the atlas labels provided for preprocessing are used as ROIs, or "
                              "'voxelwise', in which case all voxel timeseries are cross-correlated.")
@@ -265,18 +268,6 @@ def execute_workflow():
     if not opts.plugin == 'MultiProc':
         opts.local_threads = 1
 
-    import SimpleITK as sitk
-    if str(opts.data_type) == 'int16':
-        opts.data_type = sitk.sitkInt16
-    elif str(opts.data_type) == 'int32':
-        opts.data_type = sitk.sitkInt32
-    elif str(opts.data_type) == 'float32':
-        opts.data_type = sitk.sitkFloat32
-    elif str(opts.data_type) == 'float64':
-        opts.data_type = sitk.sitkFloat64
-    else:
-        raise ValueError('Invalid --data_type provided.')
-
     # managing log info
     cli_file = '%s/rabies_%s.pkl' % (output_folder, opts.rabies_step, )
     with open(cli_file, 'wb') as handle:
@@ -298,29 +289,13 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        workflow = preprocess(opts, None, None)
+        workflow = preprocess(opts, None, None, log)
     elif opts.rabies_step == 'confound_regression':
-        workflow = confound_regression(opts, None)
+        workflow = confound_regression(opts, None, log)
     elif opts.rabies_step == 'analysis':
-        workflow = analysis(opts)
+        workflow = analysis(opts, log)
     else:
         parser.print_help()
-
-    # setting workflow options for debug mode
-    if opts.debug:
-        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
-
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash': 'true',
-                                        'remove_unnecessary_outputs': 'false',
-                                        'keep_inputs': 'true'}
-
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level': 'DEBUG',
-                                      'filemanip_level': 'DEBUG',
-                                      'interface_level': 'DEBUG',
-                                      'utils_level': 'DEBUG'}
-        print('Debug ON')
 
     try:
         print('Running workflow with %s plugin.' % opts.plugin)
@@ -333,22 +308,32 @@ def execute_workflow():
         raise
 
 
-def preprocess(opts, cr_opts, analysis_opts):
+def preprocess(opts, cr_opts, analysis_opts, log):
     # obtain parser parameters
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
 
+    import SimpleITK as sitk
+    if str(opts.data_type) == 'int16':
+        opts.data_type = sitk.sitkInt16
+    elif str(opts.data_type) == 'int32':
+        opts.data_type = sitk.sitkInt32
+    elif str(opts.data_type) == 'float32':
+        opts.data_type = sitk.sitkFloat32
+    elif str(opts.data_type) == 'float64':
+        opts.data_type = sitk.sitkFloat64
+    else:
+        raise ValueError('Invalid --data_type provided.')
+
     if opts.autoreg:
         opts.bias_reg_script = define_reg_script('autoreg_affine')
-    else:
-        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
-    if opts.autoreg:
+        opts.anat_reg_script = define_reg_script('autoreg_affine')
         opts.coreg_script = define_reg_script('autoreg_SyN')
-    else:
-        opts.coreg_script = define_reg_script(opts.coreg_script)
-    if opts.autoreg:
         opts.template_reg_script = define_reg_script('autoreg_SyN')
     else:
+        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
+        opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
+        opts.coreg_script = define_reg_script(opts.coreg_script)
         opts.template_reg_script = define_reg_script(opts.template_reg_script)
 
     # template options
@@ -385,32 +370,49 @@ def preprocess(opts, cr_opts, analysis_opts):
         str(opts.labels), output_folder+'/template_files')
 
     from rabies.main_wf import init_main_wf
-    workflow = init_main_wf(data_dir_path, output_folder, opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
+    workflow = init_main_wf(data_dir_path, output_folder,
+                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
 
     workflow.base_dir = output_folder
+
+    # setting workflow options for debug mode
+    if opts.debug:
+        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
+
+        # Change execution parameters
+        workflow.config['execution'] = {'stop_on_first_crash': 'true',
+                                        'remove_unnecessary_outputs': 'false',
+                                        'keep_inputs': 'true'}
+
+        # Change logging parameters
+        workflow.config['logging'] = {'workflow_level': 'DEBUG',
+                                      'filemanip_level': 'DEBUG',
+                                      'interface_level': 'DEBUG',
+                                      'utils_level': 'DEBUG'}
+        print('Debug ON')
 
     return workflow
 
 
-def confound_regression(opts, analysis_opts):
+def confound_regression(opts, analysis_opts, log):
 
     cli_file = '%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
-    workflow = preprocess(preprocess_opts, opts, analysis_opts)
+    workflow = preprocess(preprocess_opts, opts, analysis_opts, log)
 
     return workflow
 
 
-def analysis(opts):
+def analysis(opts, log):
 
     cli_file = '%s/rabies_confound_regression.pkl' % (
         opts.confound_regression_out, )
     with open(cli_file, 'rb') as handle:
         confound_regression_opts = pickle.load(handle)
 
-    workflow = confound_regression(confound_regression_opts, opts)
+    workflow = confound_regression(confound_regression_opts, opts, log)
 
     return workflow
 

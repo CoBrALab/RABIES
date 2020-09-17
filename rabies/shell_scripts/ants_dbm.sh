@@ -7,9 +7,6 @@ walltime=$4
 memory_request=$5
 local_threads=$6
 
-mkdir -p ants_dbm
-cd ants_dbm
-
 echo twolevel_dbm.py --rigid-model-target $template_anat \
 --no-N4 --transform SyN --float --average-type normmean --gradient-step 0.25 --model-iterations 3 \
 --modelbuild-command $RABIES/rabies/shell_scripts/antsMultivariateTemplateConstruction2.sh --cluster-type $cluster_type \
@@ -18,5 +15,3 @@ echo twolevel_dbm.py --rigid-model-target $template_anat \
 echo "Running the following commonspace registration:"
 cat exec.sh
 bash exec.sh
-
-cd ..

@@ -105,7 +105,7 @@ class EPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(
             input_ref_EPI, (low_dim, low_dim, low_dim)), cwd+'/resampled.nii.gz')
 
-        command = 'bash %s %s %s %s %s %s' % (bias_cor_script_path, cwd+'/resampled.nii.gz',
+        command = 'bash %s %s %s %s %s %s' % (bias_cor_script_path, self.inputs.input_ref_EPI,
                                               self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
         from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)

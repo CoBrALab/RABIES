@@ -335,8 +335,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            name='anat_convert_to_RAS')
 
         # setting anat preprocessing nodes
-        anat_preproc_wf = init_anat_preproc_wf(
-            disable_anat_preproc=opts.disable_anat_preproc, autoreg=opts.autoreg, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
+        anat_preproc_wf = init_anat_preproc_wf(reg_script=opts.anat_reg_script,
+            disable_anat_preproc=opts.disable_anat_preproc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
         anat_preproc_wf.inputs.inputnode.template_mask = str(opts.brain_mask)
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],

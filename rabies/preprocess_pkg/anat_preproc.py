@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_anat_preproc_wf(disable_anat_preproc=False, autoreg=False, rabies_data_type=8, rabies_mem_scale=1.0, name='anat_preproc_wf'):
+def init_anat_preproc_wf(reg_script, disable_anat_preproc=False, rabies_data_type=8, rabies_mem_scale=1.0, name='anat_preproc_wf'):
     '''
     This workflow executes anatomical preprocessing based on anat_preproc.sh,
     which includes initial N4 bias field correction and Adaptive
@@ -21,7 +21,7 @@ def init_anat_preproc_wf(disable_anat_preproc=False, autoreg=False, rabies_data_
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['preproc_anat']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(disable_anat_preproc=disable_anat_preproc, autoreg=autoreg, rabies_data_type=rabies_data_type),
+    anat_preproc = pe.Node(AnatPreproc(reg_script=reg_script, disable_anat_preproc=disable_anat_preproc, rabies_data_type=rabies_data_type),
                            name='Anat_Preproc', mem_gb=0.6*rabies_mem_scale)
 
     workflow.connect([
@@ -45,8 +45,8 @@ class AnatPreprocInputSpec(BaseInterfaceInputSpec):
                          desc="The brain mask of the anatomical template.")
     disable_anat_preproc = traits.Bool(
         desc="If anatomical preprocessing is disabled, then only copy the input to a new file named _preproc.nii.gz.")
-    autoreg = traits.Bool(
-        desc="If an automated registration script should be used for affine registration.")
+    reg_script = traits.Str(exists=True, mandatory=True,
+                            desc="Specifying the script to use for registration.")
     rabies_data_type = traits.Int(mandatory=True,
         desc="Integer specifying SimpleITK data type.")
 
@@ -97,7 +97,7 @@ class AnatPreproc(BaseInterface):
             sitk.WriteImage(sitk.ReadImage(input_anat, self.inputs.rabies_data_type), output_anat)
         else:
             command = 'bash %s/../shell_scripts/anat_preproc.sh %s %s %s %s %s' % (
-                dir_path, input_anat, self.inputs.template_anat, self.inputs.template_mask, output_anat, self.inputs.autoreg)
+                dir_path, input_anat, self.inputs.template_anat, self.inputs.template_mask, output_anat, self.inputs.reg_script)
             rc = run_command(command)
 
             # resample image to specified data format
