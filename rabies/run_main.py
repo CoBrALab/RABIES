@@ -85,24 +85,25 @@ def get_parser():
                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps.")
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
+        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
                                 help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
                                 "This option overrides other registration specifications.")
-    g_registration.add_argument("-r", "--coreg_script", type=str, default='light_SyN',
-                                help="Specify EPI to anat coregistration script. Built-in options include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
-                                " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
+    g_registration.add_argument("--coreg_script", type=str, default='autoreg_SyN',
+                                help="Specify EPI to anat coregistration script.")
+    g_registration.add_argument("--anat_reg_script", type=str, default='Rigid',
+                                help="specify a registration script for the preprocessing of the anatomical images.")
     g_registration.add_argument("--bias_reg_script", type=str, default='Rigid',
                                 help="specify a registration script for iterative bias field correction. This registration step"
                                 " consists of aligning the volume with the commonspace template to provide"
-                                " a brain mask and optimize the bias field correction. The registration script options are the same as --coreg_script.")
+                                " a brain mask and optimize the bias field correction.")
     g_registration.add_argument(
         '--template_reg_script',
         type=str,
-        default='light_SyN',
+        default='autoreg_SyN',
         help="""Registration script that will be used for registration of the generated dataset
-        template to the provided commonspace atlas for masking and labeling. Can choose a predefined
-        registration script among Rigid,Affine,SyN or light_SyN, or provide a custom script.""")
+        template to the provided commonspace atlas for masking and labeling.""")
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
@@ -326,15 +327,13 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
     if opts.autoreg:
         opts.bias_reg_script = define_reg_script('autoreg_affine')
-    else:
-        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
-    if opts.autoreg:
+        opts.anat_reg_script = define_reg_script('autoreg_affine')
         opts.coreg_script = define_reg_script('autoreg_SyN')
-    else:
-        opts.coreg_script = define_reg_script(opts.coreg_script)
-    if opts.autoreg:
         opts.template_reg_script = define_reg_script('autoreg_SyN')
     else:
+        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
+        opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
+        opts.coreg_script = define_reg_script(opts.coreg_script)
         opts.template_reg_script = define_reg_script(opts.template_reg_script)
 
     # template options
