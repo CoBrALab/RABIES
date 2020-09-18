@@ -118,7 +118,7 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     import nilearn.image
     from rabies.conf_reg_pkg.utils import scrubbing, exec_ICA_AROMA, csv2par
 
-    cwd = os.getcwd()
+    cr_out = os.getcwd()
 
     confounds = pd.read_csv(confounds_file)
     keys = confounds.keys()
@@ -152,11 +152,10 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
 
     # including detrending, standardization
     cleaning_input = nilearn.image.smooth_img(bold_file, smoothing_filter)
-    aroma_out = cwd
     if run_aroma:
-        aroma_out = cwd+'/%s_aroma' % (filename_split[0])
+        aroma_out = cr_out+'/%s_aroma' % (filename_split[0])
         smooth_path = os.path.abspath(
-            cwd+'/%s_smoothed.nii.gz' % (filename_split[0]))
+            cr_out+'/%s_smoothed.nii.gz' % (filename_split[0]))
         cleaning_input.to_filename(smooth_path)
         cleaning_input = exec_ICA_AROMA(smooth_path, aroma_out, csv2par(
             confounds_file), brain_mask_file, csf_mask, TR, aroma_dim)
@@ -174,9 +173,9 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     if apply_scrubbing:
         cleaned = scrubbing(
             cleaned, FD_file, scrubbing_threshold, timeseries_interval)
-    cleaned_path = cwd+'/'+filename_split[0]+'_cleaned.nii.gz'
+    cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
     cleaned.to_filename(cleaned_path)
-    return cleaned_path, bold_file, aroma_out
+    return cleaned_path, bold_file, cr_out
 
 
 class data_diagnosisInputSpec(BaseInterfaceInputSpec):

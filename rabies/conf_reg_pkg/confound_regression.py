@@ -12,12 +12,12 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
     inputnode = pe.Node(niu.IdentityInterface(fields=[
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'mel_out', 'tSNR_file', 'corr_map_list']), name='outputnode')
+                         'cleaned_path', 'cr_out', 'mel_out', 'tSNR_file', 'corr_map_list']), name='outputnode')
 
     regress_node = pe.Node(Function(input_names=['bold_file', 'brain_mask_file', 'confounds_file', 'csf_mask', 'FD_file', 'conf_list',
                                                  'TR', 'lowpass', 'highpass', 'smoothing_filter', 'run_aroma', 'aroma_dim', 'apply_scrubbing', 'scrubbing_threshold', 'timeseries_interval'],
                                     output_names=['cleaned_path',
-                                                  'bold_file', 'aroma_out'],
+                                                  'bold_file', 'cr_out'],
                                     function=regress),
                            name='regress', mem_gb=1)
     regress_node.inputs.conf_list = conf_list
@@ -46,7 +46,7 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
             ]),
         (regress_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
-            ("aroma_out", "aroma_out"),
+            ("cr_out", "cr_out"),
             ]),
         (inputnode, seed_based_FC_node, [
             ("brain_mask", "brain_mask"),
