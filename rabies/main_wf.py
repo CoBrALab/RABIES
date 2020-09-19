@@ -514,7 +514,7 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
     from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
     confound_regression_wf = init_confound_regression_wf(lowpass=cr_opts.lowpass, highpass=cr_opts.highpass,
                                                          smoothing_filter=cr_opts.smoothing_filter, run_aroma=cr_opts.run_aroma, aroma_dim=cr_opts.aroma_dim, conf_list=cr_opts.conf_list, TR=cr_opts.TR, apply_scrubbing=cr_opts.apply_scrubbing,
-                                                         scrubbing_threshold=cr_opts.scrubbing_threshold, timeseries_interval=cr_opts.timeseries_interval, diagnosis_output=cr_opts.diagnosis_output, seed_list=cr_opts.seed_list, name=cr_opts.wf_name)
+                                                         scrubbing_threshold=cr_opts.scrubbing_threshold, timeseries_interval=cr_opts.timeseries_interval, diagnosis_output=cr_opts.diagnosis_output, name=cr_opts.wf_name)
 
     workflow.connect([
         (outputnode, confound_regression_wf, [
@@ -564,7 +564,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 
     from rabies.analysis_pkg.analysis_wf import init_analysis_wf
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold)
+        opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list)
 
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="analysis_datasink"),
@@ -605,6 +605,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
             ("outputnode.DR_nii_file", "DR_nii_file"),
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
+            ("outputnode.corr_map_file", "seed_correlation_maps"),
             ]),
         ])
     if bold_only:

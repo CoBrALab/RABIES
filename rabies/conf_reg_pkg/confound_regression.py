@@ -2,17 +2,17 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
-from .utils import regress, data_diagnosis, select_timeseries, seed_based_FC
+from .utils import regress, data_diagnosis, select_timeseries
 
 
 def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.3, run_aroma=False, aroma_dim=0, conf_list=[],
-                                TR='1.0s', apply_scrubbing=False, scrubbing_threshold=0.1, timeseries_interval='all', diagnosis_output=False, seed_list=[], name="confound_regression_wf"):
+                                TR='1.0s', apply_scrubbing=False, scrubbing_threshold=0.1, timeseries_interval='all', diagnosis_output=False, name="confound_regression_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'cr_out', 'mel_out', 'tSNR_file', 'corr_map_list']), name='outputnode')
+                         'cleaned_path', 'cr_out', 'mel_out', 'tSNR_file']), name='outputnode')
 
     regress_node = pe.Node(Function(input_names=['bold_file', 'brain_mask_file', 'confounds_file', 'csf_mask', 'FD_file', 'conf_list',
                                                  'TR', 'lowpass', 'highpass', 'smoothing_filter', 'run_aroma', 'aroma_dim', 'apply_scrubbing', 'scrubbing_threshold', 'timeseries_interval'],
@@ -31,12 +31,6 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
     regress_node.inputs.scrubbing_threshold = scrubbing_threshold
     regress_node.inputs.timeseries_interval = timeseries_interval
 
-    seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed'],
-                                          output_names=['corr_map_file'],
-                                          function=seed_based_FC),
-                                 name='seed_based_FC', mem_gb=1)
-    seed_based_FC_node.iterables = [('seed', seed_list)]
-
     workflow.connect([
         (inputnode, regress_node, [
             ("brain_mask", "brain_mask_file"),
@@ -47,15 +41,6 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
         (regress_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
             ("cr_out", "cr_out"),
-            ]),
-        (inputnode, seed_based_FC_node, [
-            ("brain_mask", "brain_mask"),
-            ]),
-        (regress_node, seed_based_FC_node, [
-            ("cleaned_path", "bold_file"),
-            ]),
-        (seed_based_FC_node, outputnode, [
-            ("corr_map_file", "corr_map_file"),
             ]),
         ])
 

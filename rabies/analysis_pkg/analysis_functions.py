@@ -2,6 +2,72 @@ import numpy as np
 import nibabel as nb
 
 
+def seed_based_FC(bold_file, brain_mask, seed_list):
+    import os
+    import nibabel as nb
+    import numpy as np
+    from rabies.analysis_pkg.analysis_functions import seed_corr
+
+    if len(seed_list)>0:
+        mask_array = np.asarray(nb.load(brain_mask).dataobj)
+        mask_vector = mask_array.reshape(-1)
+        mask_indices = (mask_vector==True)
+        mask_vector = mask_vector.astype(float)
+
+        corr_maps = np.zeros(list(mask_array.shape)+[len(seed_list)])
+        i = 0
+        for seed in seed_list:
+            mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed)
+            corr_maps[:,:,:,i] = mask_vector.reshape(mask_array.shape)
+            i+=1
+
+        corr_map_file = os.path.abspath(os.path.basename(
+            seed).split('.nii')[0]+'_corr_map.nii.gz')
+        nb.Nifti1Image(corr_maps, nb.load(brain_mask).affine, nb.load(
+            brain_mask).header).to_filename(corr_map_file)
+        return corr_map_file
+    else:
+        return None
+
+
+def seed_corr(bold_file, brain_mask, seed):
+    import os
+    from nilearn.input_data import NiftiMasker
+
+    resampled = os.path.abspath('resampled.nii.gz')
+    os.system('antsApplyTransforms -i %s -r %s -o %s -n GenericLabel' %
+              (seed, brain_mask, resampled))
+
+    masker = NiftiMasker(mask_img=nb.load(resampled), standardize=False, verbose=0)
+    # extract the voxel timeseries within the mask
+    voxel_seed_timeseries = masker.fit_transform(bold_file)
+    # take the mean ROI timeseries
+    seed_timeseries = np.mean(voxel_seed_timeseries, axis=1)
+
+    mask_array = np.asarray(nb.load(brain_mask).dataobj)
+    mask_vector = mask_array.reshape(-1)
+    mask_indices = (mask_vector==True)
+
+    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
+    sub_timeseries = np.zeros([mask_indices.sum(), timeseries_array.shape[3]])
+    for t in range(timeseries_array.shape[3]):
+        sub_timeseries[:, t] = (
+            timeseries_array[:, :, :, t].reshape(-1))[mask_indices]
+
+    corrs = vcorrcoef(sub_timeseries, seed_timeseries)
+    corrs[np.isnan(corrs)] = 0
+    return corrs
+
+
+def vcorrcoef(X, y):  # return a correlation between each row of X with y
+    Xm = np.reshape(np.mean(X, axis=1), (X.shape[0], 1))
+    ym = np.mean(y)
+    r_num = np.sum((X-Xm)*(y-ym), axis=1)
+    r_den = np.sqrt(np.sum((X-Xm)**2, axis=1)*np.sum((y-ym)**2))
+    r = r_num/r_den
+    return r
+
+
 def get_CAPs(data, volumes, n_clusters):
     from sklearn.cluster import KMeans
     kmeans = KMeans(n_clusters=n_clusters, n_init=10, max_iter=300)

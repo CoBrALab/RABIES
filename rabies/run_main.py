@@ -216,15 +216,15 @@ def get_parser():
                                      default=False,
                                      help="Run a diagnosis for each image by computing melodic-ICA on the corrected timeseries,"
                                      "and compute a tSNR map from the input uncorrected image.")
-    confound_regression.add_argument('--seed_list', type=str,
-                                     nargs="*",  # 0 or more values expected => creates a list
-                                     default=[],
-                                     help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
 
     analysis.add_argument('confound_regression_out', action='store', type=Path,
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
+    analysis.add_argument('--seed_list', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=[],
+                                     help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps.')
     g_fc_matrix = analysis.add_argument_group(
         'Options for performing a whole-brain timeseries correlation matrix analysis.')
     g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',

@@ -3,10 +3,10 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
 
-from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix
+from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
 
 
-def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
+def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
@@ -14,7 +14,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'DR_data_file',
-                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'sub_token', 'group_token']), name='outputnode')
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'sub_token', 'group_token']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -25,6 +25,23 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             ("token", "group_token"),
             ]),
         ])
+
+    if len(seed_list) > 0:
+        seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_list'],
+                                              output_names=['corr_map_file'],
+                                              function=seed_based_FC),
+                                     name='seed_based_FC', mem_gb=1)
+        seed_based_FC_node.inputs.seed_list = seed_list
+
+        workflow.connect([
+            (subject_inputnode, seed_based_FC_node, [
+                ("bold_file", "bold_file"),
+                ("mask_file", "brain_mask"),
+                ]),
+            (seed_based_FC_node, outputnode, [
+                ("corr_map_file", "corr_map_file"),
+                ]),
+            ])
 
     include_group_ICA = opts.group_ICA
 
