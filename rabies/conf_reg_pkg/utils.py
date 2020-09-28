@@ -150,14 +150,12 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
+    cleaning_input = bold_file
+
     # including detrending, standardization
-    cleaning_input = nilearn.image.smooth_img(bold_file, smoothing_filter)
     if run_aroma:
         aroma_out = cr_out+'/%s_aroma' % (filename_split[0])
-        smooth_path = os.path.abspath(
-            cr_out+'/%s_smoothed.nii.gz' % (filename_split[0]))
-        cleaning_input.to_filename(smooth_path)
-        cleaning_input = exec_ICA_AROMA(smooth_path, aroma_out, csv2par(
+        cleaning_input = exec_ICA_AROMA(cleaning_input, aroma_out, csv2par(
             confounds_file), brain_mask_file, csf_mask, TR, aroma_dim)
     if len(confounds_list) > 0:
         confounds_array = np.transpose(np.asarray(confounds_list))
@@ -170,6 +168,10 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     else:
         cleaned = nilearn.image.clean_img(cleaning_input, detrend=True, standardize=True,
                                           low_pass=lowpass, high_pass=highpass, confounds=None, t_r=TR, mask_img=brain_mask_file)
+
+    if smoothing_filter is not None:
+        cleaned = nilearn.image.smooth_img(cleaned, smoothing_filter)
+
     if apply_scrubbing:
         cleaned = scrubbing(
             cleaned, FD_file, scrubbing_threshold, timeseries_interval)

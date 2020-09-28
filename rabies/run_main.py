@@ -31,9 +31,9 @@ def get_parser():
         """)
     confound_regression = subparsers.add_parser("confound_regression",
                                                 help="""Flexible options for confound regression applied
-        on preprocessing outputs from RABIES. Smoothing is applied first, followed by ICA-AROMA, detrending, then
+        on preprocessing outputs from RABIES. ICA-AROMA is applied first, followed by detrending, then
         regression of confound timeseries orthogonal to the application of temporal filters
-        (nilearn.clean_img, Lindquist 2018), standardization of timeseries and finally scrubbing. The corrections
+        (nilearn.clean_img, Lindquist 2018), standardization of timeseries, smoothing, and finally scrubbing. The corrections
         follow user specifications.
         """)
     analysis = subparsers.add_parser("analysis",
@@ -192,7 +192,7 @@ def get_parser():
                                      help='Specify highpass filter frequency.')
     confound_regression.add_argument('--lowpass', type=float, default=None,
                                      help='Specify lowpass filter frequency.')
-    confound_regression.add_argument('--smoothing_filter', type=float, default=0.3,
+    confound_regression.add_argument('--smoothing_filter', type=float, default=None,
                                      help='Specify smoothing filter size in mm.')
     confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
                                      default=False,
