@@ -17,7 +17,7 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
     regress_node = pe.Node(Function(input_names=['bold_file', 'brain_mask_file', 'confounds_file', 'csf_mask', 'FD_file', 'conf_list',
                                                  'TR', 'lowpass', 'highpass', 'smoothing_filter', 'run_aroma', 'aroma_dim', 'apply_scrubbing', 'scrubbing_threshold', 'timeseries_interval'],
                                     output_names=['cleaned_path',
-                                                  'bold_file', 'cr_out'],
+                                                  'bold_file', 'cr_out', 'VE_file'],
                                     function=regress),
                            name='regress', mem_gb=1)
     regress_node.inputs.conf_list = conf_list
@@ -41,6 +41,7 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
         (regress_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
             ("cr_out", "cr_out"),
+            ("VE_file", "VE_file"),
             ]),
         ])
 
