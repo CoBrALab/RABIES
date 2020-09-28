@@ -9,7 +9,7 @@ from nipype.interfaces.base import (
 
 
 class ANTsDBMInputSpec(BaseInterfaceInputSpec):
-    file_list = traits.List(exists=True, mandatory=True,
+    moving_image = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
     output_folder = traits.Str(
         exists=True, mandatory=True, desc="Path to output folder.")
@@ -26,7 +26,7 @@ class ANTsDBMInputSpec(BaseInterfaceInputSpec):
 
 
 class ANTsDBMOutputSpec(TraitedSpec):
-    ants_dbm_template = File(
+    warped_image = File(
         exists=True, desc="Output template generated from commonspace registration.")
     affine_list = traits.List(exists=True, mandatory=True,
                               desc="List of affine transforms from anat to template space.")
@@ -57,7 +57,7 @@ class ANTsDBM(BaseInterface):
         # create a csv file of the input image list
         csv_path = cwd+'/commonspace_input_files.csv'
         from rabies.preprocess_pkg.utils import flatten_list
-        merged = flatten_list(list(self.inputs.file_list))
+        merged = flatten_list(list(self.inputs.moving_image))
 
         if len(merged) == 1:
             print("Only a single scan was provided as input for commonspace registration. Commonspace registration "
@@ -73,7 +73,7 @@ class ANTsDBM(BaseInterface):
             transform_file = template_folder+filename_template+'_identity.mat'
             sitk.WriteTransform(identity, transform_file)
 
-            setattr(self, 'ants_dbm_template', file)
+            setattr(self, 'warped_image', file)
             setattr(self, 'affine_list', [transform_file])
             setattr(self, 'warp_list', [transform_file])
             setattr(self, 'inverse_warp_list', [transform_file])
@@ -149,7 +149,7 @@ class ANTsDBM(BaseInterface):
             warped_anat_list.append(warped_anat)
             i += 1
 
-        setattr(self, 'ants_dbm_template', ants_dbm_template)
+        setattr(self, 'warped_image', ants_dbm_template)
         setattr(self, 'affine_list', affine_list)
         setattr(self, 'warp_list', warp_list)
         setattr(self, 'inverse_warp_list', inverse_warp_list)
@@ -158,7 +158,7 @@ class ANTsDBM(BaseInterface):
         return runtime
 
     def _list_outputs(self):
-        return {'ants_dbm_template': getattr(self, 'ants_dbm_template'),
+        return {'warped_image': getattr(self, 'warped_image'),
                 'affine_list': getattr(self, 'affine_list'),
                 'warp_list': getattr(self, 'warp_list'),
                 'inverse_warp_list': getattr(self, 'inverse_warp_list'),

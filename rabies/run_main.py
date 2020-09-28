@@ -104,6 +104,10 @@ def get_parser():
         default='autoreg_SyN',
         help="""Registration script that will be used for registration of the generated dataset
         template to the provided commonspace atlas for masking and labeling.""")
+    g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
+                                help="Choosing this option will skip the generation of a dataset template, and instead, "
+                                "each anatomical scan will be individually registered to the commonspace template using the --template_reg_script."
+                                "Note that this option, although faster, is expected to reduce the quality of commonspace registration.")
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
