@@ -28,18 +28,18 @@ def get_parser():
                                        help="""Conducts preprocessing on an input dataset in BIDS format.
         Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear registration,
         registration to a commonspace atlas and associated masks, as well as further options (see --help).
-        """)
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
                                                 help="""Flexible options for confound regression applied
         on preprocessing outputs from RABIES. ICA-AROMA is applied first, followed by detrending, then
         regression of confound timeseries orthogonal to the application of temporal filters
         (nilearn.clean_img, Lindquist 2018), standardization of timeseries, smoothing, and finally scrubbing. The corrections
         follow user specifications.
-        """)
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     analysis = subparsers.add_parser("analysis",
                                      help="""
         Optional analysis to conduct on cleaned timeseries.
-        """)
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
