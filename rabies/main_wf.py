@@ -137,23 +137,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=[
                                'bold', 'cbv']), name='bold_selectfiles')
 
-    # Datasink - creates output folder for important outputs
-    bold_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                     container="bold_datasink"),
-                            name="bold_datasink")
-
-    commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                            container="commonspace_datasink"),
-                                   name="commonspace_datasink")
-
-    transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                           container="transforms_datasink"),
-                                  name="transforms_datasink")
-
-    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                          container="confounds_datasink"),
-                                 name="confounds_datasink")
-
     # node to conver input image to consistent RAS orientation
     bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
                                                 output_names=['RAS_file'],
@@ -252,9 +235,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("inverse_warp_list", "inverse_warp_list"),
                 ("warped_anat_list", "warped_anat_list"),
                 ]),
-            (commonspace_reg, commonspace_datasink, [
-                ("warped_image", "ants_dbm_template"),
-                ]),
             ])
 
     # MAIN WORKFLOW STRUCTURE #######################################################
@@ -268,9 +248,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         (bold_selectfiles, bold_convert_to_RAS_node, [
             ('out_file', 'img_file'),
             ]),
-        (bold_selectfiles, bold_datasink, [
-            ("out_file", "input_bold"),
-            ]),
         (bold_convert_to_RAS_node, bold_main_wf, [
             ("RAS_file", "inputnode.bold"),
             ]),
@@ -282,22 +259,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("affine", "inputnode.template_to_common_affine"),
             ("warp", "inputnode.template_to_common_warp"),
             ]),
-        (template_reg, commonspace_datasink, [
-            ("warped_image", "warped_template"),
-            ]),
-        (template_reg, transforms_datasink, [
-            ("affine", "template_to_common_affine"),
-            ("warp", "template_to_common_warp"),
-            ("inverse_warp", "template_to_common_inverse_warp"),
-            ]),
         (commonspace_selectfiles, bold_main_wf, [
             ("anat_to_template_affine", "inputnode.anat_to_template_affine"),
             ("anat_to_template_warp", "inputnode.anat_to_template_warp"),
-            ]),
-        (commonspace_selectfiles, transforms_datasink, [
-            ("anat_to_template_affine", "anat_to_template_affine"),
-            ("anat_to_template_warp", "anat_to_template_warp"),
-            ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
@@ -323,38 +287,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
             ]),
-        (outputnode, transforms_datasink, [
-            ('affine_bold2anat', 'affine_bold2anat'),
-            ('warp_bold2anat', 'warp_bold2anat'),
-            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
-            ]),
-        (outputnode, confounds_datasink, [
-            ("confounds_csv", "confounds_csv"),  # confounds file
-            ("FD_voxelwise", "FD_voxelwise"),
-            ("pos_voxelwise", "pos_voxelwise"),
-            ("FD_csv", "FD_csv"),
-            ]),
-        (outputnode, bold_datasink, [
-            ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
-            ("bias_cor_bold", "bias_cor_bold"),  # inspect bias correction
-            ("bold_brain_mask", "bold_brain_mask"),  # get the EPI labels
-            ("bold_WM_mask", "bold_WM_mask"),  # get the EPI labels
-            ("bold_CSF_mask", "bold_CSF_mask"),  # get the EPI labels
-            ("bold_labels", "bold_labels"),  # get the EPI labels
-            # warped EPI to anat
-            ("bias_cor_bold_warped2anat", "bias_cor_bold_warped2anat"),
-            # resampled EPI after motion realignment and SDC
-            ("native_corrected_bold", "corrected_bold"),
-            # resampled EPI after motion realignment and SDC
-            ("corrected_bold_ref", "corrected_bold_ref"),
-            # resampled EPI after motion realignment and SDC
-            ("commonspace_bold", "commonspace_bold"),
-            ("commonspace_mask", "commonspace_bold_mask"),
-            ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
-            ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
-            ("commonspace_vascular_mask", "commonspace_vascular_mask"),
-            ("commonspace_labels", "commonspace_bold_labels"),
-            ]),
         ])
 
     if not opts.bold_only:
@@ -366,10 +298,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=[
                                    'T2w', 'T1w']), name='anat_selectfiles')
         anat_selectfiles.inputs.run = None
-
-        anat_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                         container="anat_datasink"),
-                                name="anat_datasink")
 
         anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
                                                     output_names=['RAS_file'],
@@ -415,8 +343,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (anat_preproc_wf, bold_main_wf, [
                 ("outputnode.preproc_anat", "inputnode.anat_preproc"),
                 ]),
-            (anat_preproc_wf, anat_datasink, [
-             ("outputnode.preproc_anat", "anat_preproc")]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
                 ("inverse_warp", "template_to_common_inverse_warp"),
@@ -435,12 +361,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (transform_masks, outputnode, [
                 ("anat_labels", 'anat_labels'),
                 ("brain_mask", 'anat_mask'),
-                ("WM_mask", "WM_mask"),
-                ("CSF_mask", "CSF_mask"),
-                ]),
-            (outputnode, anat_datasink, [
-                ("anat_labels", 'anat_labels'),
-                ("anat_mask", 'anat_mask'),
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
                 ]),
@@ -546,6 +466,94 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             workflow = integrate_analysis(
                 workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
 
+    elif opts.rabies_step == 'preprocess':
+        # Datasink - creates output folder for important outputs
+        bold_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                         container="bold_datasink"),
+                                name="bold_datasink")
+
+        commonspace_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                                container="commonspace_datasink"),
+                                       name="commonspace_datasink")
+
+        transforms_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                               container="transforms_datasink"),
+                                      name="transforms_datasink")
+
+        confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                              container="confounds_datasink"),
+                                     name="confounds_datasink")
+
+        workflow.connect([
+            (commonspace_reg, commonspace_datasink, [
+                ("warped_image", "ants_dbm_template"),
+                ]),
+            (bold_selectfiles, bold_datasink, [
+                ("out_file", "input_bold"),
+                ]),
+            (template_reg, commonspace_datasink, [
+                ("warped_image", "warped_template"),
+                ]),
+            (template_reg, transforms_datasink, [
+                ("affine", "template_to_common_affine"),
+                ("warp", "template_to_common_warp"),
+                ("inverse_warp", "template_to_common_inverse_warp"),
+                ]),
+            (commonspace_selectfiles, transforms_datasink, [
+                ("anat_to_template_affine", "anat_to_template_affine"),
+                ("anat_to_template_warp", "anat_to_template_warp"),
+                ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
+                ]),
+            (outputnode, transforms_datasink, [
+                ('affine_bold2anat', 'affine_bold2anat'),
+                ('warp_bold2anat', 'warp_bold2anat'),
+                ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+                ]),
+            (outputnode, confounds_datasink, [
+                ("confounds_csv", "confounds_csv"),  # confounds file
+                ("FD_voxelwise", "FD_voxelwise"),
+                ("pos_voxelwise", "pos_voxelwise"),
+                ("FD_csv", "FD_csv"),
+                ]),
+            (outputnode, bold_datasink, [
+                ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
+                ("bias_cor_bold", "bias_cor_bold"),  # inspect bias correction
+                ("bold_brain_mask", "bold_brain_mask"),  # get the EPI labels
+                ("bold_WM_mask", "bold_WM_mask"),  # get the EPI labels
+                ("bold_CSF_mask", "bold_CSF_mask"),  # get the EPI labels
+                ("bold_labels", "bold_labels"),  # get the EPI labels
+                # warped EPI to anat
+                ("bias_cor_bold_warped2anat", "bias_cor_bold_warped2anat"),
+                # resampled EPI after motion realignment and SDC
+                ("native_corrected_bold", "corrected_bold"),
+                # resampled EPI after motion realignment and SDC
+                ("corrected_bold_ref", "corrected_bold_ref"),
+                # resampled EPI after motion realignment and SDC
+                ("commonspace_bold", "commonspace_bold"),
+                ("commonspace_mask", "commonspace_bold_mask"),
+                ("commonspace_WM_mask", "commonspace_bold_WM_mask"),
+                ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
+                ("commonspace_vascular_mask", "commonspace_vascular_mask"),
+                ("commonspace_labels", "commonspace_bold_labels"),
+                ]),
+            ])
+
+        if not opts.bold_only:
+            anat_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                             container="anat_datasink"),
+                                    name="anat_datasink")
+
+            workflow.connect([
+                (anat_preproc_wf, anat_datasink, [
+                 ("outputnode.preproc_anat", "anat_preproc")]),
+                (outputnode, anat_datasink, [
+                    ("anat_labels", 'anat_labels'),
+                    ("anat_mask", 'anat_mask'),
+                    ("WM_mask", "WM_mask"),
+                    ("CSF_mask", "CSF_mask"),
+                    ]),
+                ])
+
     return workflow
 
 
@@ -585,17 +593,17 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
                 ]),
             ])
 
-    confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
-                                                    container="confound_regression_datasink"),
-                                           name="confound_regression_datasink")
-
-    workflow.connect([
-        (confound_regression_wf, confound_regression_datasink, [
-            ("outputnode.cr_out", "cr_outputs"),
-            ("outputnode.mel_out", "subject_melodic_ICA"),
-            ("outputnode.tSNR_file", "tSNR_map"),
-            ]),
-        ])
+    if cr_opts.rabies_step == 'confound_regression':
+        confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
+                                                        container="confound_regression_datasink"),
+                                               name="confound_regression_datasink")
+        workflow.connect([
+            (confound_regression_wf, confound_regression_datasink, [
+                ("outputnode.cr_out", "cr_outputs"),
+                ("outputnode.mel_out", "subject_melodic_ICA"),
+                ("outputnode.tSNR_file", "tSNR_map"),
+                ]),
+            ])
 
     return workflow, confound_regression_wf
 
