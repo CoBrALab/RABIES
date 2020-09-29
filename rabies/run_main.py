@@ -27,7 +27,8 @@ def get_parser():
     preprocess = subparsers.add_parser("preprocess",
                                        help="""Conducts preprocessing on an input dataset in BIDS format.
         Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear registration,
-        registration to a commonspace atlas and associated masks, as well as further options (see --help).
+        registration to a commonspace atlas and associated masks, evaluation of confounding timecourses, and includes various
+        execution options (see --help).
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
                                                 help="""Flexible options for confound regression applied

@@ -190,7 +190,6 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
         VE = MSE/TV # total variance explained in each observation
         VE[np.isnan(VE)] = 0
 
-        print(VE.mean())
         MSE = np.mean((residuals**2)) # mean square error after regression, for each observation independently
         TV = np.mean((Y-Y.mean(axis=0))**2) # Original variance in each observation before regression
         VE_tot = MSE/TV
