@@ -27,6 +27,9 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         ])
 
     if len(seed_list) > 0:
+        if not commonspace_cr:
+            raise ValueError(
+                'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again with --commonspace_bold.')
         seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_list'],
                                               output_names=['corr_map_file'],
                                               function=seed_based_FC),

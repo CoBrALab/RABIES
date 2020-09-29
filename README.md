@@ -319,6 +319,7 @@ rabies preprocess /nii_inputs /outputs --further_execution_specifications
 ## Managing outputs
 Important outputs will be found in the datasink folders:
 * **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+  * 
 * **bold_datasink**: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and other key EPI outputs from the preprocessing workflow
 * **commonspace_datasink**: Outputs from the common space registration
 * **transforms_datasink**: Contains all transforms

@@ -39,7 +39,8 @@ def get_parser():
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     analysis = subparsers.add_parser("analysis",
                                      help="""
-        Optional analysis to conduct on cleaned timeseries.
+        A few built-in resting-state functional connectivity (FC) analysis options are provided to conduct rapid analysis on the cleaned timeseries.
+        The options include seed-based FC, voxelwise or parcellated whole-brain FC, group-ICA and dual regression.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
@@ -229,7 +230,8 @@ def get_parser():
     analysis.add_argument('--seed_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
-                                     help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps.')
+                                     help="Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps."
+                                     "Each seed must consist of a binary mask representing the ROI in commonspace.")
     g_fc_matrix = analysis.add_argument_group(
         'Options for performing a whole-brain timeseries correlation matrix analysis.')
     g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
