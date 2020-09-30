@@ -599,11 +599,18 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
                                                name="confound_regression_datasink")
         workflow.connect([
             (confound_regression_wf, confound_regression_datasink, [
-                ("outputnode.cr_out", "cr_outputs"),
+                ("outputnode.cleaned_path", "cleaned_timeseries"),
+                ("outputnode.VE_file", "VE_file"),
                 ("outputnode.mel_out", "subject_melodic_ICA"),
                 ("outputnode.tSNR_file", "tSNR_map"),
                 ]),
             ])
+        if cr_opts.run_aroma:
+            workflow.connect([
+                (confound_regression_wf, confound_regression_datasink, [
+                    ("outputnode.aroma_out", "aroma_out"),
+                    ]),
+                ])
 
     return workflow, confound_regression_wf
 

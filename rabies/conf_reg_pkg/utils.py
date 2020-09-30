@@ -48,12 +48,16 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
     return bold_file, brain_mask_file, confounds_file, csf_mask, FD_file
 
 
-def exec_ICA_AROMA(inFile, outDir, mc_file, brain_mask, csf_mask, tr, aroma_dim):
+def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
     import os
+    from rabies.conf_reg_pkg.utils import csv2par
     from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
-    run_ICA_AROMA(os.path.abspath(outDir), os.path.abspath(inFile), mc=os.path.abspath(mc_file), TR=float(tr), mask=os.path.abspath(
+    aroma_out = os.getcwd()+'/aroma_out'
+
+    run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
         brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True)
-    return os.path.abspath(outDir+'/denoised_func_data_nonaggr.nii.gz')
+    cleaned_file = os.path.abspath(aroma_out+'/denoised_func_data_nonaggr.nii.gz')
+    return cleaned_file, aroma_out
 
 
 def csv2par(in_confounds):
@@ -98,31 +102,37 @@ def scrubbing(img, FD_file, scrubbing_threshold, timeseries_interval):
 
 
 def select_timeseries(bold_file, timeseries_interval):
+    if timeseries_interval == 'all':
+        return bold_file
+    else:
+        import os
+        import numpy as np
+        import nibabel as nb
+        img = nb.load(bold_file)
+        lowcut = int(timeseries_interval.split(',')[0])
+        highcut = int(timeseries_interval.split(',')[1])
+        bold_file = os.path.abspath('selected_timeseries.nii.gz')
+        nb.Nifti1Image(np.asarray(img.dataobj)[
+                       :, :, :, lowcut:highcut], img.affine, img.header).to_filename(bold_file)
+        return bold_file
+
+
+def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, lowpass, highpass, smoothing_filter,
+            apply_scrubbing, scrubbing_threshold, timeseries_interval):
     import os
     import numpy as np
-    import nibabel as nb
-    img = nb.load(bold_file)
-    lowcut = int(timeseries_interval.split(',')[0])
-    highcut = int(timeseries_interval.split(',')[1])
-    bold_file = os.path.abspath('selected_timeseries.nii.gz')
-    nb.Nifti1Image(np.asarray(img.dataobj)[
-                   :, :, :, lowcut:highcut], img.affine, img.header).to_filename(bold_file)
-    return bold_file
-
-
-def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_list, TR, lowpass, highpass, smoothing_filter,
-            run_aroma, aroma_dim, apply_scrubbing, scrubbing_threshold, timeseries_interval):
-    import os
     import pandas as pd
-    import numpy as np
     import nilearn.image
-    from rabies.conf_reg_pkg.utils import scrubbing, exec_ICA_AROMA, csv2par
+    from rabies.conf_reg_pkg.utils import scrubbing
 
     if ('mot_6' in conf_list) and ('mot_24' in conf_list):
         raise ValueError(
             "Can't select both the mot_6 and mot_24 options; must pick one.")
 
     cr_out = os.getcwd()
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    cleaning_input = bold_file
 
     confounds = pd.read_csv(confounds_file)
     keys = confounds.keys()
@@ -148,25 +158,6 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
     '''
     Evaluate the variance explained (VE) by each regressor
     '''
-
-    import nibabel as nb
-
-    brain_mask=np.asarray(nb.load(brain_mask_file).dataobj)
-    volume_indices=brain_mask.astype(bool)
-    img=nb.load(bold_file)
-    array=np.asarray(img.dataobj)
-
-    data_array=np.asarray(nb.load(bold_file).dataobj)
-    timeseries=np.zeros([data_array.shape[3],volume_indices.sum()])
-    for i in range(data_array.shape[3]):
-        timeseries[i,:]=(data_array[:,:,:,i])[volume_indices]
-
-    if not timeseries_interval == 'all':
-        lowcut = int(timeseries_interval.split(',')[0])
-        highcut = int(timeseries_interval.split(',')[1])
-        confounds_array = confounds_array[lowcut:highcut, :]
-        timeseries = timeseries[lowcut:highcut, :]
-
     # functions that computes the Least Squares Estimates
     def closed_form(X, Y, intercept=False):
         if intercept:
@@ -180,62 +171,77 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
         X[np.isnan(X)] = 0
         Y[np.isnan(Y)] = 0
         # for each observation, it's values can be expressed through a linear combination of the predictors
-        w = closed_form(X, Y, intercept=True) # take a bias into account in the model
+        # take a bias into account in the model
+        w = closed_form(X, Y, intercept=True)
 
-        X_i = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1) # add an intercept
-        residuals = (Y-np.matmul(X_i, w)) # the residuals after regressing out the predictors
-        MSE = np.mean((residuals**2), axis=0) # mean square error after regression, for each observation independently
-        TV = np.mean((Y-Y.mean(axis=0))**2, axis=0) # Original variance in each observation before regression
+        # add an intercept
+        X_i = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1)
+        # the residuals after regressing out the predictors
+        residuals = (Y-np.matmul(X_i, w))
+        # mean square error after regression, for each observation independently
+        MSE = np.mean((residuals**2), axis=0)
+        # Original variance in each observation before regression
+        TV = np.mean((Y-Y.mean(axis=0))**2, axis=0)
 
-        VE = MSE/TV # total variance explained in each observation
+        VE = MSE/TV  # total variance explained in each observation
         VE[np.isnan(VE)] = 0
 
-        MSE = np.mean((residuals**2)) # mean square error after regression, for each observation independently
-        TV = np.mean((Y-Y.mean(axis=0))**2) # Original variance in each observation before regression
+        # mean square error after regression, for each observation independently
+        MSE = np.mean((residuals**2))
+        # Original variance in each observation before regression
+        TV = np.mean((Y-Y.mean(axis=0))**2)
         VE_tot = MSE/TV
 
-        w = w[:-1,:] # take out the intercept
-        #now evaluate the portion of variance explained by each predictor,
+        w = w[:-1, :]  # take out the intercept
+        # now evaluate the portion of variance explained by each predictor,
         # scale all beta values to relative percentages of variance explained,
         # with the assumption that each beta value represents directly the relative contribution of each predictor
         # (guaranteed by the standardization of across feature)
-        TV = np.sum((w-w.mean(axis=0))**2, axis=0) # Original variance in each observation before regression
+        # Original variance in each observation before regression
+        TV = np.sum((w-w.mean(axis=0))**2, axis=0)
         pred_VE = (w-w.mean(axis=0))**2/TV
         pred_VE[np.isnan(pred_VE)] = 0
-        VE_observations = pred_VE*VE # scale by the proportion of total variance explained
+        VE_observations = pred_VE*VE  # scale by the proportion of total variance explained
 
         # evaluate also variance explained from the entire data
-        pred_variance = w.var(axis=1) # variance along each dimension
-        TV = pred_variance.sum() # evaluate the sum of variance present in this new dimensional space
-        pred_VE = pred_variance/TV # portion of variance explained from each dimension
+        pred_variance = w.var(axis=1)  # variance along each dimension
+        # evaluate the sum of variance present in this new dimensional space
+        TV = pred_variance.sum()
+        pred_VE = pred_variance/TV  # portion of variance explained from each dimension
         total_VE = pred_VE*VE_tot
-        return total_VE,VE_observations,residuals
+        return total_VE, VE_observations, residuals
 
-    total_VE,VE_observations,residuals = linear_regression_var_explained(confounds_array, timeseries)
+    import nibabel as nb
+    brain_mask = np.asarray(nb.load(brain_mask_file).dataobj)
+    volume_indices = brain_mask.astype(bool)
+
+    data_array = np.asarray(nb.load(bold_file).dataobj)
+    timeseries = np.zeros([data_array.shape[3], volume_indices.sum()])
+    for i in range(data_array.shape[3]):
+        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
+
+    if not timeseries_interval == 'all':
+        lowcut = int(timeseries_interval.split(',')[0])
+        highcut = int(timeseries_interval.split(',')[1])
+        confounds_array = confounds_array[lowcut:highcut, :]
+        timeseries = timeseries[lowcut:highcut, :]
+
+    total_VE, VE_observations, residuals = linear_regression_var_explained(
+        confounds_array, timeseries)
 
     VE_dict = {}
     i = 0
-    for VE,conf in zip(total_VE,conf_keys):
-        VE_dict[conf] = VE_observations[i,:]
-        print(conf+' explains '+str(round(VE,3)*100)+'% of the variance.')
+    for VE, conf in zip(total_VE, conf_keys):
+        VE_dict[conf] = VE_observations[i, :]
+        print(conf+' explains '+str(round(VE, 3)*100)+'% of the variance.')
         i += 1
-
-
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     import pickle
     VE_file = cr_out+'/'+filename_split[0]+'_VE_dict.pkl'
     with open(VE_file, 'wb') as handle:
         pickle.dump(VE_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    cleaning_input = bold_file
-
-    # including detrending, standardization
-    if run_aroma:
-        aroma_out = cr_out+'/%s_aroma' % (filename_split[0])
-        cleaning_input = exec_ICA_AROMA(cleaning_input, aroma_out, csv2par(
-            confounds_file), brain_mask_file, csf_mask, TR, aroma_dim)
+    # cleaning includes detrending, standardization
     if len(conf_list) > 0:
         cleaned = nilearn.image.clean_img(cleaning_input, detrend=True, standardize=True, low_pass=lowpass,
                                           high_pass=highpass, confounds=confounds_array, t_r=TR, mask_img=brain_mask_file)
@@ -243,15 +249,16 @@ def regress(bold_file, brain_mask_file, confounds_file, csf_mask, FD_file, conf_
         cleaned = nilearn.image.clean_img(cleaning_input, detrend=True, standardize=True,
                                           low_pass=lowpass, high_pass=highpass, confounds=None, t_r=TR, mask_img=brain_mask_file)
 
-    if smoothing_filter is not None:
-        cleaned = nilearn.image.smooth_img(cleaned, smoothing_filter)
-
     if apply_scrubbing:
         cleaned = scrubbing(
             cleaned, FD_file, scrubbing_threshold, timeseries_interval)
+
+    if smoothing_filter is not None:
+        cleaned = nilearn.image.smooth_img(cleaned, smoothing_filter)
+
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
     cleaned.to_filename(cleaned_path)
-    return cleaned_path, bold_file, cr_out, VE_file
+    return cleaned_path, bold_file, VE_file
 
 
 class data_diagnosisInputSpec(BaseInterfaceInputSpec):

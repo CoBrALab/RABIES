@@ -27,18 +27,25 @@ Commands:
                         format. Preprocessing includes realignment for motion,
                         correction for susceptibility distortions through non-
                         linear registration, registration to a commonspace
-                        atlas and associated masks, as well as further options
+                        atlas and associated masks, evaluation of confounding
+                        timecourses, and includes various execution options
                         (see --help).
     confound_regression
-                        Flexible options for confound regression applied on
-                        preprocessing outputs from RABIES. ICA-AROMA is
-                        applied first, followed by detrending, then regression
-                        of confound timeseries orthogonal to the application
-                        of temporal filters (nilearn.clean_img, Lindquist
-                        2018), standardization of timeseries, smoothing, and
-                        finally scrubbing. The corrections follow user
-                        specifications.
-    analysis            Optional analysis to conduct on cleaned timeseries.
+                        Different options for confound regression are
+                        available to apply directly on preprocessing outputs
+                        from RABIES. Only selected confound regression and
+                        denoising strategies are applied. The denoising steps
+                        are applied in the following order: ICA-AROMA first,
+                        followed by detrending, then regression of confound
+                        timeseries orthogonal to the application of temporal
+                        filters (nilearn.clean_img, Lindquist 2018),
+                        standardization of timeseries, scrubbing, and finally
+                        smoothing.
+    analysis            A few built-in resting-state functional connectivity
+                        (FC) analysis options are provided to conduct rapid
+                        analysis on the cleaned timeseries. The options
+                        include seed-based FC, voxelwise or parcellated whole-
+                        brain FC, group-ICA and dual regression.
 
 Options for managing the execution of the workflow.:
   -p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}, --plugin {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}
@@ -59,6 +66,100 @@ Options for managing the execution of the workflow.:
   --min_proc MIN_PROC   For SGE parallel processing, specify the minimal
                         number of nodes to be assigned to avoid memory
                         crashes. (default: 1)
+```
+
+## Input data format
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
+If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+
+### Directory Tree of an example input folder
+* An example dataset for testing RABIES is available http://doi.org/10.5281/zenodo.3937697 with the following structure:
+
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <meta name="Author" content="Made by 'tree'">
+ <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
+  <!--
+  BODY { font-family : ariel, monospace, sans-serif; }
+  P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
+  B { font-weight: normal; color: black; background-color: transparent;}
+  A:visited { font-weight : normal; text-decoration : none; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:link    { font-weight : normal; text-decoration : none; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:hover   { color : #000000; font-weight : normal; text-decoration : underline; background-color : yellow; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:active  { color : #000000; font-weight: normal; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  .VERSION { font-size: small; font-family : arial, sans-serif; }
+  .NORM  { color: black;  background-color: transparent;}
+  .FIFO  { color: purple; background-color: transparent;}
+  .CHAR  { color: yellow; background-color: transparent;}
+  .DIR   { color: blue;   background-color: transparent;}
+  .BLOCK { color: yellow; background-color: transparent;}
+  .LINK  { color: aqua;   background-color: transparent;}
+  .SOCK  { color: fuchsia;background-color: transparent;}
+  .EXEC  { color: green;  background-color: transparent;}
+  -->
+</head>
+<body>
+	<p>
+	<a href="test_dataset">test_dataset</a><br>
+	├── <a href="test_dataset/sub-MFC067/">sub-MFC067</a><br>
+	│   └── <a href="test_dataset/sub-MFC067/ses-1/">ses-1</a><br>
+	│   &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC067/ses-1/anat/">anat</a><br>
+	│   &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/">func</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+	└── <a href="test_dataset/sub-MFC068/">sub-MFC068</a><br>
+	&nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/">ses-1</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC068/ses-1/anat/">anat</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/">func</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+	<br><br>
+	</p>
+	<p>
+
+8 directories, 4 files
+	<br><br>
+	</p>
+	<hr>
+	<p class="VERSION">
+		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
+		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
+		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
+		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
+	</p>
+</body>
+</html>
+
+## Execution syntax
+Below is an example for the execution of RABIES, where the option for local parallel execution (-p MultiProc) is specified,
+followed by the image processing step (preprocess), then the paths to the input and output directories, and finally the
+desired specifications for the preprocessing (using the --autoreg option and specifying the repetition time --TR 1.0s):
+```sh
+rabies -p MultiProc preprocess bids_inputs/ rabies_outputs/ --autoreg --TR 1.0s
+```
+### Running RABIES interactively within a container (Singularity and Docker)
+Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
+execution of the software regardless of the user. These ensure more consistent execution and outputs.
+Singularity containers can also be exported to remote high-performance computing platforms (e.g. computecanada).
+<br/>
+The main difference for the execution of a container consists in relating the paths for all relevant directories from the local
+computer to the container's internal folders. This is done using -B for Singularity and -v for Docker. See below for examples:
+<br/>
+**Singularity execution**
+```sh
+singularity run -B /local_input_folder_path:/nii_inputs:ro \
+-B /local_output_folder_path:/rabies_out \
+/path_to_singularity_image/rabies.sif preprocess /nii_inputs /rabies_out \
+--rabies_execution_specifications
+```
+**Docker execution**
+```sh
+docker run -it --rm \
+-v /local_input_folder_path:/nii_inputs:ro \
+-v /local_output_folder_path:/outputs \
+rabies preprocess /nii_inputs /outputs --further_execution_specifications
 ```
 
 # Preprocessing
@@ -222,108 +323,52 @@ Provided commonspace atlas files.:
                         40micron_labels.nii.gz)
 ```
 
-## Input data format
-Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
-If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+## Outputs
 
-### Directory Tree of an example input folder
-* An example dataset for testing RABIES is available http://doi.org/10.5281/zenodo.3937697 with the following structure:
+Important outputs will be found in the datasink folders. All the different preprocessing outputs are found below:
+- **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+    - anat_preproc: preprocessed anatomical scans that are used for further registrations
+    - anat_mask: brain mask in the anatomical native space
+    - WM_mask: WM mask in the anatomical native space
+    - CSF_mask: CSF mask in the anatomical native space
+    - anat_labels: atlas labels in the anatomical native space
+- **bold_datasink**: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and other key EPI outputs from the preprocessing workflow
+    - input_bold: original raw EPI images used as inputs into the pipeline
+    - corrected_bold: EPI timeseries after preprocessing in native space
+    - corrected_bold_ref: reference 3D EPI image (temporal median) after correction
+    - bold_brain_mask: brain mask in the corrected_bold space
+    - bold_WM_mask: WM mask in the corrected_bold space
+    - bold_CSF_mask: CSF mask in the corrected_bold space
+    - bold_labels: atlas labels in the corrected_bold space
+    - commonspace_bold: EPI timeseries after preprocessing in common space
+    - commonspace_bold_mask: brain mask in the commonspace_bold space
+    - commonspace_bold_WM_mask: WM mask in the commonspace_bold space
+    - commonspace_bold_CSF_mask: CSF mask in the commonspace_bold space
+    - commonspace_vascular_mask: vascular mask in the commonspace_bold space
+    - commonspace_bold_labels: atlas labels in the commonspace_bold space
+    - initial_bold_ref: initial reference 3D EPI image that was subsequently used for bias-field correction
+    - bias_cor_bold: reference 3D EPI after bias-field correction which is then used for co-registration
+    - bias_cor_bold_warped2anat: bias_cor_bold warped to the co-registration target anatomical image
+- **commonspace_datasink**: Outputs from the common space registration
+    - ants_dbm_template: the dataset template generated from the registration of anatomical images, using two-level ants dbm (https://github.com/CoBrALab/twolevel_ants_dbm), can be found here
+    - warped_template: ants_dbm_template warped to the provided common space template after registration
+    - ants_dbm_outputs: a complete output from the two-level ants dbm run for the generation of a dataset anatomical template
+- **transforms_datasink**: Contains all transforms
+    - affine_bold2anat: affine transforms from the EPI co-registration to the anatomical image
+    - warp_bold2anat: non-linear transforms from the EPI co-registration to the anatomical image
+    - inverse_warp_bold2anat: inverse of the non-linear transforms from the EPI co-registration to the anatomical image
+    - anat_to_template_affine: affine transforms from the registration of the anatomical image to ants_dbm_template registration
+    - anat_to_template_warp: non-linear transforms from the registration of the anatomical image to ants_dbm_template registration
+    - anat_to_template_inverse_warp: inverse of the non-linear transforms from the registration of the anatomical image to ants_dbm_template
+    - template_to_common_affine: affine transforms from the registration of the ants_dbm_template to the commonspace template
+    - template_to_common_warp: non-linear transforms from the registration of the ants_dbm_template to the commonspace template
+    - template_to_common_inverse_warp: inverse of the non-linear transforms from the registration of the ants_dbm_template to the commonspace template
 
-<!DOCTYPE html>
-<html>
-<head>
- <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
- <meta name="Author" content="Made by 'tree'">
- <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
-  <!--
-  BODY { font-family : ariel, monospace, sans-serif; }
-  P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
-  B { font-weight: normal; color: black; background-color: transparent;}
-  A:visited { font-weight : normal; text-decoration : none; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:link    { font-weight : normal; text-decoration : none; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:hover   { color : #000000; font-weight : normal; text-decoration : underline; background-color : yellow; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:active  { color : #000000; font-weight: normal; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  .VERSION { font-size: small; font-family : arial, sans-serif; }
-  .NORM  { color: black;  background-color: transparent;}
-  .FIFO  { color: purple; background-color: transparent;}
-  .CHAR  { color: yellow; background-color: transparent;}
-  .DIR   { color: blue;   background-color: transparent;}
-  .BLOCK { color: yellow; background-color: transparent;}
-  .LINK  { color: aqua;   background-color: transparent;}
-  .SOCK  { color: fuchsia;background-color: transparent;}
-  .EXEC  { color: green;  background-color: transparent;}
-  -->
-</head>
-<body>
-	<p>
-	<a href="test_dataset">test_dataset</a><br>
-	├── <a href="test_dataset/sub-MFC067/">sub-MFC067</a><br>
-	│   └── <a href="test_dataset/sub-MFC067/ses-1/">ses-1</a><br>
-	│   &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC067/ses-1/anat/">anat</a><br>
-	│   &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/">func</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	└── <a href="test_dataset/sub-MFC068/">sub-MFC068</a><br>
-	&nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC068/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/">func</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	<br><br>
-	</p>
-	<p>
-
-8 directories, 4 files
-	<br><br>
-	</p>
-	<hr>
-	<p class="VERSION">
-		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
-		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
-		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
-		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
-	</p>
-</body>
-</html>
-
-## Execution syntax
-Below is an example for the execution of RABIES, where the option for local parallel execution (-p MultiProc) is specified,
-followed by the image processing step (preprocess), then the paths to the input and output directories, and finally the
-desired specifications for the preprocessing (using the --autoreg option and specifying the repetition time --TR 1.0s):
-```sh
-rabies -p MultiProc preprocess bids_inputs/ rabies_outputs/ --autoreg --TR 1.0s
-```
-### Running RABIES interactively within a container (Singularity and Docker)
-Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
-execution of the software regardless of the user. These ensure more consistent execution and outputs.
-Singularity containers can also be exported to remote high-performance computing platforms (e.g. computecanada).
-<br/>
-The main difference for the execution of a container consists in relating the paths for all relevant directories from the local
-computer to the container's internal folders. This is done using -B for Singularity and -v for Docker. See below for examples:
-<br/>
-**Singularity execution**
-```sh
-singularity run -B /local_input_folder_path:/nii_inputs:ro \
--B /local_output_folder_path:/rabies_out \
-/path_to_singularity_image/rabies.sif preprocess /nii_inputs /rabies_out \
---rabies_execution_specifications
-```
-**Docker execution**
-```sh
-docker run -it --rm \
--v /local_input_folder_path:/nii_inputs:ro \
--v /local_output_folder_path:/outputs \
-rabies preprocess /nii_inputs /outputs --further_execution_specifications
-```
-
-## Managing outputs
-Important outputs will be found in the datasink folders:
-* **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
-  * 
-* **bold_datasink**: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and other key EPI outputs from the preprocessing workflow
-* **commonspace_datasink**: Outputs from the common space registration
-* **transforms_datasink**: Contains all transforms
-* **confounds_datasink**: contains confounding features from the EPI that are relevant for subsequent confound regression
+- **confounds_datasink**: contains confounding features from the EPI that are relevant for subsequent confound regression
+    - confounds_csv: a .csv file with the diverse potential confound timecourses. Includes up to 24 motion parameters (6 rigid parameters, their temporal derivative, and all 12 parameters squared; Friston et al. 1996), the global signal, the WM mask signal, the CSF mask signal, the vascular mask signal and aCompCor timecourses (Muschelli et al. 2014).
+    - FD_csv: a .csv file with the timecourse of the voxelwise mean and maximal framewise displacement (FD) estimations
+    - FD_voxelwise: a .nii image which contains FD timecourses for all single voxel
+    - pos_voxelwise: a .nii image which contains the relative positioning timecourses for all single voxel
 
 ### Recommendations for Quality Control (QC)
 Registration overlaps and motion timecourses are presented in .png format in the rabies_out/QC_report directory:
@@ -379,12 +424,25 @@ optional arguments:
   --lowpass LOWPASS     Specify lowpass filter frequency. (default: None)
   --smoothing_filter SMOOTHING_FILTER
                         Specify smoothing filter size in mm. (default: None)
-  --run_aroma           Whether to run ICA AROMA or not. (default: False)
+  --run_aroma           Whether to run ICA-AROMA or not. The classifier
+                        implemented within RABIES is a slightly modified
+                        version from the original (Pruim et al. 2015), with
+                        parameters and masks adapted for rodent images.
+                        (default: False)
   --aroma_dim AROMA_DIM
-                        Can specify a number of dimension for MELODIC.
-                        (default: 0)
+                        Can specify a number of dimension for the MELODIC run
+                        before ICA-AROMA. (default: 0)
   --conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]]
-                        list of regressors. (default: [])
+                        list of nuisance regressors that will be applied on
+                        voxel timeseries. mot_6 corresponds to the 6 rigid
+                        body parameters, and mot_24 corresponds to the 6 rigid
+                        parameters, their temporal derivative, and all 12
+                        parameters squared (Friston et al. 1996). aCompCor
+                        corresponds the timeseries of components from a PCA
+                        conducted on the combined WM and CSF masks voxel
+                        timeseries, including all components that together
+                        explain 50 percent. of the variance, as in Muschelli
+                        et al. 2014. (default: [])
   --apply_scrubbing     Whether to apply scrubbing or not. A temporal mask
                         will be generated based on the FD threshold. The
                         frames that exceed the given threshold together with 1
@@ -395,15 +453,25 @@ optional arguments:
   --scrubbing_threshold SCRUBBING_THRESHOLD
                         Scrubbing threshold for the mean framewise
                         displacement in mm (averaged across the brain mask) to
-                        select corrupted volumes. (default: 0.1)
+                        select corrupted volumes. (default: 0.05)
   --timeseries_interval TIMESERIES_INTERVAL
                         Specify a time interval in the timeseries to keep.
                         e.g. "0,80". By default all timeseries are kept.
                         (default: all)
-  --diagnosis_output    Run a diagnosis for each image by computing melodic-
-                        ICA on the corrected timeseries,and compute a tSNR map
-                        from the input uncorrected image. (default: False)
+  --diagnosis_output    Run a diagnosis for each individual image by computing
+                        melodic-ICA on the corrected timeseries,and compute a
+                        tSNR map from the input uncorrected image. (default:
+                        False)
 ```
+## Outputs
+
+Important outputs from confound regression will be found in the confound_regression_datasink present in the provided output folder:
+- **confound_regression_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+    - cleaned_timeseries: Resulting timeseries after the application of confound regression
+    - VE_file: .pkl file which contains a dictionary vectors, where each vector corresponds to the voxelwise the variance explained (VE) from each regressor in the regression model
+    - aroma_out: if --run_aroma is selected, the outputs from running ICA-AROMA will be saved, which includes the MELODIC ICA outputs and the component classification results
+    - subject_melodic_ICA: if --diagnosis_output is activated, will contain the outputs from MELODIC ICA run on each individual scan
+    - tSNR_map: if --diagnosis_output is activated, this will contain the tSNR map for each scan before confound regression
 
 # Analysis
 ```
@@ -423,8 +491,9 @@ optional arguments:
   -h, --help            show this help message and exit
   --seed_list [SEED_LIST [SEED_LIST ...]]
                         Can provide a list of seed .nii images that will be
-                        used to evaluate seed-based correlation maps.
-                        (default: [])
+                        used to evaluate seed-based correlation maps.Each seed
+                        must consist of a binary mask representing the ROI in
+                        commonspace. (default: [])
 
 Options for performing a whole-brain timeseries correlation matrix analysis.:
   --FC_matrix           Choose this option to derive a whole-brain functional
@@ -457,6 +526,18 @@ Options for performing a dual regression analysis based on a previous group-ICA 
                         cleaned timeseries. (default: None)
 ```
 
+## Outputs
+
+Important outputs from analysis will be found in the analysis_datasink present in the provided output folder:
+- **analysis_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+    - group_ICA_dir: complete output from MELODIC ICA, which includes a HTML report for visualization
+    - group_IC_file: MELODIC ICA output file with the ICA components
+    - DR_data_file: dual regression outputs in the form of a .pkl file which contains a 2D numpy array of component number by voxel number
+    - DR_nii_file: dual regression outputs in the form of a .nii file which contains all component 3D maps concatenated into a single .nii file, where the component numbers correspond to the provided template ICA file
+    - matrix_data_file: .pkl file which contains a 2D numpy array representing the whole-brain correlation matrix. If using parcellation, the row/column ROI indices are in increasing number of the atlas label number
+    - matrix_fig: .png file offered for visualization which represent the correlation matrix
+    - seed_correlation_maps: nifti files with voxelwise correlation maps for all provided seeds for seed-based FC
+
 # Acknowledgments
 
 **Acknowledging RABIES:** We currently ask users to acknowledge the usage of this software by citing the Github page.
@@ -476,4 +557,6 @@ Organization for Human Brain Mapping 2020, Virtual Conference (06/2020)
 * FSL MELODIC - https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/MELODIC - Beckmann, C. F., Mackay, C. E., Filippini, N., & Smith, S. M. (2009). Group comparison of resting-state FMRI data using multi-subject ICA and dual regression. Neuroimage, 47(Suppl 1), S148.
 * ANTs - https://github.com/ANTsX/ANTs
 * AFNI - https://afni.nimh.nih.gov/
+* Friston, K. J., Williams, S., Howard, R., Frackowiak, R. S., & Turner, R. (1996). Movement‐related effects in fMRI time‐series. Magnetic resonance in medicine, 35(3), 346-355.
+* Muschelli, J., Nebel, M. B., Caffo, B. S., Barber, A. D., Pekar, J. J., & Mostofsky, S. H. (2014). Reduction of motion-related artifacts in resting state fMRI using aCompCor. Neuroimage, 96, 22-35.
 * Hong, X., To, X. V., Teh, I., Soh, J. R., & Chuang, K. H. (2015). Evaluation of EPI distortion correction methods for quantitative MRI of the brain at high magnetic field. Magnetic resonance imaging, 33(9), 1098-1105.

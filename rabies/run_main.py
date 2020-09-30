@@ -31,11 +31,11 @@ def get_parser():
         execution options (see --help).
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
-                                                help="""Flexible options for confound regression applied
-        on preprocessing outputs from RABIES. ICA-AROMA is applied first, followed by detrending, then
+                                                help="""Different options for confound regression are available to apply directly
+        on preprocessing outputs from RABIES. Only selected confound regression and denoising strategies are applied.
+        The denoising steps are applied in the following order: ICA-AROMA first, followed by detrending, then
         regression of confound timeseries orthogonal to the application of temporal filters
-        (nilearn.clean_img, Lindquist 2018), standardization of timeseries, smoothing, and finally scrubbing. The corrections
-        follow user specifications.
+        (nilearn.clean_img, Lindquist 2018), standardization of timeseries, scrubbing, and finally smoothing.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     analysis = subparsers.add_parser("analysis",
                                      help="""
@@ -198,29 +198,33 @@ def get_parser():
                                      help='Specify smoothing filter size in mm.')
     confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
                                      default=False,
-                                     help='Whether to run ICA AROMA or not.')
+                                     help="Whether to run ICA-AROMA or not. The classifier implemented within RABIES "
+                                     "is a slightly modified version from the original (Pruim et al. 2015), with parameters and masks adapted for rodent images.")
     confound_regression.add_argument('--aroma_dim', type=int,
                                      default=0,
-                                     help='Can specify a number of dimension for MELODIC.')
+                                     help='Can specify a number of dimension for the MELODIC run before ICA-AROMA.')
     confound_regression.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
                                      choices=["WM_signal", "CSF_signal", "vascular_signal",
                                               "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
-                                     help='list of regressors.')
+                                     help="list of nuisance regressors that will be applied on voxel timeseries. mot_6 corresponds to the 6 rigid body parameters, "
+                                     "and mot_24 corresponds to the 6 rigid parameters, their temporal derivative, and all 12 parameters squared (Friston et al. 1996). "
+                                     "aCompCor corresponds the timeseries of components from a PCA conducted on the combined WM and CSF masks voxel timeseries, including "
+                                     "all components that together explain 50 percent. of the variance, as in Muschelli et al. 2014.")
     confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
                                      default=False,
                                      help="""Whether to apply scrubbing or not. A temporal mask will be generated based on the FD threshold.
                         The frames that exceed the given threshold together with 1 back and 2 forward frames will be masked out
                         from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
     confound_regression.add_argument('--scrubbing_threshold', type=float,
-                                     default=0.1,
+                                     default=0.05,
                                      help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
     confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                                      help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
     confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
                                      default=False,
-                                     help="Run a diagnosis for each image by computing melodic-ICA on the corrected timeseries,"
+                                     help="Run a diagnosis for each individual image by computing melodic-ICA on the corrected timeseries,"
                                      "and compute a tSNR map from the input uncorrected image.")
 
     analysis.add_argument('confound_regression_out', action='store', type=Path,
