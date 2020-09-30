@@ -17,8 +17,8 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
     import os
     import subprocess
     import shutil
-    import rabies.conf_reg.mod_ICA_AROMA.classification_plots as classification_plots
-    import rabies.conf_reg.mod_ICA_AROMA.ICA_AROMA_functions as aromafunc
+    import rabies.conf_reg_pkg.mod_ICA_AROMA.classification_plots as classification_plots
+    import rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions as aromafunc
 
     # Change to script directory
     cwd = os.path.realpath(os.path.curdir)

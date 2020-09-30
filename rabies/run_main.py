@@ -27,19 +27,21 @@ def get_parser():
     preprocess = subparsers.add_parser("preprocess",
                                        help="""Conducts preprocessing on an input dataset in BIDS format.
         Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear registration,
-        registration to a commonspace atlas and associated masks, as well as further options (see --help).
-        """)
+        registration to a commonspace atlas and associated masks, evaluation of confounding timecourses, and includes various
+        execution options (see --help).
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
-                                                help="""Flexible options for confound regression applied
-        on preprocessing outputs from RABIES. Smoothing is applied first, followed by ICA-AROMA, detrending, then
+                                                help="""Different options for confound regression are available to apply directly
+        on preprocessing outputs from RABIES. Only selected confound regression and denoising strategies are applied.
+        The denoising steps are applied in the following order: ICA-AROMA first, followed by detrending, then
         regression of confound timeseries orthogonal to the application of temporal filters
-        (nilearn.clean_img, Lindquist 2018), standardization of timeseries and finally scrubbing. The corrections
-        follow user specifications.
-        """)
+        (nilearn.clean_img, Lindquist 2018), standardization of timeseries, scrubbing, and finally smoothing.
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     analysis = subparsers.add_parser("analysis",
                                      help="""
-        Optional analysis to conduct on cleaned timeseries.
-        """)
+        A few built-in resting-state functional connectivity (FC) analysis options are provided to conduct rapid analysis on the cleaned timeseries.
+        The options include seed-based FC, voxelwise or parcellated whole-brain FC, group-ICA and dual regression.
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
@@ -104,6 +106,10 @@ def get_parser():
         default='autoreg_SyN',
         help="""Registration script that will be used for registration of the generated dataset
         template to the provided commonspace atlas for masking and labeling.""")
+    g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
+                                help="Choosing this option will skip the generation of a dataset template, and instead, "
+                                "each anatomical scan will be individually registered to the commonspace template using the --template_reg_script."
+                                "Note that this option, although faster, is expected to reduce the quality of commonspace registration.")
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
@@ -188,43 +194,48 @@ def get_parser():
                                      help='Specify highpass filter frequency.')
     confound_regression.add_argument('--lowpass', type=float, default=None,
                                      help='Specify lowpass filter frequency.')
-    confound_regression.add_argument('--smoothing_filter', type=float, default=0.3,
+    confound_regression.add_argument('--smoothing_filter', type=float, default=None,
                                      help='Specify smoothing filter size in mm.')
     confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true',
                                      default=False,
-                                     help='Whether to run ICA AROMA or not.')
+                                     help="Whether to run ICA-AROMA or not. The classifier implemented within RABIES "
+                                     "is a slightly modified version from the original (Pruim et al. 2015), with parameters and masks adapted for rodent images.")
     confound_regression.add_argument('--aroma_dim', type=int,
                                      default=0,
-                                     help='Can specify a number of dimension for MELODIC.')
+                                     help='Can specify a number of dimension for the MELODIC run before ICA-AROMA.')
     confound_regression.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
                                      choices=["WM_signal", "CSF_signal", "vascular_signal",
                                               "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
-                                     help='list of regressors.')
+                                     help="list of nuisance regressors that will be applied on voxel timeseries. mot_6 corresponds to the 6 rigid body parameters, "
+                                     "and mot_24 corresponds to the 6 rigid parameters, their temporal derivative, and all 12 parameters squared (Friston et al. 1996). "
+                                     "aCompCor corresponds the timeseries of components from a PCA conducted on the combined WM and CSF masks voxel timeseries, including "
+                                     "all components that together explain 50 percent. of the variance, as in Muschelli et al. 2014.")
     confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
                                      default=False,
                                      help="""Whether to apply scrubbing or not. A temporal mask will be generated based on the FD threshold.
                         The frames that exceed the given threshold together with 1 back and 2 forward frames will be masked out
                         from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
     confound_regression.add_argument('--scrubbing_threshold', type=float,
-                                     default=0.1,
+                                     default=0.05,
                                      help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
     confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                                      help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
     confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
                                      default=False,
-                                     help="Run a diagnosis for each image by computing melodic-ICA on the corrected timeseries,"
+                                     help="Run a diagnosis for each individual image by computing melodic-ICA on the corrected timeseries,"
                                      "and compute a tSNR map from the input uncorrected image.")
-    confound_regression.add_argument('--seed_list', type=str,
-                                     nargs="*",  # 0 or more values expected => creates a list
-                                     default=[],
-                                     help='Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps during data diagnosis.')
 
     analysis.add_argument('confound_regression_out', action='store', type=Path,
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
+    analysis.add_argument('--seed_list', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=[],
+                                     help="Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps."
+                                     "Each seed must consist of a binary mask representing the ROI in commonspace.")
     g_fc_matrix = analysis.add_argument_group(
         'Options for performing a whole-brain timeseries correlation matrix analysis.')
     g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
