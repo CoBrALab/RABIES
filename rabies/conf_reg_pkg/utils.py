@@ -52,11 +52,14 @@ def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
     import os
     from rabies.conf_reg_pkg.utils import csv2par
     from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
+    import pathlib
+    filename_split = pathlib.Path(inFile).name.rsplit(".nii")
     aroma_out = os.getcwd()+'/aroma_out'
+    cleaned_file = aroma_out+'/%s_aroma.nii.gz' % (filename_split[0])
 
     run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
         brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True)
-    cleaned_file = os.path.abspath(aroma_out+'/denoised_func_data_nonaggr.nii.gz')
+    os.rename(aroma_out+'/denoised_func_data_nonaggr.nii.gz', cleaned_file)
     return cleaned_file, aroma_out
 
 
@@ -132,7 +135,6 @@ def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, 
     cr_out = os.getcwd()
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    cleaning_input = bold_file
 
     confounds = pd.read_csv(confounds_file)
     keys = confounds.keys()
@@ -243,10 +245,10 @@ def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, 
 
     # cleaning includes detrending, standardization
     if len(conf_list) > 0:
-        cleaned = nilearn.image.clean_img(cleaning_input, detrend=True, standardize=True, low_pass=lowpass,
+        cleaned = nilearn.image.clean_img(bold_file, detrend=True, standardize=True, low_pass=lowpass,
                                           high_pass=highpass, confounds=confounds_array, t_r=TR, mask_img=brain_mask_file)
     else:
-        cleaned = nilearn.image.clean_img(cleaning_input, detrend=True, standardize=True,
+        cleaned = nilearn.image.clean_img(bold_file, detrend=True, standardize=True,
                                           low_pass=lowpass, high_pass=highpass, confounds=None, t_r=TR, mask_img=brain_mask_file)
 
     if apply_scrubbing:
