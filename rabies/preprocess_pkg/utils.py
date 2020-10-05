@@ -439,7 +439,10 @@ def slice_specific_registration(i, ref_file, timeseries_file):
     volume_array = sitk.GetArrayFromImage(timeseries_image)[i, :, :, :]
 
     for j in range(volume_array.shape[1]):
-        moving_image = sitk.GetImageFromArray(volume_array[:, j, :])
+        slice_array = volume_array[:, j, :]
+        if slice_array.sum()==0:
+            continue
+        moving_image = sitk.GetImageFromArray(slice_array)
         fixed_image = ref_image[:, j, :]
         moving_image.CopyInformation(fixed_image)
 
