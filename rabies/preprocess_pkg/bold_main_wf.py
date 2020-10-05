@@ -143,7 +143,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
         bold_reference_wf = init_bold_reference_wf(
             detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
         bias_cor_wf = bias_correction_wf(
-            bias_reg_script=opts.bias_reg_script, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
+            bias_cor_method=opts.bias_cor_method, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
 
         if opts.apply_despiking:
             despike = pe.Node(
