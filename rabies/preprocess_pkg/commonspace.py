@@ -54,6 +54,12 @@ class ANTsDBM(BaseInterface):
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
 
+        if os.path.isdir(template_folder):
+            print('Previous ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
+        command = 'mkdir -p %s' % (template_folder,)
+        from rabies.preprocess_pkg.utils import run_command
+        rc = run_command(command)
+
         # create a csv file of the input image list
         csv_path = cwd+'/commonspace_input_files.csv'
         from rabies.preprocess_pkg.utils import flatten_list
@@ -87,12 +93,6 @@ class ANTsDBM(BaseInterface):
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
-
-        if os.path.isdir(template_folder):
-            print('Previous ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
-        command = 'mkdir -p %s' % (template_folder,)
-        from rabies.preprocess_pkg.utils import run_command
-        rc = run_command(command)
 
         command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
             template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
