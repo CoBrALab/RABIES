@@ -450,6 +450,8 @@ def define_reg_script(reg_option):
         reg_script = dir_path+'/shell_scripts/Affine_registration.sh'
     elif reg_option == 'Rigid':
         reg_script = dir_path+'/shell_scripts/Rigid_registration.sh'
+    elif reg_option == 'multiRAT':
+        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
     else:
         '''
         For user-provided antsRegistration command.
