@@ -709,9 +709,9 @@ def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_i
     import os
     from rabies.preprocess_pkg.utils import run_command
     cwd = os.getcwd()
-    subject_id = os.path.basename(reference_image).split('_ses-')[0]
-    session = os.path.basename(reference_image).split('_ses-')[1][0]
-    filename_template = '%s_ses-%s' % (subject_id, session)
+
+    import pathlib  # Better path manipulation
+    filename_template = pathlib.Path(reference_image).name.rsplit(".nii")[0]
 
     input_image = brain_mask_in
     brain_mask = '%s/%s_%s' % (cwd,
