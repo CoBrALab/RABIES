@@ -103,16 +103,16 @@ class OtsuEPIBiasCorrection(BaseInterface):
             self.inputs.input_ref_EPI, self.inputs.rabies_data_type)
         dim = input_ref_EPI_img.GetSpacing()
         low_dim = np.asarray(dim).min()
-        sitk.WriteImage(resample_image_spacing(
-            input_ref_EPI_img, (low_dim, low_dim, low_dim)), resampled)
+        #sitk.WriteImage(resample_image_spacing(
+        #    input_ref_EPI_img, (low_dim, low_dim, low_dim)), resampled)
 
         # the -b will be rounded up to the nearest multiple of 10 of the image largest dimension
         largest_dim = (np.array(input_ref_EPI_img.GetSize())*np.array(input_ref_EPI_img.GetSpacing())).max()
         b_value = int(np.ceil(largest_dim/10)*10)
 
-        bias_cor_input = resampled
-        otsu_bias_cor(target=bias_cor_input, otsu_ref=bias_cor_input, out_name='corrected_iter1.nii.gz', b_value=b_value, n_iter=100)
-        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter1.nii.gz', out_name='corrected_iter2.nii.gz', b_value=b_value, n_iter=100)
+        bias_cor_input = self.inputs.input_ref_EPI
+        otsu_bias_cor(target=bias_cor_input, otsu_ref=bias_cor_input, out_name='corrected_iter1.nii.gz', b_value=b_value)
+        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter1.nii.gz', out_name='corrected_iter2.nii.gz', b_value=b_value)
 
         command = 'bash %s %s %s %s %s' % (reg_script_path, 'corrected_iter2.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0],)
         rc = run_command(command)
@@ -120,7 +120,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
         command = 'antsApplyTransforms -d 3 -i %s -t [%s_output_0GenericAffine.mat,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask,filename_split[0], 'corrected_iter2.nii.gz',resampled_mask)
         rc = run_command(command)
 
-        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask, n_iter=75)
+        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask)
 
         # resample to anatomical image resolution
         dim = sitk.ReadImage(self.inputs.anat, self.inputs.rabies_data_type).GetSpacing()
@@ -143,7 +143,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
                 'warped_EPI': getattr(self, 'warped_EPI'),
                 'resampled_mask': getattr(self, 'resampled_mask')}
 
-def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=100):
+def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     import SimpleITK as sitk
     from rabies.preprocess_pkg.utils import run_command
     command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (otsu_ref)
@@ -162,6 +162,16 @@ def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=100):
 
         otsu_array = otsu_array*resampled_mask_array
 
+    combined_mask=(otsu_array==1.0)+(otsu_array==2.0)
+    mask_img=sitk.GetImageFromArray(combined_mask.astype('uint8'), isVector=False)
+    mask_img.CopyInformation(otsu_img)
+    sitk.WriteImage(mask_img, 'mask12.nii.gz')
+
+    combined_mask=(otsu_array==3.0)+(otsu_array==4.0)
+    mask_img=sitk.GetImageFromArray(combined_mask.astype('uint8'), isVector=False)
+    mask_img.CopyInformation(otsu_img)
+    sitk.WriteImage(mask_img, 'mask34.nii.gz')
+
     combined_mask=(otsu_array==1.0)+(otsu_array==2.0)+(otsu_array==3.0)
     mask_img=sitk.GetImageFromArray(combined_mask.astype('uint8'), isVector=False)
     mask_img.CopyInformation(otsu_img)
@@ -177,13 +187,19 @@ def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=100):
     mask_img.CopyInformation(otsu_img)
     sitk.WriteImage(mask_img, 'mask1234.nii.gz')
 
-    command = 'N4BiasFieldCorrection -d 3 -i %s -b %s -s 1 -c [%sx%sx%s,0.0] -w mask123.nii.gz -x null_mask.nii.gz -o corrected2.nii.gz' % (target, str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i %s -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask12.nii.gz -x null_mask.nii.gz -o corrected1.nii.gz' % (target, str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected2.nii.gz -b %s -s 1 -c [%sx%sx%s,0.0] -w mask234.nii.gz -x null_mask.nii.gz -o corrected3.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected1.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask34.nii.gz -x null_mask.nii.gz -o corrected2.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected3.nii.gz -b %s -s 1 -c [%sx%sx%s,0.0] -w mask1234.nii.gz -x null_mask.nii.gz -o %s' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),out_name,)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected2.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask123.nii.gz -x null_mask.nii.gz -o corrected3.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    rc = run_command(command)
+
+    command = 'N4BiasFieldCorrection -d 3 -i corrected3.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask234.nii.gz -x null_mask.nii.gz -o corrected4.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    rc = run_command(command)
+
+    command = 'N4BiasFieldCorrection -d 3 -i corrected4.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask1234.nii.gz -x null_mask.nii.gz -o %s' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),out_name,)
     rc = run_command(command)
 
 class EPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):

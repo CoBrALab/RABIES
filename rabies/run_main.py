@@ -94,7 +94,7 @@ def get_parser():
                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', 'multiRAT', but"
         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
                                 help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
@@ -344,8 +344,8 @@ def preprocess(opts, cr_opts, analysis_opts, log):
         raise ValueError('Invalid --data_type provided.')
 
     if opts.autoreg:
-        opts.bias_reg_script = define_reg_script('autoreg_affine')
-        opts.anat_reg_script = define_reg_script('autoreg_affine')
+        opts.bias_reg_script = define_reg_script('Affine')
+        opts.anat_reg_script = define_reg_script('Affine')
         opts.coreg_script = define_reg_script('autoreg_SyN')
         opts.template_reg_script = define_reg_script('autoreg_SyN')
     else:
@@ -440,16 +440,14 @@ def define_reg_script(reg_option):
     dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
     if reg_option == 'SyN':
         reg_script = dir_path+'/shell_scripts/SyN_registration.sh'
-    elif reg_option == 'autoreg_affine':
+    elif reg_option == 'Affine':
         reg_script = dir_path+'/shell_scripts/antsRegistration_affine.sh'
     elif reg_option == 'autoreg_SyN':
         reg_script = dir_path+'/shell_scripts/antsRegistration_affine_SyN.sh'
     elif reg_option == 'light_SyN':
         reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
-    elif reg_option == 'Affine':
-        reg_script = dir_path+'/shell_scripts/Affine_registration.sh'
     elif reg_option == 'Rigid':
-        reg_script = dir_path+'/shell_scripts/Rigid_registration.sh'
+        reg_script = dir_path+'/shell_scripts/antsRegistration_rigid.sh'
     elif reg_option == 'multiRAT':
         reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
     else:
