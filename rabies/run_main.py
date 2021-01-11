@@ -94,7 +94,7 @@ def get_parser():
                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but"
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', 'multiRAT', but"
         " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
     g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
                                 help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
@@ -448,6 +448,8 @@ def define_reg_script(reg_option):
         reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
     elif reg_option == 'Rigid':
         reg_script = dir_path+'/shell_scripts/antsRegistration_rigid.sh'
+    elif reg_option == 'multiRAT':
+        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
     else:
         '''
         For user-provided antsRegistration command.
