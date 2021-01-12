@@ -23,7 +23,6 @@ echo 'export PYTHONPATH="${PYTHONPATH}:$RABIES"' >> $HOME/.bashrc
 echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc
 echo 'export PATH=$PATH:$RABIES/rabies/shell_scripts' >> $HOME/.bashrc
 
-
 # Download DSURQE template
 template_dir=$RABIES/template_files
 curl -L --retry 5 -o $template_dir/DSURQE_40micron_average.nii http://repo.mouseimaging.ca/repo/DSURQE_40micron_nifti/DSURQE_40micron_average.nii
@@ -59,3 +58,10 @@ cd $RABIES/twolevel_ants_dbm
 git checkout 0b40b07075be1d921a102b162e8713baeaf44484
 cd $HOME
 echo 'export PATH=$RABIES/twolevel_ants_dbm:$PATH' >> $HOME/.bashrc
+
+# install twolevel_ants_dbm
+git clone https://github.com/CoBrALab/minc-toolkit-extras.git $RABIES/minc-toolkit-extras
+cd $RABIES/minc-toolkit-extras
+git checkout c30dfe4851632edb17841706195ea1735c768d3a
+mv ants_generate_iterations.py $RABIES/rabies/shell_scripts/.
+cd $HOME
