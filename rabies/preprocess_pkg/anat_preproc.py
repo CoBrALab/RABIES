@@ -96,8 +96,25 @@ class AnatPreproc(BaseInterface):
             # resample image to specified data format
             sitk.WriteImage(sitk.ReadImage(input_anat, self.inputs.rabies_data_type), output_anat)
         else:
-            command = 'bash %s/../shell_scripts/anat_preproc.sh %s %s %s %s %s' % (
-                dir_path, input_anat, self.inputs.template_anat, self.inputs.template_mask, output_anat, self.inputs.reg_script)
+            command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (input_anat)
+            rc = run_command(command)
+            command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean %s 1.2' % (input_anat)
+            rc = run_command(command)
+
+            command = 'N4BiasFieldCorrection -d 3 -s 4 -i %s -b [20] -c [200x200x200,0.0] -w thresh_mask.nii.gz -x null_mask.nii.gz -o N4.nii.gz' % (input_anat)
+            rc = run_command(command)
+            command = 'DenoiseImage -d 3 -i N4.nii.gz -o denoise.nii.gz'
+            rc = run_command(command)
+
+            from rabies.preprocess_pkg.registration import run_antsRegistration
+            [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method=self.inputs.reg_script, moving_image=input_anat, fixed_image=self.inputs.template_anat, anat_mask=self.inputs.template_mask)
+
+            command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o resampled_mask.nii.gz -n GenericLabel' % (self.inputs.template_mask, affine, input_anat)
+            rc = run_command(command)
+
+            command = 'N4BiasFieldCorrection -d 3 -s 2 -i %s -b [20] -c [200x200x200x200,0.0] -w resampled_mask.nii.gz -r 1 -x null_mask.nii.gz -o N4.nii.gz' % (input_anat)
+            rc = run_command(command)
+            command = 'DenoiseImage -d 3 -i N4.nii.gz -o %s' % (output_anat)
             rc = run_command(command)
 
             # resample image to specified data format

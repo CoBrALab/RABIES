@@ -84,14 +84,10 @@ class OtsuEPIBiasCorrection(BaseInterface):
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")
 
-        import rabies
         from rabies.preprocess_pkg.utils import run_command, resample_image_spacing
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/antsRegistration_rigid.sh'
+        from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
-        warped_image = '%s/%s_output_warped_image.nii.gz' % (
-            cwd, filename_split[0])
         resampled = '%s/%s_resampled.nii.gz' % (
             cwd, filename_split[0])
         resampled_mask = '%s/%s_resampled_mask.nii.gz' % (
@@ -114,10 +110,9 @@ class OtsuEPIBiasCorrection(BaseInterface):
         otsu_bias_cor(target=bias_cor_input, otsu_ref=bias_cor_input, out_name='corrected_iter1.nii.gz', b_value=b_value)
         otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter1.nii.gz', out_name='corrected_iter2.nii.gz', b_value=b_value)
 
-        command = 'bash %s %s %s %s %s' % (reg_script_path, 'corrected_iter2.nii.gz', self.inputs.anat, self.inputs.anat_mask, filename_split[0],)
-        rc = run_command(command)
+        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image='corrected_iter2.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
 
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s_output_0GenericAffine.mat,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask,filename_split[0], 'corrected_iter2.nii.gz',resampled_mask)
+        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, 'corrected_iter2.nii.gz',resampled_mask)
         rc = run_command(command)
 
         otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask)
@@ -242,15 +237,10 @@ class EPIBiasCorrection(BaseInterface):
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")
 
-        import rabies
         from rabies.preprocess_pkg.utils import run_command, resample_image_spacing
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script_path=dir_path+'/shell_scripts/antsRegistration_rigid.sh'
-        bias_cor_script_path = dir_path+'/shell_scripts/iter_bias_cor.sh'
+        from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
-        warped_image = '%s/%s_output_warped_image.nii.gz' % (
-            cwd, filename_split[0])
         resampled_mask = '%s/%s_resampled_mask.nii.gz' % (
             cwd, filename_split[0])
         biascor_EPI = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
@@ -260,13 +250,21 @@ class EPIBiasCorrection(BaseInterface):
             self.inputs.input_ref_EPI, self.inputs.rabies_data_type)
         dim = input_ref_EPI.GetSpacing()
         low_dim = np.asarray(dim).min()
-        from rabies.preprocess_pkg.utils import resample_image_spacing
-        sitk.WriteImage(resample_image_spacing(
-            input_ref_EPI, (low_dim, low_dim, low_dim)), cwd+'/resampled.nii.gz')
 
-        command = 'bash %s %s %s %s %s %s' % (bias_cor_script_path, self.inputs.input_ref_EPI,
-                                              self.inputs.anat, self.inputs.anat_mask, filename_split[0], reg_script_path)
-        from rabies.preprocess_pkg.utils import run_command
+        command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (input_ref_EPI)
+        rc = run_command(command)
+        command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean %s 2' % (input_ref_EPI)
+        rc = run_command(command)
+
+        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w thresh_mask.nii.gz -x null_mask.nii.gz -o corrected.nii.gz' % (input_ref_EPI)
+        rc = run_command(command)
+
+        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=input_ref_EPI, fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
+
+        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, input_ref_EPI,resampled_mask)
+        rc = run_command(command)
+
+        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w %s -x null_mask.nii.gz -o %s' % (input_ref_EPI, resampled_mask,cwd+'/iter_corrected.nii.gz')
         rc = run_command(command)
 
         # resample to anatomical image resolution

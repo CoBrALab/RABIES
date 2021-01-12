@@ -51,12 +51,12 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
         name='outputnode'
     )
 
-    run_reg = pe.Node(Function(input_names=["reg_script", "moving_image", "fixed_image",
+    run_reg = pe.Node(Function(input_names=["reg_method", "moving_image", "fixed_image",
                                             "anat_mask", "rabies_data_type"],
                                output_names=['affine_bold2anat', 'warp_bold2anat',
                                              'inverse_warp_bold2anat', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*rabies_mem_scale)
-    run_reg.inputs.reg_script = coreg_script
+    run_reg.inputs.reg_method = coreg_script
     run_reg.inputs.rabies_data_type = rabies_data_type
     run_reg.plugin_args = {
         'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
@@ -77,18 +77,15 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
     return workflow
 
 
-def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', anat_mask='NULL', rabies_data_type=8):
+def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', anat_mask='NULL', rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
 
-    if os.path.isfile(reg_script):
-        reg_script_path = reg_script
-    else:
-        raise ValueError(
-            'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    command = 'bash %s %s %s %s %s' % (
-        reg_script_path, moving_image, fixed_image, anat_mask, filename_split[0])
+    reg_script = define_reg_script(reg_method)
+
+    command = 'bash %s %s %s %s %s %s' % (
+        reg_script, moving_image, fixed_image, anat_mask, filename_split[0], reg_method)
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
@@ -111,3 +108,27 @@ def run_antsRegistration(reg_script, moving_image='NULL', fixed_image='NULL', an
     sitk.WriteImage(sitk.ReadImage(warped_image, rabies_data_type), warped_image)
 
     return [affine, warp, inverse_warp, warped_image]
+
+
+def define_reg_script(reg_option):
+    import os
+    import rabies
+    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
+    if reg_option == 'Rigid' or reg_option == 'Affine' or reg_option == 'SyN':
+        reg_script = dir_path+'/shell_scripts/generic_registration.sh'
+    elif reg_option == 'light_SyN':
+        reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
+    elif reg_option == 'heavy_SyN':
+        reg_script = dir_path+'/shell_scripts/heavy_SyN_registration.sh'
+    elif reg_option == 'multiRAT':
+        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
+    else:
+        '''
+        For user-provided antsRegistration command.
+        '''
+        if os.path.isfile(reg_option):
+            reg_script = reg_option
+        else:
+            raise ValueError(
+                'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+    return reg_script

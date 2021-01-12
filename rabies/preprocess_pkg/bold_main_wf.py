@@ -31,10 +31,6 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
         slice_mc
             whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
             of within-TR motion
-        bias_reg_script
-            path to registration script that will be applied for bias field correction. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'Rigid' registration.
         coreg_script
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.

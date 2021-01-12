@@ -15,6 +15,7 @@ moving_pre=$1
 fixed_pre=$2
 mask=$3
 filename_template=$4
+token=$5
 moving='scan_autobox.nii.gz'
 fixed='template_autobox.nii.gz'
 
@@ -26,7 +27,7 @@ antsRegistration --dimensionality 3 \
   --output [${filename_template}_tmp_,${filename_template}_tmp_warped_image.nii.gz] \
   --initial-moving-transform [$fixed,$moving,1] --winsorize-image-intensities [0.1,0.995] \
   --transform Rigid[0.1] --metric MI[$fixed,$moving,1,32,Regular,0.25] --convergence [1000x1000x1000x500,1e-6,10] --shrink-factors 3x2x1x1 --smoothing-sigmas 3x2x1x0vox -v 0 -z 1
- 
+
 
 antsRegistration --dimensionality 3 \
   --output [${filename_template}_tmp2_,${filename_template}_tmp2_warped_image.nii.gz] \
@@ -37,9 +38,9 @@ antsRegistration --dimensionality 3 \
 
 
 ComposeMultiTransform 3 ${filename_template}_output_1Warp.nii.gz -R ${fixed_pre} ${filename_template}_tmp2_1Warp.nii.gz ${filename_template}_tmp2_0GenericAffine.mat
-ComposeMultiTransform 3 ${filename_template}_output_1InverseWarp.nii.gz -R ${fixed_pre} -i ${filename_template}_tmp2_0GenericAffine.mat ${filename_template}_tmp2_1InverseWarp.nii.gz 
+ComposeMultiTransform 3 ${filename_template}_output_1InverseWarp.nii.gz -R ${fixed_pre} -i ${filename_template}_tmp2_0GenericAffine.mat ${filename_template}_tmp2_1InverseWarp.nii.gz
 
-cp ${filename_template}_tmp_0GenericAffine.mat ${filename_template}_output_0GenericAffine.mat 
+cp ${filename_template}_tmp_0GenericAffine.mat ${filename_template}_output_0GenericAffine.mat
 
 antsApplyTransforms -i ${moving_pre} -r ${fixed_pre} -t ${filename_template}_output_1Warp.nii.gz -t ${filename_template}_output_0GenericAffine.mat -o ${filename_template}_output_warped_image.nii.gz
 
@@ -48,8 +49,3 @@ rm $moving
 rm $fixed
 rm ${filename_template}_tmp_*
 rm ${filename_template}_tmp2_*
-
-
-
-
-

@@ -37,10 +37,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             of within-TR motion
         template_reg_script
             registration script for the registration of the dataset template to the commonspace template
-        bias_reg_script
-            path to registration script that will be applied for bias field correction. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'Rigid' registration.
         coreg_script
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
@@ -161,7 +157,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         num_scan = opts.local_threads
 
     # execute the registration of the generate anatomical template with the provided atlas for labeling and masking
-    template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+    template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
                                                   'inverse_warp', 'warped_image'],
                                     function=run_antsRegistration),
@@ -177,7 +173,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         reg_script = dir_path+'/shell_scripts/null_nonlin.sh'
         template_reg.inputs.reg_script = str(reg_script)
 
-        commonspace_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+        commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                            output_names=['affine', 'warp',
                                                          'inverse_warp', 'warped_image'],
                                            function=run_antsRegistration),

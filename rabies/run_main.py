@@ -94,23 +94,17 @@ def get_parser():
                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', 'multiRAT', but"
-        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
-    g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
-                                help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
-                                "This option overrides other registration specifications.")
-    g_registration.add_argument("--coreg_script", type=str, default='autoreg_SyN',
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN', 'multiRAT', but"
+        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template)."
+        "'Rigid', 'Affine' and 'SyN' options rely on an adaptive registration framework which adapts parameters to the images dimensions")
+    g_registration.add_argument("--coreg_script", type=str, default='SyN',
                                 help="Specify EPI to anat coregistration script.")
-    g_registration.add_argument("--anat_reg_script", type=str, default='Rigid',
+    g_registration.add_argument("--anat_reg_script", type=str, default='Affine',
                                 help="specify a registration script for the preprocessing of the anatomical images.")
-    g_registration.add_argument("--bias_reg_script", type=str, default='Rigid',
-                                help="specify a registration script for iterative bias field correction. This registration step"
-                                " consists of aligning the volume with the commonspace template to provide"
-                                " a brain mask and optimize the bias field correction.")
     g_registration.add_argument(
         '--template_reg_script',
         type=str,
-        default='autoreg_SyN',
+        default='SyN',
         help="""Registration script that will be used for registration of the generated dataset
         template to the provided commonspace atlas for masking and labeling.""")
     g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
@@ -343,16 +337,9 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     else:
         raise ValueError('Invalid --data_type provided.')
 
-    if opts.autoreg:
-        opts.bias_reg_script = define_reg_script('Affine')
-        opts.anat_reg_script = define_reg_script('Affine')
-        opts.coreg_script = define_reg_script('autoreg_SyN')
-        opts.template_reg_script = define_reg_script('autoreg_SyN')
-    else:
-        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
-        opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
-        opts.coreg_script = define_reg_script(opts.coreg_script)
-        opts.template_reg_script = define_reg_script(opts.template_reg_script)
+    #opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
+    #opts.coreg_script = define_reg_script(opts.coreg_script)
+    #opts.template_reg_script = define_reg_script(opts.template_reg_script)
 
     # template options
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
@@ -438,16 +425,12 @@ def analysis(opts, log):
 def define_reg_script(reg_option):
     import rabies
     dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-    if reg_option == 'SyN':
-        reg_script = dir_path+'/shell_scripts/SyN_registration.sh'
-    elif reg_option == 'Affine':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_affine.sh'
-    elif reg_option == 'autoreg_SyN':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_affine_SyN.sh'
+    if reg_option == 'Rigid' or reg_option == 'Affine' or reg_option == 'SyN':
+        reg_script = dir_path+'/shell_scripts/generic_registration.sh'
     elif reg_option == 'light_SyN':
         reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
-    elif reg_option == 'Rigid':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_rigid.sh'
+    elif reg_option == 'heavy_SyN':
+        reg_script = dir_path+'/shell_scripts/heavy_SyN_registration.sh'
     elif reg_option == 'multiRAT':
         reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
     else:
