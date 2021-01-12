@@ -82,6 +82,7 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
 
+    from rabies.preprocess_pkg.registration import define_reg_script
     reg_script = define_reg_script(reg_method)
 
     command = 'bash %s %s %s %s %s %s' % (

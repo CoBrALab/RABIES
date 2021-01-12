@@ -27,7 +27,7 @@ else
   steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution})
 fi
 
-if ($method = "SyN"); then
+if [[ $method == "SyN" ]]; then
   antsRegistration --dimensionality 3 --verbose \
     --output [ ${_arg_outputbasename}_output_,${_arg_outputbasename}_output_warped_image.nii.gz ] \
     --use-histogram-matching 1 \
@@ -37,13 +37,13 @@ if ($method = "SyN"); then
     --metric CC[ ${fixedfile},${movingfile},1,4,None ] \
     $(eval echo ${steps_syn}) \
     --masks [ ${fixedmask},${movingmask} ]
-elif ($method = "Affine"); then
+elif [[ $method == "Affine" ]]; then
   antsRegistration --dimensionality 3 --verbose \
     --output [ ${_arg_outputbasename}_output_,${_arg_outputbasename}_output_warped_image.nii.gz ] \
     --use-histogram-matching 1 \
     --initial-moving-transform [ ${fixedfile},${movingfile},1 ] \
     $(eval echo ${steps_affine})
-elif ($method = "Rigid"); then
+elif [[ $method == "Rigid" ]]; then
   antsRegistration --dimensionality 3 --verbose \
     --output [ ${_arg_outputbasename}_output_,${_arg_outputbasename}_output_warped_image.nii.gz ] \
     --use-histogram-matching 1 \

@@ -337,10 +337,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     else:
         raise ValueError('Invalid --data_type provided.')
 
-    #opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
-    #opts.coreg_script = define_reg_script(opts.coreg_script)
-    #opts.template_reg_script = define_reg_script(opts.template_reg_script)
-
     # template options
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
@@ -420,26 +416,3 @@ def analysis(opts, log):
     workflow = confound_regression(confound_regression_opts, opts, log)
 
     return workflow
-
-
-def define_reg_script(reg_option):
-    import rabies
-    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-    if reg_option == 'Rigid' or reg_option == 'Affine' or reg_option == 'SyN':
-        reg_script = dir_path+'/shell_scripts/generic_registration.sh'
-    elif reg_option == 'light_SyN':
-        reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
-    elif reg_option == 'heavy_SyN':
-        reg_script = dir_path+'/shell_scripts/heavy_SyN_registration.sh'
-    elif reg_option == 'multiRAT':
-        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
-    else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(reg_option):
-            reg_script = reg_option
-        else:
-            raise ValueError(
-                'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    return reg_script

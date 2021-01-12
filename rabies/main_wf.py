@@ -171,7 +171,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         reg_script = dir_path+'/shell_scripts/null_nonlin.sh'
-        template_reg.inputs.reg_script = str(reg_script)
+        template_reg.inputs.reg_method = str(reg_script)
 
         commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                            output_names=['affine', 'warp',
@@ -181,7 +181,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         commonspace_reg.plugin_args = {
             'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
         commonspace_reg.inputs.anat_mask = str(opts.brain_mask)
-        commonspace_reg.inputs.reg_script = str(opts.template_reg_script)
+        commonspace_reg.inputs.reg_method = str(opts.template_reg_script)
         commonspace_reg.inputs.rabies_data_type = opts.data_type
 
         commonspace_selectfiles = pe.Node(niu.IdentityInterface(fields=['anat_to_template_affine', 'anat_to_template_warp', 'anat_to_template_inverse_warp', 'warped_anat']),
@@ -203,7 +203,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     else:
         template_reg.plugin_args = {
             'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
-        template_reg.inputs.reg_script = str(opts.template_reg_script)
+        template_reg.inputs.reg_method = str(opts.template_reg_script)
 
         # setting up commonspace registration within the workflow
         commonspace_mem = 1*num_scan*opts.scale_min_memory
