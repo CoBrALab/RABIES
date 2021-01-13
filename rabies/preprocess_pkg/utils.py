@@ -820,7 +820,7 @@ def resample_template(template_file, file_list, spacing='inputs_defined', rabies
     return resampled_template
 
 
-def run_command(command):
+def run_command(command, verbose = False):
     # Run command and collect stdout
     # http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html # noqa
     import logging
@@ -841,8 +841,12 @@ def run_command(command):
     out = process.stdout.decode("utf-8")
     if not out == '':
         log.info(out)
+        if verbose:
+            print(out)
     if process.stderr is not None:
         log.warning(process.stderr)
+        if verbose:
+            print(process.stderr)
     rc = process.returncode
     return rc
 

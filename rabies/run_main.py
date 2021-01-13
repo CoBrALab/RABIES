@@ -276,7 +276,7 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-    # options for workflow execution
+    # Shouldn't be using more than one thread if not MultiProc
     if not opts.plugin == 'MultiProc':
         opts.local_threads = 1
 
@@ -321,9 +321,17 @@ def execute_workflow():
 
 
 def preprocess(opts, cr_opts, analysis_opts, log):
-    # obtain parser parameters
+    # Verify input and output directories
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
+    if not os.path.isdir(data_dir_path):
+        raise ValueError("The provided BIDS data path doesn't exists.")
+    else:
+        # print the input data directory tree
+        from rabies.preprocess_pkg.utils import run_command
+        print("INPUT BIDS DATASET: ")
+        log.info("INPUT BIDS DATASET: ")
+        rc = run_command('tree %s' % (data_dir_path), verbose = True)
 
     import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
