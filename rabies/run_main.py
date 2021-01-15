@@ -94,23 +94,17 @@ def get_parser():
                             help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(
-        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', 'multiRAT', but"
-        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).")
-    g_registration.add_argument("--autoreg", dest='autoreg', action='store_true',
-                                help="Choosing this option will conduct an adaptive registration framework which will adjust parameters according to the input images."
-                                "This option overrides other registration specifications.")
-    g_registration.add_argument("--coreg_script", type=str, default='autoreg_SyN',
+        "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN', 'multiRAT', but"
+        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template)."
+        "'Rigid', 'Affine' and 'SyN' options rely on an adaptive registration framework which adapts parameters to the images dimensions")
+    g_registration.add_argument("--coreg_script", type=str, default='SyN',
                                 help="Specify EPI to anat coregistration script.")
-    g_registration.add_argument("--anat_reg_script", type=str, default='Rigid',
+    g_registration.add_argument("--anat_reg_script", type=str, default='Affine',
                                 help="specify a registration script for the preprocessing of the anatomical images.")
-    g_registration.add_argument("--bias_reg_script", type=str, default='Rigid',
-                                help="specify a registration script for iterative bias field correction. This registration step"
-                                " consists of aligning the volume with the commonspace template to provide"
-                                " a brain mask and optimize the bias field correction.")
     g_registration.add_argument(
         '--template_reg_script',
         type=str,
-        default='autoreg_SyN',
+        default='SyN',
         help="""Registration script that will be used for registration of the generated dataset
         template to the provided commonspace atlas for masking and labeling.""")
     g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
@@ -282,7 +276,7 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-    # options for workflow execution
+    # Shouldn't be using more than one thread if not MultiProc
     if not opts.plugin == 'MultiProc':
         opts.local_threads = 1
 
@@ -327,9 +321,17 @@ def execute_workflow():
 
 
 def preprocess(opts, cr_opts, analysis_opts, log):
-    # obtain parser parameters
+    # Verify input and output directories
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
+    if not os.path.isdir(data_dir_path):
+        raise ValueError("The provided BIDS data path doesn't exists.")
+    else:
+        # print the input data directory tree
+        from rabies.preprocess_pkg.utils import run_command
+        print("INPUT BIDS DATASET: ")
+        log.info("INPUT BIDS DATASET: ")
+        rc = run_command('tree %s' % (data_dir_path), verbose = True)
 
     import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
@@ -342,17 +344,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
         opts.data_type = sitk.sitkFloat64
     else:
         raise ValueError('Invalid --data_type provided.')
-
-    if opts.autoreg:
-        opts.bias_reg_script = define_reg_script('Affine')
-        opts.anat_reg_script = define_reg_script('Affine')
-        opts.coreg_script = define_reg_script('autoreg_SyN')
-        opts.template_reg_script = define_reg_script('autoreg_SyN')
-    else:
-        opts.bias_reg_script = define_reg_script(opts.bias_reg_script)
-        opts.anat_reg_script = define_reg_script(opts.anat_reg_script)
-        opts.coreg_script = define_reg_script(opts.coreg_script)
-        opts.template_reg_script = define_reg_script(opts.template_reg_script)
 
     # template options
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
@@ -433,30 +424,3 @@ def analysis(opts, log):
     workflow = confound_regression(confound_regression_opts, opts, log)
 
     return workflow
-
-
-def define_reg_script(reg_option):
-    import rabies
-    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-    if reg_option == 'SyN':
-        reg_script = dir_path+'/shell_scripts/SyN_registration.sh'
-    elif reg_option == 'Affine':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_affine.sh'
-    elif reg_option == 'autoreg_SyN':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_affine_SyN.sh'
-    elif reg_option == 'light_SyN':
-        reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
-    elif reg_option == 'Rigid':
-        reg_script = dir_path+'/shell_scripts/antsRegistration_rigid.sh'
-    elif reg_option == 'multiRAT':
-        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
-    else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(reg_option):
-            reg_script = reg_option
-        else:
-            raise ValueError(
-                'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    return reg_script

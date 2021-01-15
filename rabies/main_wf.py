@@ -6,7 +6,7 @@ from .preprocess_pkg.commonspace import ANTsDBM
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
-from .QC_report import PlotOverlap, PlotMotionTrace
+from .preprocess_pkg import visual_diagnosis
 from nipype.interfaces.io import DataSink
 
 from nipype.interfaces.utility import Function
@@ -37,10 +37,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             of within-TR motion
         template_reg_script
             registration script for the registration of the dataset template to the commonspace template
-        bias_reg_script
-            path to registration script that will be applied for bias field correction. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'Rigid' registration.
         coreg_script
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
@@ -119,7 +115,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['anat_preproc', 'anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask', 'initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
-                'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
+                'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels', 'std_filename', 'tSNR_filename']),
         name='outputnode')
 
     from bids.layout import BIDSLayout
@@ -161,7 +157,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         num_scan = opts.local_threads
 
     # execute the registration of the generate anatomical template with the provided atlas for labeling and masking
-    template_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+    template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
                                                   'inverse_warp', 'warped_image'],
                                     function=run_antsRegistration),
@@ -175,9 +171,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         import rabies
         dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
         reg_script = dir_path+'/shell_scripts/null_nonlin.sh'
-        template_reg.inputs.reg_script = str(reg_script)
+        template_reg.inputs.reg_method = str(reg_script)
 
-        commonspace_reg = pe.Node(Function(input_names=['reg_script', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+        commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                            output_names=['affine', 'warp',
                                                          'inverse_warp', 'warped_image'],
                                            function=run_antsRegistration),
@@ -185,7 +181,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         commonspace_reg.plugin_args = {
             'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
         commonspace_reg.inputs.anat_mask = str(opts.brain_mask)
-        commonspace_reg.inputs.reg_script = str(opts.template_reg_script)
+        commonspace_reg.inputs.reg_method = str(opts.template_reg_script)
         commonspace_reg.inputs.rabies_data_type = opts.data_type
 
         commonspace_selectfiles = pe.Node(niu.IdentityInterface(fields=['anat_to_template_affine', 'anat_to_template_warp', 'anat_to_template_inverse_warp', 'warped_anat']),
@@ -207,7 +203,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     else:
         template_reg.plugin_args = {
             'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
-        template_reg.inputs.reg_script = str(opts.template_reg_script)
+        template_reg.inputs.reg_method = str(opts.template_reg_script)
 
         # setting up commonspace registration within the workflow
         commonspace_mem = 1*num_scan*opts.scale_min_memory
@@ -237,6 +233,26 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
+    # organizing visual QC outputs
+    template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir'],
+                                       function=visual_diagnosis.template_diagnosis),
+                              name='template_diagnosis')
+    template_diagnosis.inputs.opts = opts
+    template_diagnosis.inputs.out_dir = output_folder+'/QC_report/template_files/'
+
+    bold_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+                                       function=visual_diagnosis.denoising_diagnosis),
+                              name='bold_denoising_diagnosis')
+    bold_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/bold_denoising/'
+
+    temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'confounds_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
+                                          output_names=[
+                                            'std_filename', 'tSNR_filename'],
+                                       function=visual_diagnosis.temporal_diagnosis),
+                              name='temporal_diagnosis')
+    temporal_diagnosis.inputs.out_dir = output_folder+'/QC_report/temporal_diagnosis/'
+    temporal_diagnosis.inputs.rabies_data_type = opts.data_type
+
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
         (main_split, bold_selectfiles, [
@@ -250,6 +266,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ]),
         (bold_convert_to_RAS_node, bold_main_wf, [
             ("RAS_file", "inputnode.bold"),
+            ]),
+        (resample_template_node, template_diagnosis, [
+            ("resampled_template", "anat_template"),
             ]),
         (resample_template_node, template_reg, [
          ("resampled_template", "fixed_image")]),
@@ -286,6 +305,25 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
+            ]),
+        (bold_main_wf, bold_denoising_diagnosis, [
+            ("outputnode.bold_ref", "raw_img"),
+            ("outputnode.init_denoise", "init_denoise"),
+            ("outputnode.corrected_EPI", "final_denoise"),
+            ("outputnode.denoise_mask", "warped_mask"),
+            ]),
+        (bold_selectfiles, bold_denoising_diagnosis,
+         [("out_file", "name_source")]),
+        (bold_main_wf, temporal_diagnosis, [
+            ("outputnode.commonspace_bold", "bold_file"),
+            ("outputnode.confounds_csv", "confounds_csv"),
+            ("outputnode.FD_csv", "FD_csv"),
+            ]),
+        (bold_selectfiles, temporal_diagnosis,
+         [("out_file", "name_source")]),
+        (temporal_diagnosis, outputnode, [
+            ("tSNR_filename", "tSNR_filename"),
+            ("std_filename", "std_filename"),
             ]),
         ])
 
@@ -334,14 +372,16 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (anat_convert_to_RAS_node, anat_preproc_wf,
              [("RAS_file", "inputnode.anat_file")]),
             (resample_template_node, anat_preproc_wf, [
-             ("resampled_template", "inputnode.template_anat")]),
+                ("resampled_template", "inputnode.template_anat"),
+                ]),
             (anat_preproc_wf, commonspace_reg, [
-             ("outputnode.preproc_anat", "moving_image")]),
+                ("outputnode.anat_preproc", "moving_image"),
+                ]),
             (anat_preproc_wf, transform_masks, [
-                ("outputnode.preproc_anat", "reference_image"),
+                ("outputnode.anat_preproc", "reference_image"),
                 ]),
             (anat_preproc_wf, bold_main_wf, [
-                ("outputnode.preproc_anat", "inputnode.anat_preproc"),
+                ("outputnode.anat_preproc", "inputnode.anat_ref"),
                 ]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
@@ -366,6 +406,24 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
+        if not opts.disable_anat_preproc:
+            anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+                                               function=visual_diagnosis.denoising_diagnosis),
+                                      name='anat_denoising_diagnosis')
+            anat_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/anat_denoising/'
+
+            workflow.connect([
+                (anat_selectfiles, anat_denoising_diagnosis, [
+                    ("out_file", "raw_img"),
+                    ("out_file", "name_source"),
+                    ]),
+                (anat_preproc_wf, anat_denoising_diagnosis, [
+                    ("outputnode.init_denoise", "init_denoise"),
+                    ("outputnode.anat_preproc", "final_denoise"),
+                    ("outputnode.denoise_mask", "warped_mask"),
+                    ]),
+                ])
+
     else:
         bold_main_wf.inputs.inputnode.anat_mask = str(opts.brain_mask)
         bold_main_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
@@ -382,42 +440,38 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("RAS_file", "inputnode.bold"),
                 ]),
             (resample_template_node, bias_cor_bold_main_wf, [
-             ("resampled_template", "inputnode.template_anat")]),
+                ("resampled_template", "inputnode.anat_ref"),
+                ("resampled_template", "inputnode.template_anat"),
+                ]),
             (bias_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
                 ("transitionnode.bold_ref", "transitionnode.bold_ref"),
+                ("transitionnode.init_denoise", "transitionnode.init_denoise"),
+                ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),
             (bias_cor_bold_main_wf, commonspace_reg, [
              ("transitionnode.corrected_EPI", "moving_image")]),
             ])
 
-    # organizing .png outputs for QC
-    PlotMotionTrace_node = pe.Node(PlotMotionTrace(), name='PlotMotionTrace')
-    PlotMotionTrace_node.inputs.out_dir = output_folder+'/QC_report'
+
     PlotOverlap_Anat2Template_node = pe.Node(
-        PlotOverlap(), name='PlotOverlap_Anat2Template')
-    PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/QC_report'
-    PlotOverlap_Anat2Template_node.inputs.reg_name = 'Anat2Template'
+        visual_diagnosis.PlotOverlap(), name='PlotOverlap_Anat2Template')
+    PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/QC_report/Anat2Template/'
     PlotOverlap_Template2Commonspace_node = pe.Node(
-        PlotOverlap(), name='PlotOverlap_Template2Commonspace')
-    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report'
-    PlotOverlap_Template2Commonspace_node.inputs.reg_name = 'Template2Commonspace'
-    PlotOverlap_Template2Commonspace_node.inputs.split_name = ''
+        visual_diagnosis.PlotOverlap(), name='PlotOverlap_Template2Commonspace')
+    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report/Template2Commonspace'
     PlotOverlap_Template2Commonspace_node.inputs.name_source = ''
 
     if not opts.bold_only:
         PlotOverlap_EPI2Anat_node = pe.Node(
-            PlotOverlap(), name='PlotOverlap_EPI2Anat')
-        PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report'
-        PlotOverlap_EPI2Anat_node.inputs.reg_name = 'EPI2Anat'
+            visual_diagnosis.PlotOverlap(), name='PlotOverlap_EPI2Anat')
+        PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report/EPI2Anat'
         workflow.connect([
-            (main_split, PlotOverlap_EPI2Anat_node,
-             [("split_name", "split_name")]),
             (bold_selectfiles, PlotOverlap_EPI2Anat_node,
              [("out_file", "name_source")]),
             (anat_preproc_wf, PlotOverlap_EPI2Anat_node,
-             [("outputnode.preproc_anat", "fixed")]),
+             [("outputnode.anat_preproc", "fixed")]),
             (outputnode, PlotOverlap_EPI2Anat_node, [
                 ("bias_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                 ]),
@@ -433,18 +487,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ])
 
     workflow.connect([
-        (bold_selectfiles, PlotMotionTrace_node,
-         [("out_file", "name_source")]),
-        (main_split, PlotMotionTrace_node,
-         [("split_name", "split_name")]),
         (resample_template_node, PlotOverlap_Template2Commonspace_node,
          [("resampled_template", "fixed")]),
-        (outputnode, PlotMotionTrace_node, [
-            ("confounds_csv", "confounds_csv"),  # confounds file
-            ]),
-        (main_split, PlotOverlap_Anat2Template_node, [
-            ("split_name", "split_name"),
-            ]),
         (commonspace_selectfiles, PlotOverlap_Anat2Template_node, [
             ("warped_anat", "moving"),
             ]),
@@ -535,6 +579,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
                 ("commonspace_vascular_mask", "commonspace_vascular_mask"),
                 ("commonspace_labels", "commonspace_bold_labels"),
+                ("tSNR_filename", "tSNR_filename"),
+                ("std_filename", "std_filename"),
                 ]),
             ])
 
@@ -545,7 +591,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
             workflow.connect([
                 (anat_preproc_wf, anat_datasink, [
-                 ("outputnode.preproc_anat", "anat_preproc")]),
+                 ("outputnode.anat_preproc", "anat_preproc")]),
                 (outputnode, anat_datasink, [
                     ("anat_labels", 'anat_labels'),
                     ("anat_mask", 'anat_mask'),

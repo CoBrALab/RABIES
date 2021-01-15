@@ -31,10 +31,6 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
         slice_mc
             whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
             of within-TR motion
-        bias_reg_script
-            path to registration script that will be applied for bias field correction. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'Rigid' registration.
         coreg_script
             path to registration script for EPI to anat coregistraion. The script must
             follow the template structure of registration scripts in shell_scripts/.
@@ -48,7 +44,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         bold
             Input BOLD series NIfTI file
-        anat_preproc
+        anat_ref
             Preprocessed anatomical image after bias field correction and denoising
         anat_mask
             Brain mask inherited from the common space registration
@@ -124,11 +120,11 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine', 'anat_to_template_warp', 'template_anat']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine', 'anat_to_template_warp', 'template_anat']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
                 name='outputnode')
 
@@ -136,7 +132,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                          name="boldbuffer")
 
     # this node will serve as a relay of outputs from the bias_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'corrected_EPI']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
                              name="transitionnode")
 
     if bias_cor_only or (not opts.bold_only):
@@ -173,7 +169,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         workflow.connect([
             (inputnode, bias_cor_wf, [
-                ('anat_preproc', 'inputnode.anat'),
+                ('anat_ref', 'inputnode.anat'),
                 ('anat_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),
@@ -187,6 +183,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                 ('outputnode.ref_image', 'bold_ref'),
                 ]),
             (bias_cor_wf, transitionnode, [
+                ('outputnode.init_denoise', 'init_denoise'),
+                ('outputnode.denoise_mask', 'denoise_mask'),
                 ('outputnode.corrected_EPI', 'corrected_EPI'),
                 ]),
             ])
@@ -251,6 +249,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
             ('outputnode.motcorr_params', 'motcorr_params')]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
+            ('init_denoise', 'init_denoise'),
+            ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
             ]),
         (bold_hmc_wf, bold_confs_wf, [
@@ -305,7 +305,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         workflow.connect([
             (inputnode, bold_reg_wf, [
-                ('anat_preproc', 'inputnode.anat_preproc'),
+                ('anat_ref', 'inputnode.anat_ref'),
                 ('anat_mask', 'inputnode.anat_mask')]),
             (inputnode, bold_bold_trans_wf, [
                 ('bold', 'inputnode.name_source')]),

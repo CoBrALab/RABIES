@@ -15,6 +15,7 @@ EPI=$1
 anat_file=$2
 mask=$3
 filename_template=$4
+token=$5
 
 antsRegistration --dimensionality 3 \
   --output [${filename_template}_output_,${filename_template}_output_warped_image.nii.gz] \
