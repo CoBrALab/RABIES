@@ -315,7 +315,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         (bold_selectfiles, bold_denoising_diagnosis,
          [("out_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
-            ("outputnode.resampled_bold", "bold_file"),
+            ("outputnode.commonspace_bold", "bold_file"),
             ("outputnode.confounds_csv", "confounds_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),

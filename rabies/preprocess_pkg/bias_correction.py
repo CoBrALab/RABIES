@@ -220,8 +220,10 @@ class EPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(
         exists=True, desc="input ref EPI corrected for bias fields")
     warped_EPI = File(desc="output warped image from antsRegistration")
-    resampled_mask = File(
-        exists=True, desc="resampled EPI mask after registration")
+    denoise_mask = File(
+        exists=True, desc="resampled mask after registration")
+    init_denoise = File(
+        exists=True, desc="Initial correction before registration.")
 
 
 class EPIBiasCorrection(BaseInterface):
@@ -251,26 +253,20 @@ class EPIBiasCorrection(BaseInterface):
             cwd, filename_split[0])
         biascor_EPI = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
 
-        # resample to isotropic resolution based on lowest dimension
-        input_ref_EPI = sitk.ReadImage(
-            self.inputs.input_ref_EPI, self.inputs.rabies_data_type)
-        dim = input_ref_EPI.GetSpacing()
-        low_dim = np.asarray(dim).min()
-
-        command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (input_ref_EPI)
+        command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (self.inputs.input_ref_EPI)
         rc = run_command(command)
-        command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean %s 2' % (input_ref_EPI)
+        command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean %s 2' % (self.inputs.input_ref_EPI)
         rc = run_command(command)
 
-        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w thresh_mask.nii.gz -x null_mask.nii.gz -o corrected.nii.gz' % (input_ref_EPI)
+        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w thresh_mask.nii.gz -x null_mask.nii.gz -o corrected.nii.gz' % (self.inputs.input_ref_EPI)
         rc = run_command(command)
 
-        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=input_ref_EPI, fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
+        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=cwd+'/corrected.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
 
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, input_ref_EPI,resampled_mask)
+        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, self.inputs.input_ref_EPI,resampled_mask)
         rc = run_command(command)
 
-        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w %s -x null_mask.nii.gz -o %s' % (input_ref_EPI, resampled_mask,cwd+'/iter_corrected.nii.gz')
+        command = 'N4BiasFieldCorrection -d 3 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w %s -x null_mask.nii.gz -o %s' % (self.inputs.input_ref_EPI, resampled_mask,cwd+'/iter_corrected.nii.gz')
         rc = run_command(command)
 
         # resample to anatomical image resolution
@@ -285,11 +281,13 @@ class EPIBiasCorrection(BaseInterface):
 
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)
-        setattr(self, 'resampled_mask', resampled_mask)
+        setattr(self, 'denoise_mask', resampled_mask)
+        setattr(self, 'init_denoise', cwd+'/corrected.nii.gz')
 
         return runtime
 
     def _list_outputs(self):
         return {'corrected_EPI': getattr(self, 'corrected_EPI'),
                 'warped_EPI': getattr(self, 'warped_EPI'),
-                'resampled_mask': getattr(self, 'resampled_mask')}
+                'init_denoise': getattr(self, 'init_denoise'),
+                'denoise_mask': getattr(self, 'denoise_mask')}
