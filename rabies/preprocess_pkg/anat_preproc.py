@@ -99,8 +99,8 @@ class AnatPreproc(BaseInterface):
         if self.inputs.disable_anat_preproc:
             # resample image to specified data format
             sitk.WriteImage(sitk.ReadImage(input_anat, self.inputs.rabies_data_type), output_anat)
-            init_denoise=None
-            resampled_mask=None
+            init_denoise=output_anat
+            resampled_mask=self.inputs.template_mask
         else:
             command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (input_anat)
             rc = run_command(command)

@@ -358,11 +358,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         transform_masks.inputs.vascular_mask_in = str(opts.vascular_mask)
         transform_masks.inputs.atlas_labels_in = str(opts.labels)
 
-        anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
-                                           function=visual_diagnosis.denoising_diagnosis),
-                                  name='anat_denoising_diagnosis')
-        anat_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/anat_denoising/'
-
         workflow.connect([
             (main_split, run_split, [
                 ("split_name", "split_name"),
@@ -409,16 +404,25 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("WM_mask", "WM_mask"),
                 ("CSF_mask", "CSF_mask"),
                 ]),
-            (anat_selectfiles, anat_denoising_diagnosis, [
-                ("out_file", "raw_img"),
-                ("out_file", "name_source"),
-                ]),
-            (anat_preproc_wf, anat_denoising_diagnosis, [
-                ("outputnode.init_denoise", "init_denoise"),
-                ("outputnode.anat_preproc", "final_denoise"),
-                ("outputnode.denoise_mask", "warped_mask"),
-                ]),
             ])
+
+        if not opts.disable_anat_preproc:
+            anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+                                               function=visual_diagnosis.denoising_diagnosis),
+                                      name='anat_denoising_diagnosis')
+            anat_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/anat_denoising/'
+
+            workflow.connect([
+                (anat_selectfiles, anat_denoising_diagnosis, [
+                    ("out_file", "raw_img"),
+                    ("out_file", "name_source"),
+                    ]),
+                (anat_preproc_wf, anat_denoising_diagnosis, [
+                    ("outputnode.init_denoise", "init_denoise"),
+                    ("outputnode.anat_preproc", "final_denoise"),
+                    ("outputnode.denoise_mask", "warped_mask"),
+                    ]),
+                ])
 
     else:
         bold_main_wf.inputs.inputnode.anat_mask = str(opts.brain_mask)
