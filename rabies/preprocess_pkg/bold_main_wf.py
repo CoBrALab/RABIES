@@ -124,7 +124,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'motcorr_params', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
                 name='outputnode')
 
@@ -132,7 +132,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                          name="boldbuffer")
 
     # this node will serve as a relay of outputs from the bias_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'corrected_EPI']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
                              name="transitionnode")
 
     if bias_cor_only or (not opts.bold_only):
@@ -183,6 +183,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                 ('outputnode.ref_image', 'bold_ref'),
                 ]),
             (bias_cor_wf, transitionnode, [
+                ('outputnode.init_denoise', 'init_denoise'),
+                ('outputnode.denoise_mask', 'denoise_mask'),
                 ('outputnode.corrected_EPI', 'corrected_EPI'),
                 ]),
             ])
@@ -247,6 +249,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
             ('outputnode.motcorr_params', 'motcorr_params')]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
+            ('init_denoise', 'init_denoise'),
+            ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
             ]),
         (bold_hmc_wf, bold_confs_wf, [

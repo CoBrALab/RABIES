@@ -16,7 +16,7 @@ def bias_correction_wf(bias_cor_method='otsu_reg', rabies_data_type=8, rabies_me
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['corrected_EPI', 'resampled_mask', 'warped_EPI']),
+            fields=['corrected_EPI', 'denoise_mask', 'warped_EPI', 'init_denoise']),
         name='outputnode')
 
     if bias_cor_method=='otsu_reg':
@@ -38,7 +38,8 @@ def bias_correction_wf(bias_cor_method='otsu_reg', rabies_data_type=8, rabies_me
                                       ]),
         (bias_correction, outputnode, [('corrected_EPI', 'corrected_EPI'),
                                        ('warped_EPI', 'warped_EPI'),
-                                       ('resampled_mask', 'resampled_mask')
+                                       ('denoise_mask', 'denoise_mask'),
+                                       ('init_denoise', 'init_denoise'),
                                        ]),
     ])
 
@@ -62,8 +63,10 @@ class OtsuEPIBiasCorrectionOutputSpec(TraitedSpec):
     corrected_EPI = File(
         exists=True, desc="input ref EPI corrected for bias fields")
     warped_EPI = File(desc="output warped image from antsRegistration")
-    resampled_mask = File(
-        exists=True, desc="resampled EPI mask after registration")
+    denoise_mask = File(
+        exists=True, desc="resampled mask after registration")
+    init_denoise = File(
+        exists=True, desc="Initial correction before registration.")
 
 
 class OtsuEPIBiasCorrection(BaseInterface):
@@ -123,20 +126,23 @@ class OtsuEPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(sitk.ReadImage(cwd+'/final_otsu.nii.gz',
                                                               self.inputs.rabies_data_type), (low_dim, low_dim, low_dim)), biascor_EPI)
 
+        sitk.WriteImage(sitk.ReadImage('corrected_iter2.nii.gz', self.inputs.rabies_data_type), cwd+'/corrected_iter2.nii.gz')
         sitk.WriteImage(sitk.ReadImage(biascor_EPI, self.inputs.rabies_data_type), biascor_EPI)
         sitk.WriteImage(sitk.ReadImage(warped_image, self.inputs.rabies_data_type), warped_image)
         sitk.WriteImage(sitk.ReadImage(resampled_mask, self.inputs.rabies_data_type), resampled_mask)
 
+        setattr(self, 'init_denoise', cwd+'/corrected_iter2.nii.gz')
         setattr(self, 'corrected_EPI', biascor_EPI)
         setattr(self, 'warped_EPI', warped_image)
-        setattr(self, 'resampled_mask', resampled_mask)
+        setattr(self, 'denoise_mask', resampled_mask)
 
         return runtime
 
     def _list_outputs(self):
         return {'corrected_EPI': getattr(self, 'corrected_EPI'),
                 'warped_EPI': getattr(self, 'warped_EPI'),
-                'resampled_mask': getattr(self, 'resampled_mask')}
+                'init_denoise': getattr(self, 'init_denoise'),
+                'denoise_mask': getattr(self, 'denoise_mask')}
 
 def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     import SimpleITK as sitk
