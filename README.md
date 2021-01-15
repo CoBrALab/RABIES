@@ -164,13 +164,12 @@ rabies preprocess /nii_inputs /outputs --further_execution_specifications
 
 # Preprocessing
 ```
-usage: rabies preprocess [-h] [-e] [--disable_anat_preproc]
-                         [--apply_despiking] [--apply_slice_mc]
-                         [--detect_dummy]
+usage: rabies preprocess [-h] [-e] [--bias_cor_method {otsu_reg,thresh_reg}]
+                         [--disable_anat_preproc] [--apply_despiking]
+                         [--apply_slice_mc] [--detect_dummy]
                          [--data_type {int16,int32,float32,float64}] [--debug]
-                         [--autoreg] [--coreg_script COREG_SCRIPT]
+                         [--coreg_script COREG_SCRIPT]
                          [--anat_reg_script ANAT_REG_SCRIPT]
-                         [--bias_reg_script BIAS_REG_SCRIPT]
                          [--template_reg_script TEMPLATE_REG_SCRIPT]
                          [--fast_commonspace]
                          [--nativespace_resampling NATIVESPACE_RESAMPLING]
@@ -197,6 +196,17 @@ optional arguments:
                         registration is executed through registration of the
                         EPI-generated template from ants_dbm to the anatomical
                         template. (default: False)
+  --bias_cor_method {otsu_reg,thresh_reg}
+                        Choose the algorithm for bias field correction of the
+                        EPI before registration.otsu_reg will conduct an
+                        initial serie of N4BiasFieldCorrection oriented by
+                        Otsu masking method, followed by a rigid registration
+                        to provide a brain mask orienting the final
+                        correction.thresh_reg will instead use an initial
+                        voxel intensity thresholding method for masking, and
+                        will conduct a subsequent rigid registration to
+                        provide a brain mask orienting the final correction.
+                        (default: otsu_reg)
   --disable_anat_preproc
                         This option disables the preprocessing of anatomical
                         images before commonspace template generation.
@@ -221,28 +231,18 @@ optional arguments:
                         (default: float32)
   --debug               Run in debug mode. (default: False)
 
-Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'autoreg_affine', 'autoreg_SyN', 'SyN' (non-linear), 'light_SyN', but can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).:
-  --autoreg             Choosing this option will conduct an adaptive
-                        registration framework which will adjust parameters
-                        according to the input images.This option overrides
-                        other registration specifications. (default: False)
+Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN', 'multiRAT', but can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).'Rigid', 'Affine' and 'SyN' options rely on an adaptive registration framework which adapts parameters to the images dimensions:
   --coreg_script COREG_SCRIPT
                         Specify EPI to anat coregistration script. (default:
-                        autoreg_SyN)
+                        SyN)
   --anat_reg_script ANAT_REG_SCRIPT
                         specify a registration script for the preprocessing of
-                        the anatomical images. (default: Rigid)
-  --bias_reg_script BIAS_REG_SCRIPT
-                        specify a registration script for iterative bias field
-                        correction. This registration step consists of
-                        aligning the volume with the commonspace template to
-                        provide a brain mask and optimize the bias field
-                        correction. (default: Rigid)
+                        the anatomical images. (default: Affine)
   --template_reg_script TEMPLATE_REG_SCRIPT
                         Registration script that will be used for registration
                         of the generated dataset template to the provided
                         commonspace atlas for masking and labeling. (default:
-                        autoreg_SyN)
+                        SyN)
   --fast_commonspace    Choosing this option will skip the generation of a
                         dataset template, and instead, each anatomical scan
                         will be individually registered to the commonspace
@@ -371,23 +371,17 @@ Important outputs will be found in the datasink folders. All the different prepr
     - pos_voxelwise: a .nii image which contains the relative positioning timecourses for all single voxel
 
 ### Recommendations for Quality Control (QC)
-Registration overlaps and motion timecourses are presented in .png format in the rabies_out/QC_report directory:
-* **motion_trace**: timecourses of the 6 rigid body parameters
+Visual QC outputs in .png format are generate for several processing milestones. These can be found in the rabies_out/QC_report folder.
+The milestones include:
+* **template_files**: displays the overlap of the provided anatomical template with it's associated masks and labels.
+* **anat_denoising**: represents the processing steps for the denoising of the anatomical image before main registration steps. It includes 1-the raw image, 2-the initial correction, 3-the overlap of the registered mask used for final correction, 4-final corrected output.
+* **bold_denoising**: same as anat_denoising, but for the functional image.
 * **EPI2Anat**: registration of the EPI to the anatomical image within subject
 * **Anat2Template**: registration of the anatomical image to the dataset-generated template
 * **Template2Commonspace**: registration of the dataset template to the provided commonspace template
+* **temporal_denoising**: includes the timecourse of the head motion realignment parameters and associated framewise displacement. Also include spatial maps for temporal variability and tSNR.
 The following image presents an example of the overlap for the EPI2Anat registration:
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/sub-jgrAesMEDISOc11L_ses-1_run-1_EPI2Anat.png)
-
-For direct investigation of the output .nii files relevant for QC:
-
-* **bias correction**: can visualize if bias correction was correctly applied to correct intensity inhomogeneities for the anatomical scan (anat_datasink/anat_preproc/) and EPI reference image (bold_datasink/bias_cor_bold/)
-
-* **commonspace registration (Anat2Template equivalent)**: verify that each anatomical image (commonspace_datasink/ants_dbm_outputs/output/secondlevel/secondlevel_template0sub-X_ses-X_preproc0WarpedToTemplate.nii.gz) was properly realigned to the dataset-generated template (commonspace_datasink/ants_dbm_template/secondlevel_template0.nii.gz)
-
-* **template registration (Template2Commonspace equivalent)**: verify that the dataset-generated template (commonspace_datasink/warped_template/secondlevel_template0_output_warped_image.nii.gz) was realigned properly to the provided commonspace template (--anat_template input)
-
-* **EPI_Coregistration (EPI2Anat equivalent)**: verify for each session that the bias field-corrected reference EPI (bold_datasink/bias_cor_bold_warped2anat/) was appropriately registered to the anatomical scan of that session (anat_datasink/anat_preproc/)
 
 <br/>
 
