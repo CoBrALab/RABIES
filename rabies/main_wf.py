@@ -386,7 +386,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("outputnode.anat_preproc", "reference_image"),
                 ]),
             (anat_preproc_wf, bold_main_wf, [
-                ("outputnode.anat_preproc", "inputnode.anat_preproc"),
+                ("outputnode.anat_preproc", "inputnode.anat_ref"),
                 ]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
@@ -436,7 +436,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("RAS_file", "inputnode.bold"),
                 ]),
             (resample_template_node, bias_cor_bold_main_wf, [
-             ("resampled_template", "inputnode.template_anat")]),
+                ("resampled_template", "inputnode.anat_ref"),
+                ("resampled_template", "inputnode.template_anat"),
+                ]),
             (bias_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
                 ("transitionnode.bold_ref", "transitionnode.bold_ref"),

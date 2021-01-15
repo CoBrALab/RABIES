@@ -44,7 +44,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         bold
             Input BOLD series NIfTI file
-        anat_preproc
+        anat_ref
             Preprocessed anatomical image after bias field correction and denoising
         anat_mask
             Brain mask inherited from the common space registration
@@ -120,7 +120,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_preproc', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine', 'anat_to_template_warp', 'template_anat']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine', 'anat_to_template_warp', 'template_anat']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -169,7 +169,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         workflow.connect([
             (inputnode, bias_cor_wf, [
-                ('anat_preproc', 'inputnode.anat'),
+                ('anat_ref', 'inputnode.anat'),
                 ('anat_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),
@@ -305,7 +305,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
 
         workflow.connect([
             (inputnode, bold_reg_wf, [
-                ('anat_preproc', 'inputnode.anat_preproc'),
+                ('anat_ref', 'inputnode.anat_ref'),
                 ('anat_mask', 'inputnode.anat_mask')]),
             (inputnode, bold_bold_trans_wf, [
                 ('bold', 'inputnode.name_source')]),

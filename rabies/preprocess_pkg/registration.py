@@ -22,7 +22,7 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
 
         ref_bold_brain
             Reference image to which BOLD series is aligned
-        anat_preproc
+        anat_ref
             Bias-corrected structural template image
         anat_mask
             Mask of the skull-stripped template image
@@ -41,7 +41,7 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['ref_bold_brain', 'anat_preproc', 'anat_mask']),
+            fields=['ref_bold_brain', 'anat_ref', 'anat_mask']),
         name='inputnode'
     )
 
@@ -64,7 +64,7 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
     workflow.connect([
         (inputnode, run_reg, [
             ('ref_bold_brain', 'moving_image'),
-            ('anat_preproc', 'fixed_image'),
+            ('anat_ref', 'fixed_image'),
             ('anat_mask', 'anat_mask')]),
         (run_reg, outputnode, [
             ('affine_bold2anat', 'affine_bold2anat'),
