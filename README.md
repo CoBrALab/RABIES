@@ -3,6 +3,9 @@
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 
 ## General Command Line Interface
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 ```
 usage: rabies [-h]
               [-p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}]
@@ -67,8 +70,13 @@ Options for managing the execution of the workflow.:
                         number of nodes to be assigned to avoid memory
                         crashes. (default: 1)
 ```
+</p>
+</details>
 
 ## Input data format
+<details><summary><b>Click to expand</b></summary>
+<p>
+	
 Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
 If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
 
@@ -132,7 +140,14 @@ If anatomical scans are used for preprocessing (--bold_only False), each functio
 </body>
 </html>
 
+</p>
+</details>
+
 ## Execution syntax
+
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 Below is an example for the execution of RABIES, where the option for local parallel execution (-p MultiProc) is specified,
 followed by the image processing step (preprocess), then the paths to the input and output directories, and finally the
 desired specifications for the preprocessing (using the --autoreg option and specifying the repetition time --TR 1.0s):
@@ -162,7 +177,13 @@ docker run -it --rm \
 rabies preprocess /nii_inputs /outputs --further_execution_specifications
 ```
 
+</p>
+</details>
+
 # Preprocessing
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 ```
 usage: rabies preprocess [-h] [-e] [--bias_cor_method {otsu_reg,thresh_reg}]
                          [--disable_anat_preproc] [--apply_despiking]
@@ -324,6 +345,8 @@ Provided commonspace atlas files.:
 ```
 
 ## Outputs
+<details><summary><b>Click to expand</b></summary>
+<p>
 
 Important outputs will be found in the datasink folders. All the different preprocessing outputs are found below:
 - **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
@@ -383,9 +406,19 @@ The milestones include:
 The following image presents an example of the overlap for the EPI2Anat registration:
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/sub-jgrAesMEDISOc11L_ses-1_run-1_EPI2Anat.png)
 
+</p>
+</details>
+
+</p>
+</details>
+
+
 <br/>
 
 # Confound Regression
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 ```
 usage: rabies confound_regression [-h] [--wf_name WF_NAME]
                                   [--commonspace_bold] [--TR TR]
@@ -467,7 +500,13 @@ Important outputs from confound regression will be found in the confound_regress
     - subject_melodic_ICA: if --diagnosis_output is activated, will contain the outputs from MELODIC ICA run on each individual scan
     - tSNR_map: if --diagnosis_output is activated, this will contain the tSNR map for each scan before confound regression
 
+</p>
+</details>
+
 # Analysis
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 ```
 usage: rabies analysis [-h] [--seed_list [SEED_LIST [SEED_LIST ...]]]
                        [--FC_matrix] [--ROI_type {parcellated,voxelwise}]
@@ -531,6 +570,9 @@ Important outputs from analysis will be found in the analysis_datasink present i
     - matrix_data_file: .pkl file which contains a 2D numpy array representing the whole-brain correlation matrix. If using parcellation, the row/column ROI indices are in increasing number of the atlas label number
     - matrix_fig: .png file offered for visualization which represent the correlation matrix
     - seed_correlation_maps: nifti files with voxelwise correlation maps for all provided seeds for seed-based FC
+
+</p>
+</details>
 
 # Acknowledgments
 
