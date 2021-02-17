@@ -55,7 +55,7 @@ python $RABIES/convert_to_RAS.py $template_dir/DSURQE_100micron_eroded_CSF_mask.
 # install twolevel_ants_dbm
 git clone https://github.com/CoBrALab/twolevel_ants_dbm.git $RABIES/twolevel_ants_dbm
 cd $RABIES/twolevel_ants_dbm
-git checkout 0b40b07075be1d921a102b162e8713baeaf44484
+git checkout 3623b5bf683473887b7d63c1a1b24c0362ed8396
 cd $HOME
 echo 'export PATH=$RABIES/twolevel_ants_dbm:$PATH' >> $HOME/.bashrc
 
