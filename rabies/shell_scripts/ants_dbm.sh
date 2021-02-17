@@ -8,7 +8,7 @@ memory_request=$5
 local_threads=$6
 
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${template_anat} 1)\".split(\"x\")]]))")
-fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${template_anat} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
+fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${template_anat} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${template_anat} 2)\".split(\"x\")]])]))")
 
 #set a minimal number of slices for evaluating iteration parameters
 ratio=$(python -c "print(int(${fixed_maximum_resolution} / ${fixed_minimum_resolution}))")
