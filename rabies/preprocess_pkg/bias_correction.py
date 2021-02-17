@@ -110,15 +110,15 @@ class OtsuEPIBiasCorrection(BaseInterface):
         b_value = int(np.ceil(largest_dim/10)*10)
 
         bias_cor_input = self.inputs.input_ref_EPI
-        otsu_bias_cor(target=bias_cor_input, otsu_ref=bias_cor_input, out_name='corrected_iter1.nii.gz', b_value=b_value)
-        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter1.nii.gz', out_name='corrected_iter2.nii.gz', b_value=b_value)
+        otsu_bias_cor(target=bias_cor_input, otsu_ref=bias_cor_input, out_name=cwd+'/corrected_iter1.nii.gz', b_value=b_value)
+        otsu_bias_cor(target=bias_cor_input, otsu_ref=cwd+'/corrected_iter1.nii.gz', out_name=cwd+'/corrected_iter2.nii.gz', b_value=b_value)
 
-        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image='corrected_iter2.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
+        [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=cwd+'/corrected_iter2.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
 
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, 'corrected_iter2.nii.gz',resampled_mask)
+        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, cwd+'/corrected_iter2.nii.gz',resampled_mask)
         rc = run_command(command)
 
-        otsu_bias_cor(target=bias_cor_input, otsu_ref='corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask)
+        otsu_bias_cor(target=bias_cor_input, otsu_ref=cwd+'/corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask)
 
         # resample to anatomical image resolution
         dim = sitk.ReadImage(self.inputs.anat, self.inputs.rabies_data_type).GetSpacing()
@@ -126,7 +126,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
         sitk.WriteImage(resample_image_spacing(sitk.ReadImage(cwd+'/final_otsu.nii.gz',
                                                               self.inputs.rabies_data_type), (low_dim, low_dim, low_dim)), biascor_EPI)
 
-        sitk.WriteImage(sitk.ReadImage('corrected_iter2.nii.gz', self.inputs.rabies_data_type), cwd+'/corrected_iter2.nii.gz')
+        sitk.WriteImage(sitk.ReadImage(cwd+'/corrected_iter2.nii.gz', self.inputs.rabies_data_type), cwd+'/corrected_iter2.nii.gz')
         sitk.WriteImage(sitk.ReadImage(biascor_EPI, self.inputs.rabies_data_type), biascor_EPI)
         sitk.WriteImage(sitk.ReadImage(warped_image, self.inputs.rabies_data_type), warped_image)
         sitk.WriteImage(sitk.ReadImage(resampled_mask, self.inputs.rabies_data_type), resampled_mask)
