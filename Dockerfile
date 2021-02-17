@@ -207,7 +207,7 @@ RUN export FSLDIR="/usr/share/fsl/5.0/" && \
   echo "os.environ['LD_LIBRARY_PATH'] = '/usr/lib/fsl/5.0:${LD_LIBRARY_PATH}'" >> ${RABIES}/exec.py && \
   echo "os.environ['RABIES'] = '${RABIES}'" >> ${RABIES}/exec.py && \
   echo "sys.path.insert(0,os.environ['RABIES'])" >> ${RABIES}/exec.py && \
-  echo "os.environ['PATH'] = '${RABIES}/rabies/shell_scripts:${RABIES}/twolevel_ants_dbm:/home/rabies/miniconda-latest/envs/rabies/bin:${PATH}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['PATH'] = '${RABIES}/rabies/shell_scripts:${RABIES}/twolevel_ants_dbm:${RABIES}/minc-toolkit-extras:/home/rabies/miniconda-latest/envs/rabies/bin:${PATH}'" >> ${RABIES}/exec.py && \
   echo "from rabies.run_main import execute_workflow" >> ${RABIES}/exec.py && \
   echo "execute_workflow()" >> ${RABIES}/exec.py && \
   chmod +x ${RABIES}/exec.py

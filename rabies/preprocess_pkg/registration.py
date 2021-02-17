@@ -83,10 +83,14 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
 
     from rabies.preprocess_pkg.registration import define_reg_script
-    reg_script = define_reg_script(reg_method)
+    reg_call = define_reg_script(reg_method)
 
-    command = 'bash %s %s %s %s %s %s' % (
-        reg_script, moving_image, fixed_image, anat_mask, filename_split[0], reg_method)
+    if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
+        command = "%s --fixed-mask %s --resampled-output %s_output_warped_image.nii.gz %s %s %s_output_" % (
+            reg_call, anat_mask, filename_split[0], moving_image, fixed_image, filename_split[0])
+    else:
+        command = 'bash %s %s %s %s %s %s' % (
+            reg_call, moving_image, fixed_image, anat_mask, filename_split[0])
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
@@ -110,26 +114,29 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
 
     return [affine, warp, inverse_warp, warped_image]
 
-
 def define_reg_script(reg_option):
     import os
     import rabies
     dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-    if reg_option == 'Rigid' or reg_option == 'Affine' or reg_option == 'SyN':
-        reg_script = dir_path+'/shell_scripts/generic_registration.sh'
+    if reg_option == 'Rigid':
+        reg_call = "antsRegistration_affine_SyN.sh --linear-type rigid --skip-nonlinear"
+    elif reg_option == 'Affine':
+        reg_call = "antsRegistration_affine_SyN.sh --linear-type affine --skip-nonlinear"
+    elif reg_option == 'SyN':
+        reg_call = "antsRegistration_affine_SyN.sh --linear-type affine"
     elif reg_option == 'light_SyN':
-        reg_script = dir_path+'/shell_scripts/light_SyN_registration.sh'
+        reg_call = 'bash '+dir_path+'/shell_scripts/light_SyN_registration.sh'
     elif reg_option == 'heavy_SyN':
-        reg_script = dir_path+'/shell_scripts/heavy_SyN_registration.sh'
+        reg_call = 'bash '+dir_path+'/shell_scripts/heavy_SyN_registration.sh'
     elif reg_option == 'multiRAT':
-        reg_script = dir_path+'/shell_scripts/multiRAT_registration.sh'
+        reg_call = 'bash '+dir_path+'/shell_scripts/multiRAT_registration.sh'
     else:
         '''
         For user-provided antsRegistration command.
         '''
         if os.path.isfile(reg_option):
-            reg_script = reg_option
+            reg_call = reg_option
         else:
             raise ValueError(
                 'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
-    return reg_script
+    return reg_call

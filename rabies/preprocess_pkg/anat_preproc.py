@@ -78,7 +78,7 @@ class AnatPreproc(BaseInterface):
         filename_split = pathlib.Path(self.inputs.nii_anat).name.rsplit(".nii")
         dir_path = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
-        output_anat = '%s%s_preproc.nii.gz' % (cwd, filename_split[0],)
+        output_anat = '%s/%s_preproc.nii.gz' % (cwd, filename_split[0],)
 
         # resample the anatomical image to the resolution of the provided template
         anat_image = sitk.ReadImage(
@@ -91,7 +91,7 @@ class AnatPreproc(BaseInterface):
         if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
             print('Anat image will be resampled to the template resolution.')
             resampled_anat = resample_image_spacing(anat_image, template_dim)
-            input_anat = cwd+filename_split[0]+'_resampled.nii.gz'
+            input_anat = '%s/%s_resampled.nii.gz' % (cwd, filename_split[0],)
             sitk.WriteImage(resampled_anat, input_anat)
         else:
             input_anat = self.inputs.nii_anat

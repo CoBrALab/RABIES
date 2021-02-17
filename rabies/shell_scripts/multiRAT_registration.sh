@@ -15,7 +15,6 @@ moving_pre=$1
 fixed_pre=$2
 mask=$3
 filename_template=$4
-token=$5
 moving='scan_autobox.nii.gz'
 fixed='template_autobox.nii.gz'
 
