@@ -1,4 +1,5 @@
 import os
+import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
@@ -30,11 +31,22 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again with --commonspace_bold.')
-        seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_list'],
+        seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_dict', 'seed_name'],
                                               output_names=['corr_map_file'],
                                               function=seed_based_FC),
                                      name='seed_based_FC', mem_gb=1)
-        seed_based_FC_node.inputs.seed_list = seed_list
+        seed_dict = {}
+        name_list = []
+        for file in seed_list:
+            file = os.path.abspath(file)
+            if not os.path.isfile(file):
+                raise ValueError(
+                    "Provide seed file path %s doesn't exists." % (file))
+            seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
+            name_list.append(seed_name)
+            seed_dict[seed_name] = file
+        seed_based_FC_node.iterables = ('seed_name', name_list)
+        seed_based_FC_node.inputs.seed_dict = seed_dict
 
         workflow.connect([
             (subject_inputnode, seed_based_FC_node, [
