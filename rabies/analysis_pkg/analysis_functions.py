@@ -2,32 +2,29 @@ import numpy as np
 import nibabel as nb
 
 
-def seed_based_FC(bold_file, brain_mask, seed_list):
+def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
     import os
     import nibabel as nb
     import numpy as np
+    import pathlib
     from rabies.analysis_pkg.analysis_functions import seed_corr
 
-    if len(seed_list)>0:
-        mask_array = np.asarray(nb.load(brain_mask).dataobj)
-        mask_vector = mask_array.reshape(-1)
-        mask_indices = (mask_vector==True)
-        mask_vector = mask_vector.astype(float)
+    seed_file = seed_dict[seed_name]
 
-        corr_maps = np.zeros(list(mask_array.shape)+[len(seed_list)])
-        i = 0
-        for seed in seed_list:
-            mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed)
-            corr_maps[:,:,:,i] = mask_vector.reshape(mask_array.shape)
-            i+=1
+    mask_array = np.asarray(nb.load(brain_mask).dataobj)
+    mask_vector = mask_array.reshape(-1)
+    mask_indices = (mask_vector==True)
+    mask_vector = mask_vector.astype(float)
 
-        corr_map_file = os.path.abspath(os.path.basename(
-            seed).split('.nii')[0]+'_corr_map.nii.gz')
-        nb.Nifti1Image(corr_maps, nb.load(brain_mask).affine, nb.load(
-            brain_mask).header).to_filename(corr_map_file)
-        return corr_map_file
-    else:
-        return None
+    mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed_file)
+    corr_map = mask_vector.reshape(mask_array.shape)
+
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
+    corr_map_file = os.path.abspath(
+        filename_split+'_'+seed_name+'_corr_map.nii.gz')
+    nb.Nifti1Image(corr_map, nb.load(brain_mask).affine, nb.load(
+        brain_mask).header).to_filename(corr_map_file)
+    return corr_map_file
 
 
 def seed_corr(bold_file, brain_mask, seed):
