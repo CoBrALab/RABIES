@@ -132,10 +132,17 @@ class BIDSDataGraber(BaseInterface):
         from bids.layout import BIDSLayout
         layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
-            file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
-                              'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            if run is None: # if there is no run spec to search, don't include it in the search
+                file_list = layout.get(subject=subject_id, session=session, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            else:
+                file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
             if len(file_list) > 1:
                 raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
+                    str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
+            elif len(file_list)==0:
+                raise ValueError('No file for found corresponding to the following BIDS spec: %s' % (
                     str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
         except:
             raise ValueError('Error with BIDS spec: %s' % (
