@@ -132,10 +132,17 @@ class BIDSDataGraber(BaseInterface):
         from bids.layout import BIDSLayout
         layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
-            file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
-                              'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            if run is None: # if there is no run spec to search, don't include it in the search
+                file_list = layout.get(subject=subject_id, session=session, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            else:
+                file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
             if len(file_list) > 1:
                 raise ValueError('Provided BIDS spec lead to duplicates: %s' % (
+                    str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
+            elif len(file_list)==0:
+                raise ValueError('No file for found corresponding to the following BIDS spec: %s' % (
                     str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
         except:
             raise ValueError('Error with BIDS spec: %s' % (
@@ -576,7 +583,7 @@ class slice_applyTransforms(BaseInterface):
             else:
                 transform_string += "-t %s " % (transform,)
 
-        print("Splitting bold file into lists of single volumes")
+        # Splitting bold file into lists of single volumes
         [bold_volumes, num_volumes] = split_volumes(
             self.inputs.in_file, "bold_", self.inputs.rabies_data_type)
 
@@ -642,6 +649,8 @@ class MergeInputSpec(BaseInterfaceInputSpec):
                               desc='input list of files to merge, listed in the order to merge')
     header_source = File(exists=True, mandatory=True,
                          desc='a Nifti file from which the header should be copied')
+    clip_negative = traits.Bool(
+        desc="Whether to clip out negative values.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
@@ -683,8 +692,9 @@ class Merge(BaseInterface):
         combined_files = os.path.abspath(
             "%s_combined.nii.gz" % (filename_split[0],))
 
-        # clip potential negative values
-        combined[(combined < 0).astype(bool)] = 0
+        if self.inputs.clip_negative:
+            # clip potential negative values
+            combined[(combined < 0).astype(bool)] = 0
         combined_image = sitk.GetImageFromArray(combined, isVector=False)
 
         # set metadata and affine for the newly constructed 4D image

@@ -36,14 +36,15 @@ Commands:
     confound_regression
                         Different options for confound regression are
                         available to apply directly on preprocessing outputs
-                        from RABIES. Only selected confound regression and
-                        denoising strategies are applied. The denoising steps
-                        are applied in the following order: ICA-AROMA first,
-                        followed by detrending, then regression of confound
-                        timeseries orthogonal to the application of temporal
-                        filters (nilearn.clean_img, Lindquist 2018),
-                        standardization of timeseries, scrubbing, and finally
-                        smoothing.
+                        from RABIES. Detrending and standardization of
+                        timeseries is always applied. Otherwise only selected
+                        confound regression and denoising strategies are
+                        applied. The denoising steps are applied in the
+                        following order: ICA-AROMA first, followed by
+                        detrending, then regression of confound timeseries
+                        orthogonal to the application of temporal filters
+                        (nilearn.clean_img, Lindquist 2018), standardization
+                        of timeseries, scrubbing, and finally smoothing.
     analysis            A few built-in resting-state functional connectivity
                         (FC) analysis options are provided to conduct rapid
                         analysis on the cleaned timeseries. The options
@@ -76,7 +77,7 @@ Options for managing the execution of the workflow.:
 ## Input data format
 <details><summary><b>Click to expand</b></summary>
 <p>
-	
+
 Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
 If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
 
@@ -524,15 +525,15 @@ optional arguments:
   -h, --help            show this help message and exit
   --seed_list [SEED_LIST [SEED_LIST ...]]
                         Can provide a list of seed .nii images that will be
-                        used to evaluate seed-based correlation maps.Each seed
-                        must consist of a binary mask representing the ROI in
-                        commonspace. (default: [])
+                        used to evaluate seed-based correlation maps based on
+                        Pearson's r.Each seed must consist of a binary mask
+                        representing the ROI in commonspace. (default: [])
 
 Options for performing a whole-brain timeseries correlation matrix analysis.:
   --FC_matrix           Choose this option to derive a whole-brain functional
-                        connectivity matrix, based on the correlation of
-                        regional timeseries for each subject cleaned
-                        timeseries. (default: False)
+                        connectivity matrix, based on the Pearson's r
+                        correlation of regional timeseries for each subject
+                        cleaned timeseries. (default: False)
   --ROI_type {parcellated,voxelwise}
                         Define the types of ROI to extract regional timeseries
                         for correlation matrix analysis. Options are
@@ -552,7 +553,11 @@ Options for performing group-ICA using FSL's MELODIC on the whole dataset cleane
 
 Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC. Note that confound regression must have been conducted on commonspace outputs.:
   --DR_ICA              Choose this option to conduct dual regression on each
-                        subject cleaned timeseries. (default: False)
+                        subject timeseries. This analysis will output the
+                        spatial maps corresponding to the linear coefficients
+                        from the second linear regression. See
+                        rabies.analysis_pkg.analysis_functions.dual_regression
+                        for the specific code. (default: False)
   --IC_file IC_FILE     Option to provide a melodic_IC.nii.gz file with the
                         ICA components from a previous group-ICA run. If none
                         is provided, a group-ICA will be run with the dataset
