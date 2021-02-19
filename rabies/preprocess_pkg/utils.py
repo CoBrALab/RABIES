@@ -576,7 +576,7 @@ class slice_applyTransforms(BaseInterface):
             else:
                 transform_string += "-t %s " % (transform,)
 
-        print("Splitting bold file into lists of single volumes")
+        # Splitting bold file into lists of single volumes
         [bold_volumes, num_volumes] = split_volumes(
             self.inputs.in_file, "bold_", self.inputs.rabies_data_type)
 
@@ -642,6 +642,8 @@ class MergeInputSpec(BaseInterfaceInputSpec):
                               desc='input list of files to merge, listed in the order to merge')
     header_source = File(exists=True, mandatory=True,
                          desc='a Nifti file from which the header should be copied')
+    clip_negative = traits.Bool(
+        desc="Whether to clip out negative values.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
@@ -683,8 +685,9 @@ class Merge(BaseInterface):
         combined_files = os.path.abspath(
             "%s_combined.nii.gz" % (filename_split[0],))
 
-        # clip potential negative values
-        combined[(combined < 0).astype(bool)] = 0
+        if self.inputs.clip_negative:
+            # clip potential negative values
+            combined[(combined < 0).astype(bool)] = 0
         combined_image = sitk.GetImageFromArray(combined, isVector=False)
 
         # set metadata and affine for the newly constructed 4D image

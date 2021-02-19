@@ -87,7 +87,7 @@ def recover_3D(mask_file, vector_map):
     return volume_img
 
 
-def recover_3D_mutiple(mask_file, vector_maps):
+def recover_3D_multiple(mask_file, vector_maps):
     # vector maps of shape num_volumeXnum_voxel
     brain_mask = np.asarray(nb.load(mask_file).dataobj)
     volume_indices = brain_mask.astype(bool)
@@ -228,13 +228,57 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
     return out_dir, IC_file
 
 
+def resample_4D(input_4d, ref_file):
+    import os
+    import pathlib  # Better path manipulation
+    import SimpleITK as sitk
+    from rabies.preprocess_pkg.utils import run_command, split_volumes, Merge, copyInfo_3DImage
+    rabies_data_type=sitk.sitkFloat32
+
+
+    # check if the IC_file has the same dimensions as bold_file
+    img_array = sitk.GetArrayFromImage(
+        sitk.ReadImage(ref_file))[0, :, :, :]
+    image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
+        img_array, isVector=False), sitk.ReadImage(ref_file))
+    new_ref = 'temp_ref.nii.gz'
+    sitk.WriteImage(image_3d, 'temp_ref.nii.gz')
+
+    filename_split = pathlib.Path(
+        input_4d).name.rsplit(".nii")
+
+    # Splitting into list of single volumes
+    [split_volumes_files, num_volumes] = split_volumes(
+        input_4d, "split_", rabies_data_type)
+
+    resampled_volumes = []
+    for x in range(0, num_volumes):
+        resampled_vol_fname = os.path.abspath(
+            "resampled_volume" + str(x) + ".nii.gz")
+        resampled_volumes.append(resampled_vol_fname)
+
+        command = 'antsApplyTransforms -i %s -n BSpline[5] -r %s -o %s' % (
+            split_volumes_files[x], new_ref, resampled_vol_fname)
+        rc = run_command(command)
+        # change image to specified data type
+        sitk.WriteImage(sitk.ReadImage(resampled_vol_fname, rabies_data_type), resampled_vol_fname)
+
+    out=Merge(in_files=resampled_volumes, header_source=input_4d, rabies_data_type=rabies_data_type, clip_negative=False).run()
+    return out.outputs.out_file
+
 def run_DR_ICA(bold_file, mask_file, IC_file):
     import os
     import pickle
     import pathlib  # Better path manipulation
+    import SimpleITK as sitk
+    from rabies.analysis_pkg.analysis_functions import sub_DR_ICA, recover_3D_multiple, resample_4D
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
-    from rabies.analysis_pkg.analysis_functions import sub_DR_ICA, recover_3D_mutiple
+    # check if the IC_file has the same dimensions as bold_file
+    if not sitk.ReadImage(bold_file).GetSize()[:-1]==sitk.ReadImage(IC_file).GetSize()[:-1]:
+        print('Resampling file with IC components to match the scan dimensionality.')
+        IC_file = resample_4D(IC_file, bold_file)
+
     sub_ICs = sub_DR_ICA(bold_file, mask_file, IC_file)
 
     data_file = os.path.abspath(filename_split[0]+'_DR_ICA.pkl')
@@ -243,7 +287,7 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
 
     # save the subjects' IC maps as .nii file
     nii_file = os.path.abspath(filename_split[0]+'_DR_ICA.nii.gz')
-    recover_3D_mutiple(mask_file, sub_ICs).to_filename(nii_file)
+    recover_3D_multiple(mask_file, sub_ICs).to_filename(nii_file)
     return data_file, nii_file
 
 
@@ -270,18 +314,14 @@ def sub_DR_ICA(bold_file, mask_file, IC_file):
 LINEAR REGRESSION --- CLOSED-FORM SOLUTION
 '''
 
-# functions that computes the Least Squares Estimates
 
-
-def closed_form(X, Y, intercept=False):
+def closed_form(X, Y, intercept=False):  # functions that computes the Least Squares Estimates
     if intercept:
         X = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1)
     return np.linalg.inv(X.transpose().dot(X)).dot(X.transpose()).dot(Y)
 
-# functions that computes the Mean Square Error (MSE)
 
-
-def mse(X, Y, w):
+def mse(X, Y, w):  # function that computes the Mean Square Error (MSE)
     return np.mean((Y-np.matmul(X, w))**2)
 
 

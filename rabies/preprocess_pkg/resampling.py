@@ -24,7 +24,7 @@ def init_bold_preproc_trans_wf(resampling_dim, slice_mc=False, rabies_data_type=
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(rabies_data_type=rabies_data_type), name='merge', mem_gb=4*rabies_mem_scale)
+    merge = pe.Node(Merge(rabies_data_type=rabies_data_type, clip_negative=True), name='merge', mem_gb=4*rabies_mem_scale)
     merge.plugin_args = {
         'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
@@ -71,7 +71,7 @@ def init_bold_commonspace_trans_wf(resampling_dim, brain_mask, WM_mask, CSF_mask
     bold_transform.inputs.apply_motcorr = (not slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
 
-    merge = pe.Node(Merge(rabies_data_type=rabies_data_type), name='merge', mem_gb=4*rabies_mem_scale)
+    merge = pe.Node(Merge(rabies_data_type=rabies_data_type, clip_negative=True), name='merge', mem_gb=4*rabies_mem_scale)
     merge.plugin_args = {
         'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
 
