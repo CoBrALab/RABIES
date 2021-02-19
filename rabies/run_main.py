@@ -32,7 +32,8 @@ def get_parser():
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
                                                 help="""Different options for confound regression are available to apply directly
-        on preprocessing outputs from RABIES. Only selected confound regression and denoising strategies are applied.
+        on preprocessing outputs from RABIES. Detrending and standardization of timeseries is always applied. Otherwise only
+        selected confound regression and denoising strategies are applied.
         The denoising steps are applied in the following order: ICA-AROMA first, followed by detrending, then
         regression of confound timeseries orthogonal to the application of temporal filters
         (nilearn.clean_img, Lindquist 2018), standardization of timeseries, scrubbing, and finally smoothing.
@@ -235,12 +236,12 @@ def get_parser():
     analysis.add_argument('--seed_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
-                                     help="Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps."
+                                     help="Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps based on Pearson's r."
                                      "Each seed must consist of a binary mask representing the ROI in commonspace.")
     g_fc_matrix = analysis.add_argument_group(
         'Options for performing a whole-brain timeseries correlation matrix analysis.')
     g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
-                             help="Choose this option to derive a whole-brain functional connectivity matrix, based on the correlation of regional timeseries "
+                             help="Choose this option to derive a whole-brain functional connectivity matrix, based on the Pearson's r correlation of regional timeseries "
                              "for each subject cleaned timeseries.")
     g_fc_matrix.add_argument("--ROI_type", type=str, default='parcellated',
                              choices=['parcellated', 'voxelwise'],
@@ -258,7 +259,9 @@ def get_parser():
     g_DR_ICA = analysis.add_argument_group("Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC. "
                                            "Note that confound regression must have been conducted on commonspace outputs.")
     g_DR_ICA.add_argument("--DR_ICA", dest='DR_ICA', action='store_true',
-                          help="Choose this option to conduct dual regression on each subject cleaned timeseries.")
+                          help="Choose this option to conduct dual regression on each subject timeseries. This analysis will output the spatial "
+                          "maps corresponding to the linear coefficients from the second linear regression. "
+                          "See rabies.analysis_pkg.analysis_functions.dual_regression for the specific code.")
     g_DR_ICA.add_argument('--IC_file', action='store', type=Path,
                           default=None,
                           help="Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run. "
