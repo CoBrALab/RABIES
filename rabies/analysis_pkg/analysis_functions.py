@@ -123,7 +123,7 @@ FC matrix
 
 def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
     import os
-    import pickle
+    import pandas as pd
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
@@ -138,9 +138,9 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
             "Invalid --ROI_type provided: %s. Must be either 'parcellated' or 'voxelwise.'" % (roi_type))
     plot_matrix(figname, corr_matrix)
 
-    data_file = os.path.abspath(filename_split[0]+'_FC_matrix.pkl')
-    with open(data_file, 'wb') as handle:
-        pickle.dump(corr_matrix, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
+    df = pd.DataFrame(corr_matrix)
+    df.to_csv(data_file, sep=',')
     return data_file, figname
 
 
@@ -268,7 +268,7 @@ def resample_4D(input_4d, ref_file):
 
 def run_DR_ICA(bold_file, mask_file, IC_file):
     import os
-    import pickle
+    import pandas as pd
     import pathlib  # Better path manipulation
     import SimpleITK as sitk
     from rabies.analysis_pkg.analysis_functions import sub_DR_ICA, recover_3D_multiple, resample_4D
@@ -281,9 +281,9 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
 
     sub_ICs = sub_DR_ICA(bold_file, mask_file, IC_file)
 
-    data_file = os.path.abspath(filename_split[0]+'_DR_ICA.pkl')
-    with open(data_file, 'wb') as handle:
-        pickle.dump(sub_ICs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    data_file = os.path.abspath(filename_split[0]+'_DR_ICA.csv')
+    df=pd.DataFrame(sub_ICs.T)
+    df.to_csv(data_file,sep=',')
 
     # save the subjects' IC maps as .nii file
     nii_file = os.path.abspath(filename_split[0]+'_DR_ICA.nii.gz')
