@@ -89,7 +89,7 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
         command = "%s --fixed-mask %s --resampled-output %s_output_warped_image.nii.gz %s %s %s_output_" % (
             reg_call, anat_mask, filename_split[0], moving_image, fixed_image, filename_split[0])
     else:
-        command = 'bash %s %s %s %s %s %s' % (
+        command = '%s %s %s %s %s' % (
             reg_call, moving_image, fixed_image, anat_mask, filename_split[0])
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
