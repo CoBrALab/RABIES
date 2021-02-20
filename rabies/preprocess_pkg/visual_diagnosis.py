@@ -2,7 +2,10 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-
+import os
+import numpy as np
+import SimpleITK as sitk
+import matplotlib.pyplot as plt
 
 class PlotOverlapInputSpec(BaseInterfaceInputSpec):
     moving = File(exists=True, mandatory=True,
@@ -48,9 +51,9 @@ class PlotOverlap(BaseInterface):
 
 def otsu_scaling(image):
     import numpy as np
-    import nibabel as nb
-    img=nb.load(image)
-    array=np.asarray(img.dataobj)
+    import SimpleITK as sitk
+    img = sitk.ReadImage(image)
+    array = sitk.GetArrayFromImage(img)
 
     # select a smart vmax for the image display to enhance contrast
     from rabies.preprocess_pkg.utils import run_command
@@ -58,26 +61,55 @@ def otsu_scaling(image):
     rc = run_command(command)
 
     # clip off the background
-    mask = np.asarray(nb.load('otsu_weight.nii.gz').dataobj)
+    mask = sitk.GetArrayFromImage(sitk.ReadImage('otsu_weight.nii.gz'))
     voxel_subset=array[mask>1.0]
 
     # select a maximal value which encompasses 90% of the voxels in the mask
     voxel_subset.sort()
     vmax=voxel_subset[int(len(voxel_subset)*0.9)]
 
-    # re-scale the values to be within a range of -1 and 1
-    scaled = ((array/vmax)*2)-1
-    return nb.Nifti1Image(scaled, img.affine, img.header)
+    scaled = array/vmax
+    scaled_img=sitk.GetImageFromArray(scaled, isVector=False)
+    scaled_img.CopyInformation(img)
+    return scaled_img
 
-def plot_3d(image,axes,vmax=1,cmap='gray', cbar=False):
-    from nilearn import plotting
+
+def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False):
+    physical_dimensions = (np.array(sitk_img.GetSpacing())*np.array(sitk_img.GetSize()))[::-1] # invert because the array is inverted indices
+    array=sitk.GetArrayFromImage(sitk_img)
+
+    array[array==0]=None # set 0 values to be empty
+
+    slices=np.empty([array.shape[0],1])
+    for s in [0.35,0.45,0.55,0.65]:
+        slice=array[::-1,:,int(array.shape[2]*s)]
+        slices=np.concatenate((slices,slice,np.empty([array.shape[0],1])),axis=1)
     ax=axes[0]
-    display1 = plotting.plot_stat_map(image,bg_img=image, axes=ax, cmap=cmap, cut_coords=4, display_mode='x', vmax=vmax, threshold=None, draw_cross=False, colorbar=cbar)
+    pos = ax.imshow(slices, extent=[0,physical_dimensions[1]*4,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
+    ax.axis('off')
+    if cbar:
+        fig.colorbar(pos, ax=ax)
+
+    slices=np.empty([array.shape[0],1])
+    for s in [0.35,0.45,0.55,0.65]:
+        slice=array[::-1,int(array.shape[1]*s),:]
+        slices=np.concatenate((slices,slice,np.empty([array.shape[0],1])),axis=1)
     ax=axes[1]
-    display2 = plotting.plot_stat_map(image,bg_img=image, axes=ax, cmap=cmap, cut_coords=4, display_mode='y', vmax=vmax, threshold=None, draw_cross=False, colorbar=cbar)
+    pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*4,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
+    ax.axis('off')
+    if cbar:
+        fig.colorbar(pos, ax=ax)
+
+    slices=np.empty([array.shape[1],1])
+    for s in [0.35,0.45,0.55,0.65]:
+        slice=array[int(array.shape[0]*s),::-1,:]
+        slices=np.concatenate((slices,slice,np.empty([array.shape[1],1])),axis=1)
     ax=axes[2]
-    display3 = plotting.plot_stat_map(image,bg_img=image, axes=ax, cmap=cmap, cut_coords=4, display_mode='z', vmax=vmax, threshold=None, draw_cross=False, colorbar=cbar)
-    return display1,display2,display3
+    pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*4,0,physical_dimensions[1]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
+    ax.axis('off')
+    if cbar:
+        fig.colorbar(pos, ax=ax)
+
 
 def plot_reg(image1,image2, name_source, out_dir):
     import os
@@ -105,6 +137,7 @@ def plot_reg(image1,image2, name_source, out_dir):
     display3.add_edges(image1)
     fig.savefig('%s_registration.png' % (prefix), bbox_inches='tight')
 
+
 def template_diagnosis(anat_template, opts, out_dir):
     import os
     from nilearn import plotting
@@ -127,42 +160,50 @@ def template_diagnosis(anat_template, opts, out_dir):
 
     scaled = otsu_scaling(anat_template)
 
-    fig,axes = plt.subplots(nrows=6, ncols=3, figsize=(12*3,2*6))
-    plt.tight_layout()
+    fig,axes = plt.subplots(nrows=3, ncols=6, figsize=(4*6,2*2))
 
-    display1,display2,display3 = plot_3d(scaled,axes[0,:], cmap='gray')
+    axes[0,0].set_title('Anatomical Template', fontsize=20)
+    plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     # plot brain mask
     mask = brain_mask
-    display1,display2,display3 = plot_3d(scaled,axes[1,:], cmap='gray')
-    display1.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display2.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display3.add_overlay(mask, cmap=plotting.cm.red_transparent)
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    axes[0,1].set_title('Brain Mask', fontsize=20)
+    plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:,1],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
     # plot WM mask
     mask = WM_mask
-    display1,display2,display3 = plot_3d(scaled,axes[2,:], cmap='gray')
-    display1.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display2.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display3.add_overlay(mask, cmap=plotting.cm.red_transparent)
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    axes[0,2].set_title('WM Mask', fontsize=20)
+    plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
     # plot CSF mask
     mask = CSF_mask
-    display1,display2,display3 = plot_3d(scaled,axes[3,:], cmap='gray')
-    display1.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display2.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display3.add_overlay(mask, cmap=plotting.cm.red_transparent)
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    axes[0,3].set_title('CSF Mask', fontsize=20)
+    plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:,3],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
     # plot VASC mask
     mask = vascular_mask
-    display1,display2,display3 = plot_3d(scaled,axes[4,:], cmap='gray')
-    display1.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display2.add_overlay(mask, cmap=plotting.cm.red_transparent)
-    display3.add_overlay(mask, cmap=plotting.cm.red_transparent)
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    axes[0,4].set_title('Vascular Mask', fontsize=20)
+    plot_3d(axes[:,4],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:,4],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
 
     # plot labels
     mask = labels
-    display1,display2,display3 = plot_3d(scaled,axes[5,:], cmap='gray')
-    display1.add_overlay(mask, cmap='rainbow')
-    display2.add_overlay(mask, cmap='rainbow')
-    display3.add_overlay(mask, cmap='rainbow')
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    axes[0,5].set_title('Atlas Labels', fontsize=20)
+    plot_3d(axes[:,5],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
+    plt.tight_layout()
+
     fig.savefig(out_dir+'/template_diagnosis.png', bbox_inches='tight')
+
 
 def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_source, out_dir):
     import os
@@ -174,11 +215,10 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
 
     import numpy as np
     import SimpleITK as sitk
-    from nilearn import plotting
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.visual_diagnosis import plot_3d,otsu_scaling
+    from rabies.preprocess_pkg.visual_diagnosis import plot_3d
     from rabies.preprocess_pkg.utils import copyInfo_3DImage
-    fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(12*3,3*3))
+    fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(20,5))
     # plot the motion timecourses
     import pandas as pd
     df = pd.read_csv(confounds_csv)
@@ -188,7 +228,7 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
     ax.plot(df['mov3'])
     ax.legend(['mov1','mov2','mov3'])
     ax.set_title('Translation parameters', fontsize=20)
-    ax = axes[0,1]
+    ax = axes[1,0]
     ax.plot(df['rot1'])
     ax.plot(df['rot2'])
     ax.plot(df['rot3'])
@@ -196,7 +236,7 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
     ax.set_title('Rotation parameters', fontsize=20)
 
     df = pd.read_csv(FD_csv)
-    ax=axes[0,2]
+    ax=axes[2,0]
     ax.plot(df['Mean'], color='r')
     ax.set_title('Framewise Displacement', fontsize=20)
 
@@ -208,18 +248,24 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
     mean = array.mean(axis=0)
     std = array.std(axis=0)
     std_filename = os.path.abspath('tSTD.nii.gz')
-    image_3d = copyInfo_3DImage(
+    std_image = copyInfo_3DImage(
         sitk.GetImageFromArray(std, isVector=False), img)
-    sitk.WriteImage(image_3d, std_filename)
+    sitk.WriteImage(std_image, std_filename)
 
     tSNR = np.divide(mean, std)
+    tSNR[np.isnan(tSNR)]=0
     tSNR_filename = os.path.abspath('tSNR.nii.gz')
-    image_3d = copyInfo_3DImage(
+    tSNR_image = copyInfo_3DImage(
         sitk.GetImageFromArray(tSNR, isVector=False), img)
-    sitk.WriteImage(image_3d, tSNR_filename)
+    sitk.WriteImage(tSNR_image, tSNR_filename)
 
-    plot_3d(std_filename,axes[1,:],vmax=std.max(),cmap=plotting.cm.cold_hot, cbar=True)
-    plot_3d(tSNR_filename,axes[2,:],vmax=tSNR.max(),cmap='Spectral', cbar=True)
+    axes[0,1].set_title('Temporal STD', fontsize=20)
+    std=std.flatten()
+    std.sort()
+    std_vmax = std[int(len(std)*0.95)]
+    plot_3d(axes[:,1],std_image,fig=fig,vmin=0,vmax=std_vmax,cmap='inferno', cbar=True)
+    axes[0,2].set_title('Temporal SNR', fontsize=20)
+    plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
     fig.savefig('%s_temporal_diagnosis.png' % (prefix), bbox_inches='tight')
 
@@ -229,28 +275,30 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
 def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_source, out_dir):
     import os
     import pathlib
+    import SimpleITK as sitk
     filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
     os.makedirs(out_dir, exist_ok=True)
     prefix = out_dir+'/'+ \
         filename_template
 
-    from nilearn import plotting
     import matplotlib.pyplot as plt
     from rabies.preprocess_pkg.visual_diagnosis import plot_3d,otsu_scaling
-    fig,axes = plt.subplots(nrows=4, ncols=3, figsize=(12*3,2*4))
+    fig,axes = plt.subplots(nrows=3, ncols=4, figsize=(12*4,2*3))
     plt.tight_layout()
 
     scaled = otsu_scaling(raw_img)
-    display1,display2,display3 = plot_3d(scaled,axes[0,:], cmap='viridis')
-    display1,display2,display3 = plot_3d(scaled,axes[2,:], cmap='viridis')
-    display1.add_overlay(warped_mask, cmap=plotting.cm.red_transparent)
-    display2.add_overlay(warped_mask, cmap=plotting.cm.red_transparent)
-    display3.add_overlay(warped_mask, cmap=plotting.cm.red_transparent)
+    axes[0,0].set_title('Raw EPI', fontsize=20)
+    plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
+    axes[0,2].set_title('Resampled Mask', fontsize=20)
+    plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
+    plot_3d(axes[:,2],sitk.ReadImage(warped_mask,sitk.sitkFloat32),fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(init_denoise)
-    display1,display2,display3 = plot_3d(scaled,axes[1,:], cmap='viridis')
+    axes[0,1].set_title('Initial Denoising', fontsize=20)
+    plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     scaled = otsu_scaling(final_denoise)
-    display1,display2,display3 = plot_3d(scaled,axes[3,:], cmap='viridis')
+    axes[0,3].set_title('Final Denoising', fontsize=20)
+    plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     fig.savefig('%s_denoising.png' % (prefix), bbox_inches='tight')

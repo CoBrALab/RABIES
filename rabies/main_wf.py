@@ -413,8 +413,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             anat_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/anat_denoising/'
 
             workflow.connect([
+                (anat_convert_to_RAS_node, anat_denoising_diagnosis, [
+                    ("RAS_file", "raw_img"),
+                    ]),
                 (anat_selectfiles, anat_denoising_diagnosis, [
-                    ("out_file", "raw_img"),
                     ("out_file", "name_source"),
                     ]),
                 (anat_preproc_wf, anat_denoising_diagnosis, [
