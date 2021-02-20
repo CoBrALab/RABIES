@@ -752,7 +752,7 @@ def copyInfo_3DImage(image_3d, ref_3d):
     return image_3d
 
 
-def resample_image_spacing(image, output_spacing):
+def resample_image_spacing(image, output_spacing, resampling_interpolation='BSpline'):
     import SimpleITK as sitk
     import numpy as np
     dimension = 3
@@ -764,7 +764,7 @@ def resample_image_spacing(image, output_spacing):
     output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]
                                                              * sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
 
-    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSplineResamplerOrder4,
+    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSpline,
                                     image.GetOrigin(), output_spacing, image.GetDirection())
     # clip potential negative values
     array = sitk.GetArrayFromImage(resampled_image)
