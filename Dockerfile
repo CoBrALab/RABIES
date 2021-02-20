@@ -158,24 +158,24 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
 
 
 #### install RABIES
-ENV export RABIES_VERSION=0.2.0-dev \
+ENV export RABIES_VERSION=0.2.1 \
     export RABIES=$HOME/RABIES-${RABIES_VERSION} \
     export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-RUN export RABIES_VERSION=0.2.0-dev && \
+RUN export RABIES_VERSION=0.2.1 && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
-  #mkdir -p temp && \
-  #curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
-  #cd temp && \
-  #tar zxf RABIES.tar.gz && \
-  #cd .. && \
-  #conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
-  #bash temp/RABIES-${RABIES_VERSION}/install.sh && \
-  #rm -r temp && \
-  git clone https://github.com/CoBrALab/RABIES && \
-  mv RABIES $RABIES && \
-  conda env create -f $RABIES/rabies_environment.yml && \
-  bash $RABIES/install.sh && \
+  mkdir -p temp && \
+  curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
+  cd temp && \
+  tar zxf RABIES.tar.gz && \
+  cd .. && \
+  conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
+  bash temp/RABIES-${RABIES_VERSION}/install.sh && \
+  rm -r temp && \
+  #git clone https://github.com/CoBrALab/RABIES && \
+  #mv RABIES $RABIES && \
+  #conda env create -f $RABIES/rabies_environment.yml && \
+  #bash $RABIES/install.sh && \
   DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
   csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
@@ -194,7 +194,7 @@ RUN export FSLDIR="/usr/share/fsl/5.0/" && \
   . ${FSLDIR}/etc/fslconf/fsl.sh && \
   export PATH="/usr/share/fsl/5.0/bin:$PATH" && \
   export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH && \
-  export RABIES_VERSION=0.2.0-dev && \
+  export RABIES_VERSION=0.2.1 && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
   export PATH=$PATH:$RABIES/rabies/shell_scripts && \
   echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > ${RABIES}/exec.py && \
@@ -218,4 +218,4 @@ WORKDIR /tmp/
 ENV PATH /home/rabies/miniconda-latest/envs/rabies/bin:$PATH
 RUN /bin/bash -c "source activate rabies"
 
-ENTRYPOINT ["/home/rabies/RABIES-0.2.0-dev/exec.py"]
+ENTRYPOINT ["/home/rabies/RABIES-0.2.1/exec.py"]

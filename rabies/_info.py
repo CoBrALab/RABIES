@@ -1,4 +1,4 @@
-__version__ = "0.2.0-dev"
+__version__ = "0.2.1"
 __packagename__ = 'RABIES'
 __url__ = 'https://github.com/CoBrALab/'
 
