@@ -2,7 +2,7 @@
 
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 
-## General Command Line Interface
+# General Command Line Interface
 <details><summary><b>Click to expand</b></summary>
 <p>
 
@@ -74,15 +74,28 @@ Options for managing the execution of the workflow.:
 </p>
 </details>
 
+# Execution syntax and example
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+The following section describes the basic syntax to run RABIES with an example dataset available here http://doi.org/10.5281/zenodo.3937697
+
 ## Input data format
 <details><summary><b>Click to expand</b></summary>
 <p>
 
 Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
 If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+<br/>
+<br/>
+Mandatory BIDS specifications are:
+* 'sub-{subject ID}' and 'ses-{session ID}' for both functional and anatomical images
+* 'bold' or 'cbv' suffix for functional images
+* 'T1w' or 'T2w' for anatomical images
+* 'run-{run #}' is necessary for functional images if there are multiple scans per session
 
-### Directory Tree of an example input folder
-* An example dataset for testing RABIES is available http://doi.org/10.5281/zenodo.3937697 with the following structure:
+### Directory tree of the example dataset
+* http://doi.org/10.5281/zenodo.3937697 has the following BIDS structure:
 
 <!DOCTYPE html>
 <html>
@@ -144,42 +157,92 @@ If anatomical scans are used for preprocessing (--bold_only False), each functio
 </p>
 </details>
 
-## Execution syntax
+## Local execution
 
 <details><summary><b>Click to expand</b></summary>
 <p>
 
-Below is an example for the execution of RABIES, where the option for local parallel execution (-p MultiProc) is specified,
-followed by the image processing step (preprocess), then the paths to the input and output directories, and finally the
-desired specifications for the preprocessing (using the --autoreg option and specifying the repetition time --TR 1.0s):
+**preprocess**
 ```sh
-rabies -p MultiProc preprocess bids_inputs/ rabies_outputs/ --autoreg --TR 1.0s
+rabies -p MultiProc preprocess test_dataset/ preprocess_outputs/ --TR 1.0s --no_STC
 ```
-### Running RABIES interactively within a container (Singularity and Docker)
+First, this will run the minimal preprocessing step on the test dataset and store outputs into preprocess_outputs/ folder. The option -p MultiProc specifies to run the pipeline in parallel according to available local threads.
+<br/>
+
+**confound_regression**
+```sh
+rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+```
+Next, to conduct the modeling and regression of confounding sources, the confound_regression step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
+<br/>
+
+**analysis**
+```sh
+rabies -p MultiProc analysis confound_regression_outputs analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+```
+Finally, RABIES has a few standard analysis options provided, which are specified in the Analysis documentation. In this example, we are going to run group independent component analysis (--group_ICA), using FSL's MELODIC function, followed by a dual regression (--DR_ICA) to back propagate the group components onto individual subjects.
+
+</p>
+</details>
+
+## Container execution (Singularity and Docker)
+
+<details><summary><b>Click to expand</b></summary>
+<p>
+
 Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
-execution of the software regardless of the user. These ensure more consistent execution and outputs.
-Singularity containers can also be exported to remote high-performance computing platforms (e.g. computecanada).
+execution of the software regardless of the user.
+Singularity containers can be exported to remote high-performance computing platforms (e.g. computecanada).
 <br/>
 The main difference for the execution of a container consists in relating the paths for all relevant directories from the local
 computer to the container's internal folders. This is done using -B for Singularity and -v for Docker. See below for examples:
 <br/>
-**Singularity execution**
+
+### Singularity execution
+
+**preprocess**
 ```sh
-singularity run -B /local_input_folder_path:/nii_inputs:ro \
--B /local_output_folder_path:/rabies_out \
-/path_to_singularity_image/rabies.sif preprocess /nii_inputs /rabies_out \
---rabies_execution_specifications
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc preprocess /test_dataset/ /preprocess_outputs/ --TR 1.0s --no_STC
 ```
-**Docker execution**
+<br/>
+
+**confound_regression**
+```sh
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+-B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc /confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+```
+Note here that the path to the dataset is still linked to the container with -B, even though it is not explicitely part of the inputs in the confound regression call. This is necessary since the paths used in the preprocess steps are still accessed in the background, and there will be an error if the paths are not kept consistent across processing steps.
+<br/>
+
+**analysis**
+```sh
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+-B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
+-B $PWD/analysis_outputs:/analysis_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_regression_outputs /analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+```
+<br/>
+
+### Docker execution
 ```sh
 docker run -it --rm \
 -v /local_input_folder_path:/nii_inputs:ro \
 -v /local_output_folder_path:/outputs \
 rabies preprocess /nii_inputs /outputs --further_execution_specifications
 ```
+The docker execution has very similar syntax to the singularity execution, except that -B is replaced by -v, and some further specifications may be needed (e.g. -it, --rm).
 
 </p>
 </details>
+
+</p>
+</details>
+
 
 # Preprocessing
 <details><summary><b>Click to expand</b></summary>
