@@ -476,9 +476,6 @@ The following image presents an example of the overlap for the EPI2Anat registra
 </p>
 </details>
 
-
-<br/>
-
 # Confound Regression
 <details><summary><b>Click to expand</b></summary>
 <p>
