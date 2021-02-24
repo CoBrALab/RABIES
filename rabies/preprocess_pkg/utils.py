@@ -578,7 +578,9 @@ class slice_applyTransforms(BaseInterface):
         # tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string = ""
         for transform, inverse in zip(self.inputs.transforms, self.inputs.inverses):
-            if bool(inverse):
+            if transform=='NULL':
+                continue
+            elif bool(inverse):
                 transform_string += "-t [%s,1] " % (transform,)
             else:
                 transform_string += "-t %s " % (transform,)
