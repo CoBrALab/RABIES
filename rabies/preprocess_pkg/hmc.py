@@ -4,10 +4,9 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-from .utils import SliceMotionCorrection
+from .utils import SliceMotionCorrection, antsMotionCorr
 
-
-def init_bold_hmc_wf(slice_mc=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, local_threads=1, name='bold_hmc_wf'):
+def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     """
     This workflow estimates the motion parameters to perform HMC over the BOLD image.
 
@@ -28,7 +27,6 @@ def init_bold_hmc_wf(slice_mc=False, rabies_data_type=8, rabies_mem_scale=1.0, m
         movpar_file
             CSV file with antsMotionCorr motion parameters
     """
-    import os
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
@@ -39,23 +37,24 @@ def init_bold_hmc_wf(slice_mc=False, rabies_data_type=8, rabies_mem_scale=1.0, m
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(EstimateMotion(rabies_data_type=rabies_data_type), name='ants_MC', mem_gb=1.1*rabies_mem_scale)
+    motion_estimation = pe.Node(antsMotionCorr(prebuilt_option=opts.HMC_option,transform_type=opts.HMC_transform, second=False, rabies_data_type=opts.data_type),
+                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory)
     motion_estimation.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, motion_estimation, [('ref_image', 'ref_file'),
                                         ('bold_file', 'in_file')]),
         (motion_estimation, outputnode, [
-         ('motcorr_params', 'motcorr_params')]),
+         ('csv_params', 'motcorr_params')]),
     ])
 
-    if slice_mc:
-        slice_mc_n_procs = int(local_threads/4)+1
+    if opts.apply_slice_mc:
+        slice_mc_n_procs = int(opts.local_threads/4)+1
         slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs),
                                 name='slice_mc', mem_gb=1*slice_mc_n_procs, n_procs=slice_mc_n_procs)
         slice_mc_node.plugin_args = {
-            'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
+            'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
 
         # conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
         workflow.connect([
@@ -68,43 +67,3 @@ def init_bold_hmc_wf(slice_mc=False, rabies_data_type=8, rabies_mem_scale=1.0, m
         ])
 
     return workflow
-
-
-class EstimateMotionInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    ref_file = File(exists=True, mandatory=True,
-                    desc="Reference image to which timeseries are realigned for motion estimation")
-    rabies_data_type = traits.Int(mandatory=True,
-        desc="Integer specifying SimpleITK data type.")
-
-
-class EstimateMotionOutputSpec(TraitedSpec):
-    motcorr_params = File(
-        exists=True, desc="Motion estimation derived from antsMotionCorr")
-    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
-
-
-class EstimateMotion(BaseInterface):
-    """
-    Runs ants motion correction interface and returns the motion estimation
-    """
-
-    input_spec = EstimateMotionInputSpec
-    output_spec = EstimateMotionOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        from .utils import antsMotionCorr
-        res = antsMotionCorr(in_file=self.inputs.in_file,
-                             ref_file=self.inputs.ref_file, second=False, rabies_data_type=self.inputs.rabies_data_type).run()
-        csv_params = os.path.abspath(res.outputs.csv_params)
-
-        setattr(self, 'csv_params', csv_params)
-        setattr(self, 'mc_corrected_bold', os.path.abspath(
-            res.outputs.mc_corrected_bold))
-
-        return runtime
-
-    def _list_outputs(self):
-        return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
-                'motcorr_params': getattr(self, 'csv_params')}

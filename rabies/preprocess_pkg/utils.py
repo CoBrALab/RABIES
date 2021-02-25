@@ -156,7 +156,7 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
-def init_bold_reference_wf(detect_dummy=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='gen_bold_ref'):
+def init_bold_reference_wf(opts, name='gen_bold_ref'):
     """
     This workflow generates reference BOLD images for a series
 
@@ -193,10 +193,10 @@ def init_bold_reference_wf(detect_dummy=False, rabies_data_type=8, rabies_mem_sc
         niu.IdentityInterface(fields=['bold_file', 'ref_image']),
         name='outputnode')
 
-    gen_ref = pe.Node(EstimateReferenceImage(detect_dummy=detect_dummy, rabies_data_type=rabies_data_type),
-                      name='gen_ref', mem_gb=2*rabies_mem_scale)
+    gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
+                      name='gen_ref', mem_gb=2*opts.scale_min_memory)
     gen_ref.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(2*min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(2*opts.min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, gen_ref, [('bold_file', 'in_file')]),
@@ -209,6 +209,7 @@ def init_bold_reference_wf(detect_dummy=False, rabies_data_type=8, rabies_mem_sc
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    HMC_option = traits.Str(desc="Select one of the pre-built options from https://github.com/ANTsX/ANTsR/blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_motion_estimation.R")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -291,7 +292,8 @@ class EstimateReferenceImage(BaseInterface):
 
             print("First iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=median_fname, second=False, rabies_data_type=self.inputs.rabies_data_type).run()
+                                 ref_file=median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=False, rabies_data_type=self.inputs.rabies_data_type).run()
+
             median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(
                 res.outputs.mc_corrected_bold, self.inputs.rabies_data_type)), axis=0)
             tmp_median_fname = os.path.abspath("tmp_median.nii.gz")
@@ -301,7 +303,7 @@ class EstimateReferenceImage(BaseInterface):
 
             print("Second iteration to generate reference image.")
             res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=tmp_median_fname, second=True,  rabies_data_type=self.inputs.rabies_data_type).run()
+                                 ref_file=tmp_median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=True,  rabies_data_type=self.inputs.rabies_data_type).run()
 
             # evaluate a trimmed mean instead of a median, trimming the 5% extreme values
             from scipy import stats
@@ -346,6 +348,8 @@ class antsMotionCorrInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
     ref_file = File(exists=True, mandatory=True,
                     desc='ref file to realignment time series')
+    prebuilt_option = traits.Str(desc="Select one of the pre-built options from https://github.com/ANTsX/ANTsR/blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_motion_estimation.R")
+    transform_type = traits.Str(desc="Specify between Rigid and Affine transform.")
     second = traits.Bool(desc="specify if it is the second iteration")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
@@ -369,16 +373,9 @@ class antsMotionCorr(BaseInterface):
     output_spec = antsMotionCorrOutputSpec
 
     def _run_interface(self, runtime):
-
         import os
         import SimpleITK as sitk
         from rabies.preprocess_pkg.utils import run_command
-        # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
-        shrinking_factor = 4
-        img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
-        low_dim = np.asarray(img.GetSize()[:3]).min()
-        if shrinking_factor > int(low_dim/4):
-            shrinking_factor = int(low_dim/4)
 
         # change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
@@ -388,13 +385,63 @@ class antsMotionCorr(BaseInterface):
         # make a tmp directory to store the files
         os.makedirs('ants_mc_tmp', exist_ok=True)
 
-        command = 'antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] \
-                -m MI[ %s , %s , 1 , 20 , Regular, 0.2 ] -t Rigid[ 0.1 ] -i 100x50x30 -u 1 -e 1 -l 1 -s 2x1x0 -f %sx2x1 -n 10' % (self.inputs.ref_file, self.inputs.in_file, str(shrinking_factor))
+        # adaptation from https://github.com/ANTsX/ANTsR/blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_motion_estimation.R
+        moving = self.inputs.in_file
+        fixed = self.inputs.ref_file
+        txtype = self.inputs.transform_type
+        moreaccurate = self.inputs.prebuilt_option
+        verbose = 0
+
+        if txtype not in ['Rigid', 'Affine']:
+            raise ValueError("Wrong transform type provided.")
+        if not moreaccurate=="intraSubjectBOLD":
+            moreaccurate=int(moreaccurate)
+            if moreaccurate not in [0, 1, 2, 3]:
+                raise ValueError("Wrong pre-built option provided.")
+
+        img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
+        n = img.GetSize()[3]
+        if (n > 10):
+            n = 10
+        mibins = 20
+
+        if (moreaccurate == 3):
+            # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
+            shrinking_factor = 4
+            low_dim = np.asarray(img.GetSize()[:3]).min()
+            if shrinking_factor > int(low_dim/4):
+                shrinking_factor = int(low_dim/4)
+            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ %s , \
+                %s , 1 , %s ] -t %s[0.1,3,0] -i 100x50x30 -s 2x1x0 -f %sx2x1 -u 1 -e 1 -l 1 -n %s -v %s" % (fixed, moving, str(mibins), txtype, str(shrinking_factor), str(n), str(verbose))
+
+        elif (moreaccurate == 2):
+            # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
+            shrinking_factor = 4
+            img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
+            low_dim = np.asarray(img.GetSize()[:3]).min()
+            if shrinking_factor > int(low_dim/4):
+                shrinking_factor = int(low_dim/4)
+            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ %s , \
+                %s , 1 , %s , regular, 0.25 ] -t %s[ 0.1 ] -i 100x50x30 -s 2x1x0 -f %sx2x1 -u 1 -e 1 -l 1 -n %s -v %s" % (fixed, moving, str(mibins), txtype, str(shrinking_factor), str(n), str(verbose))
+
+        elif (moreaccurate == "intraSubjectBOLD"):
+            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ %s , \
+                %s , 1 , %s , regular, 0.2 ] -t %s[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -l 1 -n %s -v %s" % (fixed, moving, str(mibins), txtype, str(n), str(verbose))
+
+        elif (moreaccurate == 1):
+            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ %s , \
+                %s , 1 , %s , regular, 0.25 ] -t %s[ 0.1 ] -i 100 -s 0 -f 1 -u 1 -e 1 -l 1 -n %s -v %s" % (fixed, moving, str(mibins), txtype, str(n), str(verbose))
+
+        elif (moreaccurate == 0):
+            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ %s , \
+                %s , 1 , %s , regular, 0.02 ] -t %s[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -l 1 -n %s -v %s" % (fixed, moving, str(mibins), txtype, str(n), str(verbose))
+        else:
+            raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
 
-        setattr(self, 'csv_params', 'ants_mc_tmp/motcorrMOCOparams.csv')
-        setattr(self, 'mc_corrected_bold', 'ants_mc_tmp/motcorr.nii.gz')
-        setattr(self, 'avg_image', 'ants_mc_tmp/motcorr_avg.nii.gz')
+        setattr(self, 'csv_params', os.path.abspath('ants_mc_tmp/motcorrMOCOparams.csv'))
+        setattr(self, 'mc_corrected_bold', os.path.abspath('ants_mc_tmp/motcorr.nii.gz'))
+        setattr(self, 'avg_image', os.path.abspath('ants_mc_tmp/motcorr_avg.nii.gz'))
 
         return runtime
 
@@ -406,10 +453,8 @@ class antsMotionCorr(BaseInterface):
 
 def register_slice(fixed_image, moving_image):
     # function for 2D registration
-    initial_transform = sitk.CenteredTransformInitializer(fixed_image,
-                                                          moving_image,
-                                                          sitk.Euler2DTransform(),
-                                                          sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    dimension = 2
+    initial_transform = sitk.Transform(dimension, sitk.sitkIdentity)
 
     registration_method = sitk.ImageRegistrationMethod()
 
@@ -419,7 +464,7 @@ def register_slice(fixed_image, moving_image):
     registration_method.SetMetricSamplingStrategy(registration_method.NONE)
     # registration_method.SetMetricSamplingPercentage(0.01)
 
-    registration_method.SetInterpolator(sitk.sitkLinear)
+    registration_method.SetInterpolator(sitk.sitkBSpline)
 
     # Optimizer settings.
     registration_method.SetOptimizerAsGradientDescent(
@@ -578,7 +623,9 @@ class slice_applyTransforms(BaseInterface):
         # tranforms is a list of transform files, set in order of call within antsApplyTransforms
         transform_string = ""
         for transform, inverse in zip(self.inputs.transforms, self.inputs.inverses):
-            if bool(inverse):
+            if transform=='NULL':
+                continue
+            elif bool(inverse):
                 transform_string += "-t [%s,1] " % (transform,)
             else:
                 transform_string += "-t %s " % (transform,)

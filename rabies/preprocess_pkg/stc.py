@@ -3,7 +3,7 @@ from nipype.interfaces.utility import Function
 from nipype.interfaces import utility as niu
 
 
-def init_bold_stc_wf(tr, tpattern, no_STC=False, rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='bold_stc_wf'):
+def init_bold_stc_wf(opts, name='bold_stc_wf'):
     """
     This workflow performs :abbr:`STC (slice-timing correction)` over the input
     :abbr:`BOLD (blood-oxygen-level dependent)` image.
@@ -26,22 +26,23 @@ def init_bold_stc_wf(tr, tpattern, no_STC=False, rabies_data_type=8, rabies_mem_
             Slice-timing corrected BOLD series NIfTI file
 
     """
-    import os
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
-    if not no_STC:
+    if not opts.no_STC:
         slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],
                                                         function=slice_timing_correction),
-                                               name='slice_timing_correction', mem_gb=1.5*rabies_mem_scale)
-        slice_timing_correction_node.inputs.rabies_data_type = rabies_data_type
+                                               name='slice_timing_correction', mem_gb=1.5*opts.scale_min_memory)
+        slice_timing_correction_node.inputs.tr = opts.TR
+        slice_timing_correction_node.inputs.tpattern = opts.tpattern
+        slice_timing_correction_node.inputs.rabies_data_type = opts.data_type
         slice_timing_correction_node.plugin_args = {
-            'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
+            'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
 
         workflow.connect([
             (inputnode, slice_timing_correction_node, [('bold_file', 'in_file')]),

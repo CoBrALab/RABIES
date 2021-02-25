@@ -343,8 +343,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            name='anat_convert_to_RAS')
 
         # setting anat preprocessing nodes
-        anat_preproc_wf = init_anat_preproc_wf(reg_script=opts.anat_reg_script,
-                                               disable_anat_preproc=opts.disable_anat_preproc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
+        anat_preproc_wf = init_anat_preproc_wf(opts=opts)
         anat_preproc_wf.inputs.inputnode.template_mask = str(opts.brain_mask)
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],
@@ -609,9 +608,7 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
     cr_output = os.path.abspath(str(cr_opts.output_dir))
 
     from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
-    confound_regression_wf = init_confound_regression_wf(lowpass=cr_opts.lowpass, highpass=cr_opts.highpass,
-                                                         smoothing_filter=cr_opts.smoothing_filter, run_aroma=cr_opts.run_aroma, aroma_dim=cr_opts.aroma_dim, conf_list=cr_opts.conf_list, TR=cr_opts.TR, apply_scrubbing=cr_opts.apply_scrubbing,
-                                                         scrubbing_threshold=cr_opts.scrubbing_threshold, timeseries_interval=cr_opts.timeseries_interval, diagnosis_output=cr_opts.diagnosis_output, name=cr_opts.wf_name)
+    confound_regression_wf = init_confound_regression_wf(cr_opts=cr_opts, name=cr_opts.wf_name)
 
     workflow.connect([
         (outputnode, confound_regression_wf, [

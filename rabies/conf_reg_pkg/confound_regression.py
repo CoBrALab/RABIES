@@ -4,9 +4,7 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 from .utils import regress, data_diagnosis, select_timeseries, exec_ICA_AROMA
 
-
-def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.3, run_aroma=False, aroma_dim=0, conf_list=[],
-                                TR='1.0s', apply_scrubbing=False, scrubbing_threshold=0.1, timeseries_interval='all', diagnosis_output=False, name="confound_regression_wf"):
+def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
@@ -19,20 +17,20 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
                                     output_names=['cleaned_path', 'bold_file', 'VE_file'],
                                     function=regress),
                            name='regress', mem_gb=1)
-    regress_node.inputs.conf_list = conf_list
-    regress_node.inputs.TR = float(TR.split('s')[0])
-    regress_node.inputs.lowpass = lowpass
-    regress_node.inputs.highpass = highpass
-    regress_node.inputs.smoothing_filter = smoothing_filter
-    regress_node.inputs.apply_scrubbing = apply_scrubbing
-    regress_node.inputs.scrubbing_threshold = scrubbing_threshold
-    regress_node.inputs.timeseries_interval = timeseries_interval
+    regress_node.inputs.conf_list = cr_opts.conf_list
+    regress_node.inputs.TR = float(cr_opts.TR.split('s')[0])
+    regress_node.inputs.lowpass = cr_opts.lowpass
+    regress_node.inputs.highpass = cr_opts.highpass
+    regress_node.inputs.smoothing_filter = cr_opts.smoothing_filter
+    regress_node.inputs.apply_scrubbing = cr_opts.apply_scrubbing
+    regress_node.inputs.scrubbing_threshold = cr_opts.scrubbing_threshold
+    regress_node.inputs.timeseries_interval = cr_opts.timeseries_interval
 
     select_timeseries_node = pe.Node(Function(input_names=['bold_file', 'timeseries_interval'],
                                               output_names=['bold_file'],
                                               function=select_timeseries),
                                      name='select_timeseries', mem_gb=1)
-    select_timeseries_node.inputs.timeseries_interval = timeseries_interval
+    select_timeseries_node.inputs.timeseries_interval = cr_opts.timeseries_interval
 
     workflow.connect([
         (inputnode, select_timeseries_node, [
@@ -49,13 +47,13 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
             ]),
         ])
 
-    if run_aroma:
+    if cr_opts.run_aroma:
         ica_aroma_node = pe.Node(Function(input_names=['inFile', 'mc_file', 'brain_mask', 'csf_mask', 'tr', 'aroma_dim'],
                                           output_names=['cleaned_file', 'aroma_out'],
                                           function=exec_ICA_AROMA),
                                  name='ica_aroma', mem_gb=1)
-        ica_aroma_node.inputs.tr = float(TR.split('s')[0])
-        ica_aroma_node.inputs.aroma_dim = aroma_dim
+        ica_aroma_node.inputs.tr = float(cr_opts.TR.split('s')[0])
+        ica_aroma_node.inputs.aroma_dim = cr_opts.aroma_dim
 
         workflow.connect([
             (inputnode, ica_aroma_node, [
@@ -80,7 +78,7 @@ def init_confound_regression_wf(lowpass=None, highpass=None, smoothing_filter=0.
                 ]),
             ])
 
-    if diagnosis_output:
+    if cr_opts.diagnosis_output:
         data_diagnosis_node = pe.Node(data_diagnosis(),
                                       name='data_diagnosis', mem_gb=1)
 

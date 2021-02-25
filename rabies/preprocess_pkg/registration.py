@@ -3,7 +3,7 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 
 
-def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name='bold_reg_wf'):
+def init_bold_reg_wf(opts, name='bold_reg_wf'):
     """
     This workflow registers the reference BOLD image to anat-space, using
     antsRegistration, either applying Affine registration only, or the
@@ -55,11 +55,11 @@ def init_bold_reg_wf(coreg_script='SyN', rabies_data_type=8, rabies_mem_scale=1.
                                             "anat_mask", "rabies_data_type"],
                                output_names=['affine_bold2anat', 'warp_bold2anat',
                                              'inverse_warp_bold2anat', 'output_warped_bold'],
-                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*rabies_mem_scale)
-    run_reg.inputs.reg_method = coreg_script
-    run_reg.inputs.rabies_data_type = rabies_data_type
+                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
+    run_reg.inputs.reg_method = opts.coreg_script
+    run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(3*min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, run_reg, [

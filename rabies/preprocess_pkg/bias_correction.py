@@ -1,4 +1,3 @@
-import os
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.base import (
@@ -7,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 
-def bias_correction_wf(bias_cor_method='otsu_reg', rabies_data_type=8, rabies_mem_scale=1.0, name='bias_correction_wf'):
+def bias_correction_wf(opts, name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -19,16 +18,15 @@ def bias_correction_wf(bias_cor_method='otsu_reg', rabies_data_type=8, rabies_me
             fields=['corrected_EPI', 'denoise_mask', 'warped_EPI', 'init_denoise']),
         name='outputnode')
 
-    if bias_cor_method=='otsu_reg':
-        bias_correction = pe.Node(OtsuEPIBiasCorrection(rabies_data_type=rabies_data_type),
-                                  name='bias_correction', mem_gb=0.3*rabies_mem_scale)
+    if opts.bias_cor_method=='otsu_reg':
+        bias_correction = pe.Node(OtsuEPIBiasCorrection(rabies_data_type=opts.data_type),
+                                  name='bias_correction', mem_gb=0.3*opts.scale_min_memory)
 
-    elif bias_cor_method=='thresh_reg':
-        bias_correction = pe.Node(EPIBiasCorrection(rabies_data_type=rabies_data_type),
-                                  name='bias_correction', mem_gb=0.3*rabies_mem_scale)
+    elif opts.bias_cor_method=='thresh_reg':
+        bias_correction = pe.Node(EPIBiasCorrection(rabies_data_type=opts.data_type),
+                                  name='bias_correction', mem_gb=0.3*opts.scale_min_memory)
     else:
         raise ValueError("Wrong --bias_cor_method.")
-
 
     workflow.connect([
         (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
