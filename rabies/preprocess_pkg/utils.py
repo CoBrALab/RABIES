@@ -464,7 +464,7 @@ def register_slice(fixed_image, moving_image):
     registration_method.SetMetricSamplingStrategy(registration_method.NONE)
     # registration_method.SetMetricSamplingPercentage(0.01)
 
-    registration_method.SetInterpolator(sitk.sitkLinear)
+    registration_method.SetInterpolator(sitk.sitkBSpline)
 
     # Optimizer settings.
     registration_method.SetOptimizerAsGradientDescent(
