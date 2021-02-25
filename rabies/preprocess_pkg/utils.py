@@ -453,10 +453,8 @@ class antsMotionCorr(BaseInterface):
 
 def register_slice(fixed_image, moving_image):
     # function for 2D registration
-    initial_transform = sitk.CenteredTransformInitializer(fixed_image,
-                                                          moving_image,
-                                                          sitk.Euler2DTransform(),
-                                                          sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    dimension = 2
+    initial_transform = sitk.Transform(dimension, sitk.sitkIdentity)
 
     registration_method = sitk.ImageRegistrationMethod()
 
