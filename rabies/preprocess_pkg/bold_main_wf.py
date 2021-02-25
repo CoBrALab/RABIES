@@ -11,7 +11,7 @@ from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 
-def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bold_main_wf'):
+def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -136,10 +136,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                              name="transitionnode")
 
     if bias_cor_only or (not opts.bold_only):
-        bold_reference_wf = init_bold_reference_wf(
-            detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
-        bias_cor_wf = bias_correction_wf(
-            bias_cor_method=opts.bias_cor_method, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory)
+        bold_reference_wf = init_bold_reference_wf(opts=opts)
+        bias_cor_wf = bias_correction_wf(opts=opts)
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -192,12 +190,10 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
     if opts.bold_only and bias_cor_only:
         return workflow
 
-    bold_stc_wf = init_bold_stc_wf(
-        no_STC=opts.no_STC, tr=opts.TR, tpattern=opts.tpattern, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+    bold_stc_wf = init_bold_stc_wf(opts=opts)
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(slice_mc=opts.apply_slice_mc, rabies_data_type=opts.data_type,
-                                   rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc, local_threads=opts.local_threads)
+    bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
     if not opts.bold_only:
         def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
@@ -218,11 +214,9 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                                                        function=commonspace_transforms),
                                               name='commonspace_transforms_prep')
 
-    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(resampling_dim=opts.commonspace_resampling, brain_mask=str(opts.brain_mask), WM_mask=str(opts.WM_mask), CSF_mask=str(opts.CSF_mask), vascular_mask=str(opts.vascular_mask), atlas_labels=str(opts.labels),
-        slice_mc=opts.apply_slice_mc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(opts=opts)
 
-    bold_confs_wf = init_bold_confs_wf(
-        aCompCor_method=aCompCor_method, name="bold_confs_wf", rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+    bold_confs_wf = init_bold_confs_wf(opts=opts, name="bold_confs_wf")
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
@@ -287,8 +281,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
         ])
 
     if not opts.bold_only:
-        bold_reg_wf = init_bold_reg_wf(coreg_script=opts.coreg_script, rabies_data_type=opts.data_type,
-                                       rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+        bold_reg_wf = init_bold_reg_wf(opts=opts)
 
         def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
             # transforms_list,inverses
@@ -300,8 +293,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, aCompCor_method='50%', name='bo
                                   name='transforms_prep')
 
         # Apply transforms in 1 shot
-        bold_bold_trans_wf = init_bold_preproc_trans_wf(
-            resampling_dim=opts.nativespace_resampling, slice_mc=opts.apply_slice_mc, rabies_data_type=opts.data_type, rabies_mem_scale=opts.scale_min_memory, min_proc=opts.min_proc)
+        bold_bold_trans_wf = init_bold_preproc_trans_wf(opts=opts)
 
         workflow.connect([
             (inputnode, bold_reg_wf, [

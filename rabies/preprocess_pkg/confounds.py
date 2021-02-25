@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_bold_confs_wf(aCompCor_method='50%', rabies_data_type=8, rabies_mem_scale=1.0, min_proc=1, name="bold_confs_wf"):
+def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
@@ -31,10 +31,10 @@ def init_bold_confs_wf(aCompCor_method='50%', rabies_data_type=8, rabies_mem_sca
     propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec = 'anat_labels'
 
-    estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=rabies_data_type),
-                                 name='estimate_confounds', mem_gb=2.3*rabies_mem_scale)
+    estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=opts.data_type),
+                                 name='estimate_confounds', mem_gb=2.3*opts.scale_min_memory)
     estimate_confounds.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(2*min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp %s' % (str(2*opts.min_proc)), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([

@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 
-def init_anat_preproc_wf(reg_script, disable_anat_preproc=False, rabies_data_type=8, rabies_mem_scale=1.0, name='anat_preproc_wf'):
+def init_anat_preproc_wf(opts, name='anat_preproc_wf'):
     '''
     This workflow executes anatomical preprocessing based on anat_preproc.sh,
     which includes initial N4 bias field correction and Adaptive
@@ -21,8 +21,8 @@ def init_anat_preproc_wf(reg_script, disable_anat_preproc=False, rabies_data_typ
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['anat_preproc','init_denoise', 'denoise_mask']), name='outputnode')
 
-    anat_preproc = pe.Node(AnatPreproc(reg_script=reg_script, disable_anat_preproc=disable_anat_preproc, rabies_data_type=rabies_data_type),
-                           name='Anat_Preproc', mem_gb=0.6*rabies_mem_scale)
+    anat_preproc = pe.Node(AnatPreproc(reg_script=opts.anat_reg_script, disable_anat_preproc=opts.disable_anat_preproc, rabies_data_type=opts.data_type),
+                           name='Anat_Preproc', mem_gb=0.6*opts.scale_min_memory)
 
     workflow.connect([
         (inputnode, anat_preproc, [
