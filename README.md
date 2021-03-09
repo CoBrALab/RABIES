@@ -213,7 +213,7 @@ singularity run -B $PWD/test_dataset:/test_dataset:ro \
 singularity run -B $PWD/test_dataset:/test_dataset:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
 -B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc /confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+/path_to_singularity_image/rabies.sif -p MultiProc confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
 ```
 Note here that the path to the dataset is still linked to the container with -B, even though it is not explicitely part of the inputs in the confound regression call. This is necessary since the paths used in the preprocess steps are still accessed in the background, and there will be an error if the paths are not kept consistent across processing steps.
 <br/>
