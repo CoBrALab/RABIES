@@ -171,7 +171,7 @@ First, this will run the minimal preprocessing step on the test dataset and stor
 
 **confound_regression**
 ```sh
-rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
 ```
 Next, to conduct the modeling and regression of confounding sources, the confound_regression step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
 <br/>
