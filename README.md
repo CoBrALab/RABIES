@@ -2,7 +2,11 @@
 
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
 
-# General Command Line Interface
+# Command Line Interface (CLI)
+
+The following section describes the --help outputs from the command line interface 
+
+## General CLI
 <details><summary><b>Click to expand</b></summary>
 <p>
 
@@ -74,177 +78,7 @@ Options for managing the execution of the workflow.:
 </p>
 </details>
 
-# Execution syntax and example
-<details><summary><b>Click to expand</b></summary>
-<p>
-
-The following section describes the basic syntax to run RABIES with an example dataset available here http://doi.org/10.5281/zenodo.3937697
-
-## Input data format
-<details><summary><b>Click to expand</b></summary>
-<p>
-
-Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
-If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
-<br/>
-<br/>
-Mandatory BIDS specifications are:
-* 'sub-{subject ID}' and 'ses-{session ID}' for both functional and anatomical images
-* 'bold' or 'cbv' suffix for functional images
-* 'T1w' or 'T2w' for anatomical images
-* 'run-{run #}' is necessary for functional images if there are multiple scans per session
-
-### Directory tree of the example dataset
-* http://doi.org/10.5281/zenodo.3937697 has the following BIDS structure:
-
-<!DOCTYPE html>
-<html>
-<head>
- <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
- <meta name="Author" content="Made by 'tree'">
- <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
-  <!--
-  BODY { font-family : ariel, monospace, sans-serif; }
-  P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
-  B { font-weight: normal; color: black; background-color: transparent;}
-  A:visited { font-weight : normal; text-decoration : none; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:link    { font-weight : normal; text-decoration : none; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:hover   { color : #000000; font-weight : normal; text-decoration : underline; background-color : yellow; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  A:active  { color : #000000; font-weight: normal; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
-  .VERSION { font-size: small; font-family : arial, sans-serif; }
-  .NORM  { color: black;  background-color: transparent;}
-  .FIFO  { color: purple; background-color: transparent;}
-  .CHAR  { color: yellow; background-color: transparent;}
-  .DIR   { color: blue;   background-color: transparent;}
-  .BLOCK { color: yellow; background-color: transparent;}
-  .LINK  { color: aqua;   background-color: transparent;}
-  .SOCK  { color: fuchsia;background-color: transparent;}
-  .EXEC  { color: green;  background-color: transparent;}
-  -->
-</head>
-<body>
-	<p>
-	<a href="test_dataset">test_dataset</a><br>
-	├── <a href="test_dataset/sub-MFC067/">sub-MFC067</a><br>
-	│   └── <a href="test_dataset/sub-MFC067/ses-1/">ses-1</a><br>
-	│   &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC067/ses-1/anat/">anat</a><br>
-	│   &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/">func</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	└── <a href="test_dataset/sub-MFC068/">sub-MFC068</a><br>
-	&nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC068/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/">func</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	<br><br>
-	</p>
-	<p>
-
-8 directories, 4 files
-	<br><br>
-	</p>
-	<hr>
-	<p class="VERSION">
-		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
-		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
-		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
-		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
-	</p>
-</body>
-</html>
-
-</p>
-</details>
-
-## Local execution
-
-<details><summary><b>Click to expand</b></summary>
-<p>
-
-**preprocess**
-```sh
-rabies -p MultiProc preprocess test_dataset/ preprocess_outputs/ --TR 1.0s --no_STC
-```
-First, this will run the minimal preprocessing step on the test dataset and store outputs into preprocess_outputs/ folder. The option -p MultiProc specifies to run the pipeline in parallel according to available local threads.
-<br/>
-
-**confound_regression**
-```sh
-rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
-```
-Next, to conduct the modeling and regression of confounding sources, the confound_regression step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
-<br/>
-
-**analysis**
-```sh
-rabies -p MultiProc analysis confound_regression_outputs analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
-```
-Finally, RABIES has a few standard analysis options provided, which are specified in the Analysis documentation. In this example, we are going to run group independent component analysis (--group_ICA), using FSL's MELODIC function, followed by a dual regression (--DR_ICA) to back propagate the group components onto individual subjects.
-
-</p>
-</details>
-
-## Container execution (Singularity and Docker)
-
-<details><summary><b>Click to expand</b></summary>
-<p>
-
-Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
-execution of the software regardless of the user.
-Singularity containers can be exported to remote high-performance computing platforms (e.g. computecanada).
-<br/>
-The main difference for the execution of a container consists in relating the paths for all relevant directories from the local
-computer to the container's internal folders. This is done using -B for Singularity and -v for Docker. See below for examples:
-<br/>
-
-### Singularity execution
-
-**preprocess**
-```sh
-singularity run -B $PWD/test_dataset:/test_dataset:ro \
--B $PWD/preprocess_outputs:/preprocess_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc preprocess /test_dataset/ /preprocess_outputs/ --TR 1.0s --no_STC
-```
-<br/>
-
-**confound_regression**
-```sh
-singularity run -B $PWD/test_dataset:/test_dataset:ro \
--B $PWD/preprocess_outputs:/preprocess_outputs/ \
--B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
-```
-Note here that the path to the dataset is still linked to the container with -B, even though it is not explicitely part of the inputs in the confound regression call. This is necessary since the paths used in the preprocess steps are still accessed in the background, and there will be an error if the paths are not kept consistent across processing steps.
-<br/>
-
-**analysis**
-```sh
-singularity run -B $PWD/test_dataset:/test_dataset:ro \
--B $PWD/preprocess_outputs:/preprocess_outputs/ \
--B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
--B $PWD/analysis_outputs:/analysis_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_regression_outputs /analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
-```
-<br/>
-
-### Docker execution
-```sh
-docker run -it --rm \
--v /local_input_folder_path:/nii_inputs:ro \
--v /local_output_folder_path:/outputs \
-rabies preprocess /nii_inputs /outputs --further_execution_specifications
-```
-The docker execution has very similar syntax to the singularity execution, except that -B is replaced by -v, and some further specifications may be needed (e.g. -it, --rm).
-
-</p>
-</details>
-
-</p>
-</details>
-
-
-# Preprocessing
+## Preprocessing CLI
 <details><summary><b>Click to expand</b></summary>
 <p>
 
@@ -418,75 +252,10 @@ Provided commonspace atlas files.:
                         cron_labels.nii.gz)
 ```
 
-## Outputs
-<details><summary><b>Click to expand</b></summary>
-<p>
-
-Important outputs will be found in the datasink folders. All the different preprocessing outputs are found below:
-- **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
-    - anat_preproc: preprocessed anatomical scans that are used for further registrations
-    - anat_mask: brain mask in the anatomical native space
-    - WM_mask: WM mask in the anatomical native space
-    - CSF_mask: CSF mask in the anatomical native space
-    - anat_labels: atlas labels in the anatomical native space
-- **bold_datasink**: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and other key EPI outputs from the preprocessing workflow
-    - input_bold: original raw EPI images used as inputs into the pipeline
-    - corrected_bold: EPI timeseries after preprocessing in native space
-    - corrected_bold_ref: reference 3D EPI image (temporal median) after correction
-    - bold_brain_mask: brain mask in the corrected_bold space
-    - bold_WM_mask: WM mask in the corrected_bold space
-    - bold_CSF_mask: CSF mask in the corrected_bold space
-    - bold_labels: atlas labels in the corrected_bold space
-    - commonspace_bold: EPI timeseries after preprocessing in common space
-    - commonspace_bold_mask: brain mask in the commonspace_bold space
-    - commonspace_bold_WM_mask: WM mask in the commonspace_bold space
-    - commonspace_bold_CSF_mask: CSF mask in the commonspace_bold space
-    - commonspace_vascular_mask: vascular mask in the commonspace_bold space
-    - commonspace_bold_labels: atlas labels in the commonspace_bold space
-    - initial_bold_ref: initial reference 3D EPI image that was subsequently used for bias-field correction
-    - bias_cor_bold: reference 3D EPI after bias-field correction which is then used for co-registration
-    - bias_cor_bold_warped2anat: bias_cor_bold warped to the co-registration target anatomical image
-- **commonspace_datasink**: Outputs from the common space registration
-    - ants_dbm_template: the dataset template generated from the registration of anatomical images, using two-level ants dbm (https://github.com/CoBrALab/twolevel_ants_dbm), can be found here
-    - warped_template: ants_dbm_template warped to the provided common space template after registration
-    - ants_dbm_outputs: a complete output from the two-level ants dbm run for the generation of a dataset anatomical template
-- **transforms_datasink**: Contains all transforms
-    - affine_bold2anat: affine transforms from the EPI co-registration to the anatomical image
-    - warp_bold2anat: non-linear transforms from the EPI co-registration to the anatomical image
-    - inverse_warp_bold2anat: inverse of the non-linear transforms from the EPI co-registration to the anatomical image
-    - anat_to_template_affine: affine transforms from the registration of the anatomical image to ants_dbm_template registration
-    - anat_to_template_warp: non-linear transforms from the registration of the anatomical image to ants_dbm_template registration
-    - anat_to_template_inverse_warp: inverse of the non-linear transforms from the registration of the anatomical image to ants_dbm_template
-    - template_to_common_affine: affine transforms from the registration of the ants_dbm_template to the commonspace template
-    - template_to_common_warp: non-linear transforms from the registration of the ants_dbm_template to the commonspace template
-    - template_to_common_inverse_warp: inverse of the non-linear transforms from the registration of the ants_dbm_template to the commonspace template
-
-- **confounds_datasink**: contains confounding features from the EPI that are relevant for subsequent confound regression
-    - confounds_csv: a .csv file with the diverse potential confound timecourses. Includes up to 24 motion parameters (6 rigid parameters, their temporal derivative, and all 12 parameters squared; Friston et al. 1996), the global signal, the WM mask signal, the CSF mask signal, the vascular mask signal and aCompCor timecourses (Muschelli et al. 2014).
-    - FD_csv: a .csv file with the timecourse of the voxelwise mean and maximal framewise displacement (FD) estimations
-    - FD_voxelwise: a .nii image which contains FD timecourses for all single voxel
-    - pos_voxelwise: a .nii image which contains the relative positioning timecourses for all single voxel
-
-### Recommendations for Quality Control (QC)
-Visual QC outputs in .png format are generate for several processing milestones. These can be found in the rabies_out/QC_report folder.
-The milestones include:
-* **template_files**: displays the overlap of the provided anatomical template with it's associated masks and labels.
-* **anat_denoising**: represents the processing steps for the denoising of the anatomical image before main registration steps. It includes 1-the raw image, 2-the initial correction, 3-the overlap of the registered mask used for final correction, 4-final corrected output.
-* **bold_denoising**: same as anat_denoising, but for the functional image.
-* **EPI2Anat**: registration of the EPI to the anatomical image within subject
-* **Anat2Template**: registration of the anatomical image to the dataset-generated template
-* **Template2Commonspace**: registration of the dataset template to the provided commonspace template
-* **temporal_denoising**: includes the timecourse of the head motion realignment parameters and associated framewise displacement. Also include spatial maps for temporal variability and tSNR.
-The following image presents an example of the overlap for the EPI2Anat registration:
-![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/sub-jgrAesMEDISOc11L_ses-1_run-1_EPI2Anat.png)
-
 </p>
 </details>
 
-</p>
-</details>
-
-# Confound Regression
+## Confound Regression CLI
 <details><summary><b>Click to expand</b></summary>
 <p>
 
@@ -561,20 +330,11 @@ optional arguments:
                         tSNR map from the input uncorrected image. (default:
                         False)
 ```
-## Outputs
-
-Important outputs from confound regression will be found in the confound_regression_datasink present in the provided output folder:
-- **confound_regression_datasink**: Includes outputs specific to the anatomical preprocessing workflow
-    - cleaned_timeseries: Resulting timeseries after the application of confound regression
-    - VE_file: .pkl file which contains a dictionary vectors, where each vector corresponds to the voxelwise the variance explained (VE) from each regressor in the regression model
-    - aroma_out: if --run_aroma is selected, the outputs from running ICA-AROMA will be saved, which includes the MELODIC ICA outputs and the component classification results
-    - subject_melodic_ICA: if --diagnosis_output is activated, will contain the outputs from MELODIC ICA run on each individual scan
-    - tSNR_map: if --diagnosis_output is activated, this will contain the tSNR map for each scan before confound regression
 
 </p>
 </details>
 
-# Analysis
+## Analysis CLI
 <details><summary><b>Click to expand</b></summary>
 <p>
 
@@ -634,7 +394,256 @@ Options for performing a dual regression analysis based on a previous group-ICA 
                         cleaned timeseries. (default: None)
 ```
 
-## Outputs
+</p>
+</details>
+
+# Step 1: Organize Input Data
+
+Input folder must follow the BIDS structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'.
+If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+<br/>
+<br/>
+Mandatory BIDS specifications are:
+* 'sub-{subject ID}' and 'ses-{session ID}' for both functional and anatomical images
+* 'bold' or 'cbv' suffix for functional images
+* 'T1w' or 'T2w' for anatomical images
+* 'run-{run #}' is necessary for functional images if there are multiple scans per session
+
+### Directory tree of the example dataset
+* http://doi.org/10.5281/zenodo.3937697 has the following BIDS structure:
+
+<!DOCTYPE html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <meta name="Author" content="Made by 'tree'">
+ <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
+  <!--
+  BODY { font-family : ariel, monospace, sans-serif; }
+  P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
+  B { font-weight: normal; color: black; background-color: transparent;}
+  A:visited { font-weight : normal; text-decoration : none; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:link    { font-weight : normal; text-decoration : none; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:hover   { color : #000000; font-weight : normal; text-decoration : underline; background-color : yellow; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  A:active  { color : #000000; font-weight: normal; background-color : transparent; margin : 0px 0px 0px 0px; padding : 0px 0px 0px 0px; display: inline; }
+  .VERSION { font-size: small; font-family : arial, sans-serif; }
+  .NORM  { color: black;  background-color: transparent;}
+  .FIFO  { color: purple; background-color: transparent;}
+  .CHAR  { color: yellow; background-color: transparent;}
+  .DIR   { color: blue;   background-color: transparent;}
+  .BLOCK { color: yellow; background-color: transparent;}
+  .LINK  { color: aqua;   background-color: transparent;}
+  .SOCK  { color: fuchsia;background-color: transparent;}
+  .EXEC  { color: green;  background-color: transparent;}
+  -->
+</head>
+<body>
+	<p>
+	<a href="test_dataset">test_dataset</a><br>
+	├── <a href="test_dataset/sub-MFC067/">sub-MFC067</a><br>
+	│   └── <a href="test_dataset/sub-MFC067/ses-1/">ses-1</a><br>
+	│   &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC067/ses-1/anat/">anat</a><br>
+	│   &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	│   &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/">func</a><br>
+	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+	└── <a href="test_dataset/sub-MFC068/">sub-MFC068</a><br>
+	&nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/">ses-1</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC068/ses-1/anat/">anat</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/">func</a><br>
+	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+	<br><br>
+	</p>
+	<p>
+
+8 directories, 4 files
+	<br><br>
+	</p>
+	<hr>
+	<p class="VERSION">
+		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
+		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
+		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
+		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
+	</p>
+</body>
+</html>
+
+# Step 2: Execute RABIES
+The following section describes the basic syntax to run RABIES with an example dataset available here http://doi.org/10.5281/zenodo.3937697
+
+## Option A: How to run with local installation
+
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+**preprocess**
+```sh
+rabies -p MultiProc preprocess test_dataset/ preprocess_outputs/ --TR 1.0s --no_STC
+```
+First, this will run the minimal preprocessing step on the test dataset and store outputs into preprocess_outputs/ folder. The option -p MultiProc specifies to run the pipeline in parallel according to available local threads.
+<br/>
+
+**confound_regression**
+```sh
+rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+```
+Next, to conduct the modeling and regression of confounding sources, the confound_regression step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
+<br/>
+
+**analysis**
+```sh
+rabies -p MultiProc analysis confound_regression_outputs analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+```
+Finally, RABIES has a few standard analysis options provided, which are specified in the Analysis documentation. In this example, we are going to run group independent component analysis (--group_ICA), using FSL's MELODIC function, followed by a dual regression (--DR_ICA) to back propagate the group components onto individual subjects.
+
+</p>
+</details>
+
+## Option B: How to run with a container (Singularity and Docker)
+
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
+execution of the software regardless of the user.
+Singularity containers can be exported to remote high-performance computing platforms (e.g. computecanada).
+<br/>
+The main difference for the execution of a container consists in relating the paths for all relevant directories from the local
+computer to the container's internal folders. This is done using -B for Singularity and -v for Docker. See below for examples:
+<br/>
+
+### Singularity execution
+
+**preprocess**
+```sh
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc preprocess /test_dataset/ /preprocess_outputs/ --TR 1.0s --no_STC
+```
+<br/>
+
+**confound_regression**
+```sh
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+-B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+```
+Note here that the path to the dataset is still linked to the container with -B, even though it is not explicitely part of the inputs in the confound regression call. This is necessary since the paths used in the preprocess steps are still accessed in the background, and there will be an error if the paths are not kept consistent across processing steps.
+<br/>
+
+**analysis**
+```sh
+singularity run -B $PWD/test_dataset:/test_dataset:ro \
+-B $PWD/preprocess_outputs:/preprocess_outputs/ \
+-B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
+-B $PWD/analysis_outputs:/analysis_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_regression_outputs /analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+```
+<br/>
+
+### Docker execution
+```sh
+docker run -it --rm \
+-v /local_input_folder_path:/nii_inputs:ro \
+-v /local_output_folder_path:/outputs \
+rabies preprocess /nii_inputs /outputs --further_execution_specifications
+```
+The docker execution has very similar syntax to the singularity execution, except that -B is replaced by -v, and some further specifications may be needed (e.g. -it, --rm).
+
+</p>
+</details>
+
+# Step 3: Understand your outputs
+
+In this section, there is a description for all the output files provided at each processing steps, together with recommandations for quality control.
+
+## Preprocessing Outputs
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+Important outputs will be found in the datasink folders. All the different preprocessing outputs are found below:
+- **anat_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+    - anat_preproc: preprocessed anatomical scans that are used for further registrations
+    - anat_mask: brain mask in the anatomical native space
+    - WM_mask: WM mask in the anatomical native space
+    - CSF_mask: CSF mask in the anatomical native space
+    - anat_labels: atlas labels in the anatomical native space
+- **bold_datasink**: Includes corrected EPI timeseries (corrected_bold/ for native space and commonspace_bold/ for registered to commonspace), EPI masks and other key EPI outputs from the preprocessing workflow
+    - input_bold: original raw EPI images used as inputs into the pipeline
+    - corrected_bold: EPI timeseries after preprocessing in native space
+    - corrected_bold_ref: reference 3D EPI image (temporal median) after correction
+    - bold_brain_mask: brain mask in the corrected_bold space
+    - bold_WM_mask: WM mask in the corrected_bold space
+    - bold_CSF_mask: CSF mask in the corrected_bold space
+    - bold_labels: atlas labels in the corrected_bold space
+    - commonspace_bold: EPI timeseries after preprocessing in common space
+    - commonspace_bold_mask: brain mask in the commonspace_bold space
+    - commonspace_bold_WM_mask: WM mask in the commonspace_bold space
+    - commonspace_bold_CSF_mask: CSF mask in the commonspace_bold space
+    - commonspace_vascular_mask: vascular mask in the commonspace_bold space
+    - commonspace_bold_labels: atlas labels in the commonspace_bold space
+    - initial_bold_ref: initial reference 3D EPI image that was subsequently used for bias-field correction
+    - bias_cor_bold: reference 3D EPI after bias-field correction which is then used for co-registration
+    - bias_cor_bold_warped2anat: bias_cor_bold warped to the co-registration target anatomical image
+- **commonspace_datasink**: Outputs from the common space registration
+    - ants_dbm_template: the dataset template generated from the registration of anatomical images, using two-level ants dbm (https://github.com/CoBrALab/twolevel_ants_dbm), can be found here
+    - warped_template: ants_dbm_template warped to the provided common space template after registration
+    - ants_dbm_outputs: a complete output from the two-level ants dbm run for the generation of a dataset anatomical template
+- **transforms_datasink**: Contains all transforms
+    - affine_bold2anat: affine transforms from the EPI co-registration to the anatomical image
+    - warp_bold2anat: non-linear transforms from the EPI co-registration to the anatomical image
+    - inverse_warp_bold2anat: inverse of the non-linear transforms from the EPI co-registration to the anatomical image
+    - anat_to_template_affine: affine transforms from the registration of the anatomical image to ants_dbm_template registration
+    - anat_to_template_warp: non-linear transforms from the registration of the anatomical image to ants_dbm_template registration
+    - anat_to_template_inverse_warp: inverse of the non-linear transforms from the registration of the anatomical image to ants_dbm_template
+    - template_to_common_affine: affine transforms from the registration of the ants_dbm_template to the commonspace template
+    - template_to_common_warp: non-linear transforms from the registration of the ants_dbm_template to the commonspace template
+    - template_to_common_inverse_warp: inverse of the non-linear transforms from the registration of the ants_dbm_template to the commonspace template
+
+- **confounds_datasink**: contains confounding features from the EPI that are relevant for subsequent confound regression
+    - confounds_csv: a .csv file with the diverse potential confound timecourses. Includes up to 24 motion parameters (6 rigid parameters, their temporal derivative, and all 12 parameters squared; Friston et al. 1996), the global signal, the WM mask signal, the CSF mask signal, the vascular mask signal and aCompCor timecourses (Muschelli et al. 2014).
+    - FD_csv: a .csv file with the timecourse of the voxelwise mean and maximal framewise displacement (FD) estimations
+    - FD_voxelwise: a .nii image which contains FD timecourses for all single voxel
+    - pos_voxelwise: a .nii image which contains the relative positioning timecourses for all single voxel
+
+### Recommendations for Quality Control (QC)
+Visual QC outputs in .png format are generate for several processing milestones. These can be found in the rabies_out/QC_report folder.
+The milestones include:
+* **template_files**: displays the overlap of the provided anatomical template with it's associated masks and labels.
+* **anat_denoising**: represents the processing steps for the denoising of the anatomical image before main registration steps. It includes 1-the raw image, 2-the initial correction, 3-the overlap of the registered mask used for final correction, 4-final corrected output.
+* **bold_denoising**: same as anat_denoising, but for the functional image.
+* **EPI2Anat**: registration of the EPI to the anatomical image within subject
+* **Anat2Template**: registration of the anatomical image to the dataset-generated template
+* **Template2Commonspace**: registration of the dataset template to the provided commonspace template
+* **temporal_denoising**: includes the timecourse of the head motion realignment parameters and associated framewise displacement. Also include spatial maps for temporal variability and tSNR.
+The following image presents an example of the overlap for the EPI2Anat registration:
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/sub-jgrAesMEDISOc11L_ses-1_run-1_EPI2Anat.png)
+
+</p>
+</details>
+
+## Confound Regression Outputs
+
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+Important outputs from confound regression will be found in the confound_regression_datasink present in the provided output folder:
+- **confound_regression_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+    - cleaned_timeseries: Resulting timeseries after the application of confound regression
+    - VE_file: .pkl file which contains a dictionary vectors, where each vector corresponds to the voxelwise the variance explained (VE) from each regressor in the regression model
+    - aroma_out: if --run_aroma is selected, the outputs from running ICA-AROMA will be saved, which includes the MELODIC ICA outputs and the component classification results
+    - subject_melodic_ICA: if --diagnosis_output is activated, will contain the outputs from MELODIC ICA run on each individual scan
+    - tSNR_map: if --diagnosis_output is activated, this will contain the tSNR map for each scan before confound regression
+
+</p>
+</details>
+
+## Analysis Outputs
+
+<details><summary><b>Click to expand</b></summary>
+<p>
 
 Important outputs from analysis will be found in the analysis_datasink present in the provided output folder:
 - **analysis_datasink**: Includes outputs specific to the anatomical preprocessing workflow
