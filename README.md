@@ -1,6 +1,6 @@
 # RABIES: Rodent Automated Bold Improvement of EPI Sequences.
 
-![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.jpg)
+![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.png)
 
 # Command Line Interface (CLI)
 
