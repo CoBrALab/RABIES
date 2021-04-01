@@ -29,7 +29,10 @@ os.environ['LD_LIBRARY_PATH'] = '/usr/lib/fsl/5.0:%s' % (os.environ['LD_LIBRARY_
 # RABIES
 os.environ['RABIES_VERSION'] = '0.2.1-dev'
 os.environ['RABIES'] = "%s/RABIES-%s" % (os.environ['HOME'],os.environ['RABIES_VERSION'])
-os.environ['PYTHONPATH'] = '%s:%s' % (os.environ['PYTHONPATH'],os.environ['RABIES'])
+if 'PYTHONPATH' in os.environ.keys():
+    os.environ['PYTHONPATH'] = '%s:%s' % (os.environ['PYTHONPATH'],os.environ['RABIES'])
+else:
+    os.environ['PYTHONPATH'] = os.environ['RABIES']
 sys.path.insert(0,os.environ['RABIES'])
 os.environ['PATH'] = '%s/rabies/shell_scripts:%s/twolevel_ants_dbm:%s/minc-toolkit-extras:/home/rabies/miniconda-latest/envs/rabies/bin:%s' % (os.environ['RABIES'],os.environ['RABIES'],os.environ['RABIES'],os.environ['PATH'])
 from rabies.run_main import execute_workflow
