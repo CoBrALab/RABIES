@@ -162,15 +162,15 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
     && conda update -yq -nbase conda
 
 RUN echo "CONDA_DIR='$HOME/miniconda-latest'" >> $HOME/.bashrc && \
-  echo PATH='$HOME/miniconda-latest/bin:$PATH'" >> $HOME/.bashrc
+  echo "PATH='$HOME/miniconda-latest/bin:$PATH'" >> $HOME/.bashrc
 
 #### install RABIES
 ENV export RABIES_VERSION=0.2.1-dev \
     export RABIES=$HOME/RABIES-${RABIES_VERSION} \
     export PYTHONPATH="${PYTHONPATH}:$RABIES"
-ARG export RABIES_VERSION=0.2.1-dev \
-    export RABIES=$HOME/RABIES-${RABIES_VERSION} \
-    export PYTHONPATH="${PYTHONPATH}:$RABIES"
+ARG export RABIES_VERSION=0.2.1-dev
+ARG export RABIES=$HOME/RABIES-${RABIES_VERSION}
+ARG export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
 # download code and create conda environment
 RUN mkdir -p temp && \
@@ -184,9 +184,9 @@ RUN mkdir -p temp && \
   git clone https://github.com/CoBrALab/RABIES && \
   mv RABIES $RABIES && \
   conda env create -f $RABIES/rabies_environment.yml && \
-  chmod -x $RABIES/bin/docker_exec.py
+  chmod 777 $RABIES/bin/docker_exec.py
 
-RUN bash $RABIES/install.sh
+RUN bash $RABIES/install.sh && \
   DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
   csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
