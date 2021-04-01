@@ -1,3 +1,4 @@
+#!/bin/bash
 ### setup RABIES execution and DSURQE atlas
 
 #will install RABIES in HOME directory

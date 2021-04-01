@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 FILE_PATH=$1
 template_anat=$2
