@@ -1,7 +1,7 @@
 import os
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from .preprocess_pkg.anat_preproc import init_anat_preproc_wf
+from .preprocess_pkg.bias_correction import init_anat_preproc_wf
 from .preprocess_pkg.commonspace import ANTsDBM
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration

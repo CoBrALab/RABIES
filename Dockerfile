@@ -142,8 +142,16 @@ RUN echo "export FSLDIR='/usr/share/fsl/5.0/'" >> $HOME/.bashrc \
   echo "export PATH='/usr/share/fsl/5.0/bin:$PATH'" >> $HOME/.bashrc \
   "export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH" >> $HOME/.bashrc
 
-#Install python environment
+# Install minc-toolkit
+RUN curl -L --output $HOME/minc-toolkit-1.9.18.deb http://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
+  sudo dpkg -i $HOME/minc-toolkit-1.9.18.deb
+RUN echo "export PATH='/opt/minc/1.9.18/bin:$PATH'" >> $HOME/.bashrc && \
+  ### overrides the paths with ANTs paths so that it is used over the minc-toolkit version
+  echo "export ANTSPATH='$HOME/ants-v2.3.1/bin'" >> $HOME/.bashrc && \
+  echo "export PATH='$HOME/ants-v2.3.1/bin:$PATH'" >> $HOME/.bashrc && \
+  echo "export LD_LIBRARY_PATH='$HOME/ants-v2.3.1/lib:$LD_LIBRARY_PATH'" >> $HOME/.bashrc
 
+# Install python environment
 ENV CONDA_DIR="$HOME/miniconda-latest" \
     PATH="$HOME/miniconda-latest/bin:$PATH" \
     ND_ENTRYPOINT="$HOME/startup.sh"
@@ -158,24 +166,24 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
 
 
 #### install RABIES
-ENV export RABIES_VERSION=0.2.1 \
+ENV export RABIES_VERSION=0.2.1-dev \
     export RABIES=$HOME/RABIES-${RABIES_VERSION} \
     export PYTHONPATH="${PYTHONPATH}:$RABIES"
 
-RUN export RABIES_VERSION=0.2.1 && \
+RUN export RABIES_VERSION=0.2.1-dev && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
-  mkdir -p temp && \
-  curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
-  cd temp && \
-  tar zxf RABIES.tar.gz && \
-  cd .. && \
-  conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
-  bash temp/RABIES-${RABIES_VERSION}/install.sh && \
-  rm -r temp && \
-  #git clone https://github.com/CoBrALab/RABIES && \
-  #mv RABIES $RABIES && \
-  #conda env create -f $RABIES/rabies_environment.yml && \
-  #bash $RABIES/install.sh && \
+  #mkdir -p temp && \
+  #curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
+  #cd temp && \
+  #tar zxf RABIES.tar.gz && \
+  #cd .. && \
+  #conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
+  #bash temp/RABIES-${RABIES_VERSION}/install.sh && \
+  #rm -r temp && \
+  git clone https://github.com/CoBrALab/RABIES && \
+  mv RABIES $RABIES && \
+  conda env create -f $RABIES/rabies_environment.yml && \
+  bash $RABIES/install.sh && \
   DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
   csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
@@ -188,23 +196,28 @@ RUN export RABIES_VERSION=0.2.1 && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_WM_mask.nii.gz && \
   /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_CSF_mask.nii.gz
 
-RUN export FSLDIR="/usr/share/fsl/5.0/" && \
+RUN export PATH="/opt/minc/1.9.18/bin:$PATH" && \
+  export FSLDIR="/usr/share/fsl/5.0/" && \
   export FSL_DIR="${FSLDIR}" && \
   export FSLOUTPUTTYPE=NIFTI_GZ && \
   . ${FSLDIR}/etc/fslconf/fsl.sh && \
   export PATH="/usr/share/fsl/5.0/bin:$PATH" && \
   export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH && \
-  export RABIES_VERSION=0.2.1 && \
+  export RABIES_VERSION=0.2.1-dev && \
   export RABIES=$HOME/RABIES-${RABIES_VERSION} && \
   export PATH=$PATH:$RABIES/rabies/shell_scripts && \
   echo "#! /home/rabies/miniconda-latest/envs/rabies/bin/python" > ${RABIES}/exec.py && \
   echo "import os" >> ${RABIES}/exec.py && \
   echo "import sys" >> ${RABIES}/exec.py && \
+  echo "os.environ['PATH'] = '/opt/minc/1.9.18/bin:${PATH}'" >> ${RABIES}/exec.py && \
   echo "os.environ['FSLDIR'] = '/usr/share/fsl/5.0/'" >> ${RABIES}/exec.py && \
   echo "os.environ['FSL_DIR'] = '${FSLDIR}'" >> ${RABIES}/exec.py && \
   echo "os.environ['FSLOUTPUTTYPE'] = 'NIFTI_GZ'" >> ${RABIES}/exec.py && \
   echo "os.environ['PATH'] = '/usr/share/fsl/5.0/bin:${PATH}'" >> ${RABIES}/exec.py && \
   echo "os.environ['LD_LIBRARY_PATH'] = '/usr/lib/fsl/5.0:${LD_LIBRARY_PATH}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['ANTSPATH'] = '$HOME/ants-v2.3.1/bin:${ANTSPATH}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['PATH'] = '$HOME/ants-v2.3.1/bin:${PATH}'" >> ${RABIES}/exec.py && \
+  echo "os.environ['LD_LIBRARY_PATH'] = '$HOME/ants-v2.3.1/lib:${LD_LIBRARY_PATH}'" >> ${RABIES}/exec.py && \
   echo "os.environ['RABIES'] = '${RABIES}'" >> ${RABIES}/exec.py && \
   echo "sys.path.insert(0,os.environ['RABIES'])" >> ${RABIES}/exec.py && \
   echo "os.environ['PATH'] = '${RABIES}/rabies/shell_scripts:${RABIES}/twolevel_ants_dbm:${RABIES}/minc-toolkit-extras:/home/rabies/miniconda-latest/envs/rabies/bin:${PATH}'" >> ${RABIES}/exec.py && \
@@ -218,4 +231,4 @@ WORKDIR /tmp/
 ENV PATH /home/rabies/miniconda-latest/envs/rabies/bin:$PATH
 RUN /bin/bash -c "source activate rabies"
 
-ENTRYPOINT ["/home/rabies/RABIES-0.2.1/exec.py"]
+ENTRYPOINT ["/home/rabies/RABIES-0.2.1-dev/exec.py"]
