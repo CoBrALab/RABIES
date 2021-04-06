@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import nibabel as nb
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
@@ -80,61 +82,136 @@ def csv2par(in_confounds):
     return out_confounds
 
 
-def scrubbing(img, FD_file, scrubbing_threshold, timeseries_interval):
+def gen_FD_mask(FD_trace, scrubbing_threshold):
     '''
     Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
-    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
+    and 4 forward frames will be masked out from the data (as in Power et al. 2012)
     '''
     import numpy as np
-    import nibabel as nb
-    import pandas as pd
-    mean_FD = pd.read_csv(FD_file).get('Mean')
-    cutoff = np.asarray(mean_FD) >= scrubbing_threshold
-    mask = np.ones(len(mean_FD))
+    cutoff = np.asarray(FD_trace) >= scrubbing_threshold
+    mask = np.ones(len(FD_trace))
     for i in range(len(mask)):
         if cutoff[i]:
-            mask[i-1:i+2] = 0
-
-    if not timeseries_interval == 'all':
-        lowcut = int(timeseries_interval.split(',')[0])
-        highcut = int(timeseries_interval.split(',')[1])
-        mask = mask[lowcut:highcut]
-
-    masked_img = np.asarray(img.dataobj)[:, :, :, mask.astype(bool)]
-    return nb.Nifti1Image(masked_img, img.affine, img.header)
+            mask[i-1:i+4] = 0
+    return mask
 
 
-def select_timeseries(bold_file, timeseries_interval):
-    if timeseries_interval == 'all':
-        return bold_file
-    else:
-        import os
-        import numpy as np
-        import nibabel as nb
-        img = nb.load(bold_file)
-        lowcut = int(timeseries_interval.split(',')[0])
-        highcut = int(timeseries_interval.split(',')[1])
-        bold_file = os.path.abspath('selected_timeseries.nii.gz')
-        nb.Nifti1Image(np.asarray(img.dataobj)[
-                       :, :, :, lowcut:highcut], img.affine, img.header).to_filename(bold_file)
-        return bold_file
-
-
-def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, lowpass, highpass, smoothing_filter,
-            apply_scrubbing, scrubbing_threshold, timeseries_interval):
+def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     import os
     import numpy as np
     import pandas as pd
-    import nilearn.image
-    from rabies.conf_reg_pkg.utils import scrubbing
+    from rabies.conf_reg_pkg.utils import select_confound_timecourses
 
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+
+    if len(cr_opts.conf_list)==0:
+        confounds_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
+    else:
+        confounds_array = select_confound_timecourses(cr_opts.conf_list,confounds_file,FD_file)
+
+    import nibabel as nb
+    brain_mask = np.asarray(nb.load(brain_mask_file).dataobj)
+    volume_indices = brain_mask.astype(bool)
+
+    data_array = np.asarray(nb.load(bold_file).dataobj)
+    FD_trace = pd.read_csv(FD_file).get('Mean')
+
+    # select the subset of timeseries specified
+    if not cr_opts.timeseries_interval == 'all':
+        lowcut = int(cr_opts.timeseries_interval.split(',')[0])
+        highcut = int(cr_opts.timeseries_interval.split(',')[1])
+        confounds_array = confounds_array[lowcut:highcut, :]
+        FD_trace = FD_trace[lowcut:highcut]
+        time_range = range(lowcut,highcut)
+    else:
+        time_range = range(data_array.shape[3])
+
+    timeseries = np.zeros([len(time_range), volume_indices.sum()])
+    for i in time_range:
+        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
+
+    # apply simple detrending
+    from scipy.signal import detrend
+    timeseries = detrend(timeseries,axis=0)
+    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
+
+    timeseries_3d=recover_3D_multiple(brain_mask_file, timeseries)
+    out_file = os.path.abspath(filename_split[0]+'_prep.nii.gz')
+    timeseries_3d.to_filename(out_file)
+
+    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array}
+    return out_file, data_dict
+
+def temporal_filtering(data_dict, TR, lowpass, highpass,
+        FD_censoring, FD_threshold, DVARS_censoring):
+    timeseries=data_dict['timeseries']
+    FD_trace=data_dict['FD_trace']
+    confounds_array=data_dict['confounds_array']
+
+    # apply highpass/lowpass filtering
+    import nilearn.signal.clean
+    timeseries = nilearn.signal.clean(timeseries, detrend=False, standardize=False, low_pass=lowpass,
+                                      high_pass=highpass, confounds=None, t_r=TR)
+
+    # compute the DVARS before denoising
+    derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
+    DVARS=np.sqrt((derivative**2).mean(axis=1))
+
+    # apply the temporal censoring
+    frame_mask = np.ones(timeseries.shape[0]).astype(bool)
+    if FD_censoring:
+        FD_mask = gen_FD_mask(FD_trace, FD_threshold)
+        frame_mask*=FD_mask
+    if DVARS_censoring:
+        # create a distribution where no timepoint falls more than 2.5 STD away from the mean
+        trace=DVARS
+        mask1=np.zeros(len(trace)).astype(bool)
+        mask2=np.ones(len(trace)).astype(bool)
+        mask2[0]=False # remove the first timepoint, which is always 0
+        while ((mask2!=mask1).sum()>0):
+            mask1=mask2
+            mean=trace[mask1].mean()
+            std=trace[mask1].std()
+            norm=(trace-mean)/std
+            mask2=np.abs(norm)<2.5
+        DVARS_mask=mask2
+        frame_mask*=DVARS_mask
+    timeseries=timeseries[frame_mask,:]
+    confounds_array=confounds_array[frame_mask,:]
+    FD_trace=FD_trace[frame_mask]
+    DVARS=DVARS[frame_mask]
+
+    data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
+    return data_dict
+
+
+def recover_3D(mask_file, vector_map):
+    brain_mask=np.asarray(nb.load(mask_file).dataobj)
+    volume_indices=brain_mask.astype(bool)
+    volume=np.zeros(brain_mask.shape)
+    volume[volume_indices]=vector_map
+    volume_img=nb.Nifti1Image(volume, nb.load(mask_file).affine, nb.load(mask_file).header)
+    return volume_img
+
+def recover_3D_multiple(mask_file, vector_maps):
+    #vector maps of shape num_volumeXnum_voxel
+    brain_mask=np.asarray(nb.load(mask_file).dataobj)
+    volume_indices=brain_mask.astype(bool)
+    shape=(brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2],vector_maps.shape[0])
+    volumes=np.zeros(shape)
+    for i in range(vector_maps.shape[0]):
+        volume=volumes[:,:,:,i]
+        volume[volume_indices]=vector_maps[i,:]
+        volumes[:,:,:,i]=volume
+    volume_img=nb.Nifti1Image(volumes, nb.load(mask_file).affine, nb.load(mask_file).header)
+    return volume_img
+
+def select_confound_timecourses(conf_list,confounds_file,FD_file):
+    import pandas as pd
     if ('mot_6' in conf_list) and ('mot_24' in conf_list):
         raise ValueError(
             "Can't select both the mot_6 and mot_24 options; must pick one.")
-
-    cr_out = os.getcwd()
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     confounds = pd.read_csv(confounds_file)
     keys = confounds.keys()
@@ -155,63 +232,21 @@ def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, 
         else:
             conf_keys += [conf]
 
-    confounds_array = np.asarray(confounds[conf_keys])
+    return np.asarray(confounds[conf_keys])
 
-    '''
-    Evaluate the variance explained (VE) by each regressor
-    '''
-    # functions that computes the Least Squares Estimates
-    def closed_form(X, Y, intercept=False):
-        if intercept:
-            X = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1)
-        return np.linalg.inv(X.transpose().dot(X)).dot(X.transpose()).dot(Y)
 
-    def linear_regression_var_explained(X, Y):
-        X = (X-X.mean(axis=0))/X.std(axis=0)
-        Y = (Y-Y.mean(axis=0))/Y.std(axis=0)
-        # remove null values which may result from 0 in the array`
-        X[np.isnan(X)] = 0
-        Y[np.isnan(Y)] = 0
-        # for each observation, it's values can be expressed through a linear combination of the predictors
-        # take a bias into account in the model
-        w = closed_form(X, Y, intercept=True)
+def regress(bold_file, data_dict, brain_mask_file, cr_opts):
+    import os
+    import numpy as np
+    from rabies.conf_reg_pkg.utils import recover_3D_multiple
+    from rabies.analysis_pkg.analysis_functions import closed_form
 
-        # add an intercept
-        X_i = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1)
-        # the residuals after regressing out the predictors
-        residuals = (Y-np.matmul(X_i, w))
-        # mean square error after regression, for each observation independently
-        MSE = np.mean((residuals**2), axis=0)
-        # Original variance in each observation before regression
-        TV = np.mean((Y-Y.mean(axis=0))**2, axis=0)
+    FD_trace=data_dict['FD_trace']
+    confounds_array=data_dict['confounds_array']
 
-        VE = MSE/TV  # total variance explained in each observation
-        VE[np.isnan(VE)] = 0
-
-        # mean square error after regression, for each observation independently
-        MSE = np.mean((residuals**2))
-        # Original variance in each observation before regression
-        TV = np.mean((Y-Y.mean(axis=0))**2)
-        VE_tot = MSE/TV
-
-        w = w[:-1, :]  # take out the intercept
-        # now evaluate the portion of variance explained by each predictor,
-        # scale all beta values to relative percentages of variance explained,
-        # with the assumption that each beta value represents directly the relative contribution of each predictor
-        # (guaranteed by the standardization of across feature)
-        # Original variance in each observation before regression
-        TV = np.sum((w-w.mean(axis=0))**2, axis=0)
-        pred_VE = (w-w.mean(axis=0))**2/TV
-        pred_VE[np.isnan(pred_VE)] = 0
-        VE_observations = pred_VE*VE  # scale by the proportion of total variance explained
-
-        # evaluate also variance explained from the entire data
-        pred_variance = w.var(axis=1)  # variance along each dimension
-        # evaluate the sum of variance present in this new dimensional space
-        TV = pred_variance.sum()
-        pred_VE = pred_variance/TV  # portion of variance explained from each dimension
-        total_VE = pred_VE*VE_tot
-        return total_VE, VE_observations, residuals
+    cr_out = os.getcwd()
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     import nibabel as nb
     brain_mask = np.asarray(nb.load(brain_mask_file).dataobj)
@@ -222,45 +257,36 @@ def regress(bold_file, brain_mask_file, confounds_file, FD_file, conf_list, TR, 
     for i in range(data_array.shape[3]):
         timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
 
-    if not timeseries_interval == 'all':
-        lowcut = int(timeseries_interval.split(',')[0])
-        highcut = int(timeseries_interval.split(',')[1])
-        confounds_array = confounds_array[lowcut:highcut, :]
-        timeseries = timeseries[lowcut:highcut, :]
+    data_dict = temporal_filtering(data_dict, cr_opts.TR, cr_opts.lowpass, cr_opts.highpass,
+            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
 
-    total_VE, VE_observations, residuals = linear_regression_var_explained(
-        confounds_array, timeseries)
+    timeseries=data_dict['timeseries']
+    FD_trace=data_dict['FD_trace']
+    DVARS=data_dict['DVARS']
+    frame_mask=data_dict['frame_mask']
+    confounds_array=data_dict['confounds_array']
 
-    VE_dict = {}
-    i = 0
-    for VE, conf in zip(total_VE, conf_keys):
-        VE_dict[conf] = VE_observations[i, :]
-        print(conf+' explains '+str(round(VE, 3)*100)+'% of the variance.')
-        i += 1
+    # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
+    X=confounds_array
+    Y=timeseries
+    res = Y-X.dot(closed_form(X,Y))
+    VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
+    VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
-    import pickle
-    VE_file = cr_out+'/'+filename_split[0]+'_VE_dict.pkl'
-    with open(VE_file, 'wb') as handle:
-        pickle.dump(VE_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    if len(cr_opts.conf_list) > 0:
+        timeseries = res
+    if cr_opts.standardize:
+        timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
-    # cleaning includes detrending, standardization
-    if len(conf_list) > 0:
-        cleaned = nilearn.image.clean_img(bold_file, detrend=True, standardize=True, low_pass=lowpass,
-                                          high_pass=highpass, confounds=confounds_array, t_r=TR, mask_img=brain_mask_file)
-    else:
-        cleaned = nilearn.image.clean_img(bold_file, detrend=True, standardize=True,
-                                          low_pass=lowpass, high_pass=highpass, confounds=None, t_r=TR, mask_img=brain_mask_file)
-
-    if apply_scrubbing:
-        cleaned = scrubbing(
-            cleaned, FD_file, scrubbing_threshold, timeseries_interval)
-
-    if smoothing_filter is not None:
-        cleaned = nilearn.image.smooth_img(cleaned, smoothing_filter)
+    timeseries_3d=recover_3D_multiple(brain_mask_file, timeseries)
+    if cr_opts.smoothing_filter is not None:
+        import nilearn.image.smoothing
+        timeseries_3d = nilearn.image.smooth_img(timeseries_3d, cr_opts.smoothing_filter)
 
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
-    cleaned.to_filename(cleaned_path)
-    return cleaned_path, bold_file, VE_file
+    timeseries_3d.to_filename(cleaned_path)
+    data_dict = {'timeseries':timeseries_3d, 'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_spatial':VE_spatial, 'VE_temporal':VE_temporal}
+    return cleaned_path, bold_file, data_dict
 
 
 class data_diagnosisInputSpec(BaseInterfaceInputSpec):
