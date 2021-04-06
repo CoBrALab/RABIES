@@ -128,25 +128,29 @@ RUN sudo ln -fs /usr/share/zoneinfo/America/Montreal /etc/localtime && \
   sudo apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Configure FSL environment
-ENV export FSLDIR="/usr/share/fsl/5.0/" \
-  export FSL_DIR="${FSLDIR}" \
-  export FSLOUTPUTTYPE=NIFTI_GZ \
-  . ${FSLDIR}/etc/fslconf/fsl.sh \
-  export PATH="/usr/share/fsl/5.0/bin:$PATH" \
-  export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH
-
-# Configure FSL environment
-RUN echo "export FSLDIR='/usr/share/fsl/5.0/'" >> $HOME/.bashrc \
-  echo "export FSL_DIR='${FSLDIR}'" >> $HOME/.bashrc \
-  echo "export FSLOUTPUTTYPE=NIFTI_GZ" >> $HOME/.bashrc \
-  echo "export PATH='/usr/share/fsl/5.0/bin:$PATH'" >> $HOME/.bashrc \
-  echo "export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH" >> $HOME/.bashrc
+ENV FSLDIR="/usr/share/fsl/5.0/"
+ENV FSL_DIR="${FSLDIR}" \
+  FSLOUTPUTTYPE=NIFTI_GZ \
+  PATH="/usr/share/fsl/5.0/bin:$PATH" \
+  LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH
 
 # Install minc-toolkit
 RUN curl -L --output $HOME/minc-toolkit-1.9.18.deb http://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
   sudo dpkg -i $HOME/minc-toolkit-1.9.18.deb
-ENV source /opt/minc/1.9.18/minc-toolkit-config.sh
-RUN echo "source /opt/minc/1.9.18/minc-toolkit-config.sh" >> $HOME/.bashrc
+
+# minc-toolkit configuration parameters for 1.9.18-20200813
+ENV MINC_TOOLKIT=/opt/minc/1.9.18 \
+  MINC_TOOLKIT_VERSION="1.9.18-20200813"
+ENV PATH=${MINC_TOOLKIT}/bin:${MINC_TOOLKIT}/pipeline:${PATH} \
+  PERL5LIB=${MINC_TOOLKIT}/perl:${MINC_TOOLKIT}/pipeline${PERL5LIB:+:$PERL5LIB} \
+  LD_LIBRARY_PATH=${MINC_TOOLKIT}/lib:${MINC_TOOLKIT}/lib/InsightToolkit${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
+  MNI_DATAPATH=${MINC_TOOLKIT}/../share:${MINC_TOOLKIT}/share \
+  MINC_FORCE_V2=1 \
+  MINC_COMPRESS=4 \
+  VOLUME_CACHE_THRESHOLD=-1 \
+  MANPATH=${MINC_TOOLKIT}/man${MANPATH:+:$MANPATH} \
+  # integrated ANTs tools
+  ANTSPATH=${MINC_TOOLKIT}/bin
 
 # Install python environment
 ENV CONDA_DIR="$HOME/miniconda-latest" \
@@ -161,16 +165,11 @@ RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
     && rm -f "$conda_installer" \
     && conda update -yq -nbase conda
 
-RUN echo "CONDA_DIR='$HOME/miniconda-latest'" >> $HOME/.bashrc && \
-  echo "PATH='$HOME/miniconda-latest/bin:$PATH'" >> $HOME/.bashrc
-
 #### install RABIES
-ENV export RABIES_VERSION=0.2.1-dev \
-    export RABIES=$HOME/RABIES-${RABIES_VERSION} \
-    export PYTHONPATH="${PYTHONPATH}:$RABIES"
-ARG export RABIES_VERSION=0.2.1-dev
-ARG export RABIES=$HOME/RABIES-${RABIES_VERSION}
-ARG export PYTHONPATH="${PYTHONPATH}:$RABIES"
+ENV RABIES_VERSION=0.2.1-dev
+ENV RABIES=$HOME/RABIES-${RABIES_VERSION}
+ENV PYTHONPATH="${PYTHONPATH}:$RABIES" \
+  PATH=${PATH}:${RABIES}/minc-toolkit-extras:${RABIES}/twolevel_ants_dbm:${RABIES}/rabies/shell_scripts
 
 # download code and create conda environment
 RUN mkdir -p temp && \
@@ -184,21 +183,8 @@ RUN mkdir -p temp && \
   git clone https://github.com/CoBrALab/RABIES && \
   mv RABIES $RABIES && \
   conda env create -f $RABIES/rabies_environment.yml && \
-  chmod 777 $RABIES/bin/docker_exec.py
-
-RUN bash $RABIES/install.sh && \
-  DSURQE_100micron_labels=${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
-  csv_labels=${RABIES}/template_files/DSURQE_40micron_R_mapping.csv && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python ${RABIES}/gen_masks.py $DSURQE_100micron_labels $csv_labels ${RABIES}/template_files/DSURQE_100micron && \
-  #convert templates to the RAS axis convention
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_average.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_mask.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_labels.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_WM_mask.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_CSF_mask.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_WM_mask.nii.gz && \
-  /home/rabies/miniconda-latest/envs/rabies/bin/python $RABIES/convert_to_RAS.py ${RABIES}/template_files/DSURQE_100micron_eroded_CSF_mask.nii.gz
+  conda run -n rabies /bin/bash $RABIES/install.sh
 
 WORKDIR /tmp/
 
-ENTRYPOINT ["/home/rabies/RABIES-0.2.1-dev/bin/docker_exec.py"]
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "rabies", "python", "/home/rabies/RABIES-0.2.1-dev/bin/rabies"]
