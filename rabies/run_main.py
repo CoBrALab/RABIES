@@ -32,11 +32,10 @@ def get_parser():
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     confound_regression = subparsers.add_parser("confound_regression",
                                                 help="""Different options for confound regression are available to apply directly
-        on preprocessing outputs from RABIES. Detrending and standardization of timeseries is always applied. Otherwise only
+        on preprocessing outputs from RABIES. Detrending of timeseries is always applied. Otherwise only
         selected confound regression and denoising strategies are applied.
-        The denoising steps are applied in the following order: ICA-AROMA first, followed by detrending, then
-        regression of confound timeseries orthogonal to the application of temporal filters
-        (nilearn.clean_img, Lindquist 2018), standardization of timeseries, scrubbing, and finally smoothing.
+        The denoising steps are applied in the following order: detrending first then ICA-AROMA, then highpass/lowpass filtering followed by temporal censoring,
+        then regression of confound timeseries, standardization of timeseries, and finally smoothing.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     analysis = subparsers.add_parser("analysis",
                                      help="""
@@ -222,20 +221,22 @@ def get_parser():
                                      "and mot_24 corresponds to the 6 rigid parameters, their temporal derivative, and all 12 parameters squared (Friston et al. 1996). "
                                      "aCompCor corresponds the timeseries of components from a PCA conducted on the combined WM and CSF masks voxel timeseries, including "
                                      "all components that together explain 50 percent. of the variance, as in Muschelli et al. 2014.")
-    confound_regression.add_argument('--apply_scrubbing', dest='apply_scrubbing', action='store_true',
+    confound_regression.add_argument('--FD_censoring', dest='FD_censoring', action='store_true',
                                      default=False,
-                                     help="""Whether to apply scrubbing or not. A temporal mask will be generated based on the FD threshold.
-                        The frames that exceed the given threshold together with 1 back and 2 forward frames will be masked out
-                        from the data after the application of all other confound regression steps (as in Power et al. 2012).""")
+                                     help="""Whether to remove timepoints that exceed a framewise displacement threshold, before other confound regression steps.
+                                     The frames that exceed the given threshold together with 1 back and 4 forward frames will be masked out (based on Power et al. 2012).""")
     confound_regression.add_argument('--scrubbing_threshold', type=float,
                                      default=0.05,
                                      help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
+    confound_regression.add_argument('--DVARS_censoring', dest='DVARS_censoring', action='store_true',
+                                     default=False,
+                                     help="""Whether to remove timepoints that present outlier values on the DVARS metric (temporal derivative of global signal).
+                                     This option will create a distribution of DVARS values which has no outlier values above or below 2.5 standard deviations.""")
+    confound_regression.add_argument('--standardize', dest='standardize', action='store_true',
+                                     default=False,
+                                     help="""Whether to standardize timeseries to unit variance.""")
     confound_regression.add_argument('--timeseries_interval', type=str, default='all',
                                      help='Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.')
-    confound_regression.add_argument('--diagnosis_output', dest='diagnosis_output', action='store_true',
-                                     default=False,
-                                     help="Run a diagnosis for each individual image by computing melodic-ICA on the corrected timeseries,"
-                                     "and compute a tSNR map from the input uncorrected image.")
 
     analysis.add_argument('confound_regression_out', action='store', type=Path,
                           help='path to RABIES confound regression output directory with the datasink.')
