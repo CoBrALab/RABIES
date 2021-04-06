@@ -50,14 +50,16 @@ class ANTsDBM(BaseInterface):
         import os
         import pandas as pd
         import pathlib
+        from rabies.preprocess_pkg.utils import run_command
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
 
         if os.path.isdir(template_folder):
-            print('Previous ants_dbm_outputs/ folder detected. Inputs from a previous run may cause issues for the commonspace registration, so consider removing the previous folder before running again.')
+            # remove previous run
+            command = 'rm -r %s' % (template_folder,)
+            rc = run_command(command)
         command = 'mkdir -p %s' % (template_folder,)
-        from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
 
         # create a csv file of the input image list
@@ -96,18 +98,7 @@ class ANTsDBM(BaseInterface):
 
         command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
             template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
-        import subprocess
-        try:
-            process = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                check=True,
-                shell=True,
-                )
-        except Exception as e:
-            print(e.output.decode("utf-8"))
-            #log.warning(e.output.decode("utf-8"))
-
-        #rc = run_command(command)
+        rc = run_command(command)
 
         # verify that all outputs are present
         ants_dbm_template = template_folder + \
