@@ -289,13 +289,14 @@ def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sou
     scaled = otsu_scaling(raw_img)
     axes[0,0].set_title('Raw EPI', fontsize=20)
     plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
-    axes[0,2].set_title('Resampled Mask', fontsize=20)
-    plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
-    plot_3d(axes[:,2],sitk.ReadImage(warped_mask,sitk.sitkFloat32),fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(init_denoise)
     axes[0,1].set_title('Initial Denoising', fontsize=20)
     plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
+
+    axes[0,2].set_title('Resampled Mask', fontsize=20)
+    plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
+    plot_3d(axes[:,2],sitk.ReadImage(warped_mask,sitk.sitkFloat32),fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(final_denoise)
     axes[0,3].set_title('Final Denoising', fontsize=20)

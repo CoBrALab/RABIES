@@ -506,6 +506,16 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         workflow, confound_regression_wf = integrate_confound_regression(
             workflow, outputnode, cr_opts, bold_only=opts.bold_only)
 
+        QC_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                         container="QC_datasink"),
+                                name="QC_datasink")
+
+        workflow.connect([
+            (confound_regression_wf, QC_datasink, [
+                ("outputnode.VE_file", "VE_file"),
+                ]),
+            ])
+
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
@@ -580,8 +590,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("commonspace_CSF_mask", "commonspace_bold_CSF_mask"),
                 ("commonspace_vascular_mask", "commonspace_vascular_mask"),
                 ("commonspace_labels", "commonspace_bold_labels"),
-                ("tSNR_filename", "tSNR_filename"),
-                ("std_filename", "std_filename"),
+                ("tSNR_filename", "tSNR_map_preprocess"),
+                ("std_filename", "std_map_preprocess"),
                 ]),
             ])
 
