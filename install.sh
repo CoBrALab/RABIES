@@ -63,6 +63,6 @@ echo 'export PATH=$RABIES/twolevel_ants_dbm:$PATH' >> $HOME/.bashrc
 # install twolevel_ants_dbm
 git clone https://github.com/CoBrALab/minc-toolkit-extras.git $RABIES/minc-toolkit-extras
 cd $RABIES/minc-toolkit-extras
-git checkout b61b1b5186718939e25ed3c986a5cb7df6942fd9
+git checkout 3dec9b81b0e59c7daa90ea1901469111b2374182
 echo 'export PATH=$RABIES/minc-toolkit-extras:$PATH' >> $HOME/.bashrc
 cd $HOME

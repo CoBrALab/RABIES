@@ -89,7 +89,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     '''
     import numpy as np
     cutoff = np.asarray(FD_trace) >= scrubbing_threshold
-    mask = np.ones(len(FD_trace))
+    mask = np.ones(len(FD_trace)).astype(bool)
     for i in range(len(mask)):
         if cutoff[i]:
             mask[i-1:i+4] = 0
@@ -100,7 +100,7 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     import os
     import numpy as np
     import pandas as pd
-    from rabies.conf_reg_pkg.utils import select_confound_timecourses
+    from rabies.conf_reg_pkg.utils import select_confound_timecourses,recover_3D_multiple
 
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
@@ -143,14 +143,13 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array}
     return out_file, data_dict
 
-def temporal_filtering(data_dict, TR, lowpass, highpass,
+def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
         FD_censoring, FD_threshold, DVARS_censoring):
-    timeseries=data_dict['timeseries']
     FD_trace=data_dict['FD_trace']
     confounds_array=data_dict['confounds_array']
 
     # apply highpass/lowpass filtering
-    import nilearn.signal.clean
+    import nilearn.signal
     timeseries = nilearn.signal.clean(timeseries, detrend=False, standardize=False, low_pass=lowpass,
                                       high_pass=highpass, confounds=None, t_r=TR)
 
@@ -238,7 +237,7 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
 def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     import os
     import numpy as np
-    from rabies.conf_reg_pkg.utils import recover_3D_multiple
+    from rabies.conf_reg_pkg.utils import recover_3D_multiple,temporal_filtering
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     FD_trace=data_dict['FD_trace']
@@ -257,7 +256,8 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     for i in range(data_array.shape[3]):
         timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
 
-    data_dict = temporal_filtering(data_dict, cr_opts.TR, cr_opts.lowpass, cr_opts.highpass,
+    TR = float(cr_opts.TR.split('s')[0])
+    data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
 
     timeseries=data_dict['timeseries']

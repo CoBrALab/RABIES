@@ -34,7 +34,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
         (inputnode, regress_node, [
             ("brain_mask", "brain_mask_file"),
             ]),
-        (prep_CR_node, regress_node [
+        (prep_CR_node, regress_node, [
             ("data_dict", "data_dict"),
             ]),
         (regress_node, outputnode, [

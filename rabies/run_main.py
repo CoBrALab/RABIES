@@ -225,7 +225,7 @@ def get_parser():
                                      default=False,
                                      help="""Whether to remove timepoints that exceed a framewise displacement threshold, before other confound regression steps.
                                      The frames that exceed the given threshold together with 1 back and 4 forward frames will be masked out (based on Power et al. 2012).""")
-    confound_regression.add_argument('--scrubbing_threshold', type=float,
+    confound_regression.add_argument('--FD_threshold', type=float,
                                      default=0.05,
                                      help='Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes.')
     confound_regression.add_argument('--DVARS_censoring', dest='DVARS_censoring', action='store_true',
