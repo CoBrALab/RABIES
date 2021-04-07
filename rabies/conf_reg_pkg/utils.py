@@ -237,7 +237,7 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
 def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     import os
     import numpy as np
-    from rabies.conf_reg_pkg.utils import recover_3D_multiple,temporal_filtering
+    from rabies.conf_reg_pkg.utils import recover_3D,recover_3D_multiple,temporal_filtering
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     FD_trace=data_dict['FD_trace']
@@ -278,15 +278,18 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     if cr_opts.standardize:
         timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
-    timeseries_3d=recover_3D_multiple(brain_mask_file, timeseries)
+    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
+    timeseries_3d = recover_3D_multiple(brain_mask_file, timeseries)
     if cr_opts.smoothing_filter is not None:
         import nilearn.image.smoothing
         timeseries_3d = nilearn.image.smooth_img(timeseries_3d, cr_opts.smoothing_filter)
 
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
     timeseries_3d.to_filename(cleaned_path)
-    data_dict = {'timeseries':timeseries_3d, 'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_spatial':VE_spatial, 'VE_temporal':VE_temporal}
-    return cleaned_path, bold_file, data_dict
+    VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
+    VE_spatial_map.to_filename(VE_file_path)
+    data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_spatial':VE_spatial, 'VE_temporal':VE_temporal}
+    return cleaned_path, bold_file, VE_file_path, data_dict
 
 
 class data_diagnosisInputSpec(BaseInterfaceInputSpec):
