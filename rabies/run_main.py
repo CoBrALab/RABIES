@@ -42,6 +42,12 @@ def get_parser():
         A few built-in resting-state functional connectivity (FC) analysis options are provided to conduct rapid analysis on the cleaned timeseries.
         The options include seed-based FC, voxelwise or parcellated whole-brain FC, group-ICA and dual regression.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    data_diagnosis = subparsers.add_parser("data_diagnosis",
+                                     help="""
+        This workflow regroups a set of tools which allow to establish the influence of confounding sources on FC measures. We recommend to
+        conduct a data diagnosis from this workflow to complement FC analysis by evaluating the effectiveness of the confound correction strategies
+        and ensure reliable subsequent interpretations.
+        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
@@ -276,6 +282,25 @@ def get_parser():
                           help="Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run. "
                           "If none is provided, a group-ICA will be run with the dataset cleaned timeseries.")
 
+    data_diagnosis.add_argument('confound_regression_out', action='store', type=Path,
+                          help='path to RABIES confound regression output directory with the datasink.')
+    data_diagnosis.add_argument('output_dir', action='store', type=Path,
+                          help='the output path to drop data_diagnosis outputs.')
+    data_diagnosis.add_argument('--IC_file', action='store', type=Path,
+                          default=None,
+                          help="Provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.")
+    data_diagnosis.add_argument('--IC_bold_idx', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=[],
+                                     help="")
+    data_diagnosis.add_argument('--IC_confound_idx', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=[],
+                                     help="")
+    data_diagnosis.add_argument('--DSURQE_regions', dest='DSURQE_regions', action='store_true',
+                                     default=False,
+                                     help=""" """)
+
     return parser
 
 
@@ -313,11 +338,13 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        workflow = preprocess(opts, None, None, log)
+        workflow = preprocess(opts, None, None, None, log)
     elif opts.rabies_step == 'confound_regression':
-        workflow = confound_regression(opts, None, log)
+        workflow = confound_regression(opts, None, None, log)
     elif opts.rabies_step == 'analysis':
         workflow = analysis(opts, log)
+    elif opts.rabies_step == 'data_diagnosis':
+        workflow = data_diagnosis(opts, log)
     else:
         parser.print_help()
 
@@ -332,7 +359,7 @@ def execute_workflow():
         raise
 
 
-def preprocess(opts, cr_opts, analysis_opts, log):
+def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
     # Verify input and output directories
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
@@ -361,38 +388,38 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(opts.anat_template):
-        raise ValueError("--anat_template file doesn't exists.")
+        raise ValueError("--anat_template file %s doesn't exists." % (opts.anat_template))
     opts.template_anat = convert_to_RAS(
         str(opts.anat_template), output_folder+'/template_files')
 
     if not os.path.isfile(opts.brain_mask):
-        raise ValueError("--brain_mask file doesn't exists.")
+        raise ValueError("--brain_mask file %s doesn't exists." % (opts.brain_mask))
     opts.template_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.WM_mask):
-        raise ValueError("--WM_mask file doesn't exists.")
+        raise ValueError("--WM_mask file %s doesn't exists." % (opts.WM_mask))
     opts.WM_mask = convert_to_RAS(
         str(opts.WM_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.CSF_mask):
-        raise ValueError("--CSF_mask file doesn't exists.")
+        raise ValueError("--CSF_mask file %s doesn't exists." % (opts.CSF_mask))
     opts.CSF_mask = convert_to_RAS(
         str(opts.CSF_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.vascular_mask):
-        raise ValueError("--vascular_mask file doesn't exists.")
+        raise ValueError("--vascular_mask file %s doesn't exists." % (opts.vascular_mask))
     opts.vascular_mask = convert_to_RAS(
         str(opts.vascular_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.labels):
-        raise ValueError("--labels file doesn't exists.")
+        raise ValueError("--labels file %s doesn't exists." % (opts.labels))
     opts.atlas_labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
 
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
-                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
+                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts, data_diagnosis_opts=data_diagnosis_opts)
 
     workflow.base_dir = output_folder
 
@@ -415,13 +442,13 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     return workflow
 
 
-def confound_regression(opts, analysis_opts, log):
+def confound_regression(opts, analysis_opts, data_diagnosis_opts, log):
 
     cli_file = '%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
-    workflow = preprocess(preprocess_opts, opts, analysis_opts, log)
+    workflow = preprocess(preprocess_opts, opts, analysis_opts, data_diagnosis_opts, log)
 
     return workflow
 
@@ -433,6 +460,18 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         confound_regression_opts = pickle.load(handle)
 
-    workflow = confound_regression(confound_regression_opts, opts, log)
+    workflow = confound_regression(confound_regression_opts, opts, None, log)
+
+    return workflow
+
+
+def data_diagnosis(opts, log):
+
+    cli_file = '%s/rabies_confound_regression.pkl' % (
+        opts.confound_regression_out, )
+    with open(cli_file, 'rb') as handle:
+        confound_regression_opts = pickle.load(handle)
+
+    workflow = confound_regression(confound_regression_opts, None, opts, log)
 
     return workflow

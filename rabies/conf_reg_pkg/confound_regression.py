@@ -10,7 +10,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
     inputnode = pe.Node(niu.IdentityInterface(fields=[
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'VE_file']), name='outputnode')
+                         'cleaned_path', 'aroma_out', 'VE_file', 'CR_data_dict']), name='outputnode')
 
     regress_node = pe.Node(Function(input_names=['bold_file', 'data_dict', 'brain_mask_file', 'cr_opts'],
                                     output_names=['cleaned_path', 'bold_file','VE_file_path', 'data_dict'],
@@ -40,6 +40,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
         (regress_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
             ("VE_file_path", "VE_file"),
+            ("data_dict", "CR_data_dict"),
             ]),
         ])
 

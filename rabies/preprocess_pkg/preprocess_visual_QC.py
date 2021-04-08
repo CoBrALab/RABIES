@@ -120,7 +120,7 @@ def plot_reg(image1,image2, name_source, out_dir):
         filename_template
 
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.visual_diagnosis import plot_3d,otsu_scaling
+    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
     fig,axes = plt.subplots(nrows=2, ncols=3, figsize=(12*3,2*2))
     plt.tight_layout()
 
@@ -138,11 +138,11 @@ def plot_reg(image1,image2, name_source, out_dir):
     fig.savefig('%s_registration.png' % (prefix), bbox_inches='tight')
 
 
-def template_diagnosis(anat_template, opts, out_dir):
+def template_info(anat_template, opts, out_dir):
     import os
     from nilearn import plotting
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.visual_diagnosis import plot_3d,otsu_scaling
+    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
     brain_mask = str(opts.brain_mask)
     WM_mask = str(opts.WM_mask)
     CSF_mask = str(opts.CSF_mask)
@@ -202,10 +202,10 @@ def template_diagnosis(anat_template, opts, out_dir):
     plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
     plt.tight_layout()
 
-    fig.savefig(out_dir+'/template_diagnosis.png', bbox_inches='tight')
+    fig.savefig(out_dir+'/template_files.png', bbox_inches='tight')
 
 
-def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_source, out_dir):
+def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_source, out_dir):
     import os
     import pathlib
     filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
@@ -216,7 +216,7 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
     import numpy as np
     import SimpleITK as sitk
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.visual_diagnosis import plot_3d
+    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d
     from rabies.preprocess_pkg.utils import copyInfo_3DImage
     fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(20,5))
     # plot the motion timecourses
@@ -267,7 +267,7 @@ def temporal_diagnosis(bold_file, confounds_csv, FD_csv, rabies_data_type, name_
     axes[0,2].set_title('Temporal SNR', fontsize=20)
     plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
-    fig.savefig('%s_temporal_diagnosis.png' % (prefix), bbox_inches='tight')
+    fig.savefig('%s_temporal_features.png' % (prefix), bbox_inches='tight')
 
     return std_filename, tSNR_filename
 
@@ -282,7 +282,7 @@ def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sou
         filename_template
 
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.visual_diagnosis import plot_3d,otsu_scaling
+    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
     fig,axes = plt.subplots(nrows=3, ncols=4, figsize=(12*4,2*3))
     plt.tight_layout()
 
