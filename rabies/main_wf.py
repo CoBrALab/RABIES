@@ -6,13 +6,13 @@ from .preprocess_pkg.commonspace import ANTsDBM
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
-from .preprocess_pkg import visual_diagnosis
+from .preprocess_pkg import preprocess_visual_QC
 from nipype.interfaces.io import DataSink
 
 from nipype.interfaces.utility import Function
 
 
-def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, name='main_wf'):
+def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, data_diagnosis_opts=None, name='main_wf'):
     '''
     This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
 
@@ -235,22 +235,22 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # organizing visual QC outputs
     template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir'],
-                                       function=visual_diagnosis.template_diagnosis),
-                              name='template_diagnosis')
+                                       function=preprocess_visual_QC.template_info),
+                              name='template_info')
     template_diagnosis.inputs.opts = opts
-    template_diagnosis.inputs.out_dir = output_folder+'/QC_report/template_files/'
+    template_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/template_files/'
 
     bold_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
-                                       function=visual_diagnosis.denoising_diagnosis),
+                                       function=preprocess_visual_QC.denoising_diagnosis),
                               name='bold_denoising_diagnosis')
-    bold_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/bold_denoising/'
+    bold_denoising_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/bold_denoising/'
 
     temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'confounds_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
                                           output_names=[
                                             'std_filename', 'tSNR_filename'],
-                                       function=visual_diagnosis.temporal_diagnosis),
-                              name='temporal_diagnosis')
-    temporal_diagnosis.inputs.out_dir = output_folder+'/QC_report/temporal_diagnosis/'
+                                       function=preprocess_visual_QC.temporal_features),
+                              name='temporal_features')
+    temporal_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/temporal_features/'
     temporal_diagnosis.inputs.rabies_data_type = opts.data_type
 
     # MAIN WORKFLOW STRUCTURE #######################################################
@@ -407,9 +407,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         if not opts.disable_anat_preproc:
             anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
-                                               function=visual_diagnosis.denoising_diagnosis),
+                                               function=preprocess_visual_QC.denoising_diagnosis),
                                       name='anat_denoising_diagnosis')
-            anat_denoising_diagnosis.inputs.out_dir = output_folder+'/QC_report/anat_denoising/'
+            anat_denoising_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/anat_denoising/'
 
             workflow.connect([
                 (anat_convert_to_RAS_node, anat_denoising_diagnosis, [
@@ -457,17 +457,17 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
 
     PlotOverlap_Anat2Template_node = pe.Node(
-        visual_diagnosis.PlotOverlap(), name='PlotOverlap_Anat2Template')
-    PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/QC_report/Anat2Template/'
+        preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_Anat2Template')
+    PlotOverlap_Anat2Template_node.inputs.out_dir = output_folder+'/preprocess_QC_report/Anat2Template/'
     PlotOverlap_Template2Commonspace_node = pe.Node(
-        visual_diagnosis.PlotOverlap(), name='PlotOverlap_Template2Commonspace')
-    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/QC_report/Template2Commonspace'
+        preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_Template2Commonspace')
+    PlotOverlap_Template2Commonspace_node.inputs.out_dir = output_folder+'/preprocess_QC_report/Template2Commonspace'
     PlotOverlap_Template2Commonspace_node.inputs.name_source = ''
 
     if not opts.bold_only:
         PlotOverlap_EPI2Anat_node = pe.Node(
-            visual_diagnosis.PlotOverlap(), name='PlotOverlap_EPI2Anat')
-        PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/QC_report/EPI2Anat'
+            preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
+        PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
         workflow.connect([
             (bold_selectfiles, PlotOverlap_EPI2Anat_node,
              [("out_file", "name_source")]),
@@ -506,20 +506,15 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         workflow, confound_regression_wf = integrate_confound_regression(
             workflow, outputnode, cr_opts, bold_only=opts.bold_only)
 
-        QC_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                         container="QC_datasink"),
-                                name="QC_datasink")
-
-        workflow.connect([
-            (confound_regression_wf, QC_datasink, [
-                ("outputnode.VE_file", "VE_file"),
-                ]),
-            ])
-
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
                 workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
+
+        # Integrate data_diagnosis
+        if data_diagnosis_opts is not None:
+            workflow = integrate_data_diagnosis(
+                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold)
 
     elif opts.rabies_step == 'preprocess':
         # Datasink - creates output folder for important outputs
@@ -743,6 +738,59 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
                 ("mask_file", "mask_file"),
                 ]),
             ])
+    return workflow
+
+
+def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold):
+    def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
+        # transforms_list,inverses
+        return [template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat], [0, 0, 0, 0, 0, 0]
+
+    data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
+
+    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis
+    ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
+        IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions, transforms=[], inverses=[]),
+        name='ScanDiagnosis')
+
+    workflow.connect([
+        (confound_regression_wf, ScanDiagnosis_node, [
+            ("outputnode.cleaned_path", "bold_file"),
+            ("outputnode.CR_data_dict", "CR_data_dict"),
+            ]),
+        ])
+
+    if commonspace_bold or bold_only:
+        workflow.connect([
+            (outputnode, ScanDiagnosis_node, [
+                ("commonspace_mask", "brain_mask_file"),
+                ("commonspace_WM_mask", "WM_mask_file"),
+                ("commonspace_CSF_mask", "CSF_mask_file"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (outputnode, ScanDiagnosis_node, [
+                ("bold_brain_mask", "brain_mask_file"),
+                ("bold_WM_mask", "WM_mask_file"),
+                ("bold_CSF_mask", "CSF_mask_file"),
+                ]),
+            ])
+
+
+    data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
+                                     container="data_diagnosis_datasink"),
+                            name="data_diagnosis_datasink")
+
+    workflow.connect([
+        (confound_regression_wf, data_diagnosis_datasink, [
+            ("outputnode.VE_file", "VE_file"),
+            ]),
+        (ScanDiagnosis_node, data_diagnosis_datasink, [
+            ("figure_path", "scan_diagnosis_figure"),
+            ]),
+        ])
+
     return workflow
 
 

@@ -3,14 +3,12 @@ import numpy as np
 import nibabel as nb
 import pickle
 import matplotlib.pyplot as plt
-import seaborn as sns
-import analysis_functions
+from rabies.analysis_pkg import analysis_functions
 from nilearn.plotting import plot_stat_map
-import scipy.stats
 
-import torch
-import prior_modeling
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#import torch
+#import prior_modeling
+#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 '''
@@ -22,18 +20,15 @@ Step 3: generate teh subject-level figures
 Step 4: run the group level
 '''
 
-from nipype.interfaces import utility as niu
-import nipype.interfaces.ants as ants
-import nipype.pipeline.engine as pe  # pypeline engine
-from nipype.interfaces.utility import Function
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
 
 
-class AnalysisQCInputSpec(BaseInterfaceInputSpec):
+class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    brain_mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
     WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
     CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
     IC_file = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
@@ -43,137 +38,147 @@ class AnalysisQCInputSpec(BaseInterfaceInputSpec):
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
+    transforms = traits.List(default = [], desc="List of transforms to apply to the IC file and other commonspace masks.")
+    inverses = traits.List(default = [],
+        desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
 
 
-class AnalysisQCOutputSpec(TraitedSpec):
-    warped_image = File(
-        exists=True, desc="Output template generated from commonspace registration.")
-    affine_list = traits.List(exists=True, mandatory=True,
-                              desc="List of affine transforms from anat to template space.")
-    warp_list = traits.List(exists=True, mandatory=True,
-                            desc="List of non-linear transforms from anat to template space.")
-    inverse_warp_list = traits.List(exists=True, mandatory=True,
-                                    desc="List of the inverse non-linear transforms from anat to template space.")
-    warped_anat_list = traits.List(exists=True, mandatory=True,
-                                   desc="List of anatomical images warped to template space..")
+class ScanDiagnosisOutputSpec(TraitedSpec):
+    figure_path = File(
+        exists=True, desc="Output figure from the scan diagnosis")
+    temporal_info = traits.Dict(desc="A dictionary regrouping the temporal features.")
+    spatial_info = traits.Dict(desc="A dictionary regrouping the spatial features.")
 
-
-class AnalysisQC(BaseInterface):
-    """
-    Runs commonspace registration using ants_dbm.
+class ScanDiagnosis(BaseInterface):
     """
 
-    input_spec = AnalysisQCInputSpec
-    output_spec = AnalysisQCOutputSpec
+    """
+
+    input_spec = ScanDiagnosisInputSpec
+    output_spec = ScanDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
-        import os
-        import pandas as pd
+
+        brain_mask_file = self.inputs.brain_mask_file
+        WM_mask_file = self.inputs.WM_mask_file
+        CSF_mask_file = self.inputs.CSF_mask_file
+
+        if self.inputs.DSURQE_regions:
+            right_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_right_hem_mask.nii.gz',
+                    brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+            left_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_left_hem_mask.nii.gz',
+                    brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+        else:
+            right_hem_mask_file=''
+            left_hem_mask_file=''
+
+        IC_file = resample_IC_file(self.inputs.IC_file, brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+
+        edge_mask_file = os.path.abspath('edge_mask.nii.gz')
+        compute_edge_mask(brain_mask_file,edge_mask_file, num_edge_voxels=1)
+        mask_file_dict = {'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'IC_file':IC_file}
+
+        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, mask_file_dict, self.inputs.IC_bold_idx, self.inputs.IC_confound_idx, prior_fit=False,prior_fit_options=[])
+
         import pathlib
-        from rabies.preprocess_pkg.utils import run_command
+        filename_template = pathlib.Path(self.inputs.bold_file).name.rsplit(".nii")[0]+'_scan_diagnosis.png'
+        figure_path = os.path.abspath(filename_template)
 
-        cwd = os.getcwd()
-        template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
+        scan_diagnosis(self.inputs.bold_file,mask_file_dict,temporal_info,spatial_info, figure_path=figure_path, regional_grayplot=self.inputs.DSURQE_regions)
 
-        if os.path.isdir(template_folder):
-            # remove previous run
-            command = 'rm -r %s' % (template_folder,)
-            rc = run_command(command)
-        command = 'mkdir -p %s' % (template_folder,)
-        rc = run_command(command)
-
-        # create a csv file of the input image list
-        csv_path = cwd+'/commonspace_input_files.csv'
-        from rabies.preprocess_pkg.utils import flatten_list
-        merged = flatten_list(list(self.inputs.moving_image))
-
-        if len(merged) == 1:
-            print("Only a single scan was provided as input for commonspace registration. Commonspace registration "
-                  "won't be run, and the output template will be the input scan.")
-
-            # create an identity transform as a surrogate for the commonspace transforms
-            import SimpleITK as sitk
-            dimension = 3
-            identity = sitk.Transform(dimension, sitk.sitkIdentity)
-
-            file = merged[0]
-            filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            transform_file = template_folder+filename_template+'_identity.mat'
-            sitk.WriteTransform(identity, transform_file)
-
-            setattr(self, 'warped_image', file)
-            setattr(self, 'affine_list', [transform_file])
-            setattr(self, 'warp_list', [transform_file])
-            setattr(self, 'inverse_warp_list', [transform_file])
-            setattr(self, 'warped_anat_list', [file])
-
-            return runtime
-
-        df = pd.DataFrame(data=merged)
-        df.to_csv(csv_path, header=False, sep=',', index=False)
-
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
-
-        command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
-            template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
-        rc = run_command(command)
-
-        # verify that all outputs are present
-        ants_dbm_template = template_folder + \
-            '/output/secondlevel/secondlevel_template0.nii.gz'
-        if not os.path.isfile(ants_dbm_template):
-            raise ValueError(ants_dbm_template+" doesn't exists.")
-
-        affine_list = []
-        warp_list = []
-        inverse_warp_list = []
-        warped_anat_list = []
-
-        i = 0
-        for file in merged:
-            file = str(file)
-            filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            anat_to_template_inverse_warp = '%s/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (
-                template_folder, filename_template, str(i),)
-            if not os.path.isfile(anat_to_template_inverse_warp):
-                raise ValueError(
-                    anat_to_template_inverse_warp+" file doesn't exists.")
-            anat_to_template_warp = '%s/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (
-                template_folder, filename_template, str(i),)
-            if not os.path.isfile(anat_to_template_warp):
-                raise ValueError(anat_to_template_warp+" file doesn't exists.")
-            anat_to_template_affine = '%s/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (
-                template_folder, filename_template, str(i),)
-            if not os.path.isfile(anat_to_template_affine):
-                raise ValueError(anat_to_template_affine
-                                 + " file doesn't exists.")
-            warped_anat = '%s/output/secondlevel/secondlevel_template0%s%sWarpedToTemplate.nii.gz' % (
-                template_folder, filename_template, str(i),)
-            if not os.path.isfile(warped_anat):
-                raise ValueError(warped_anat
-                                 + " file doesn't exists.")
-            inverse_warp_list.append(anat_to_template_inverse_warp)
-            warp_list.append(anat_to_template_warp)
-            affine_list.append(anat_to_template_affine)
-            warped_anat_list.append(warped_anat)
-            i += 1
-
-        setattr(self, 'warped_image', ants_dbm_template)
-        setattr(self, 'affine_list', affine_list)
-        setattr(self, 'warp_list', warp_list)
-        setattr(self, 'inverse_warp_list', inverse_warp_list)
-        setattr(self, 'warped_anat_list', warped_anat_list)
+        setattr(self, 'figure_path', figure_path)
+        setattr(self, 'temporal_info', temporal_info)
+        setattr(self, 'spatial_info', spatial_info)
 
         return runtime
 
     def _list_outputs(self):
-        return {'warped_image': getattr(self, 'warped_image'),
-                'affine_list': getattr(self, 'affine_list'),
-                'warp_list': getattr(self, 'warp_list'),
-                'inverse_warp_list': getattr(self, 'inverse_warp_list'),
-                'warped_anat_list': getattr(self, 'warped_anat_list'), }
+        return {'figure_path': getattr(self, 'figure_path'),
+                'temporal_info': getattr(self, 'temporal_info'),
+                'spatial_info': getattr(self, 'spatial_info'), }
+
+
+def resample_mask(in_file, ref_file, transforms, inverses):
+    # resampling the reference image to the dimension of the EPI
+    from rabies.preprocess_pkg.utils import run_command
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(
+        in_file).name.rsplit(".nii")
+    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
+
+    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
+    transform_string = ""
+    for transform, inverse in zip(transforms, inverses):
+        if transform=='NULL':
+            continue
+        elif bool(inverse):
+            transform_string += "-t [%s,1] " % (transform,)
+        else:
+            transform_string += "-t %s " % (transform,)
+
+    command = 'antsApplyTransforms -i %s %s-n GenericLabel -r %s -o %s' % (
+        in_file, transform_string, ref_file, out_file)
+    rc = run_command(command)
+    return out_file
+
+
+def resample_IC_file(in_file, ref_file, transforms, inverses):
+    # resampling the reference image to the dimension of the EPI
+    import SimpleITK as sitk
+    import os
+    from rabies.preprocess_pkg.utils import run_command,split_volumes,copyInfo_4DImage
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(
+        in_file).name.rsplit(".nii")
+    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
+
+    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
+    transform_string = ""
+    for transform, inverse in zip(transforms, inverses):
+        if transform=='NULL':
+            continue
+        elif bool(inverse):
+            transform_string += "-t [%s,1] " % (transform,)
+        else:
+            transform_string += "-t %s " % (transform,)
+
+    # Splitting bold file into lists of single volumes
+    [volumes_list, num_volumes] = split_volumes(
+        in_file, "bold_", sitk.sitkFloat32)
+
+    warped_volumes = []
+    for x in range(0, num_volumes):
+        warped_vol_fname = os.path.abspath(
+            "deformed_volume" + str(x) + ".nii.gz")
+        warped_volumes.append(warped_vol_fname)
+
+        command = 'antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (
+            volumes_list[x], transform_string, ref_file, warped_vol_fname)
+        rc = run_command(command)
+
+
+    sample_volume = sitk.ReadImage(
+        warped_volumes[0])
+    shape = sitk.GetArrayFromImage(sample_volume).shape
+    combined = np.zeros((num_volumes, shape[0], shape[1], shape[2]))
+
+    i = 0
+    for file in warped_volumes:
+        combined[i, :, :, :] = sitk.GetArrayFromImage(
+            sitk.ReadImage(file))[:, :, :]
+        i = i+1
+    if (i != num_volumes):
+        raise ValueError("Error occured with Merge.")
+
+    combined_image = sitk.GetImageFromArray(combined, isVector=False)
+
+    # set metadata and affine for the newly constructed 4D image
+    header_source = sitk.ReadImage(
+        in_file)
+    combined_image = copyInfo_4DImage(
+        combined_image, sample_volume, header_source)
+    sitk.WriteImage(combined_image, out_file)
+    return out_file
 
 
 def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
@@ -202,7 +207,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, mask_file_dict, all_IC_vectors, signal_idx, noise_idx, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[]):
     temporal_info={}
     spatial_info={}
 
@@ -242,8 +247,8 @@ def process_data(bold_file, data_dict, mask_file_dict, all_IC_vectors, signal_id
     w = analysis_functions.closed_form(X, Y, intercept=True) # take a bias into account in the model
     w = w[:-1,:] # take out the intercept
 
-    signal_trace = np.abs(w[signal_idx,:]).mean(axis=0)
-    noise_trace = np.abs(w[noise_idx,:]).mean(axis=0)
+    signal_trace = np.abs(w[IC_bold_idx,:]).mean(axis=0)
+    noise_trace = np.abs(w[IC_confound_idx,:]).mean(axis=0)
     temporal_info['signal_trace']=signal_trace
     temporal_info['noise_trace']=noise_trace
 
@@ -267,7 +272,7 @@ def process_data(bold_file, data_dict, mask_file_dict, all_IC_vectors, signal_id
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
-    signal_maps=dr_maps[signal_idx]
+    signal_maps=dr_maps[IC_bold_idx]
 
     prior_out=[]
     if prior_fit:
@@ -276,7 +281,7 @@ def process_data(bold_file, data_dict, mask_file_dict, all_IC_vectors, signal_id
         #Wcr=torch.tensor(scan_data[scan]['CR_time']).float().to(device)
         #X_cr = X-torch.matmul(Wcr,prior_modeling.torch_closed_form(Wcr,X))
 
-        prior_networks = torch.tensor(all_IC_vectors[signal_idx,:].T).float().to(device)
+        prior_networks = torch.tensor(all_IC_vectors[IC_bold_idx,:].T).float().to(device)
 
         C_prior=prior_networks
         C_conf = prior_modeling.deflation_fit(X, q=num_comp, c_init=None, C_convergence=convergence_function,
@@ -317,13 +322,13 @@ def process_data(bold_file, data_dict, mask_file_dict, all_IC_vectors, signal_id
 Subject-level QC
 '''
 
-def grayplot(timeseries_file,fig,ax,fontsize=20):
+def grayplot_regional(timeseries_file,mask_file_dict,fig,ax,fontsize=20):
     timeseries_4d=np.asarray(nb.load(timeseries_file).dataobj)
 
-    WM_mask=np.asarray(nb.load('resampled_WM_mask.nii.gz').dataobj).astype(bool)
-    CSF_mask=np.asarray(nb.load('resampled_CSF_mask.nii.gz').dataobj).astype(bool)
-    right_hem_mask=np.asarray(nb.load('resampled_right_hem_mask.nii.gz').dataobj).astype(bool)
-    left_hem_mask=np.asarray(nb.load('resampled_left_hem_mask.nii.gz').dataobj).astype(bool)
+    WM_mask=np.asarray(nb.load(mask_file_dict['WM_mask']).dataobj).astype(bool)
+    CSF_mask=np.asarray(nb.load(mask_file_dict['CSF_mask']).dataobj).astype(bool)
+    right_hem_mask=np.asarray(nb.load(mask_file_dict['right_hem_mask']).dataobj).astype(bool)
+    left_hem_mask=np.asarray(nb.load(mask_file_dict['left_hem_mask']).dataobj).astype(bool)
 
     grayplot_array=np.empty((0,timeseries_4d.shape[3]))
     slice_alt=np.array([])
@@ -365,12 +370,42 @@ def grayplot(timeseries_file,fig,ax,fontsize=20):
     ax3.set_aspect(0.0015)
     ax3.axis('off')
 
-def motion_diagnosis(bold_file,temporal_info,spatial_info, figure_path=None):
+def grayplot(timeseries_file,mask_file_dict,fig,ax,fontsize=20):
+    brain_mask=np.asarray(nb.load(mask_file_dict['brain_mask']).dataobj)
+    volume_indices=brain_mask.astype(bool)
+
+    data_array=np.asarray(nb.load(timeseries_file).dataobj)
+    timeseries=np.zeros([data_array.shape[3],volume_indices.sum()])
+    for i in range(data_array.shape[3]):
+        timeseries[i,:]=(data_array[:,:,:,i])[volume_indices]
+
+    grayplot_array=timeseries.T
+
+    vmax=grayplot_array.std()
+    im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax)
+    ax.set_aspect(grayplot_array.shape[1]/grayplot_array.shape[0])
+    ax.set_xlabel('Timepoint', fontsize=fontsize)
+    # increase tick size on x axis
+    for tick in ax.xaxis.get_major_ticks():
+        tick.label.set_fontsize(fontsize/2)
+
+    ax.set_ylabel('Voxel', fontsize=fontsize)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.axes.get_yaxis().set_ticks([])
+    ax.yaxis.labelpad = 40
+    cbar = fig.colorbar(im, ax=ax,pad=0.02, fraction=0.046)
+    cbar.set_label('Voxel Intensity', fontsize=fontsize)
+
+def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, figure_path=None, regional_grayplot=False):
 
     fig1,axes1 = plt.subplots(nrows=4, ncols=1, gridspec_kw = {'height_ratios':[2,1,1,1]}, figsize=(5,10), sharex=True)
     #fig3,axes3 = plt.subplots(nrows=8, ncols=n_sub,figsize=(12*n_sub,3*8))
 
-    grayplot(bold_file,fig1,axes1[0],fontsize=20)
+    if regional_grayplot:
+        grayplot_regional(bold_file,mask_file_dict,fig1,axes1[0],fontsize=20)
+    else:
+        grayplot(bold_file,mask_file_dict,fig1,axes1[0],fontsize=20)
 
     ax1 = axes1[1]
     #ax1.set_title(name, fontsize=15)
@@ -406,6 +441,10 @@ def motion_diagnosis(bold_file,temporal_info,spatial_info, figure_path=None):
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.set_ylim([0.0,0.09])
+
+    fig1.tight_layout()
+    if figure_path is not None:
+        fig1.savefig(figure_path, bbox_inches='tight')
 
     '''
     ax=axes3[0,n]

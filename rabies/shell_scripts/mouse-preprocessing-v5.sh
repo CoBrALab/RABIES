@@ -85,8 +85,8 @@ rm -f ${tmpdir}/originput.clamp.mnc
 
 #Construct Otsu Mask of entire image
 input=${tmpdir}/originput.mnc
-volcentre -zero_dircos ${input} ${tmpdir}/centre.mnc
-mv -f ${tmpdir}/centre.mnc ${input}
+#volcentre -zero_dircos ${input} ${tmpdir}/centre.mnc
+#mv -f ${tmpdir}/centre.mnc ${input}
 
 ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
 
