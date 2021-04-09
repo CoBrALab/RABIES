@@ -114,7 +114,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc', 'anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask', 'initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+        fields=['commonspace_resampled_template', 'anat_preproc', 'anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask', 'initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels', 'std_filename', 'tSNR_filename']),
         name='outputnode')
 
@@ -274,6 +274,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
          ("resampled_template", "fixed_image")]),
         (resample_template_node, bold_main_wf, [
          ("resampled_template", "inputnode.template_anat")]),
+        (resample_template_node, outputnode, [
+         ("resampled_template", "commonspace_resampled_template")]),
         (template_reg, bold_main_wf, [
             ("affine", "inputnode.template_to_common_affine"),
             ("warp", "inputnode.template_to_common_warp"),
@@ -742,21 +744,23 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 
 
 def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold):
-    def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
-        # transforms_list,inverses
-        return [template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat], [0, 0, 0, 0, 0, 0]
-
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
     from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
-        IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions, transforms=[], inverses=[]),
+        IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='ScanDiagnosis')
 
     workflow.connect([
         (confound_regression_wf, ScanDiagnosis_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
+            ]),
+        ])
+
+    workflow.connect([
+        (outputnode, ScanDiagnosis_node, [
+            ("commonspace_resampled_template", "preprocess_anat_template"),
             ]),
         ])
 
@@ -769,13 +773,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                 ]),
             ])
     else:
-        workflow.connect([
-            (outputnode, ScanDiagnosis_node, [
-                ("bold_brain_mask", "brain_mask_file"),
-                ("bold_WM_mask", "WM_mask_file"),
-                ("bold_CSF_mask", "CSF_mask_file"),
-                ]),
-            ])
+        raise ValueError("--commonspace_bold outputs are currently required for running data_diagnosis")
 
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
@@ -787,7 +785,8 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ("outputnode.VE_file", "VE_file"),
             ]),
         (ScanDiagnosis_node, data_diagnosis_datasink, [
-            ("figure_path", "scan_diagnosis_figure"),
+            ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
+            ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
             ]),
         ])
 

@@ -29,6 +29,7 @@ from nipype.interfaces.base import (
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    preprocess_anat_template = File(exists=True, mandatory=True, desc="The common space template used during preprocessing.")
     brain_mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
     WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
     CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
@@ -39,13 +40,12 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
-    transforms = traits.List(default = [], desc="List of transforms to apply to the IC file and other commonspace masks.")
-    inverses = traits.List(default = [],
-        desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
 
 
 class ScanDiagnosisOutputSpec(TraitedSpec):
-    figure_path = File(
+    figure_temporal_diagnosis = File(
+        exists=True, desc="Output figure from the scan diagnosis")
+    figure_spatial_diagnosis = File(
         exists=True, desc="Output figure from the scan diagnosis")
     temporal_info = traits.Dict(desc="A dictionary regrouping the temporal features.")
     spatial_info = traits.Dict(desc="A dictionary regrouping the spatial features.")
@@ -64,42 +64,58 @@ class ScanDiagnosis(BaseInterface):
         WM_mask_file = self.inputs.WM_mask_file
         CSF_mask_file = self.inputs.CSF_mask_file
 
+        # resample the template to the EPI dimensions
+        from rabies.preprocess_pkg.utils import resample_image_spacing
+        resampled = resample_image_spacing(sitk.ReadImage(self.inputs.preprocess_anat_template), sitk.ReadImage(brain_mask_file).GetSpacing(), resampling_interpolation='BSpline')
+        template_file = os.path.abspath('display_template.nii.gz')
+        sitk.WriteImage(resampled,template_file)
+
         if self.inputs.DSURQE_regions:
             right_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_right_hem_mask.nii.gz',
-                    brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+                    brain_mask_file)
             left_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_left_hem_mask.nii.gz',
-                    brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+                    brain_mask_file)
         else:
             right_hem_mask_file=''
             left_hem_mask_file=''
 
-        IC_file = resample_IC_file(self.inputs.IC_file, brain_mask_file, self.inputs.transforms, self.inputs.inverses)
+        IC_file = resample_IC_file(self.inputs.IC_file, brain_mask_file)
 
         edge_mask_file = os.path.abspath('edge_mask.nii.gz')
         compute_edge_mask(brain_mask_file,edge_mask_file, num_edge_voxels=1)
         mask_file_dict = {'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'IC_file':IC_file}
 
-        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, mask_file_dict, self.inputs.IC_bold_idx, self.inputs.IC_confound_idx, prior_fit=False,prior_fit_options=[])
+        # convert to an integer list
+        self.inputs.IC_bold_idx
+        IC_bold_idx = [int(i) for i in self.inputs.IC_bold_idx]
+        IC_confound_idx = [int(i) for i in self.inputs.IC_confound_idx]
+        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
+
+        fig,fig2 = scan_diagnosis(self.inputs.bold_file,template_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
         filename_template = pathlib.Path(self.inputs.bold_file).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
+        fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
+        fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
 
-        scan_diagnosis(self.inputs.bold_file,mask_file_dict,temporal_info,spatial_info, figure_path=figure_path, regional_grayplot=self.inputs.DSURQE_regions)
-
-        setattr(self, 'figure_path', figure_path)
+        setattr(self, 'figure_temporal_diagnosis', figure_path+'_temporal_diagnosis.png')
+        setattr(self, 'figure_spatial_diagnosis', figure_path+'_spatial_diagnosis.png')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
 
         return runtime
 
     def _list_outputs(self):
-        return {'figure_path': getattr(self, 'figure_path'),
+        return {'figure_temporal_diagnosis': getattr(self, 'figure_temporal_diagnosis'),
+                'figure_spatial_diagnosis': getattr(self, 'figure_spatial_diagnosis'),
                 'temporal_info': getattr(self, 'temporal_info'),
                 'spatial_info': getattr(self, 'spatial_info'), }
 
 
-def resample_mask(in_file, ref_file, transforms, inverses):
+def resample_mask(in_file, ref_file):
+    transforms=[]
+    inverses=[]
     # resampling the reference image to the dimension of the EPI
     from rabies.preprocess_pkg.utils import run_command
     import pathlib  # Better path manipulation
@@ -123,7 +139,9 @@ def resample_mask(in_file, ref_file, transforms, inverses):
     return out_file
 
 
-def resample_IC_file(in_file, ref_file, transforms, inverses):
+def resample_IC_file(in_file, ref_file):
+    transforms=[]
+    inverses=[]
     # resampling the reference image to the dimension of the EPI
     import SimpleITK as sitk
     import os
@@ -323,7 +341,7 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
 Subject-level QC
 '''
 
-def grayplot_regional(timeseries_file,mask_file_dict,fig,ax,fontsize=20):
+def grayplot_regional(timeseries_file,mask_file_dict,fig,ax):
     timeseries_4d=np.asarray(nb.load(timeseries_file).dataobj)
 
     WM_mask=np.asarray(nb.load(mask_file_dict['WM_mask']).dataobj).astype(bool)
@@ -345,31 +363,9 @@ def grayplot_regional(timeseries_file,mask_file_dict,fig,ax,fontsize=20):
             token= not token
 
     vmax=grayplot_array.std()
-    im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax)
-    ax.set_aspect(grayplot_array.shape[1]/grayplot_array.shape[0])
-    ax.set_xlabel('Timepoint', fontsize=fontsize)
-    # increase tick size on x axis
-    for tick in ax.xaxis.get_major_ticks():
-        tick.label.set_fontsize(fontsize/2)
+    im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax, aspect='auto')
+    return im,slice_alt,region_mask_label
 
-    ax.set_ylabel('Voxel', fontsize=fontsize)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.axes.get_yaxis().set_ticks([])
-    ax.yaxis.labelpad = 40
-    cbar = fig.colorbar(im, ax=ax,pad=0.02, fraction=0.046)
-    cbar.set_label('Voxel Intensity', fontsize=fontsize)
-
-
-    ax2 = fig.add_axes([0.018, 0.140, 0.2, 0.725])
-    ax2.imshow(slice_alt.reshape(-1,1), cmap='gray', vmin=0, vmax=1.1)
-    ax2.set_aspect(0.0015)
-    ax2.axis('off')
-
-    ax3 = fig.add_axes([0.004, 0.140, 0.2, 0.725])
-    ax3.imshow(region_mask_label.reshape(-1,1), cmap='Spectral')
-    ax3.set_aspect(0.0015)
-    ax3.axis('off')
 
 def grayplot(timeseries_file,mask_file_dict,fig,ax):
     brain_mask=np.asarray(nb.load(mask_file_dict['brain_mask']).dataobj)
@@ -386,10 +382,10 @@ def grayplot(timeseries_file,mask_file_dict,fig,ax):
     im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax, aspect='auto')
     return im
 
-def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_info, figure_path=None, regional_grayplot=False):
+def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=False):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     fig, axCenter = plt.subplots(figsize=(6,15))
-    fig.subplots_adjust(.2,.1,.95,.95)
+    fig.subplots_adjust(.2,.1,.8,.95)
 
     divider = make_axes_locatable(axCenter)
     ax1 = divider.append_axes('bottom', size='50%', pad=0.5)
@@ -397,11 +393,20 @@ def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_
     ax3 = divider.append_axes('bottom', size='50%', pad=0.5)
 
     if regional_grayplot:
-        grayplot_regional(bold_file,mask_file_dict,fig1,axes1[0,0],fontsize=10)
+        im,slice_alt,region_mask_label = grayplot_regional(bold_file,mask_file_dict,fig,axCenter)
+        axCenter.yaxis.labelpad = 40
+        ax_slice = divider.append_axes('left', size='5%', pad=0.0)
+        ax_label = divider.append_axes('left', size='5%', pad=0.0)
+
+        ax_slice.imshow(slice_alt.reshape(-1,1), cmap='gray', vmin=0, vmax=1.1, aspect='auto')
+        ax_label.imshow(region_mask_label.reshape(-1,1), cmap='Spectral', aspect='auto')
+        ax_slice.axis('off')
+        ax_label.axis('off')
+
     else:
         im=grayplot(bold_file,mask_file_dict,fig,axCenter)
 
-    axCenter.set_ylabel('Voxel', fontsize=15)
+    axCenter.set_ylabel('Voxels', fontsize=20)
     axCenter.spines['right'].set_visible(False)
     axCenter.spines['top'].set_visible(False)
     axCenter.spines['bottom'].set_visible(False)
@@ -413,10 +418,10 @@ def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_
     y=temporal_info['FD_trace']
     ax1.plot(y, 'r')
     ax1.set_xlim([0,len(y)])
-    ax1.legend(['Framewise Displacement (FD)'])
+    ax1.legend(['Framewise Displacement (FD)'], loc='upper right')
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
-    ax1.set_ylim([0.0,0.2])
+    ax1.set_ylim([0.0,0.1])
     plt.setp(ax1.get_xticklabels(), visible=False)
 
     DVARS=temporal_info['DVARS']
@@ -430,7 +435,7 @@ def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_
     #ax2.plot(temporal_info['not_edge_trace'])
     ax2.plot(temporal_info['VE_temporal'])
     #ax2.set_ylabel('Mask L2-norm', fontsize=12)
-    ax2.legend(['DVARS','Edge Mask', 'WM Mask', 'CSF Mask', 'CR R^2'])
+    ax2.legend(['DVARS','Edge Mask', 'WM Mask', 'CSF Mask', 'CR R^2'], loc='center left', bbox_to_anchor=(1, 0.5))
     ax2.spines['right'].set_visible(False)
     ax2.spines['top'].set_visible(False)
     ax2.set_ylim([0.0,1])
@@ -441,7 +446,7 @@ def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_
     ax3.set_xlim([0,len(y)])
     ax3.plot(temporal_info['noise_trace'])
     #ax3.set_ylabel('Mean Component Weight', fontsize=12)
-    ax3.legend(['BOLD components', 'Confound components'])
+    ax3.legend(['BOLD components', 'Confound components'], loc='upper right')
     ax3.spines['right'].set_visible(False)
     ax3.spines['top'].set_visible(False)
     ax3.set_ylim([0.0,0.09])
@@ -464,87 +469,50 @@ def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True)
     for ax in axes:
-        ax.set_title('Temporal STD', fontsize=15)
+        ax.set_title('Temporal STD', fontsize=25)
 
     axes=axes2[1,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
     analysis_functions.recover_3D(mask_file,spatial_info['VE_spatial']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True)
+    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, threshold=0.1)
     for ax in axes:
-        ax.set_title('CR R^2', fontsize=15)
+        ax.set_title('CR R^2', fontsize=25)
 
     axes=axes2[2,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
     analysis_functions.recover_3D(mask_file,spatial_info['GS_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
     for ax in axes:
-        ax.set_title('Global Signal Correlation', fontsize=15)
+        ax.set_title('Global Signal Correlation', fontsize=25)
 
     axes=axes2[3,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
     analysis_functions.recover_3D(mask_file,spatial_info['DVARS_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
     for ax in axes:
-        ax.set_title('DVARS Correlation', fontsize=15)
+        ax.set_title('DVARS Correlation', fontsize=25)
 
     axes=axes2[4,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
     analysis_functions.recover_3D(mask_file,spatial_info['FD_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
     for ax in axes:
-        ax.set_title('FD Correlation', fontsize=15)
+        ax.set_title('FD Correlation', fontsize=25)
 
     for i in range(dr_maps.shape[0]):
         axes=axes2[i+5,:]
         plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
         analysis_functions.recover_3D(mask_file,dr_maps[i,:]).to_filename('temp_img.nii.gz')
         sitk_img=sitk.ReadImage('temp_img.nii.gz')
-        plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True)
+        plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
         for ax in axes:
-            ax.set_title('BOLD component %s' % (i), fontsize=15)
+            ax.set_title('BOLD component %s' % (i), fontsize=25)
 
-    if figure_path is not None:
-        fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
-        fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
-
-    '''
-    ax=axes3[0,n]
-    ax.set_title(name+' - Temporal STD', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,temporal_std),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=1, colorbar=False)
-    ax=axes3[1,n]
-    ax.set_title(name+' - CR R^2', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,VE_spatial),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=1, colorbar=False)
-    ax=axes3[2,n]
-    ax.set_title(name+' - Global Signal Correlation', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,GS_corr),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=0.7)
-    ax=axes3[3,n]
-    ax.set_title(name+' - DVARS Correlation', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,DVARS_corr),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=0.7)
-    ax=axes3[4,n]
-    ax.set_title(name+' - FD Correlation', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,FD_corr),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=0.7)
-
-    ax=axes3[5,n]
-    ax.set_title(name+' - Somatomotor', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,signal_map1),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=1)
-    ax=axes3[6,n]
-    ax.set_title(name+' - Dorsal Comp', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,signal_map2),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=1)
-    ax=axes3[7,n]
-    ax.set_title(name+' - DMN', fontsize=15)
-    plot_stat_map(analysis_functions.recover_3D(mask_file,signal_map3),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=1)
-
-    n+=1
-
-    fig1.tight_layout()
-    if figure_path is not None:
-        fig1.savefig(figure_path+'_temporal_analysis.png', bbox_inches='tight')
-        fig3.savefig(figure_path+'_spatial_analysis.png', bbox_inches='tight')
-    '''
+    return fig,fig2
 
 
 '''

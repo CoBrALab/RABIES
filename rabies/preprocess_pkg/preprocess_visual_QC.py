@@ -74,11 +74,15 @@ def otsu_scaling(image):
     return scaled_img
 
 
-def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False):
+def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, threshold=None):
     physical_dimensions = (np.array(sitk_img.GetSpacing())*np.array(sitk_img.GetSize()))[::-1] # invert because the array is inverted indices
     array=sitk.GetArrayFromImage(sitk_img)
 
     array[array==0]=None # set 0 values to be empty
+
+    if not threshold is None:
+        array[np.abs(array)<threshold]=None
+
 
     slices=np.empty([array.shape[0],1])
     for s in [0.35,0.45,0.55,0.65]:
