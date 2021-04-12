@@ -72,14 +72,14 @@ def get_parser():
                             help="Apply preprocessing with only EPI scans. commonspace registration"
                             " is executed through registration of the EPI-generated template from ants_dbm"
                             " to the anatomical template.")
-    preprocess.add_argument("--bold_bias_cor_method", type=str, default='otsu_reg',
+    preprocess.add_argument("--bold_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
                             choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
                             help="Choose the algorithm for bias field correction of the EPI before registration."
                             "otsu_reg will conduct an initial serie of N4BiasFieldCorrection oriented by Otsu masking method, "
                             "followed by a rigid registration to provide a brain mask orienting the final correction."
                             "thresh_reg will instead use an initial voxel intensity thresholding method for masking, and will "
                             "conduct a subsequent rigid registration to provide a brain mask orienting the final correction.")
-    preprocess.add_argument("--anat_bias_cor_method", type=str, default='thresh_reg',
+    preprocess.add_argument("--anat_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
                             choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
                             help="Same as --bold_bias_cor_method but for the anatomical image.")
     preprocess.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
