@@ -746,10 +746,13 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold):
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
-    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis
-    ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
+    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks
+    ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
         IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='ScanDiagnosis')
+
+    PrepMasks_node = pe.Node(ScanDiagnosis(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
+        name='PrepMasks')
 
     workflow.connect([
         (confound_regression_wf, ScanDiagnosis_node, [
@@ -758,18 +761,38 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ]),
         ])
 
-    workflow.connect([
-        (outputnode, ScanDiagnosis_node, [
-            ("commonspace_resampled_template", "preprocess_anat_template"),
-            ]),
-        ])
-
     if commonspace_bold or bold_only:
+        data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['brain_mask_file_list', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template']),
+                                             name='data_diagnosis_joinnode_main',
+                                             joinsource='main_split',
+                                             joinfield=['brain_mask_file_list'])
+
+        data_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['brain_mask_file_list', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template']),
+                                            name='data_diagnosis_joinnode_run',
+                                            joinsource='run_split',
+                                            joinfield=['brain_mask_file_list'])
+
         workflow.connect([
-            (outputnode, ScanDiagnosis_node, [
-                ("commonspace_mask", "brain_mask_file"),
+            (outputnode, data_diagnosis_joinnode_main, [
+                ("commonspace_mask", "brain_mask_file_list"),
                 ("commonspace_WM_mask", "WM_mask_file"),
                 ("commonspace_CSF_mask", "CSF_mask_file"),
+                ("commonspace_resampled_template", "preprocess_anat_template"),
+                ]),
+            (data_diagnosis_joinnode_main, data_diagnosis_joinnode_run, [
+                ("brain_mask_file_list", "brain_mask_file_list"),
+                ("WM_mask_file", "WM_mask_file"),
+                ("CSF_mask_file", "CSF_mask_file"),
+                ("preprocess_anat_template", "preprocess_anat_template"),
+                ]),
+            (data_diagnosis_joinnode_main, PrepMasks_node, [
+                ("brain_mask_file_list", "brain_mask_file_list"),
+                ("WM_mask_file", "WM_mask_file"),
+                ("CSF_mask_file", "CSF_mask_file"),
+                ("preprocess_anat_template", "preprocess_anat_template"),
+                ]),
+            (PrepMasks_node, ScanDiagnosis_node [
+                ("mask_file_dict", "mask_file_dict"),
                 ]),
             ])
     else:

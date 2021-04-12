@@ -27,40 +27,30 @@ from nipype.interfaces.base import (
 )
 
 
-class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
+class PrepMasksInputSpec(BaseInterfaceInputSpec):
     preprocess_anat_template = File(exists=True, mandatory=True, desc="The common space template used during preprocessing.")
-    brain_mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
+    brain_mask_file_list = File(exists=True, mandatory=True, desc="Brain mask.")
     WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
     CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
     IC_file = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
-    IC_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    IC_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
-    CR_data_dict = traits.Dict(
-        desc="")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
+class PrepMasksOutputSpec(TraitedSpec):
+    mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
 
-class ScanDiagnosisOutputSpec(TraitedSpec):
-    figure_temporal_diagnosis = File(
-        exists=True, desc="Output figure from the scan diagnosis")
-    figure_spatial_diagnosis = File(
-        exists=True, desc="Output figure from the scan diagnosis")
-    temporal_info = traits.Dict(desc="A dictionary regrouping the temporal features.")
-    spatial_info = traits.Dict(desc="A dictionary regrouping the spatial features.")
-
-class ScanDiagnosis(BaseInterface):
+class PrepMasks(BaseInterface):
     """
 
     """
 
-    input_spec = ScanDiagnosisInputSpec
-    output_spec = ScanDiagnosisOutputSpec
+    input_spec = PrepMasksInputSpec
+    output_spec = PrepMasksOutputSpec
 
     def _run_interface(self, runtime):
-
-        brain_mask_file = self.inputs.brain_mask_file
+        from rabies.preprocess_pkg.utils import flatten_list
+        merged = flatten_list(list(self.inputs.brain_mask_file_list))
+        brain_mask_file = merged[0] # all mask files are assumed to be identical
         WM_mask_file = self.inputs.WM_mask_file
         CSF_mask_file = self.inputs.CSF_mask_file
 
@@ -83,15 +73,49 @@ class ScanDiagnosis(BaseInterface):
 
         edge_mask_file = os.path.abspath('edge_mask.nii.gz')
         compute_edge_mask(brain_mask_file,edge_mask_file, num_edge_voxels=1)
-        mask_file_dict = {'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'IC_file':IC_file}
+        mask_file_dict = {'template_file':template_file, 'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'IC_file':IC_file}
 
+        setattr(self, 'mask_file_dict', mask_file_dict)
+        return runtime
+
+    def _list_outputs(self):
+        return {'mask_file_dict': getattr(self, 'mask_file_dict')}
+
+class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
+    bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    IC_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
+    IC_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
+    CR_data_dict = traits.Dict(
+        desc="")
+    mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
+    DSURQE_regions = traits.Bool(
+        desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
+
+
+class ScanDiagnosisOutputSpec(TraitedSpec):
+    figure_temporal_diagnosis = File(
+        exists=True, desc="Output figure from the scan diagnosis")
+    figure_spatial_diagnosis = File(
+        exists=True, desc="Output figure from the scan diagnosis")
+    temporal_info = traits.Dict(desc="A dictionary regrouping the temporal features.")
+    spatial_info = traits.Dict(desc="A dictionary regrouping the spatial features.")
+
+class ScanDiagnosis(BaseInterface):
+    """
+
+    """
+
+    input_spec = ScanDiagnosisInputSpec
+    output_spec = ScanDiagnosisOutputSpec
+
+    def _run_interface(self, runtime):
         # convert to an integer list
         self.inputs.IC_bold_idx
         IC_bold_idx = [int(i) for i in self.inputs.IC_bold_idx]
         IC_confound_idx = [int(i) for i in self.inputs.IC_confound_idx]
-        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
+        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, self.inputs.mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
 
-        fig,fig2 = scan_diagnosis(self.inputs.bold_file,template_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
+        fig,fig2 = scan_diagnosis(self.inputs.bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
         filename_template = pathlib.Path(self.inputs.bold_file).name.rsplit(".nii")[0]
@@ -382,7 +406,8 @@ def grayplot(timeseries_file,mask_file_dict,fig,ax):
     im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax, aspect='auto')
     return im
 
-def scan_diagnosis(bold_file,template_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=False):
+def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=False):
+    template_file = mask_file_dict['template_file']
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     fig, axCenter = plt.subplots(figsize=(6,15))
     fig.subplots_adjust(.2,.1,.8,.95)
