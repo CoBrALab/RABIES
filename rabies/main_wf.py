@@ -516,7 +516,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         # Integrate data_diagnosis
         if data_diagnosis_opts is not None:
             workflow = integrate_data_diagnosis(
-                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold)
+                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold, split_name, run_iter, main_split, run_split)
 
     elif opts.rabies_step == 'preprocess':
         # Datasink - creates output folder for important outputs
@@ -743,25 +743,36 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
     return workflow
 
 
-def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold):
+def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, split_name, run_iter, main_split, run_split):
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
-    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks
+    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
         IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='ScanDiagnosis')
 
-    PrepMasks_node = pe.Node(ScanDiagnosis(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
+    PrepMasks_node = pe.Node(PrepMasks(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='PrepMasks')
 
-    workflow.connect([
-        (confound_regression_wf, ScanDiagnosis_node, [
-            ("outputnode.cleaned_path", "bold_file"),
-            ("outputnode.CR_data_dict", "CR_data_dict"),
-            ]),
-        ])
+    DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
+        name='DatasetDiagnosis')
 
     if commonspace_bold or bold_only:
+        '''
+        transition_buffer = pe.Node(niu.IdentityInterface(
+            fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='transition_buffer')
+
+        second_main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
+                             name="second_main_split")
+        second_main_split.iterables = [('split_name', split_name),
+                                ('scan_info', scan_info)]
+        second_main_split.synchronize = True
+
+        second_run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
+                            name="second_run_split")
+        second_run_split.itersource = ('main_split', 'split_name')
+        second_run_split.iterables = [('run', run_iter)]
+
         data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['brain_mask_file_list', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template']),
                                              name='data_diagnosis_joinnode_main',
                                              joinsource='main_split',
@@ -773,13 +784,13 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                                             joinfield=['brain_mask_file_list'])
 
         workflow.connect([
-            (outputnode, data_diagnosis_joinnode_main, [
+            (outputnode, data_diagnosis_joinnode_run, [
                 ("commonspace_mask", "brain_mask_file_list"),
                 ("commonspace_WM_mask", "WM_mask_file"),
                 ("commonspace_CSF_mask", "CSF_mask_file"),
                 ("commonspace_resampled_template", "preprocess_anat_template"),
                 ]),
-            (data_diagnosis_joinnode_main, data_diagnosis_joinnode_run, [
+            (data_diagnosis_joinnode_run, data_diagnosis_joinnode_main, [
                 ("brain_mask_file_list", "brain_mask_file_list"),
                 ("WM_mask_file", "WM_mask_file"),
                 ("CSF_mask_file", "CSF_mask_file"),
@@ -791,12 +802,133 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                 ("CSF_mask_file", "CSF_mask_file"),
                 ("preprocess_anat_template", "preprocess_anat_template"),
                 ]),
-            (PrepMasks_node, ScanDiagnosis_node [
-                ("mask_file_dict", "mask_file_dict"),
+            ])
+
+        '''
+
+        data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'split_name_list','run_list_list']),
+                                             name='data_diagnosis_joinnode_main',
+                                             joinsource='main_split',
+                                             joinfield=['file_list', 'split_name_list','run_list_list'])
+
+        data_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'run_list']),
+                                            name='data_diagnosis_joinnode_run',
+                                            joinsource='run_split',
+                                            joinfield=['file_list', 'run_list'])
+
+        second_main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
+                             name="second_main_split")
+        second_main_split.iterables = [('split_name', split_name)]
+
+        second_run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
+                            name="second_run_split")
+        second_run_split.itersource = ('second_main_split', 'split_name')
+        second_run_split.iterables = [('run', run_iter)]
+
+        dataset_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
+                                             name='dataset_diagnosis_joinnode_main',
+                                             joinsource='second_main_split',
+                                             joinfield=['spatial_info_list'])
+
+        dataset_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
+                                            name='dataset_diagnosis_joinnode_run',
+                                            joinsource='second_run_split',
+                                            joinfield=['spatial_info_list'])
+
+        def find_iterable(file_list, split_name, split_name_list, run, run_list_list):
+            split_name_idx = split_name_list.index(split_name)
+            run_idx = run_list_list[split_name_idx].index(run)
+            return file_list[split_name_idx][run_idx]
+        find_iterable_node = pe.Node(Function(input_names=['file_list', 'split_name', 'split_name_list', 'run', 'run_list_list'],
+                                               output_names=[
+                                                   'file'],
+                                           function=find_iterable),
+                                  name='find_iterable')
+
+        workflow.connect([
+            (run_split, data_diagnosis_joinnode_run, [
+                ("run", "run_list"),
+                ]),
+            (main_split, data_diagnosis_joinnode_main, [
+                ("split_name", "split_name_list"),
+                ]),
+            (data_diagnosis_joinnode_run, data_diagnosis_joinnode_main, [
+                ("file_list", "file_list"),
+                ("run_list", "run_list_list"),
+                ]),
+            (second_main_split, second_run_split, [
+                ("split_name", "split_name"),
+                ]),
+            (second_run_split, find_iterable_node, [
+                ("split_name", "split_name"),
+                ("run", "run"),
+                ]),
+            (data_diagnosis_joinnode_main, find_iterable_node, [
+                ("file_list", "file_list"),
+                ("run_list_list", "run_list_list"),
+                ("split_name_list", "split_name_list"),
+                ]),
+            (dataset_diagnosis_joinnode_run, dataset_diagnosis_joinnode_main, [
+                ("spatial_info_list", "spatial_info_list"),
                 ]),
             ])
+
+
+        def prep_dict(bold_file, CR_data_dict, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template):
+            return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template}
+        prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'brain_mask_file', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template'],
+                                               output_names=[
+                                                   'prep_dict'],
+                                           function=prep_dict),
+                                  name='prep_dict')
+
+        workflow.connect([
+            (outputnode, prep_dict_node, [
+                ("commonspace_mask", "brain_mask_file"),
+                ("commonspace_WM_mask", "WM_mask_file"),
+                ("commonspace_CSF_mask", "CSF_mask_file"),
+                ("commonspace_resampled_template", "preprocess_anat_template"),
+                ]),
+            (confound_regression_wf, prep_dict_node, [
+                ("outputnode.cleaned_path", "bold_file"),
+                ("outputnode.CR_data_dict", "CR_data_dict"),
+                ]),
+            (prep_dict_node, data_diagnosis_joinnode_run, [
+                ("prep_dict", "file_list"),
+                ]),
+            (data_diagnosis_joinnode_main, PrepMasks_node, [
+                ("file_list", "mask_dict_list"),
+                ]),
+            (PrepMasks_node, ScanDiagnosis_node, [
+                ("mask_file_dict", "mask_file_dict"),
+                ]),
+            (find_iterable_node, ScanDiagnosis_node, [
+                ("file", "file_dict"),
+                ]),
+            (ScanDiagnosis_node, dataset_diagnosis_joinnode_run, [
+                ("spatial_info", "spatial_info_list"),
+                ]),
+            (dataset_diagnosis_joinnode_main, DatasetDiagnosis_node, [
+                ("spatial_info_list", "spatial_info_list"),
+                ]),
+            ])
+
+        def print_input(file_list):
+            print(file_list)
+
+        print_input_node = pe.Node(Function(input_names=['file_list'],
+                                           function=print_input),
+                                            name='print')
+
+        workflow.connect([
+            (find_iterable_node, print_input_node, [
+                ("file", "file_list"),
+                ]),
+            ])
+
     else:
         raise ValueError("--commonspace_bold outputs are currently required for running data_diagnosis")
+
 
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
@@ -810,6 +942,9 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (ScanDiagnosis_node, data_diagnosis_datasink, [
             ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
             ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
+            ]),
+        (DatasetDiagnosis_node, data_diagnosis_datasink, [
+            ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
             ]),
         ])
 

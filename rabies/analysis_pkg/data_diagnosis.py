@@ -28,13 +28,16 @@ from nipype.interfaces.base import (
 
 
 class PrepMasksInputSpec(BaseInterfaceInputSpec):
-    preprocess_anat_template = File(exists=True, mandatory=True, desc="The common space template used during preprocessing.")
-    brain_mask_file_list = File(exists=True, mandatory=True, desc="Brain mask.")
-    WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
-    CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
+    mask_dict_list = traits.List(exists=True, mandatory=True, desc="Brain mask.")
     IC_file = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
+'''
+    preprocess_anat_template = File(exists=True, mandatory=True, desc="The common space template used during preprocessing.")
+    brain_mask_file_list = traits.List(exists=True, mandatory=True, desc="Brain mask.")
+    WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
+    CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
+'''
 
 class PrepMasksOutputSpec(TraitedSpec):
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
@@ -49,14 +52,16 @@ class PrepMasks(BaseInterface):
 
     def _run_interface(self, runtime):
         from rabies.preprocess_pkg.utils import flatten_list
-        merged = flatten_list(list(self.inputs.brain_mask_file_list))
-        brain_mask_file = merged[0] # all mask files are assumed to be identical
-        WM_mask_file = self.inputs.WM_mask_file
-        CSF_mask_file = self.inputs.CSF_mask_file
+        merged = flatten_list(list(self.inputs.mask_dict_list))
+        mask_dict = merged[0] # all mask files are assumed to be identical
+        brain_mask_file = mask_dict['brain_mask_file']
+        WM_mask_file = mask_dict['WM_mask_file']
+        CSF_mask_file = mask_dict['CSF_mask_file']
+
 
         # resample the template to the EPI dimensions
         from rabies.preprocess_pkg.utils import resample_image_spacing
-        resampled = resample_image_spacing(sitk.ReadImage(self.inputs.preprocess_anat_template), sitk.ReadImage(brain_mask_file).GetSpacing(), resampling_interpolation='BSpline')
+        resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(brain_mask_file).GetSpacing(), resampling_interpolation='BSpline')
         template_file = os.path.abspath('display_template.nii.gz')
         sitk.WriteImage(resampled,template_file)
 
@@ -82,12 +87,13 @@ class PrepMasks(BaseInterface):
         return {'mask_file_dict': getattr(self, 'mask_file_dict')}
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
+    file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
+    mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
+    #bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
     IC_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
     IC_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
-    CR_data_dict = traits.Dict(
-        desc="")
-    mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
+    #CR_data_dict = traits.Dict(
+    #    desc="")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
@@ -110,15 +116,16 @@ class ScanDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         # convert to an integer list
-        self.inputs.IC_bold_idx
+        bold_file = self.inputs.file_dict['bold_file']
+        CR_data_dict = self.inputs.file_dict['CR_data_dict']
         IC_bold_idx = [int(i) for i in self.inputs.IC_bold_idx]
         IC_confound_idx = [int(i) for i in self.inputs.IC_confound_idx]
-        temporal_info,spatial_info = process_data(self.inputs.bold_file, self.inputs.CR_data_dict, self.inputs.mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
+        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
 
-        fig,fig2 = scan_diagnosis(self.inputs.bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
+        fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
-        filename_template = pathlib.Path(self.inputs.bold_file).name.rsplit(".nii")[0]
+        filename_template = pathlib.Path(bold_file).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
         fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
         fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
@@ -136,6 +143,69 @@ class ScanDiagnosis(BaseInterface):
                 'temporal_info': getattr(self, 'temporal_info'),
                 'spatial_info': getattr(self, 'spatial_info'), }
 
+
+class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
+    spatial_info_list = traits.List(exists=True, mandatory=True, desc="A dictionary regrouping the spatial features.")
+
+
+class DatasetDiagnosisOutputSpec(TraitedSpec):
+    figure_dataset_diagnosis = File(
+        exists=True, desc="Output figure from the dataset diagnosis")
+
+
+class DatasetDiagnosis(BaseInterface):
+    """
+
+    """
+
+    input_spec = DatasetDiagnosisInputSpec
+    output_spec = DatasetDiagnosisOutputSpec
+
+    def _run_interface(self, runtime):
+        dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_maps', 'prior_modeling_maps']
+
+        voxelwise_list=[]
+        for spatial_info in self.inputs.spatial_info_list:
+            sub_list = [spatial_info[key] for key in dict_keys]
+            voxelwise_sub = np.array(sub_list[:5])
+            voxelwise_sub = np.concatenate((voxelwise_sub,np.array(sub_list[5]),np.array(sub_list[6])),axis=0)
+            voxelwise_list.append(voxelwise_sub)
+            num_DR_maps = len(sub_list[5])
+            num_prior_maps = len(sub_list[6])
+        voxelwise_array=np.array(voxelwise_list)
+
+        label_name=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr']
+        label_name += ['BOLD DR map %s' % (i) for i in range(num_DR_maps)]
+        label_name += ['BOLD prior modeling map %s' % (i) for i in range(num_prior_maps)]
+
+        from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
+        scaled = otsu_scaling(template_file)
+
+        ncols=5
+        fig,axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols,figsize=(12*ncols,3*voxelwise_array.shape[1]))
+        for i,x_label in zip(range(voxelwise_array.shape[1]),label_name):
+            for j,y_label in zip(range(ncols),label_name[:ncols]):
+                ax=axes[i,j]
+                if i<=j:
+                    ax.axis('off')
+                    continue
+
+                X=voxelwise_array[:,i,:]
+                Y=voxelwise_array[:,j,:]
+                corr=elementwise_corrcoef(X, Y)
+
+                plot_3d(ax,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+                analysis_functions.recover_3D(mask_file,corr).to_filename('temp_img.nii.gz')
+                sitk_img=sitk.ReadImage('temp_img.nii.gz')
+                plot_3d(ax,sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+                ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15)
+        fig.savefig(os.path.abspath('dataset_diagnosis.png'), bbox_inches='tight')
+
+        setattr(self, 'figure_dataset_diagnosis', os.path.abspath('dataset_diagnosis.png'))
+        return runtime
+
+    def _list_outputs(self):
+        return {'figure_dataset_diagnosis': getattr(self, 'figure_dataset_diagnosis')}
 
 def resample_mask(in_file, ref_file):
     transforms=[]
@@ -541,10 +611,9 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional
 
 
 '''
-Group-level QC
+Dataset-level QC
 '''
 
-'''
 def elementwise_corrcoef(X, Y):
     # X and Y are each of shape num_observations X num_element
     # computes the correlation between each element of X and Y
@@ -556,36 +625,8 @@ def elementwise_corrcoef(X, Y):
     r = r_num/r_den
     return r
 
-voxelwise_list=[]
-for voxelwise_sub in voxelwise_sub_list:
-    C_list=voxelwise_sub[-1]
-    voxelwise_sub=np.array(voxelwise_sub[:-1])
-    for C,corr in C_list:
-        #if corr>0.4:
-        voxelwise_sub=np.concatenate((voxelwise_sub,C.cpu().reshape(1,-1)),axis=0)
-    voxelwise_list.append(voxelwise_sub)
-voxelwise_array=np.array(voxelwise_list)
 
-x_name=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','Somatomotor','Dorsal Comp','DMN', 'Prior Modeling 1', 'Prior Modeling 2', 'Prior Modeling 3']
-y_name=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','Somatomotor','Dorsal Comp','DMN', 'Prior Modeling 1', 'Prior Modeling 2', 'Prior Modeling 3']
-
-ncols=voxelwise_array.shape[1]-6
-fig,axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols,figsize=(12*ncols,3*voxelwise_array.shape[1]))
-
-for i,x_label in zip(range(voxelwise_array.shape[1]),x_name):
-    for j,y_label in zip(range(ncols),y_name[:-6]):
-        ax=axes[i,j]
-        if i<=j:
-            ax.axis('off')
-            continue
-
-        X=voxelwise_array[:,i,:]
-        Y=voxelwise_array[:,j,:]
-        corr=elementwise_corrcoef(X, Y)
-
-        ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15)
-        plot_stat_map(analysis_functions.recover_3D(mask_file,corr),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y', vmax=0.7)
-
+'''
 
 def closed_form_3d(X,Y):
     return np.matmul(np.matmul(np.linalg.inv(np.matmul(X.transpose(0,2,1),X)),X.transpose(0,2,1)),Y)
