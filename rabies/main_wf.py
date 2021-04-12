@@ -758,53 +758,6 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         name='DatasetDiagnosis')
 
     if commonspace_bold or bold_only:
-        '''
-        transition_buffer = pe.Node(niu.IdentityInterface(
-            fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='transition_buffer')
-
-        second_main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
-                             name="second_main_split")
-        second_main_split.iterables = [('split_name', split_name),
-                                ('scan_info', scan_info)]
-        second_main_split.synchronize = True
-
-        second_run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
-                            name="second_run_split")
-        second_run_split.itersource = ('main_split', 'split_name')
-        second_run_split.iterables = [('run', run_iter)]
-
-        data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['brain_mask_file_list', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template']),
-                                             name='data_diagnosis_joinnode_main',
-                                             joinsource='main_split',
-                                             joinfield=['brain_mask_file_list'])
-
-        data_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['brain_mask_file_list', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template']),
-                                            name='data_diagnosis_joinnode_run',
-                                            joinsource='run_split',
-                                            joinfield=['brain_mask_file_list'])
-
-        workflow.connect([
-            (outputnode, data_diagnosis_joinnode_run, [
-                ("commonspace_mask", "brain_mask_file_list"),
-                ("commonspace_WM_mask", "WM_mask_file"),
-                ("commonspace_CSF_mask", "CSF_mask_file"),
-                ("commonspace_resampled_template", "preprocess_anat_template"),
-                ]),
-            (data_diagnosis_joinnode_run, data_diagnosis_joinnode_main, [
-                ("brain_mask_file_list", "brain_mask_file_list"),
-                ("WM_mask_file", "WM_mask_file"),
-                ("CSF_mask_file", "CSF_mask_file"),
-                ("preprocess_anat_template", "preprocess_anat_template"),
-                ]),
-            (data_diagnosis_joinnode_main, PrepMasks_node, [
-                ("brain_mask_file_list", "brain_mask_file_list"),
-                ("WM_mask_file", "WM_mask_file"),
-                ("CSF_mask_file", "CSF_mask_file"),
-                ("preprocess_anat_template", "preprocess_anat_template"),
-                ]),
-            ])
-
-        '''
 
         data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'split_name_list','run_list_list']),
                                              name='data_diagnosis_joinnode_main',
@@ -910,6 +863,9 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                 ]),
             (dataset_diagnosis_joinnode_main, DatasetDiagnosis_node, [
                 ("spatial_info_list", "spatial_info_list"),
+                ]),
+            (PrepMasks_node, DatasetDiagnosis_node, [
+                ("mask_file_dict", "mask_file_dict"),
                 ]),
             ])
 

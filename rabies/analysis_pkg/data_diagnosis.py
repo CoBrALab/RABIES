@@ -146,6 +146,7 @@ class ScanDiagnosis(BaseInterface):
 
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
     spatial_info_list = traits.List(exists=True, mandatory=True, desc="A dictionary regrouping the spatial features.")
+    mask_file_dict = traits.Dict(exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -162,10 +163,15 @@ class DatasetDiagnosis(BaseInterface):
     output_spec = DatasetDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
+        from rabies.preprocess_pkg.utils import flatten_list
+        merged = flatten_list(list(self.inputs.spatial_info_list))
+        if len(merged)<3:
+            raise ValueError("Cannot run statistics on a sample size smaller than 3.")
+
         dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_maps', 'prior_modeling_maps']
 
         voxelwise_list=[]
-        for spatial_info in self.inputs.spatial_info_list:
+        for spatial_info in merged:
             sub_list = [spatial_info[key] for key in dict_keys]
             voxelwise_sub = np.array(sub_list[:5])
             voxelwise_sub = np.concatenate((voxelwise_sub,np.array(sub_list[5]),np.array(sub_list[6])),axis=0)
@@ -178,7 +184,10 @@ class DatasetDiagnosis(BaseInterface):
         label_name += ['BOLD DR map %s' % (i) for i in range(num_DR_maps)]
         label_name += ['BOLD prior modeling map %s' % (i) for i in range(num_prior_maps)]
 
-        from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
+
+        template_file = self.inputs.mask_file_dict['template_file']
+        mask_file = self.inputs.mask_file_dict['brain_mask']
+        from rabies.preprocess_pkg.preprocess_visual_QC import plot_coronal, otsu_scaling
         scaled = otsu_scaling(template_file)
 
         ncols=5
@@ -194,10 +203,10 @@ class DatasetDiagnosis(BaseInterface):
                 Y=voxelwise_array[:,j,:]
                 corr=elementwise_corrcoef(X, Y)
 
-                plot_3d(ax,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+                plot_coronal(ax,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
                 analysis_functions.recover_3D(mask_file,corr).to_filename('temp_img.nii.gz')
                 sitk_img=sitk.ReadImage('temp_img.nii.gz')
-                plot_3d(ax,sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+                plot_coronal(ax,sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
                 ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15)
         fig.savefig(os.path.abspath('dataset_diagnosis.png'), bbox_inches='tight')
 
@@ -387,7 +396,7 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
     dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
     signal_maps=dr_maps[IC_bold_idx]
 
-    prior_out=[]
+    prior_out=np.empty([0,signal_maps.shape[1]])
     if prior_fit:
         [prior,num_comp,convergence_function] = prior_fit_options
         X=torch.tensor(timeseries).float().to(device)
