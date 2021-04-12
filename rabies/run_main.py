@@ -287,15 +287,16 @@ def get_parser():
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
     data_diagnosis.add_argument('--IC_file', action='store', type=Path,
-                          default=None,
+                          default="%s/../template_files/melodic_IC.nii.gz" % (
+                              dir_path),
                           help="Provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.")
     data_diagnosis.add_argument('--IC_bold_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
-                                     default=[],
+                                     default=[5,12,19],
                                      help="")
     data_diagnosis.add_argument('--IC_confound_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
-                                     default=[],
+                                     default=[0,1,2,6,7,8,9,10,11,13,14,21,22,24,26,28,29],
                                      help="")
     data_diagnosis.add_argument('--DSURQE_regions', dest='DSURQE_regions', action='store_true',
                                      default=False,
