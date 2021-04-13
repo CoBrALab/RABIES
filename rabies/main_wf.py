@@ -814,7 +814,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
-    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis
+    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, spatial_external_formating
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
         prior_confound_idx=data_diagnosis_opts.prior_confound_idx, dual_regression = data_diagnosis_opts.dual_regression,
             dual_convergence = data_diagnosis_opts.dual_convergence, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
@@ -825,6 +825,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
         name='DatasetDiagnosis')
+
+    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
+                                           output_names=[
+                                               'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'prior_modeling_filename'],
+                                       function=spatial_external_formating),
+                              name='spatial_external_formating')
 
     def prep_dict(bold_file, CR_data_dict, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template, name_source):
         return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
@@ -872,6 +878,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (PrepMasks_node, DatasetDiagnosis_node, [
             ("mask_file_dict", "mask_file_dict"),
             ]),
+        (find_iterable_node, spatial_external_formating_node, [
+            ("file", "file_dict"),
+            ]),
+        (ScanDiagnosis_node, spatial_external_formating_node, [
+            ("spatial_info", "spatial_info"),
+            ]),
         ])
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
@@ -889,7 +901,27 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (DatasetDiagnosis_node, data_diagnosis_datasink, [
             ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
             ]),
+        (spatial_external_formating_node, data_diagnosis_datasink, [
+            ("std_filename", "temporal_std_nii"),
+            ("GS_corr_filename", "GS_corr_nii"),
+            ("DVARS_corr_filename", "DVARS_corr_nii"),
+            ("FD_corr_filename", "FD_corr_nii"),
+            ]),
         ])
+
+    if data_diagnosis_opts.dual_regression:
+        workflow.connect([
+            (spatial_external_formating_node, data_diagnosis_datasink, [
+                ("DR_maps_filename", "DR_maps_nii"),
+                ]),
+            ])
+
+    if data_diagnosis_opts.dual_convergence>0:
+        workflow.connect([
+            (spatial_external_formating_node, data_diagnosis_datasink, [
+                ("prior_modeling_filename", "dual_convergence_nii"),
+                ]),
+            ])
 
     return workflow
 

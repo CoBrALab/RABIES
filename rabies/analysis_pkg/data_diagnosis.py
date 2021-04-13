@@ -410,7 +410,7 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     else:
         signal_maps=np.empty([0,len(temporal_std)])
 
-    prior_out=np.empty([0,signal_maps.shape[1]])
+    prior_out=np.empty([0,len(temporal_std)])
     if prior_fit:
         prior_out = []
         [num_comp,convergence_function] = prior_fit_options
@@ -451,6 +451,45 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     spatial_info['prior_modeling_maps'] = prior_out
 
     return temporal_info,spatial_info
+
+
+def spatial_external_formating(spatial_info, file_dict):
+    import os
+    import pathlib  # Better path manipulation
+    from rabies.analysis_pkg import analysis_functions
+    mask_file = file_dict['brain_mask_file']
+    bold_file = file_dict['bold_file']
+    filename_split = pathlib.Path(
+        bold_file).name.rsplit(".nii")
+
+    # calculate STD and tSNR map on preprocessed timeseries
+    std_filename = os.path.abspath(filename_split[0]+'_tSTD.nii.gz')
+    analysis_functions.recover_3D(mask_file,spatial_info['temporal_std']).to_filename(std_filename)
+
+    GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
+    analysis_functions.recover_3D(mask_file,spatial_info['GS_corr']).to_filename(GS_corr_filename)
+
+    DVARS_corr_filename = os.path.abspath(filename_split[0]+'_DVARS_corr.nii.gz')
+    analysis_functions.recover_3D(mask_file,spatial_info['DVARS_corr']).to_filename(DVARS_corr_filename)
+
+    FD_corr_filename = os.path.abspath(filename_split[0]+'_FD_corr.nii.gz')
+    analysis_functions.recover_3D(mask_file,spatial_info['FD_corr']).to_filename(FD_corr_filename)
+
+    if len(spatial_info['DR_maps'])>0:
+        DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
+        analysis_functions.recover_3D_multiple(mask_file,spatial_info['DR_maps']).to_filename(DR_maps_filename)
+    else:
+        DR_maps_filename = None
+
+    if len(spatial_info['prior_modeling_maps'])>0:
+        import numpy as np
+        prior_modeling_filename = os.path.abspath(filename_split[0]+'_prior_modeling.nii.gz')
+        analysis_functions.recover_3D_multiple(mask_file,np.array(spatial_info['prior_modeling_maps'])).to_filename(prior_modeling_filename)
+    else:
+        prior_modeling_filename = None
+
+    return std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, prior_modeling_filename
+
 
 '''
 Subject-level QC
