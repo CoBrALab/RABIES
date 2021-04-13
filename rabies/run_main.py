@@ -286,10 +286,11 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--prior_modeling_options', type=str,
-                                     nargs="*",  # 0 or more values expected => creates a list
-                                     default=['DR'],
-                                     help="[]")
+    data_diagnosis.add_argument('--dual_regression', dest='dual_regression', action='store_true',
+                                     default=False,
+                                     help="""Whether to evaluate dual regression outputs.""")
+    data_diagnosis.add_argument('--dual_convergence', type=int, default=0,
+                             help="Can specify a number of components to compute using a dual convergence framework.")
     data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
                           default="%s/../template_files/melodic_IC.nii.gz" % (
                               dir_path),

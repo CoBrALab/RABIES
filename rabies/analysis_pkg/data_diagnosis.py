@@ -89,11 +89,12 @@ class PrepMasks(BaseInterface):
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
-    #bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
-    #CR_data_dict = traits.Dict(
-    #    desc="")
+    dual_regression = traits.Bool(
+        desc="Whether to evaluate dual regression outputs.")
+    dual_convergence = traits.Int(
+        desc="number of components to compute from dual convergence.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
@@ -120,7 +121,17 @@ class ScanDiagnosis(BaseInterface):
         CR_data_dict = self.inputs.file_dict['CR_data_dict']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
-        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[])
+
+        if self.inputs.dual_convergence>0:
+            num_comp=self.inputs.dual_convergence
+            convergence_function='ICA'
+            prior_fit_options=[num_comp,convergence_function]
+            prior_fit=True
+        else:
+            prior_fit=False
+            prior_fit_options=[]
+
+        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, self.inputs.dual_regression, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
 
         fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
@@ -329,7 +340,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_regression=False, prior_fit=False,prior_fit_options=[]):
     temporal_info={}
     spatial_info={}
 
@@ -393,23 +404,23 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     DVARS_corr = analysis_functions.vcorrcoef(timeseries.T[:,1:], DVARS[1:])
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
-    dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
-    signal_maps=dr_maps[prior_bold_idx]
+    if dual_regression:
+        dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
+        signal_maps=dr_maps[prior_bold_idx]
+    else:
+        signal_maps=np.empty([0,len(temporal_std)])
 
     prior_out=np.empty([0,signal_maps.shape[1]])
     if prior_fit:
         prior_out = []
-        [prior,num_comp,convergence_function] = prior_fit_options
+        [num_comp,convergence_function] = prior_fit_options
         X=torch.tensor(timeseries).float().to(device)
-        #Wcr=torch.tensor(scan_data[scan]['CR_time']).float().to(device)
-        #X_cr = X-torch.matmul(Wcr,prior_modeling.torch_closed_form(Wcr,X))
 
         prior_networks = torch.tensor(all_IC_vectors[prior_bold_idx,:].T).float().to(device)
 
         C_prior=prior_networks
         C_conf = prior_modeling.deflation_fit(X, q=num_comp, c_init=None, C_convergence=convergence_function,
                           C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
-
         for network in range(prior_networks.shape[1]):
             prior=prior_networks[:,network].reshape(-1,1)
             C_prior=torch.cat((prior_networks[:,:network],prior_networks[:,network+1:],C_conf),axis=1)

@@ -176,11 +176,11 @@ def deflation_fit(X, q=1, c_init=None, C_convergence='OLS', C_prior=None, W_prio
 
     # the C_prior and W_prior correspond to spatial and temporal priors respectively which will impose an orthogonality contraint
     # on the fitted sources in their respective dimension
-    if C_prior == None:
+    if C_prior is None:
         C_prior = torch.zeros(X.shape[1], 0).float().to(device)
     C_prior /= torch.sqrt((C_prior ** 2).sum(axis=0))
 
-    if W_prior == None:
+    if W_prior is None:
         W_prior = torch.zeros(X.shape[0], 0).float().to(device)
     W_prior /= torch.sqrt((W_prior ** 2).sum(axis=0))
 
@@ -198,7 +198,7 @@ def deflation_fit(X, q=1, c_init=None, C_convergence='OLS', C_prior=None, W_prio
             c_prev = c
 
             w = torch.matmul(X_, c)
-            if W_ortho:
+            if W_ortho and (W_prior.shape[1]>0):
                 # impose complete temporal orthogonality, more similar to CR before but not quite the same
                 w -= torch.matmul(W_prior, torch_closed_form(W_prior, w))
             W = torch.cat((w,W_prior),axis=1) # include the W priors in the convergence step
