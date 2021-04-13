@@ -27,7 +27,7 @@ def bias_correction_wf(opts, name='bias_correction_wf'):
                                   name='bias_correction', mem_gb=0.3*opts.scale_min_memory)
     elif opts.bold_bias_cor_method=='mouse-preprocessing-v5.sh':
         from nipype.interfaces.utility import Function
-        
+
         def mouse_preprocess_func(input_ref_EPI,anat,anat_mask,name_source):
             import os
 
@@ -49,7 +49,7 @@ def bias_correction_wf(opts, name='bias_correction_wf'):
         bias_correction = pe.Node(Function(input_names=['input_ref_EPI','anat','anat_mask','name_source'],
                                                     output_names=['corrected_EPI', 'denoise_mask', 'init_denoise'],
                                                     function=mouse_preprocess_func),
-                                           name='bold_convert_to_RAS')
+                                           name='bold_bias_correction')
     else:
         raise ValueError("Wrong --bold_bias_cor_method.")
 

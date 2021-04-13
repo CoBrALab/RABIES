@@ -72,14 +72,14 @@ def get_parser():
                             help="Apply preprocessing with only EPI scans. commonspace registration"
                             " is executed through registration of the EPI-generated template from ants_dbm"
                             " to the anatomical template.")
-    preprocess.add_argument("--bold_bias_cor_method", type=str, default='otsu_reg',
+    preprocess.add_argument("--bold_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
                             choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
                             help="Choose the algorithm for bias field correction of the EPI before registration."
                             "otsu_reg will conduct an initial serie of N4BiasFieldCorrection oriented by Otsu masking method, "
                             "followed by a rigid registration to provide a brain mask orienting the final correction."
                             "thresh_reg will instead use an initial voxel intensity thresholding method for masking, and will "
                             "conduct a subsequent rigid registration to provide a brain mask orienting the final correction.")
-    preprocess.add_argument("--anat_bias_cor_method", type=str, default='thresh_reg',
+    preprocess.add_argument("--anat_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
                             choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
                             help="Same as --bold_bias_cor_method but for the anatomical image.")
     preprocess.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
@@ -248,6 +248,15 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
+    analysis.add_argument('--scan_list', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=['all'],
+                                     help="This option offers to run the analysis on a subset of the scans."
+                                     "The scans selected are specified by providing the full path to each EPI file from the input BIDS folder."
+                                     "The list of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...' "
+                                     "or the files can be imbedded into a .txt file with one filename per row."
+                                     "By default, 'all' will use all the scans previously processed."
+                                     )
     analysis.add_argument('--seed_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
@@ -286,15 +295,32 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--IC_file', action='store', type=Path,
+    data_diagnosis.add_argument('--scan_list', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=['all'],
+                                     help="This option offers to run the analysis on a subset of the scans."
+                                     "The scans selected are specified by providing the full path to each EPI file from the input BIDS folder."
+                                     "The list of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...' "
+                                     "or the files can be imbedded into a .txt file with one filename per row."
+                                     "By default, 'all' will use all the scans previously processed."
+                                     )
+    data_diagnosis.add_argument('--dual_regression', dest='dual_regression', action='store_true',
+                                     default=False,
+                                     help="""Whether to evaluate dual regression outputs.""")
+    data_diagnosis.add_argument('--dual_convergence', type=int, default=0,
+                             help="Can specify a number of components to compute using a dual convergence framework.")
+    data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
                           default="%s/../template_files/melodic_IC.nii.gz" % (
                               dir_path),
-                          help="Provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.")
-    data_diagnosis.add_argument('--IC_bold_idx', type=str,
+                          help="Provide a 4D nifti image with a series of spatial priors representing common sources of signal (e.g. ICA components from a group-ICA run)."
+                          "The default file corresponds to a MELODIC run on a combined group of anesthetized-ventilated mice with MEDISO and awake mice."
+                          "Confound regression consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors."
+                          )
+    data_diagnosis.add_argument('--prior_bold_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[5,12,19],
                                      help="")
-    data_diagnosis.add_argument('--IC_confound_idx', type=str,
+    data_diagnosis.add_argument('--prior_confound_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[0,1,2,6,7,8,9,10,11,13,14,21,22,24,26,28,29],
                                      help="")

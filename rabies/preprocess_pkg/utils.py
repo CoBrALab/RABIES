@@ -19,6 +19,7 @@ def prep_bids_iter(layout, bold_only=False):
     split_name = []
     scan_list = []
     run_iter = {}
+    bold_scan_list = []
 
     subject_list = layout.get_subject()
     if len(subject_list) == 0:
@@ -84,6 +85,7 @@ def prep_bids_iter(layout, bold_only=False):
                     raise ValueError(
                         'Duplicate was found for bold files sub- %s, ses- %s and run %s: %s' % (sub, ses, run, str(bold_list)))
                 file = bold_list[0]
+                bold_scan_list.append(file)
                 if bold_only:
                     scan_list.append(file)
                     filename_template = pathlib.Path(
@@ -94,7 +96,7 @@ def prep_bids_iter(layout, bold_only=False):
                 else:
                     run_iter[filename_template].append(run)
 
-    return split_name, scan_info, run_iter, scan_list
+    return split_name, scan_info, run_iter, scan_list, bold_scan_list
 
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):

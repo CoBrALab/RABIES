@@ -13,7 +13,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
                          'cleaned_path', 'aroma_out', 'VE_file', 'CR_data_dict']), name='outputnode')
 
     regress_node = pe.Node(Function(input_names=['bold_file', 'data_dict', 'brain_mask_file', 'cr_opts'],
-                                    output_names=['cleaned_path', 'bold_file','VE_file_path', 'data_dict'],
+                                    output_names=['cleaned_path', 'VE_file_path', 'data_dict'],
                                     function=regress),
                            name='regress', mem_gb=1)
     regress_node.inputs.cr_opts = cr_opts

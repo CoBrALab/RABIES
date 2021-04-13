@@ -2,6 +2,7 @@
 ANTs>=2.3.1
 AFNI>=17.0.18
 FSL
+minc-toolkit
 
 # python dependencies
 conda channels:

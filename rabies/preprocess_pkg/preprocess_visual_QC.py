@@ -114,6 +114,24 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
     if cbar:
         fig.colorbar(pos, ax=ax)
 
+def plot_coronal(ax,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, threshold=None):
+    physical_dimensions = (np.array(sitk_img.GetSpacing())*np.array(sitk_img.GetSize()))[::-1] # invert because the array is inverted indices
+    array=sitk.GetArrayFromImage(sitk_img)
+
+    array[array==0]=None # set 0 values to be empty
+
+    if not threshold is None:
+        array[np.abs(array)<threshold]=None
+
+    slices=np.empty([array.shape[0],1])
+    for s in [0.35,0.45,0.55,0.65]:
+        slice=array[::-1,int(array.shape[1]*s),:]
+        slices=np.concatenate((slices,slice,np.empty([array.shape[0],1])),axis=1)
+
+    pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*4,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
+    ax.axis('off')
+    if cbar:
+        fig.colorbar(pos, ax=ax)
 
 def plot_reg(image1,image2, name_source, out_dir):
     import os
