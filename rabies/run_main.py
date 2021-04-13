@@ -248,6 +248,15 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
+    analysis.add_argument('--scan_list', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=['all'],
+                                     help="This option offers to run the analysis on a subset of the scans."
+                                     "The scans selected are specified by providing the full path to each EPI file from the input BIDS folder."
+                                     "The list of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...' "
+                                     "or the files can be imbedded into a .txt file with one filename per row."
+                                     "By default, 'all' will use all the scans previously processed."
+                                     )
     analysis.add_argument('--seed_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
