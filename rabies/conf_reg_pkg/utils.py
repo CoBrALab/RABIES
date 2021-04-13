@@ -176,6 +176,9 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
             mask2=np.abs(norm)<2.5
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
+    if frame_mask.sum()<3:
+        print("FD/DVARS CENSORING LEFT LESS THAN 3 VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        return None
     timeseries=timeseries[frame_mask,:]
     confounds_array=confounds_array[frame_mask,:]
     FD_trace=FD_trace[frame_mask]
@@ -259,6 +262,8 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     TR = float(cr_opts.TR.split('s')[0])
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
+    if data_dict is None:
+        return None,None,None
 
     timeseries=data_dict['timeseries']
     FD_trace=data_dict['FD_trace']
@@ -289,54 +294,4 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
     VE_spatial_map.to_filename(VE_file_path)
     data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_spatial':VE_spatial, 'VE_temporal':VE_temporal}
-    return cleaned_path, bold_file, VE_file_path, data_dict
-
-
-class data_diagnosisInputSpec(BaseInterfaceInputSpec):
-    bold_file = File(exists=True, mandatory=True,
-                     desc='input BOLD time series')
-    cleaned_path = File(exists=True, mandatory=True,
-                        desc='ref file to realignment time series')
-    brain_mask_file = File(exists=True, mandatory=True,
-                           desc='ref file to realignment time series')
-
-
-class data_diagnosisOutputSpec(TraitedSpec):
-    mel_out = traits.Str(exists=True, desc="motion corrected time series")
-    tSNR_file = File(exists=True, desc="motion corrected time series")
-
-
-class data_diagnosis(BaseInterface):
-    """
-
-    """
-
-    input_spec = data_diagnosisInputSpec
-    output_spec = data_diagnosisOutputSpec
-
-    def _run_interface(self, runtime):
-
-        import os
-        import nibabel as nb
-        import numpy as np
-        mel_out = os.path.abspath('melodic.ica/')
-        os.mkdir(mel_out)
-        command = 'melodic -i %s -o %s -m %s --report' % (
-            self.inputs.cleaned_path, mel_out, self.inputs.brain_mask_file)
-        os.system(command)
-        img = nb.load(self.inputs.bold_file)
-        array = np.asarray(img.dataobj)
-        mean = array.mean(axis=3)
-        std = array.std(axis=3)
-        tSNR = np.divide(mean, std)
-        tSNR_file = os.path.abspath('tSNR.nii.gz')
-        nb.Nifti1Image(tSNR, img.affine, img.header).to_filename(tSNR_file)
-
-        setattr(self, 'tSNR_file', tSNR_file)
-        setattr(self, 'mel_out', mel_out)
-
-        return runtime
-
-    def _list_outputs(self):
-        return {'tSNR_file': getattr(self, 'tSNR_file'),
-                'mel_out': getattr(self, 'mel_out')}
+    return cleaned_path, VE_file_path, data_dict
