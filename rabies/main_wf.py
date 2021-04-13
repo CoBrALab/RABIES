@@ -515,12 +515,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
-                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold)
+                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold, bold_scan_list)
 
         # Integrate data_diagnosis
         if data_diagnosis_opts is not None:
             workflow = integrate_data_diagnosis(
-                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold, split_name, run_iter, main_split, run_split, bold_scan_list)
+                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold, bold_scan_list)
 
     elif opts.rabies_step == 'preprocess':
         # Datasink - creates output folder for important outputs
@@ -668,7 +668,7 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
     return workflow, confound_regression_wf
 
 
-def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, bold_only, commonspace_bold):
+def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list):
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
     from rabies.analysis_pkg.analysis_wf import init_analysis_wf
@@ -747,9 +747,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
     return workflow
 
 
-def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, split_name, run_iter, main_split, run_split, bold_scan_list):
-    scan_split_name = get_iterable_scan_list(data_diagnosis_opts.scan_list, split_name, run_iter, bold_scan_list)
-
+def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, bold_scan_list):
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
     from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis
@@ -767,15 +765,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
     if not (commonspace_bold or bold_only):
         raise ValueError("--commonspace_bold outputs are currently required for running data_diagnosis")
 
-    data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'split_name_list','run_list_list']),
+    data_diagnosis_joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
                                          name='data_diagnosis_joinnode_main',
                                          joinsource='main_split',
-                                         joinfield=['file_list', 'split_name_list','run_list_list'])
+                                         joinfield=['file_list'])
 
-    data_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'run_list']),
-                                        name='data_diagnosis_joinnode_run',
-                                        joinsource='run_split',
-                                        joinfield=['file_list', 'run_list'])
+    scan_split_name = get_iterable_scan_list(data_diagnosis_opts.scan_list, bold_scan_list)
 
     analysis_split = pe.Node(niu.IdentityInterface(fields=['scan_split_name']),
                          name="analysis_split")
@@ -786,23 +781,13 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                                          joinsource='analysis_split',
                                          joinfield=['spatial_info_list'])
 
-    find_iterable_node = pe.Node(Function(input_names=['file_list', 'input_scan_list', 'scan_split_name'],
+    find_iterable_node = pe.Node(Function(input_names=['file_list', 'scan_split_name'],
                                            output_names=[
                                                'file'],
                                        function=find_iterable),
                               name='find_iterable')
 
     workflow.connect([
-        (run_split, data_diagnosis_joinnode_run, [
-            ("run", "run_list"),
-            ]),
-        (main_split, data_diagnosis_joinnode_main, [
-            ("split_name", "split_name_list"),
-            ]),
-        (data_diagnosis_joinnode_run, data_diagnosis_joinnode_main, [
-            ("file_list", "file_list"),
-            ("run_list", "run_list_list"),
-            ]),
         (analysis_split, find_iterable_node, [
             ("scan_split_name", "scan_split_name"),
             ]),
@@ -831,9 +816,6 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (confound_regression_wf, prep_dict_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
-            ]),
-        (prep_dict_node, data_diagnosis_joinnode_run, [
-            ("prep_dict", "file_list"),
             ]),
         (data_diagnosis_joinnode_main, PrepMasks_node, [
             ("file_list", "mask_dict_list"),
@@ -871,6 +853,27 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
             ]),
         ])
+
+    if not bold_only:
+        data_diagnosis_joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                                            name='data_diagnosis_joinnode_run',
+                                            joinsource='run_split',
+                                            joinfield=['file_list'])
+
+        workflow.connect([
+            (data_diagnosis_joinnode_run, data_diagnosis_joinnode_main, [
+                ("file_list", "file_list"),
+                ]),
+            (prep_dict_node, data_diagnosis_joinnode_run, [
+                ("prep_dict", "file_list"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (prep_dict_node, data_diagnosis_joinnode_main, [
+                ("prep_dict", "file_list"),
+                ]),
+            ])
 
     return workflow
 
@@ -945,7 +948,7 @@ def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_i
     return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
 
 
-def get_iterable_scan_list(scan_list, prev_split_name, prev_run_iter, bold_scan_list):
+def get_iterable_scan_list(scan_list, bold_scan_list):
     # prep the subset of scans on which the analysis will be run
     import numpy as np
     import pandas as pd
