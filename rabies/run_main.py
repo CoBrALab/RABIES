@@ -286,15 +286,22 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--IC_file', action='store', type=Path,
+    data_diagnosis.add_argument('--prior_modeling_options', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=['DR'],
+                                     help="[]")
+    data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
                           default="%s/../template_files/melodic_IC.nii.gz" % (
                               dir_path),
-                          help="Provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.")
-    data_diagnosis.add_argument('--IC_bold_idx', type=str,
+                          help="Provide a 4D nifti image with a series of spatial priors representing common sources of signal (e.g. ICA components from a group-ICA run)."
+                          "The default file corresponds to a MELODIC run on a combined group of anesthetized-ventilated mice with MEDISO and awake mice."
+                          "Confound regression consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors."
+                          )
+    data_diagnosis.add_argument('--prior_bold_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[5,12,19],
                                      help="")
-    data_diagnosis.add_argument('--IC_confound_idx', type=str,
+    data_diagnosis.add_argument('--prior_confound_idx', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[0,1,2,6,7,8,9,10,11,13,14,21,22,24,26,28,29],
                                      help="")

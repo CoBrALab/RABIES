@@ -744,14 +744,18 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 
 
 def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, split_name, run_iter, main_split, run_split):
+    num_comp=15
+    convergence_function='ICA'
+    #prior_fit_options=[prior,num_comp,convergence_function]
+
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
     from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis
-    ScanDiagnosis_node = pe.Node(ScanDiagnosis(IC_bold_idx=data_diagnosis_opts.IC_bold_idx,
-        IC_confound_idx=data_diagnosis_opts.IC_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
+    ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
+        prior_confound_idx=data_diagnosis_opts.prior_confound_idx, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='ScanDiagnosis')
 
-    PrepMasks_node = pe.Node(PrepMasks(IC_file=os.path.abspath(str(data_diagnosis_opts.IC_file)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
+    PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(data_diagnosis_opts.prior_maps)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name='PrepMasks')
 
     DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
@@ -866,19 +870,6 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                 ]),
             (PrepMasks_node, DatasetDiagnosis_node, [
                 ("mask_file_dict", "mask_file_dict"),
-                ]),
-            ])
-
-        def print_input(file_list):
-            print(file_list)
-
-        print_input_node = pe.Node(Function(input_names=['file_list'],
-                                           function=print_input),
-                                            name='print')
-
-        workflow.connect([
-            (find_iterable_node, print_input_node, [
-                ("file", "file_list"),
                 ]),
             ])
 

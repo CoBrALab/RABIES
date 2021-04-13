@@ -3,13 +3,13 @@ import numpy as np
 import nibabel as nb
 import pickle
 import matplotlib.pyplot as plt
-from rabies.analysis_pkg import analysis_functions
+from rabies.analysis_pkg import analysis_functions, prior_modeling
 from nilearn.plotting import plot_stat_map
 import SimpleITK as sitk
 
-#import torch
-#import prior_modeling
-#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# import torch dependencies for prior_modeling
+import torch
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 '''
@@ -29,7 +29,7 @@ from nipype.interfaces.base import (
 
 class PrepMasksInputSpec(BaseInterfaceInputSpec):
     mask_dict_list = traits.List(exists=True, mandatory=True, desc="Brain mask.")
-    IC_file = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
+    prior_maps = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 '''
@@ -74,11 +74,11 @@ class PrepMasks(BaseInterface):
             right_hem_mask_file=''
             left_hem_mask_file=''
 
-        IC_file = resample_IC_file(self.inputs.IC_file, brain_mask_file)
+        prior_maps = resample_IC_file(self.inputs.prior_maps, brain_mask_file)
 
         edge_mask_file = os.path.abspath('edge_mask.nii.gz')
         compute_edge_mask(brain_mask_file,edge_mask_file, num_edge_voxels=1)
-        mask_file_dict = {'template_file':template_file, 'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'IC_file':IC_file}
+        mask_file_dict = {'template_file':template_file, 'brain_mask':brain_mask_file, 'WM_mask':WM_mask_file, 'CSF_mask':CSF_mask_file, 'edge_mask':edge_mask_file, 'right_hem_mask':right_hem_mask_file, 'left_hem_mask':left_hem_mask_file, 'prior_maps':prior_maps}
 
         setattr(self, 'mask_file_dict', mask_file_dict)
         return runtime
@@ -90,8 +90,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
     #bold_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    IC_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    IC_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
+    prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
+    prior_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
     #CR_data_dict = traits.Dict(
     #    desc="")
     DSURQE_regions = traits.Bool(
@@ -118,9 +118,9 @@ class ScanDiagnosis(BaseInterface):
         # convert to an integer list
         bold_file = self.inputs.file_dict['bold_file']
         CR_data_dict = self.inputs.file_dict['CR_data_dict']
-        IC_bold_idx = [int(i) for i in self.inputs.IC_bold_idx]
-        IC_confound_idx = [int(i) for i in self.inputs.IC_confound_idx]
-        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[])
+        prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
+        prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
+        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[])
 
         fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
@@ -329,7 +329,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_idx, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[]):
     temporal_info={}
     spatial_info={}
 
@@ -356,7 +356,7 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
     for i in range(data_array.shape[3]):
         timeseries[i,:]=(data_array[:,:,:,i])[volume_indices]
 
-    all_IC_array=np.asarray(nb.load(mask_file_dict['IC_file']).dataobj)
+    all_IC_array=np.asarray(nb.load(mask_file_dict['prior_maps']).dataobj)
     all_IC_vectors=np.zeros([all_IC_array.shape[3],volume_indices.sum()])
     for i in range(all_IC_array.shape[3]):
         all_IC_vectors[i,:]=(all_IC_array[:,:,:,i])[volume_indices]
@@ -369,8 +369,8 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
     w = analysis_functions.closed_form(X, Y, intercept=True) # take a bias into account in the model
     w = w[:-1,:] # take out the intercept
 
-    signal_trace = np.abs(w[IC_bold_idx,:]).mean(axis=0)
-    noise_trace = np.abs(w[IC_confound_idx,:]).mean(axis=0)
+    signal_trace = np.abs(w[prior_bold_idx,:]).mean(axis=0)
+    noise_trace = np.abs(w[prior_confound_idx,:]).mean(axis=0)
     temporal_info['signal_trace']=signal_trace
     temporal_info['noise_trace']=noise_trace
 
@@ -394,16 +394,17 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
-    signal_maps=dr_maps[IC_bold_idx]
+    signal_maps=dr_maps[prior_bold_idx]
 
     prior_out=np.empty([0,signal_maps.shape[1]])
     if prior_fit:
+        prior_out = []
         [prior,num_comp,convergence_function] = prior_fit_options
         X=torch.tensor(timeseries).float().to(device)
         #Wcr=torch.tensor(scan_data[scan]['CR_time']).float().to(device)
         #X_cr = X-torch.matmul(Wcr,prior_modeling.torch_closed_form(Wcr,X))
 
-        prior_networks = torch.tensor(all_IC_vectors[IC_bold_idx,:].T).float().to(device)
+        prior_networks = torch.tensor(all_IC_vectors[prior_bold_idx,:].T).float().to(device)
 
         C_prior=prior_networks
         C_conf = prior_modeling.deflation_fit(X, q=num_comp, c_init=None, C_convergence=convergence_function,
@@ -429,7 +430,7 @@ def process_data(bold_file, data_dict, mask_file_dict, IC_bold_idx, IC_confound_
             W = prior_modeling.torch_closed_form(C,X.T).T
             C_norm=C*W.std(axis=0)
 
-            prior_out.append([C_norm[:,0],corr])
+            prior_out.append(C_norm[:,0].cpu().numpy())
 
     spatial_info['temporal_std'] = temporal_std
     spatial_info['GS_corr'] = GS_corr
