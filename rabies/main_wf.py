@@ -814,7 +814,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
-    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, spatial_external_formating
+    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, temporal_external_formating, spatial_external_formating
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
         prior_confound_idx=data_diagnosis_opts.prior_confound_idx, dual_regression = data_diagnosis_opts.dual_regression,
             dual_convergence = data_diagnosis_opts.dual_convergence, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
@@ -825,6 +825,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
         name='DatasetDiagnosis')
+
+    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
+                                           output_names=[
+                                               'temporal_info_csv'],
+                                       function=temporal_external_formating),
+                              name='temporal_external_formating')
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                            output_names=[
@@ -878,6 +884,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (PrepMasks_node, DatasetDiagnosis_node, [
             ("mask_file_dict", "mask_file_dict"),
             ]),
+        (find_iterable_node, temporal_external_formating_node, [
+            ("file", "file_dict"),
+            ]),
+        (ScanDiagnosis_node, temporal_external_formating_node, [
+            ("temporal_info", "temporal_info"),
+            ]),
         (find_iterable_node, spatial_external_formating_node, [
             ("file", "file_dict"),
             ]),
@@ -900,6 +912,9 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ]),
         (DatasetDiagnosis_node, data_diagnosis_datasink, [
             ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
+            ]),
+        (temporal_external_formating_node, data_diagnosis_datasink, [
+            ("temporal_info_csv", "temporal_info_csv"),
             ]),
         (spatial_external_formating_node, data_diagnosis_datasink, [
             ("std_filename", "temporal_std_nii"),

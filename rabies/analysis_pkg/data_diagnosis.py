@@ -453,6 +453,18 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     return temporal_info,spatial_info
 
 
+def temporal_external_formating(temporal_info, file_dict):
+    import os
+    import pandas as pd
+    import pathlib  # Better path manipulation
+    bold_file = file_dict['bold_file']
+    filename_split = pathlib.Path(
+        bold_file).name.rsplit(".nii")
+    temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info_csv.nii.gz')
+    pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
+    return temporal_info_csv
+
+
 def spatial_external_formating(spatial_info, file_dict):
     import os
     import pathlib  # Better path manipulation
