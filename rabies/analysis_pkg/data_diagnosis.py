@@ -416,7 +416,7 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
                                   C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
 
             # make sure the sign of weights is the same as the prior
-            corr = np.corrcoef(C_fit, prior)[0, 1]
+            corr = np.corrcoef(C_fit.flatten(), prior.flatten())[0, 1]
             if corr < 0:
                 C_fit = C_fit*-1
 
