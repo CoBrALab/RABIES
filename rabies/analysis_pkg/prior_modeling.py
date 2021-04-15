@@ -29,18 +29,18 @@ def deflation_fit(X, q=1, c_init=None, C_convergence='OLS', C_prior=None, W_prio
     # the C_prior and W_prior correspond to spatial and temporal priors respectively which will impose an orthogonality contraint
     # on the fitted sources in their respective dimension
     if C_prior is None:
-        C_prior = np.zeros(X.shape[1], 0)
+        C_prior = np.zeros([X.shape[1], 0])
     C_prior /= np.sqrt((C_prior ** 2).sum(axis=0))
 
     if W_prior is None:
-        W_prior = np.zeros(X.shape[0], 0)
+        W_prior = np.zeros([X.shape[0], 0])
     W_prior /= np.sqrt((W_prior ** 2).sum(axis=0))
 
     # initialize an empty C
-    C = np.zeros(X.shape[1], 0)
+    C = np.zeros([X.shape[1], 0])
     for j in range(q):
         C_prev = np.concatenate((C, C_prior), axis=1)
-        c = c_init[:, j].clone().reshape(-1, 1)
+        c = c_init[:, j].reshape(-1, 1)
         c /= np.sqrt((c ** 2).sum(axis=0))
 
         # regress out the orthogonal dimensions already fitted
@@ -56,7 +56,7 @@ def deflation_fit(X, q=1, c_init=None, C_convergence='OLS', C_prior=None, W_prio
             W = np.concatenate((w,W_prior),axis=1) # include the W priors in the convergence step
 
             if C_convergence == 'OLS':
-                c = closed_form(W, X_).T[:,0].clone().reshape(-1, 1) # take back only c
+                c = closed_form(W, X_).T[:,0].reshape(-1, 1) # take back only c
             elif C_convergence == 'ICA':
                 gwtx, g_wtx = _logcosh(W[:,0].reshape(1,-1), {})
                 c = ((X_.T * gwtx).mean(axis=1) - g_wtx.mean() * c.T).T
