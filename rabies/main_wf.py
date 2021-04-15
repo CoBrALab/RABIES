@@ -838,21 +838,20 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                                        function=spatial_external_formating),
                               name='spatial_external_formating')
 
-    def prep_dict(bold_file, CR_data_dict, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'brain_mask_file', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template', 'name_source'],
+    def prep_dict(bold_file, CR_data_dict, VE_file, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template, name_source):
+        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
+    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'brain_mask_file', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template', 'name_source'],
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
                               name='prep_dict')
 
-    workflow,find_iterable_node, joinnode_main,analysis_split = transit_iterables(workflow, prep_dict_node, data_diagnosis_opts.scan_list, bold_only, bold_scan_list, node_prefix='data_diagnosis')
+    workflow, find_iterable_node, joinnode_main, analysis_split = transit_iterables(workflow, prep_dict_node, data_diagnosis_opts.scan_list, bold_only, bold_scan_list, node_prefix='data_diagnosis')
 
     data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
                                          name='data_diagnosis_split_joinnode',
                                          joinsource=analysis_split.name,
                                          joinfield=['spatial_info_list'])
-
 
     workflow.connect([
         (outputnode, prep_dict_node, [
@@ -865,6 +864,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (confound_regression_wf, prep_dict_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
+            ("outputnode.VE_file", "VE_file"),
             ]),
         (joinnode_main, PrepMasks_node, [
             ("file_list", "mask_dict_list"),

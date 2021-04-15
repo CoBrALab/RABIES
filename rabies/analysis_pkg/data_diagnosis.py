@@ -19,12 +19,6 @@ class PrepMasksInputSpec(BaseInterfaceInputSpec):
     prior_maps = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
-'''
-    preprocess_anat_template = File(exists=True, mandatory=True, desc="The common space template used during preprocessing.")
-    brain_mask_file_list = traits.List(exists=True, mandatory=True, desc="Brain mask.")
-    WM_mask_file = File(exists=True, mandatory=True, desc="WM mask.")
-    CSF_mask_file = File(exists=True, mandatory=True, desc="CSF mask.")
-'''
 
 class PrepMasksOutputSpec(TraitedSpec):
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
@@ -106,6 +100,7 @@ class ScanDiagnosis(BaseInterface):
         # convert to an integer list
         bold_file = self.inputs.file_dict['bold_file']
         CR_data_dict = self.inputs.file_dict['CR_data_dict']
+        VE_file = self.inputs.file_dict['VE_file']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
@@ -118,7 +113,7 @@ class ScanDiagnosis(BaseInterface):
             prior_fit=False
             prior_fit_options=[]
 
-        temporal_info,spatial_info = process_data(bold_file, CR_data_dict, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, self.inputs.dual_regression, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
+        temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, self.inputs.dual_regression, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
 
         fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
@@ -182,7 +177,6 @@ class DatasetDiagnosis(BaseInterface):
         label_name += ['BOLD DR map %s' % (i) for i in range(num_DR_maps)]
         label_name += ['BOLD prior modeling map %s' % (i) for i in range(num_prior_maps)]
 
-
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
         from rabies.preprocess_pkg.preprocess_visual_QC import plot_coronal, otsu_scaling
@@ -213,6 +207,7 @@ class DatasetDiagnosis(BaseInterface):
 
     def _list_outputs(self):
         return {'figure_dataset_diagnosis': getattr(self, 'figure_dataset_diagnosis')}
+
 
 def resample_mask(in_file, ref_file):
     transforms=[]
@@ -327,7 +322,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_regression=False, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_regression=False, prior_fit=False,prior_fit_options=[]):
     temporal_info={}
     spatial_info={}
 
@@ -336,7 +331,6 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     temporal_info['FD_trace'] = FD_trace
     temporal_info['DVARS'] = DVARS
     temporal_info['VE_temporal'] = data_dict['VE_temporal']
-    spatial_info['VE_spatial'] = data_dict['VE_spatial']
 
     WM_mask=np.asarray(nb.load(mask_file_dict['WM_mask']).dataobj).astype(bool)
     CSF_mask=np.asarray(nb.load(mask_file_dict['CSF_mask']).dataobj).astype(bool)
@@ -348,6 +342,8 @@ def process_data(bold_file, data_dict, mask_file_dict, prior_bold_idx, prior_con
     WM_idx = WM_mask[volume_indices]
     CSF_idx = CSF_mask[volume_indices]
     not_edge_idx=(edge_idx==0)*(WM_idx==0)*(CSF_idx==0)
+
+    spatial_info['VE_spatial']=np.asarray(nb.load(VE_file).dataobj)[volume_indices]
 
     data_array=np.asarray(nb.load(bold_file).dataobj)
     timeseries=np.zeros([data_array.shape[3],volume_indices.sum()])
