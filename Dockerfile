@@ -60,33 +60,6 @@ RUN apt-get update -qq \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Installing ANTs 2.3.1 based on neurodocker
-ENV ANTSPATH="$HOME/ants-v2.3.1/bin" \
-    PATH="$HOME/ants-v2.3.1/bin:$PATH" \
-    LD_LIBRARY_PATH="$HOME/ants-v2.3.1/lib:$LD_LIBRARY_PATH"
-RUN apt-get update -qq \
-    && apt-get install -y -q --no-install-recommends \
-           cmake \
-           g++ \
-           gcc \
-           git \
-           make \
-           zlib1g-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /tmp/ants/build \
-    && git clone https://github.com/ANTsX/ANTs.git /tmp/ants/source \
-    && cd /tmp/ants/source \
-    && git fetch --tags \
-    && git checkout v2.3.1 \
-    && cd /tmp/ants/build \
-    && cmake -DBUILD_SHARED_LIBS=ON /tmp/ants/source \
-    && make -j1 \
-    && mkdir -p $HOME/ants-v2.3.1 \
-    && mv bin lib $HOME/ants-v2.3.1/ \
-    && mv /tmp/ants/source/Scripts/* $HOME/ants-v2.3.1/bin \
-    && rm -rf /tmp/ants
-
 
 # install AFNI latest
 RUN wget afni.nimh.nih.gov/pub/dist/tgz/linux_ubuntu_16_64.tgz \
@@ -152,18 +125,24 @@ ENV PATH=${MINC_TOOLKIT}/bin:${MINC_TOOLKIT}/pipeline:${PATH} \
   # integrated ANTs tools
   ANTSPATH=${MINC_TOOLKIT}/bin
 
-# Install python environment
-ENV CONDA_DIR="$HOME/miniconda-latest" \
-    PATH="$HOME/miniconda-latest/bin:$PATH" \
-    ND_ENTRYPOINT="$HOME/startup.sh"
+USER rabies
 
-RUN export PATH="$HOME/miniconda-latest/bin:$PATH" \
-    && echo "Downloading Miniconda installer ..." \
-    && conda_installer="/tmp/miniconda.sh" \
-    && curl -fsSL --retry 5 -o "$conda_installer" https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    && bash "$conda_installer" -b -p $HOME/miniconda-latest \
-    && rm -f "$conda_installer" \
-    && conda update -yq -nbase conda
+# install miniconda
+ENV MINICONDA_VERSION=4.8.2
+ENV CONDA_DIR=${HOME}/miniconda3
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py38_${MINICONDA_VERSION}-Linux-x86_64.sh -O ~/miniconda.sh && \
+    chmod +x ~/miniconda.sh && \
+    ~/miniconda.sh -b -p $CONDA_DIR && \
+    rm ~/miniconda.sh
+
+# make non-activate conda commands available
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+# make conda activate command available from /bin/bash --login shells
+RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
+
+# make conda activate command available from /bin/bash --interative shells
+RUN conda init bash
 
 #### install RABIES
 ENV RABIES_VERSION=0.2.1-dev
@@ -185,6 +164,9 @@ RUN mkdir -p temp && \
   conda env create -f $RABIES/rabies_environment.yml && \
   conda run -n rabies /bin/bash $RABIES/install.sh
 
+# overide the path with the rabies environment so that it becomes the default
+ENV PATH=$CONDA_DIR/envs/rabies/bin:$PATH
+
 WORKDIR /tmp/
 
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "rabies", "python", "/home/rabies/RABIES-0.2.1-dev/bin/rabies"]
+ENTRYPOINT ["/home/rabies/RABIES-0.2.1-dev/bin/rabies"]
