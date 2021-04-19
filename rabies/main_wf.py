@@ -560,11 +560,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("anat_to_template_warp", "anat_to_template_warp"),
                 ("anat_to_template_inverse_warp", "anat_to_template_inverse_warp"),
                 ]),
-            (outputnode, transforms_datasink, [
-                ('affine_bold2anat', 'affine_bold2anat'),
-                ('warp_bold2anat', 'warp_bold2anat'),
-                ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
-                ]),
             (outputnode, confounds_datasink, [
                 ("confounds_csv", "confounds_csv"),  # confounds file
                 ("FD_voxelwise", "FD_voxelwise"),
@@ -603,12 +598,18 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
             workflow.connect([
                 (anat_preproc_wf, anat_datasink, [
-                 ("outputnode.anat_preproc", "anat_preproc")]),
+                    ("outputnode.anat_preproc", "anat_preproc"),
+                 ]),
                 (outputnode, anat_datasink, [
                     ("anat_labels", 'anat_labels'),
                     ("anat_mask", 'anat_mask'),
                     ("WM_mask", "WM_mask"),
                     ("CSF_mask", "CSF_mask"),
+                    ]),
+                (outputnode, transforms_datasink, [
+                    ('affine_bold2anat', 'affine_bold2anat'),
+                    ('warp_bold2anat', 'warp_bold2anat'),
+                    ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
                     ]),
                 ])
 
