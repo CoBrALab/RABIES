@@ -1041,4 +1041,8 @@ def find_iterable(file_list, scan_split_name):
     file_list = flatten_list(list(file_list))
     for file in file_list:
         if scan_split_name in file['name_source']:
+            import os
+            if os.path.basename(file['bold_file']) == 'empty.nii.gz':
+                raise ValueError("FD_censoring and/or DVARS_censoring during confound regression resulted in an empty file for scan %s. "
+                                "You will have to specify a list of scans that are not empty with --scan_list option." % (file['name_source']))
             return file

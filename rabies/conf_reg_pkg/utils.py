@@ -263,7 +263,11 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
     if data_dict is None:
-        return None,None,None
+        import SimpleITK as sitk
+        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
+        empty_file = os.path.abspath('empty.nii.gz')
+        sitk.WriteImage(empty_img, empty_file)
+        return empty_file,empty_file,None
 
     timeseries=data_dict['timeseries']
     FD_trace=data_dict['FD_trace']
@@ -274,7 +278,16 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
     X=confounds_array
     Y=timeseries
-    res = Y-X.dot(closed_form(X,Y))
+    try:
+        res = Y-X.dot(closed_form(X,Y))
+    except:
+        print("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        import SimpleITK as sitk
+        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
+        empty_file = os.path.abspath('empty.nii.gz')
+        sitk.WriteImage(empty_img, empty_file)
+        return empty_file,empty_file,None
+
     VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
     VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
