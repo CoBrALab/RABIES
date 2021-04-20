@@ -1,6 +1,8 @@
 #!/bin/bash
-out_dir=$1
+set -euo pipefaile
 tmpdir=$(mktemp -d)
+
+out_dir=$1
 mkdir -p $out_dir
 
 # Download DSURQE template
