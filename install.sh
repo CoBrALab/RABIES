@@ -3,25 +3,11 @@
 
 #will install RABIES in HOME directory
 export RABIES_VERSION=0.2.1-dev
-export RABIES=$HOME/RABIES-${RABIES_VERSION}
-export PYTHONPATH="${PYTHONPATH}:$RABIES"
+export RABIES=$PWD
 
-cd $HOME
-#curl -L --retry 5 -o $HOME/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz
-#tar zxf $HOME/RABIES.tar.gz
-#rm $HOME/RABIES.tar.gz
-git clone https://github.com/CoBrALab/RABIES
-mv RABIES $RABIES
-
-#creates an executable script to execute rabies
-mkdir -p $RABIES/bin
-echo -e '#! /usr/bin/env python \nfrom rabies.run_main import execute_workflow \nexecute_workflow()' > $RABIES/bin/rabies
-chmod +x $RABIES/bin/rabies
 echo "# added by RABIES" >> $HOME/.bashrc
 echo "export RABIES_VERSION=0.2.1-dev" >> $HOME/.bashrc
 echo "export RABIES=$RABIES" >> $HOME/.bashrc
-echo 'export PYTHONPATH="${PYTHONPATH}:$RABIES"' >> $HOME/.bashrc
-echo 'export PATH=$PATH:$RABIES/bin' >> $HOME/.bashrc
 echo 'export PATH=$PATH:$RABIES/rabies/shell_scripts' >> $HOME/.bashrc
 
 # Download DSURQE template
