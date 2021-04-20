@@ -353,7 +353,7 @@ def execute_workflow():
                         format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger('root')
 
-    from ._info import __version__
+    from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
 
     # print complete CLI command
