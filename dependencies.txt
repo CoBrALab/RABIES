@@ -1,0 +1,4 @@
+minc-toolkit>=1.9.18
+ANTs
+FSL
+AFNI
