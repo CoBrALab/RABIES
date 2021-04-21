@@ -169,9 +169,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     bold_main_wf = init_bold_main_wf(opts=opts)
 
     if opts.fast_commonspace:
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script = dir_path+'/shell_scripts/null_nonlin.sh'
+        reg_script = 'null_nonlin.sh'
         template_reg.inputs.reg_method = str(reg_script)
 
         commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],

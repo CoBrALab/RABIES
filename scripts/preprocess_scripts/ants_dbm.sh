@@ -21,7 +21,7 @@ fi
 
 echo twolevel_dbm.py --rigid-model-target $template_anat \
   --no-N4 --skip-dbm --transform SyN --float --average-type normmean --gradient-step 0.25 --model-iterations 3 \
-  --modelbuild-command $RABIES/rabies/shell_scripts/antsMultivariateTemplateConstruction2.sh --cluster-type $cluster_type \
+  --modelbuild-command rabies_antsMultivariateTemplateConstruction2.sh --cluster-type $cluster_type \
   --walltime $walltime --memory-request $memory_request --local-threads $local_threads \
   $(eval echo ${steps}) \
   1level $FILE_PATH > exec.sh

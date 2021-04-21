@@ -1,3 +1,4 @@
+#!/bin/bash
 #credit to Joanes Grandjean https://github.com/grandjeanlab/MouseMRIPrep
 anat=$1
 standard=$2

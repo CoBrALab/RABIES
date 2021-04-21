@@ -40,7 +40,7 @@ def bias_correction_wf(opts, name='bias_correction_wf'):
             import rabies
             dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
             from rabies.preprocess_pkg.utils import run_command
-            command = dir_path+'/shell_scripts/mouse-preprocessing-v5.sh %s %s %s %s' % (input_ref_EPI, corrected_EPI,anat,anat_mask)
+            command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (input_ref_EPI, corrected_EPI,anat,anat_mask)
             rc = run_command(command)
             denoise_mask = corrected_EPI.split('.nii.gz')[0]+'_mask.nii.gz'
             init_denoise = corrected_EPI.split('.nii.gz')[0]+'_init_denoise.nii.gz'
@@ -385,7 +385,6 @@ class AnatPreproc(BaseInterface):
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.nii_anat).name.rsplit(".nii")
-        dir_path = os.path.dirname(os.path.realpath(__file__))
         cwd = os.getcwd()
         output_anat = '%s/%s_preproc.nii.gz' % (cwd, filename_split[0],)
 
@@ -435,10 +434,7 @@ class AnatPreproc(BaseInterface):
                 init_denoise = out.outputs.init_denoise
 
             elif self.inputs.bias_cor_method=='mouse-preprocessing-v5.sh':
-                import rabies
-                dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-                from rabies.preprocess_pkg.utils import run_command
-                command = dir_path+'/shell_scripts/mouse-preprocessing-v5.sh %s %s %s %s' % (input_anat, output_anat, self.inputs.template_anat,self.inputs.template_mask)
+                command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (input_anat, output_anat, self.inputs.template_anat,self.inputs.template_mask)
                 rc = run_command(command)
 
                 resampled_mask = output_anat.split('.nii.gz')[0]+'_mask.nii.gz'

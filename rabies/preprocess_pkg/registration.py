@@ -114,10 +114,9 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
 
     return [affine, warp, inverse_warp, warped_image]
 
+
 def define_reg_script(reg_option):
     import os
-    import rabies
-    dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
     if reg_option == 'Rigid':
         reg_call = "antsRegistration_affine_SyN.sh --linear-type rigid --skip-nonlinear"
     elif reg_option == 'Affine':
@@ -125,11 +124,11 @@ def define_reg_script(reg_option):
     elif reg_option == 'SyN':
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine"
     elif reg_option == 'light_SyN':
-        reg_call = 'bash '+dir_path+'/shell_scripts/light_SyN_registration.sh'
+        reg_call = 'light_SyN_registration.sh'
     elif reg_option == 'heavy_SyN':
-        reg_call = 'bash '+dir_path+'/shell_scripts/heavy_SyN_registration.sh'
+        reg_call = 'heavy_SyN_registration.sh'
     elif reg_option == 'multiRAT':
-        reg_call = 'bash '+dir_path+'/shell_scripts/multiRAT_registration.sh'
+        reg_call = 'multiRAT_registration.sh'
     else:
         '''
         For user-provided antsRegistration command.

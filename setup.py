@@ -146,5 +146,18 @@ setup(
     },
     scripts=[
         'scripts/rabies',
+        'scripts/gen_DSURQE_masks.py',
+        'scripts/install_DSURQE.sh',
+        'scripts/preprocess_scripts/ants_dbm.sh',
+        'scripts/preprocess_scripts/heavy_SyN_registration.sh',
+        'scripts/preprocess_scripts/light_SyN_registration.sh',
+        'scripts/preprocess_scripts/multiRAT_registration.sh',
+        'scripts/preprocess_scripts/null_nonlin.sh',
+        'scripts/preprocess_scripts/plot_overlap.sh',
+        'scripts/preprocess_scripts/rabies_antsMultivariateTemplateConstruction2.sh',
+        'scripts/preprocess_scripts/rabies-mouse-preprocessing-v5.sh',
+        'twolevel_ants_dbm/twolevel_dbm.py',
+        'minc-toolkit-extras/ants_generate_iterations.py',
+        'minc-toolkit-extras/antsRegistration_affine_SyN.sh',
         ]
 )
