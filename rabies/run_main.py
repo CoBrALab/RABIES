@@ -474,7 +474,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
                                       'filemanip_level': 'DEBUG',
                                       'interface_level': 'DEBUG',
                                       'utils_level': 'DEBUG'}
-        print('Debug ON')
+        log.debug('Debug ON')
 
     return workflow
 

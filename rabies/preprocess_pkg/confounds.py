@@ -245,7 +245,9 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%', rabies_data_type=8):
 
     pca = PCA(n_components=num_comp)
     comp_timeseries = pca.fit_transform(mask_timeseries)
-    print("Extracting "+str(num_comp)+" components for aCompCorr.")
+    import logging
+    log = logging.getLogger('root')
+    log.debug("Extracting "+str(num_comp)+" components for aCompCorr.")
     return comp_timeseries, num_comp
 
 

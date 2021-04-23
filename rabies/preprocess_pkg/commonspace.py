@@ -68,7 +68,9 @@ class ANTsDBM(BaseInterface):
         merged = flatten_list(list(self.inputs.moving_image))
 
         if len(merged) == 1:
-            print("Only a single scan was provided as input for commonspace registration. Commonspace registration "
+            import logging
+            log = logging.getLogger('root')
+            log.info("Only a single scan was provided as input for commonspace registration. Commonspace registration "
                   "won't be run, and the output template will be the input scan.")
 
             # create an identity transform as a surrogate for the commonspace transforms

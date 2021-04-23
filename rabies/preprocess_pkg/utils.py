@@ -243,6 +243,8 @@ class EstimateReferenceImage(BaseInterface):
 
         import SimpleITK as sitk
         import numpy as np
+        import logging
+        log = logging.getLogger('root')
 
         in_nii = sitk.ReadImage(self.inputs.in_file,
                                 self.inputs.rabies_data_type)
@@ -256,7 +258,7 @@ class EstimateReferenceImage(BaseInterface):
             '%s_bold_ref.nii.gz' % (filename_split[0],))
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
-            print("Detected "+str(n_volumes_to_discard)
+            log.info("Detected "+str(n_volumes_to_discard)
                   + " dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
@@ -272,7 +274,7 @@ class EstimateReferenceImage(BaseInterface):
 
             n_volumes_to_discard = 0
             if self.inputs.detect_dummy:
-                print(
+                log.info(
                     "Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
             # if no dummy scans, will generate a median from a subset of max 100
             # slices of the time series
@@ -292,7 +294,7 @@ class EstimateReferenceImage(BaseInterface):
                     np.median(data_slice, axis=0), isVector=False), in_nii)
                 sitk.WriteImage(image_3d, median_fname)
 
-            print("First iteration to generate reference image.")
+            # First iteration to generate reference image.
             res = antsMotionCorr(in_file=slice_fname,
                                  ref_file=median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=False, rabies_data_type=self.inputs.rabies_data_type).run()
 
@@ -303,7 +305,7 @@ class EstimateReferenceImage(BaseInterface):
                 sitk.GetImageFromArray(median, isVector=False), in_nii)
             sitk.WriteImage(image_3d, tmp_median_fname)
 
-            print("Second iteration to generate reference image.")
+            # Second iteration to generate reference image.
             res = antsMotionCorr(in_file=slice_fname,
                                  ref_file=tmp_median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=True,  rabies_data_type=self.inputs.rabies_data_type).run()
 
@@ -319,7 +321,7 @@ class EstimateReferenceImage(BaseInterface):
         sitk.WriteImage(image_3d, out_ref_fname)
 
         # denoise the resulting reference image through non-local mean denoising
-        print('Denoising reference image.')
+        # Denoising reference image.
         command = 'DenoiseImage -d 3 -i %s -o %s' % (
             out_ref_fname, out_ref_fname)
         from rabies.preprocess_pkg.utils import run_command
@@ -487,7 +489,10 @@ def register_slice(fixed_image, moving_image):
 
 
 def slice_specific_registration(i, ref_file, timeseries_file):
-    print('Slice-specific correction on volume '+str(i+1))
+    import logging
+    log = logging.getLogger('root')
+
+    log.debug('Slice-specific correction on volume '+str(i+1))
     ref_image = sitk.ReadImage(ref_file, sitk.sitkFloat32)
     timeseries_image = sitk.ReadImage(timeseries_file, sitk.sitkFloat32)
     volume_array = sitk.GetArrayFromImage(timeseries_image)[i, :, :, :]
@@ -677,8 +682,7 @@ def split_volumes(in_file, output_prefix, rabies_data_type):
     num_volumes = in_nii.GetSize()[3]
 
     if num_dimensions != 4:
-        print("the input file must be of dimensions 4")
-        return None
+        raise ValueError("the input file must be of dimensions 4")
 
     volumes = []
     for x in range(0, num_volumes):
@@ -848,6 +852,8 @@ def resample_template(template_file, file_list, spacing='inputs_defined', rabies
     import SimpleITK as sitk
     import numpy as np
     from rabies.preprocess_pkg.utils import resample_image_spacing
+    import logging
+    log = logging.getLogger('root')
 
     if spacing == 'inputs_defined':
         file_list = list(np.asarray(file_list).flatten())
@@ -864,13 +870,13 @@ def resample_template(template_file, file_list, spacing='inputs_defined', rabies
             template_file, rabies_data_type)
         template_dim = template_image.GetSpacing()
         if np.asarray(template_dim[:3]).min() > low_dim:
-            print("The template retains its original resolution.")
+            log.info("The template retains its original resolution.")
             return template_file
     else:
         shape = spacing.split('x')
         spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
 
-    print("Resampling template to %sx%sx%smm dimensions." %
+    log.info("Resampling template to %sx%sx%smm dimensions." %
           (spacing[0], spacing[1], spacing[2],))
     resampled_template = os.path.abspath("resampled_template.nii.gz")
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
@@ -899,13 +905,15 @@ def run_command(command, verbose = False):
 
     out = process.stdout.decode("utf-8")
     if not out == '':
-        log.info(out)
         if verbose:
-            print(out)
+            log.info(out)
+        else:
+            log.debug(out)
     if process.stderr is not None:
-        log.warning(process.stderr)
         if verbose:
-            print(process.stderr)
+            log.info(process.stderr)
+        else:
+            log.warning(process.stderr)
     rc = process.returncode
     return rc
 

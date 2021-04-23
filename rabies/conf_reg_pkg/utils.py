@@ -177,7 +177,9 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
     if frame_mask.sum()<3:
-        print("FD/DVARS CENSORING LEFT LESS THAN 3 VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        import logging
+        log = logging.getLogger('root')
+        log.info("FD/DVARS CENSORING LEFT LESS THAN 3 VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
     timeseries=timeseries[frame_mask,:]
     confounds_array=confounds_array[frame_mask,:]
@@ -225,7 +227,9 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
             conf_keys += [s for s in keys if "rot" in s or "mov" in s]
         elif conf == 'aCompCor':
             aCompCor_keys = [s for s in keys if "aCompCor" in s]
-            print('Applying aCompCor with '+len(aCompCor_keys)+' components.')
+            import logging
+            log = logging.getLogger('root')
+            log.info('Applying aCompCor with '+len(aCompCor_keys)+' components.')
             conf_keys += aCompCor_keys
         elif conf == 'mean_FD':
             mean_FD = pd.read_csv(FD_file).get('Mean')
@@ -281,7 +285,9 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     try:
         res = Y-X.dot(closed_form(X,Y))
     except:
-        print("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        import logging
+        log = logging.getLogger('root')
+        log.debug("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         import SimpleITK as sitk
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')

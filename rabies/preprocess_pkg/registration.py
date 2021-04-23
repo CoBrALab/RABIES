@@ -105,7 +105,9 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
         raise ValueError(
             'REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
-        print('No non-linear warp files as output. Assumes linear registration.')
+        import logging
+        log = logging.getLogger('root')
+        log.debug('No non-linear warp files as output. Assumes linear registration.')
         warp = 'NULL'
         inverse_warp = 'NULL'
 

@@ -397,7 +397,9 @@ class AnatPreproc(BaseInterface):
             self.inputs.template_anat, self.inputs.rabies_data_type)
         template_dim = template_image.GetSpacing()
         if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
-            print('Anat image will be resampled to the template resolution.')
+            import logging
+            log = logging.getLogger('root')
+            log.debug('Anat image will be resampled to the template resolution.')
             resampled_anat = resample_image_spacing(anat_image, template_dim)
             input_anat = '%s/%s_resampled.nii.gz' % (cwd, filename_split[0],)
             sitk.WriteImage(resampled_anat, input_anat)
