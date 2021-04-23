@@ -155,6 +155,11 @@ RUN conda config --append channels conda-forge && \
 # overide the path with the rabies environment so that it becomes the default
 ENV PATH=$CONDA_DIR/envs/rabies/bin:$PATH
 
+# pre-install the template defaults
+ENV XDG_DATA_HOME=$HOME/.local/share
+
+RUN install_DSURQE.sh $XDG_DATA_HOME/rabies
+
 WORKDIR /tmp/
 
 ENTRYPOINT ["rabies"]
