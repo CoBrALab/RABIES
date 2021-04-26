@@ -305,7 +305,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
     timeseries_3d = recover_3D_multiple(brain_mask_file, timeseries)
     if cr_opts.smoothing_filter is not None:
-        import nilearn.image.smoothing
+        import nilearn.image.smooth_img
         timeseries_3d = nilearn.image.smooth_img(timeseries_3d, cr_opts.smoothing_filter)
 
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
