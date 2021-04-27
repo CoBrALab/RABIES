@@ -144,7 +144,7 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     return out_file, data_dict
 
 def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
-        FD_censoring, FD_threshold, DVARS_censoring):
+        FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
     FD_trace=data_dict['FD_trace']
     confounds_array=data_dict['confounds_array']
 
@@ -176,10 +176,10 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
             mask2=np.abs(norm)<2.5
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
-    if frame_mask.sum()<3:
+    if frame_mask.sum()<int(minimum_timepoint):
         import logging
         log = logging.getLogger('root')
-        log.info("FD/DVARS CENSORING LEFT LESS THAN 3 VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        log.info("FD/DVARS CENSORING LEFT LESS THAN %s VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING." (str(minimum_timepoint)))
         return None
     timeseries=timeseries[frame_mask,:]
     confounds_array=confounds_array[frame_mask,:]
@@ -265,7 +265,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
 
     TR = float(cr_opts.TR.split('s')[0])
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
-            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
+            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
     if data_dict is None:
         import SimpleITK as sitk
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))

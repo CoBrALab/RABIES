@@ -241,6 +241,9 @@ def get_parser():
                                      default=False,
                                      help="""Whether to remove timepoints that present outlier values on the DVARS metric (temporal derivative of global signal).
                                      This option will create a distribution of DVARS values which has no outlier values above or below 2.5 standard deviations.""")
+    confound_regression.add_argument('--minimum_timepoint', type=int,
+                                     default=3,
+                                     help='Can specify a minimal number of timepoint to remain in the timeseries after censoring, otherwise it returns empty files.')
     confound_regression.add_argument('--standardize', dest='standardize', action='store_true',
                                      default=False,
                                      help="""Whether to standardize timeseries to unit variance.""")
