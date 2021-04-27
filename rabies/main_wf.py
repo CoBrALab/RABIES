@@ -169,9 +169,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     bold_main_wf = init_bold_main_wf(opts=opts)
 
     if opts.fast_commonspace:
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        reg_script = dir_path+'/shell_scripts/null_nonlin.sh'
+        reg_script = 'null_nonlin.sh'
         template_reg.inputs.reg_method = str(reg_script)
 
         commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
@@ -728,7 +726,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 
     from rabies.analysis_pkg.analysis_wf import init_analysis_wf
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list)
+        opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list, name=analysis_opts.wf_name)
 
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="analysis_datasink"),
@@ -740,19 +738,19 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
-                              name='prep_dict')
+                              name=analysis_opts.wf_name+'_prep_dict')
 
     def read_dict(prep_dict):
         return prep_dict['bold_file'],prep_dict['mask_file'],prep_dict['atlas_file']
     read_dict_node = pe.Node(Function(input_names=['prep_dict'],
                                            output_names=['bold_file', 'mask_file', 'atlas_file'],
                                        function=read_dict),
-                              name='read_dict')
+                              name=analysis_opts.wf_name+'_read_dict')
 
-    workflow,find_iterable_node, joinnode_main,analysis_split = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix='analysis')
+    workflow,find_iterable_node, joinnode_main,analysis_split = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix=analysis_opts.wf_name)
 
     analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                                         name='analysis_split_joinnode',
+                                         name=analysis_opts.wf_name+'_split_joinnode',
                                          joinsource=analysis_split.name,
                                          joinfield=['file_list'])
 
@@ -819,25 +817,25 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
         prior_confound_idx=data_diagnosis_opts.prior_confound_idx, dual_regression = data_diagnosis_opts.dual_regression,
             dual_convergence = data_diagnosis_opts.dual_convergence, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
-        name='ScanDiagnosis')
+        name=data_diagnosis_opts.wf_name+'_ScanDiagnosis')
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(data_diagnosis_opts.prior_maps)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
-        name='PrepMasks')
+        name=data_diagnosis_opts.wf_name+'_PrepMasks')
 
     DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-        name='DatasetDiagnosis')
+        name=data_diagnosis_opts.wf_name+'_DatasetDiagnosis')
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                            output_names=[
                                                'temporal_info_csv'],
                                        function=temporal_external_formating),
-                              name='temporal_external_formating')
+                              name=data_diagnosis_opts.wf_name+'_temporal_external_formating')
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                            output_names=[
                                                'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'prior_modeling_filename'],
                                        function=spatial_external_formating),
-                              name='spatial_external_formating')
+                              name=data_diagnosis_opts.wf_name+'_spatial_external_formating')
 
     def prep_dict(bold_file, CR_data_dict, VE_file, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template, name_source):
         return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
@@ -845,12 +843,12 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
-                              name='prep_dict')
+                              name=data_diagnosis_opts.wf_name+'_prep_dict')
 
-    workflow, find_iterable_node, joinnode_main, analysis_split = transit_iterables(workflow, prep_dict_node, data_diagnosis_opts.scan_list, bold_only, bold_scan_list, node_prefix='data_diagnosis')
+    workflow, find_iterable_node, joinnode_main, analysis_split = transit_iterables(workflow, prep_dict_node, data_diagnosis_opts.scan_list, bold_only, bold_scan_list, node_prefix=data_diagnosis_opts.wf_name)
 
     data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
-                                         name='data_diagnosis_split_joinnode',
+                                         name=data_diagnosis_opts.wf_name+'_split_joinnode',
                                          joinsource=analysis_split.name,
                                          joinfield=['spatial_info_list'])
 

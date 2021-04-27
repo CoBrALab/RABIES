@@ -68,7 +68,9 @@ class ANTsDBM(BaseInterface):
         merged = flatten_list(list(self.inputs.moving_image))
 
         if len(merged) == 1:
-            print("Only a single scan was provided as input for commonspace registration. Commonspace registration "
+            import logging
+            log = logging.getLogger('root')
+            log.info("Only a single scan was provided as input for commonspace registration. Commonspace registration "
                   "won't be run, and the output template will be the input scan.")
 
             # create an identity transform as a surrogate for the commonspace transforms
@@ -92,12 +94,8 @@ class ANTsDBM(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        model_script_path = dir_path+'/shell_scripts/ants_dbm.sh'
-
-        command = 'cd %s ; bash %s %s %s %s %s %s %s' % (
-            template_folder, model_script_path, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
+        command = 'cd %s ; ants_dbm.sh %s %s %s %s %s %s' % (
+            template_folder, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
         rc = run_command(command)
 
         # verify that all outputs are present

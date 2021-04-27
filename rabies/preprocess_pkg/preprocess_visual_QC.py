@@ -30,9 +30,7 @@ class PlotOverlap(BaseInterface):
         import pathlib
         filename_template = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")[0]
 
-        import rabies
-        dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-        script_path = dir_path+'/shell_scripts/plot_overlap.sh'
+        script_path = 'plot_overlap.sh'
         os.makedirs(self.inputs.out_dir, exist_ok=True)
         out_name = self.inputs.out_dir+'/' + \
             filename_template+'_registration.png'

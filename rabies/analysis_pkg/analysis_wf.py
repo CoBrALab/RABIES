@@ -82,7 +82,9 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
             ])
 
         if opts.IC_file is None:
-            print(
+            import logging
+            log = logging.getLogger('root')
+            log.info(
                 'Group-ICA will be run on the processed dataset since no previous group-ICA file was provided.')
             include_group_ICA = True
         elif not os.path.isfile(str(opts.IC_file)):

@@ -144,29 +144,22 @@ RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
 # make conda activate command available from /bin/bash --interative shells
 RUN conda init bash
 
-#### install RABIES
-ENV RABIES_VERSION=0.2.1-dev
-ENV RABIES=$HOME/RABIES-${RABIES_VERSION}
-ENV PYTHONPATH="${PYTHONPATH}:$RABIES" \
-  PATH=${PATH}:${RABIES}/minc-toolkit-extras:${RABIES}/twolevel_ants_dbm:${RABIES}/rabies/shell_scripts
+#### install RABIES in conda environment
 
-# download code and create conda environment
-RUN mkdir -p temp && \
-  #curl -L --retry 5 -o temp/RABIES.tar.gz https://github.com/CoBrALab/RABIES/archive/${RABIES_VERSION}.tar.gz && \
-  #cd temp && \
-  #tar zxf RABIES.tar.gz && \
-  #cd .. && \
-  #conda env create -f temp/RABIES-${RABIES_VERSION}/rabies_environment.yml && \
-  #bash temp/RABIES-${RABIES_VERSION}/install.sh && \
-  rm -r temp && \
-  git clone https://github.com/CoBrALab/RABIES && \
-  mv RABIES $RABIES && \
-  conda env create -f $RABIES/rabies_environment.yml && \
-  conda run -n rabies /bin/bash $RABIES/install.sh
+RUN conda config --append channels conda-forge && \
+  conda config --append channels simpleitk && \
+  conda create -n rabies python=3.6.8 && \
+  conda install -y 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
+  pip install rabies==0.2.3
 
 # overide the path with the rabies environment so that it becomes the default
 ENV PATH=$CONDA_DIR/envs/rabies/bin:$PATH
 
+# pre-install the template defaults
+ENV XDG_DATA_HOME=$HOME/.local/share
+
+RUN install_DSURQE.sh $XDG_DATA_HOME/rabies
+
 WORKDIR /tmp/
 
-ENTRYPOINT ["/home/rabies/RABIES-0.2.1-dev/bin/rabies"]
+ENTRYPOINT ["rabies"]

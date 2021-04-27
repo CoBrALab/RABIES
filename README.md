@@ -2,9 +2,21 @@
 
 ![Processing Schema](https://github.com/Gab-D-G/pics/blob/master/processing_schema.png)
 
+# Installation
+
+The software is available on PyPi https://pypi.org/project/rabies/.
+You can install it on your local python environment with ```pip install rabies```.
+
+For general uses, we recommend instead using a containerized installation with Singularity (https://singularity.lbl.gov) or Docker (https://www.docker.com),
+which will contain all additional dependencies from *dependencies.txt* and ensure reproducible behavior.
+See https://hub.docker.com/repository/docker/gabdesgreg/rabies/general for available versions.
+
+* Install Singularity .sif image ```singularity build rabies.sif docker://gabdesgreg/rabies:tagname```
+* Install Docker image: ```docker pull gabdesgreg/rabies:tagname```
+
 # Command Line Interface (CLI)
 
-The following section describes the --help outputs from the command line interface 
+The following section describes the --help outputs from the command line interface
 
 ## General CLI
 <details><summary><b>Click to expand</b></summary>
@@ -40,20 +52,26 @@ Commands:
     confound_regression
                         Different options for confound regression are
                         available to apply directly on preprocessing outputs
-                        from RABIES. Detrending and standardization of
-                        timeseries is always applied. Otherwise only selected
-                        confound regression and denoising strategies are
-                        applied. The denoising steps are applied in the
-                        following order: ICA-AROMA first, followed by
-                        detrending, then regression of confound timeseries
-                        orthogonal to the application of temporal filters
-                        (nilearn.clean_img, Lindquist 2018), standardization
-                        of timeseries, scrubbing, and finally smoothing.
+                        from RABIES. Detrending of timeseries is always
+                        applied. Otherwise only selected confound regression
+                        and denoising strategies are applied. The denoising
+                        steps are applied in the following order: detrending
+                        first then ICA-AROMA, then highpass/lowpass filtering
+                        followed by temporal censoring, then regression of
+                        confound timeseries, standardization of timeseries,
+                        and finally smoothing.
     analysis            A few built-in resting-state functional connectivity
                         (FC) analysis options are provided to conduct rapid
                         analysis on the cleaned timeseries. The options
                         include seed-based FC, voxelwise or parcellated whole-
                         brain FC, group-ICA and dual regression.
+    data_diagnosis      This workflow regroups a set of tools which allow to
+                        establish the influence of confounding sources on FC
+                        measures. We recommend to conduct a data diagnosis
+                        from this workflow to complement FC analysis by
+                        evaluating the effectiveness of the confound
+                        correction strategies and ensure reliable subsequent
+                        interpretations.
 
 Options for managing the execution of the workflow.:
   -p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}, --plugin {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}
@@ -83,14 +101,15 @@ Options for managing the execution of the workflow.:
 <p>
 
 ```
-usage: rabies preprocess [-h] [-e] [--bias_cor_method {otsu_reg,thresh_reg}]
+usage: rabies preprocess [-h] [-e]
+                         [--bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}]
+                         [--anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}]
                          [--disable_anat_preproc] [--apply_despiking]
                          [--HMC_option {intraSubjectBOLD,0,1,2,3}]
                          [--HMC_transform {Rigid,Affine}] [--apply_slice_mc]
                          [--detect_dummy]
                          [--data_type {int16,int32,float32,float64}] [--debug]
                          [--coreg_script COREG_SCRIPT]
-                         [--anat_reg_script ANAT_REG_SCRIPT]
                          [--template_reg_script TEMPLATE_REG_SCRIPT]
                          [--fast_commonspace]
                          [--nativespace_resampling NATIVESPACE_RESAMPLING]
@@ -117,7 +136,7 @@ optional arguments:
                         registration is executed through registration of the
                         EPI-generated template from ants_dbm to the anatomical
                         template. (default: False)
-  --bias_cor_method {otsu_reg,thresh_reg}
+  --bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}
                         Choose the algorithm for bias field correction of the
                         EPI before registration.otsu_reg will conduct an
                         initial serie of N4BiasFieldCorrection oriented by
@@ -127,7 +146,10 @@ optional arguments:
                         voxel intensity thresholding method for masking, and
                         will conduct a subsequent rigid registration to
                         provide a brain mask orienting the final correction.
-                        (default: otsu_reg)
+                        (default: mouse-preprocessing-v5.sh)
+  --anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}
+                        Same as --bold_bias_cor_method but for the anatomical
+                        image. (default: mouse-preprocessing-v5.sh)
   --disable_anat_preproc
                         This option disables the preprocessing of anatomical
                         images before commonspace template generation.
@@ -164,9 +186,6 @@ Options for the registration steps. Built-in options for selecting registration 
   --coreg_script COREG_SCRIPT
                         Specify EPI to anat coregistration script. (default:
                         SyN)
-  --anat_reg_script ANAT_REG_SCRIPT
-                        specify a registration script for the preprocessing of
-                        the anatomical images. (default: Affine)
   --template_reg_script TEMPLATE_REG_SCRIPT
                         Registration script that will be used for registration
                         of the generated dataset template to the provided
@@ -227,29 +246,28 @@ Specify Slice Timing Correction info that is fed to AFNI 3dTshift
 Provided commonspace atlas files.:
   --anat_template ANAT_TEMPLATE
                         Anatomical file for the commonspace template.
-                        (default: /home/gabriel/RABIES-0.2.1/rabies/../templat
-                        e_files/DSURQE_40micron_average.nii.gz)
+                        (default: /home/gabriel/.local/share/rabies/DSURQE_40m
+                        icron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/gabriel/R
-                        ABIES-0.2.1/rabies/../template_files/DSURQE_100micron_
-                        mask.nii.gz)
+                        Brain mask for the template. (default: /home/gabriel/.
+                        local/share/rabies/DSURQE_40micron_mask.nii.gz)
   --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
-                        briel/RABIES-0.2.1/rabies/../template_files/DSURQE_100
-                        micron_eroded_WM_mask.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/RAB
-                        IES-0.2.1/rabies/../template_files/DSURQE_100micron_er
-                        oded_CSF_mask.nii.gz)
+                        briel/.local/share/rabies/DSURQE_40micron_eroded_WM_ma
+                        sk.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/.lo
+                        cal/share/rabies/DSURQE_40micron_eroded_CSF_mask.nii.g
+                        z)
   --vascular_mask VASCULAR_MASK
                         Can provide a mask of major blood vessels for
                         computing confound timeseries. The default mask was
                         generated by applying MELODIC ICA and selecting the
                         resulting component mapping onto major veins.
                         (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/gabriel/RABIES-0.2.1/rabies/../t
-                        emplate_files/vascular_mask.nii.gz)
+                        2005) (default: /home/gabriel/.local/share/rabies/vasc
+                        ular_mask.nii.gz)
   --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
-                        riel/RABIES-0.2.1/rabies/../template_files/DSURQE_40mi
-                        cron_labels.nii.gz)
+                        riel/.local/share/rabies/DSURQE_40micron_labels.nii.gz
+                        )
 ```
 
 </p>
@@ -266,10 +284,10 @@ usage: rabies confound_regression [-h] [--wf_name WF_NAME]
                                   [--smoothing_filter SMOOTHING_FILTER]
                                   [--run_aroma] [--aroma_dim AROMA_DIM]
                                   [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]]]
-                                  [--apply_scrubbing]
-                                  [--scrubbing_threshold SCRUBBING_THRESHOLD]
+                                  [--FD_censoring]
+                                  [--FD_threshold FD_THRESHOLD]
+                                  [--DVARS_censoring] [--standardize]
                                   [--timeseries_interval TIMESERIES_INTERVAL]
-                                  [--diagnosis_output]
                                   preprocess_out output_dir
 
 positional arguments:
@@ -310,25 +328,27 @@ optional arguments:
                         timeseries, including all components that together
                         explain 50 percent. of the variance, as in Muschelli
                         et al. 2014. (default: [])
-  --apply_scrubbing     Whether to apply scrubbing or not. A temporal mask
-                        will be generated based on the FD threshold. The
-                        frames that exceed the given threshold together with 1
-                        back and 2 forward frames will be masked out from the
-                        data after the application of all other confound
-                        regression steps (as in Power et al. 2012). (default:
-                        False)
-  --scrubbing_threshold SCRUBBING_THRESHOLD
+  --FD_censoring        Whether to remove timepoints that exceed a framewise
+                        displacement threshold, before other confound
+                        regression steps. The frames that exceed the given
+                        threshold together with 1 back and 4 forward frames
+                        will be masked out (based on Power et al. 2012).
+                        (default: False)
+  --FD_threshold FD_THRESHOLD
                         Scrubbing threshold for the mean framewise
                         displacement in mm (averaged across the brain mask) to
                         select corrupted volumes. (default: 0.05)
+  --DVARS_censoring     Whether to remove timepoints that present outlier
+                        values on the DVARS metric (temporal derivative of
+                        global signal). This option will create a distribution
+                        of DVARS values which has no outlier values above or
+                        below 2.5 standard deviations. (default: False)
+  --standardize         Whether to standardize timeseries to unit variance.
+                        (default: False)
   --timeseries_interval TIMESERIES_INTERVAL
                         Specify a time interval in the timeseries to keep.
                         e.g. "0,80". By default all timeseries are kept.
                         (default: all)
-  --diagnosis_output    Run a diagnosis for each individual image by computing
-                        melodic-ICA on the corrected timeseries,and compute a
-                        tSNR map from the input uncorrected image. (default:
-                        False)
 ```
 
 </p>
@@ -339,10 +359,10 @@ optional arguments:
 <p>
 
 ```
-usage: rabies analysis [-h] [--seed_list [SEED_LIST [SEED_LIST ...]]]
-                       [--FC_matrix] [--ROI_type {parcellated,voxelwise}]
-                       [--group_ICA] [--TR TR] [--dim DIM] [--DR_ICA]
-                       [--IC_file IC_FILE]
+usage: rabies analysis [-h] [--scan_list [SCAN_LIST [SCAN_LIST ...]]]
+                       [--seed_list [SEED_LIST [SEED_LIST ...]]] [--FC_matrix]
+                       [--ROI_type {parcellated,voxelwise}] [--group_ICA]
+                       [--TR TR] [--dim DIM] [--DR_ICA] [--IC_file IC_FILE]
                        confound_regression_out output_dir
 
 positional arguments:
@@ -353,6 +373,16 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --scan_list [SCAN_LIST [SCAN_LIST ...]]
+                        This option offers to run the analysis on a subset of
+                        the scans.The scans selected are specified by
+                        providing the full path to each EPI file from the
+                        input BIDS folder.The list of scan can be specified
+                        manually as a list of file name '--scan_list
+                        scan1.nii.gz scan2.nii.gz ...' or the files can be
+                        imbedded into a .txt file with one filename per row.By
+                        default, 'all' will use all the scans previously
+                        processed. (default: ['all'])
   --seed_list [SEED_LIST [SEED_LIST ...]]
                         Can provide a list of seed .nii images that will be
                         used to evaluate seed-based correlation maps based on
@@ -392,6 +422,61 @@ Options for performing a dual regression analysis based on a previous group-ICA 
                         ICA components from a previous group-ICA run. If none
                         is provided, a group-ICA will be run with the dataset
                         cleaned timeseries. (default: None)
+```
+
+</p>
+</details>
+
+## Data Diagnosis CLI
+<details><summary><b>Click to expand</b></summary>
+<p>
+
+```
+usage: rabies data_diagnosis [-h] [--scan_list [SCAN_LIST [SCAN_LIST ...]]]
+                             [--dual_regression]
+                             [--dual_convergence DUAL_CONVERGENCE]
+                             [--prior_maps PRIOR_MAPS]
+                             [--prior_bold_idx [PRIOR_BOLD_IDX [PRIOR_BOLD_IDX ...]]]
+                             [--prior_confound_idx [PRIOR_CONFOUND_IDX [PRIOR_CONFOUND_IDX ...]]]
+                             [--DSURQE_regions]
+                             confound_regression_out output_dir
+
+positional arguments:
+  confound_regression_out
+                        path to RABIES confound regression output directory
+                        with the datasink.
+  output_dir            the output path to drop data_diagnosis outputs.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --scan_list [SCAN_LIST [SCAN_LIST ...]]
+                        This option offers to run the analysis on a subset of
+                        the scans.The scans selected are specified by
+                        providing the full path to each EPI file from the
+                        input BIDS folder.The list of scan can be specified
+                        manually as a list of file name '--scan_list
+                        scan1.nii.gz scan2.nii.gz ...' or the files can be
+                        imbedded into a .txt file with one filename per row.By
+                        default, 'all' will use all the scans previously
+                        processed. (default: ['all'])
+  --dual_regression     Whether to evaluate dual regression outputs. (default:
+                        False)
+  --dual_convergence DUAL_CONVERGENCE
+                        Can specify a number of components to compute using a
+                        dual convergence framework. (default: 0)
+  --prior_maps PRIOR_MAPS
+                        Provide a 4D nifti image with a series of spatial
+                        priors representing common sources of signal (e.g. ICA
+                        components from a group-ICA run).The default file
+                        corresponds to a MELODIC run on a combined group of
+                        anesthetized-ventilated mice with MEDISO and awake
+                        mice.Confound regression consisted of highpass at 0.01
+                        Hz, FD censoring at 0.03mm, DVARS censoring, and
+                        mot_6,WM_signal,CSF_signal as regressors. (default:
+                        /home/gabriel/.local/share/rabies/melodic_IC.nii.gz)
+  --prior_bold_idx [PRIOR_BOLD_IDX [PRIOR_BOLD_IDX ...]]
+  --prior_confound_idx [PRIOR_CONFOUND_IDX [PRIOR_CONFOUND_IDX ...]]
+  --DSURQE_regions      (default: False)
 ```
 
 </p>

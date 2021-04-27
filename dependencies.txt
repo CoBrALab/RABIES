@@ -1,29 +1,4 @@
-# Minimal dependencies
-ANTs>=2.3.1
-AFNI>=17.0.18
+minc-toolkit>=1.9.18
+ANTs
 FSL
-minc-toolkit
-
-# python dependencies
-conda channels:
-  - defaults
-  - conda-forge
-  - bioconda
-  - simpleitk
-python=3.6.8
-numpy>=1.16.2
-pandas
-scipy
-python-graphviz
-pip
-cython
-setuptools
-SimpleITK==1.2.3
-scikit-image
-scikit-learn>=0.20.0
-nibabel>=2.3.1
-nilearn>=0.4.2
-nipype>=1.1.4
-tqdm
-pathos
-pybids
+AFNI

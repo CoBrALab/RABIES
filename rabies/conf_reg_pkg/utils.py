@@ -127,24 +127,11 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     else:
         time_range = range(data_array.shape[3])
 
-    timeseries = np.zeros([len(time_range), volume_indices.sum()])
-    for i in time_range:
-        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
-
-    # apply simple detrending
-    from scipy.signal import detrend
-    timeseries = detrend(timeseries,axis=0)
-    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
-
-    timeseries_3d=recover_3D_multiple(brain_mask_file, timeseries)
-    out_file = os.path.abspath(filename_split[0]+'_prep.nii.gz')
-    timeseries_3d.to_filename(out_file)
-
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array}
-    return out_file, data_dict
+    return data_dict
 
 def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
-        FD_censoring, FD_threshold, DVARS_censoring):
+        FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
     FD_trace=data_dict['FD_trace']
     confounds_array=data_dict['confounds_array']
 
@@ -176,13 +163,20 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
             mask2=np.abs(norm)<2.5
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
-    if frame_mask.sum()<3:
-        print("FD/DVARS CENSORING LEFT LESS THAN 3 VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+    if frame_mask.sum()<int(minimum_timepoint):
+        import logging
+        log = logging.getLogger('root')
+        log.info("FD/DVARS CENSORING LEFT LESS THAN %s VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING." (str(minimum_timepoint)))
         return None
     timeseries=timeseries[frame_mask,:]
     confounds_array=confounds_array[frame_mask,:]
     FD_trace=FD_trace[frame_mask]
     DVARS=DVARS[frame_mask]
+
+    # apply simple detrending, after censoring
+    from scipy.signal import detrend
+    timeseries = detrend(timeseries,axis=0)
+    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
 
     data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
     return data_dict
@@ -225,7 +219,9 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
             conf_keys += [s for s in keys if "rot" in s or "mov" in s]
         elif conf == 'aCompCor':
             aCompCor_keys = [s for s in keys if "aCompCor" in s]
-            print('Applying aCompCor with '+len(aCompCor_keys)+' components.')
+            import logging
+            log = logging.getLogger('root')
+            log.info('Applying aCompCor with '+len(aCompCor_keys)+' components.')
             conf_keys += aCompCor_keys
         elif conf == 'mean_FD':
             mean_FD = pd.read_csv(FD_file).get('Mean')
@@ -261,7 +257,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
 
     TR = float(cr_opts.TR.split('s')[0])
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
-            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
+            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
     if data_dict is None:
         import SimpleITK as sitk
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
@@ -281,7 +277,9 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     try:
         res = Y-X.dot(closed_form(X,Y))
     except:
-        print("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        import logging
+        log = logging.getLogger('root')
+        log.debug("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         import SimpleITK as sitk
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')
@@ -299,7 +297,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
     timeseries_3d = recover_3D_multiple(brain_mask_file, timeseries)
     if cr_opts.smoothing_filter is not None:
-        import nilearn.image.smoothing
+        import nilearn.image.smooth_img
         timeseries_3d = nilearn.image.smooth_img(timeseries_3d, cr_opts.smoothing_filter)
 
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
