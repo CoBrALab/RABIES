@@ -127,21 +127,8 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     else:
         time_range = range(data_array.shape[3])
 
-    timeseries = np.zeros([len(time_range), volume_indices.sum()])
-    for i in time_range:
-        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
-
-    # apply simple detrending
-    from scipy.signal import detrend
-    timeseries = detrend(timeseries,axis=0)
-    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
-
-    timeseries_3d=recover_3D_multiple(brain_mask_file, timeseries)
-    out_file = os.path.abspath(filename_split[0]+'_prep.nii.gz')
-    timeseries_3d.to_filename(out_file)
-
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array}
-    return out_file, data_dict
+    return data_dict
 
 def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
         FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
@@ -185,6 +172,11 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
     confounds_array=confounds_array[frame_mask,:]
     FD_trace=FD_trace[frame_mask]
     DVARS=DVARS[frame_mask]
+
+    # apply simple detrending, after censoring
+    from scipy.signal import detrend
+    timeseries = detrend(timeseries,axis=0)
+    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
 
     data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
     return data_dict
