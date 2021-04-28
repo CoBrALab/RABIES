@@ -1029,7 +1029,7 @@ def get_iterable_scan_list(scan_list, bold_scan_list):
         for scan in bold_scan_list:
             scan_split_name.append(pathlib.Path(scan).name.rsplit(".nii")[0])
     else:
-        raise ValueError("")
+        raise ValueError("The scan_list input had improper format.")
     return scan_split_name
 
 
@@ -1045,3 +1045,4 @@ def find_iterable(file_list, scan_split_name):
                 raise ValueError("FD_censoring and/or DVARS_censoring during confound regression resulted in an empty file for scan %s. "
                                 "You will have to specify a list of scans that are not empty with --scan_list option." % (file['name_source']))
             return file
+    raise ValueError("No matching file was found for %s" % (scan_split_name))

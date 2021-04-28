@@ -166,7 +166,7 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
     if frame_mask.sum()<int(minimum_timepoint):
         import logging
         log = logging.getLogger('root')
-        log.info("FD/DVARS CENSORING LEFT LESS THAN %s VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING." (str(minimum_timepoint)))
+        log.info("FD/DVARS CENSORING LEFT LESS THAN %s VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING." % (str(minimum_timepoint)))
         return None
     timeseries=timeseries[frame_mask,:]
     confounds_array=confounds_array[frame_mask,:]
