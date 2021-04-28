@@ -71,23 +71,25 @@ RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
     tcsh @update.afni.binaries -package linux_ubuntu_16_64 -apsearch yes -bindir /opt/quarantine/afni && \
     rm -f @update.afni.binaries
 
-RUN echo "export PATH=/opt/quarantine/afni${PATH:+:$PATH}" > /etc/profile.d/99afni.sh
+RUN echo 'export PATH=/opt/quarantine/afni${PATH:+:$PATH}' > /etc/profile.d/99afni.sh
 
 #Install FSL
 RUN curl -L -O https://fsl.fmrib.ox.ac.uk/fsldownloads/fslinstaller.py && \
     python fslinstaller.py -d /opt/quarantine/fsl -p -q && \
     rm -f fslinstaller.py
 
-RUN echo "export FSLDIR=/opt/quarantine/fsl && export PATH=/opt/quarantine/fsl/bin${PATH:+:$PATH} && . ${FSLDIR}/etc/fslconf/fsl.sh" > /etc/profile.d/99fsl.sh
+RUN echo 'export FSLDIR=/opt/quarantine/fsl && export PATH=/opt/quarantine/fsl/bin${PATH:+:$PATH} && . ${FSLDIR}/etc/fslconf/fsl.sh' > /etc/profile.d/99fsl.sh
 
 #Install minc-toolkit
 RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb http://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
   gdebi -n /tmp/minc-toolkit-1.9.18.deb && \
   rm -f /tmp/minc-toolkit-1.9.18.deb
 
-#Enable minc-toolkit
-RUN echo ". /opt/minc/1.9.18/minc-toolkit-config.sh" > /etc/profile.d/98minc.sh
+COPY minc-toolkit-extras /opt/quarantine
 
+#Enable minc-toolkit
+RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
+RUN echo 'export PATH=/opt/quarantine/minc-toolkit-extras${PATH:+:$PATH}' >> /etc/profile.d/98minc.sh
 
 #install conda
 RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
@@ -96,25 +98,23 @@ RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download
 
 #enable conda
 RUN cp /opt/quarantine/miniforge/etc/profile.d/conda.sh /etc/profile.d/99conda.sh
-RUN echo "export PATH=/opt/ANTs/bin${PATH:+:$PATH}" >> /etc/profile.d/99ANTs.sh
+RUN echo 'conda activate' >> /etc/profile.d/99conda.sh
+RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
 
+RUN . /etc/profile.d/99conda.sh && conda config --append channels simpleitk && \
+  conda install -y 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
+  conda activate && \
+  pip install rabies==0.2.3
 
 USER rabies
 WORKDIR /home/rabies
 ENV HOME="/home/rabies"
 
-RUN conda config --append channels conda-forge && \
-  conda config --append channels simpleitk && \
-  conda create -n rabies python=3.6.8 && \
-  conda install -y 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
-  pip install rabies==0.2.3
-
-# overide the path with the rabies environment so that it becomes the default
-ENV PATH=$CONDA_DIR/envs/rabies/bin:$PATH
+RUN . /etc/profile.d/99conda.sh && conda config --set auto_activate_base true
 
 # pre-install the template defaults
 ENV XDG_DATA_HOME=$HOME/.local/share
 
-RUN install_DSURQE.sh $XDG_DATA_HOME/rabies
+RUN . /etc/profile.d/99conda.sh && . /etc/profile.d/98minc.sh && install_DSURQE.sh $XDG_DATA_HOME/rabies
 
-ENTRYPOINT ["/bin/bash", "-c", "rabies"]
+ENTRYPOINT ["/bin/bash", "--login"]

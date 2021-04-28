@@ -1,0 +1,3 @@
+[submodule "minc-toolkit-extras"]
+	path = minc-toolkit-extras
+	url = https://github.com/CoBrALab/minc-toolkit-extras.git
