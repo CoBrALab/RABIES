@@ -304,7 +304,7 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--wf_name', type=str, default='analysis_wf',
+    data_diagnosis.add_argument('--wf_name', type=str, default='data_diagnosis_wf',
                                      help='Can specify a name for the workflow of this data diagnosis run, to avoid potential '
                                      'overlaps with previous runs.')
     data_diagnosis.add_argument('--scan_list', type=str,
@@ -316,9 +316,6 @@ def get_parser():
                                      "or the files can be imbedded into a .txt file with one filename per row."
                                      "By default, 'all' will use all the scans previously processed."
                                      )
-    data_diagnosis.add_argument('--dual_regression', dest='dual_regression', action='store_true',
-                                     default=False,
-                                     help="""Whether to evaluate dual regression outputs.""")
     data_diagnosis.add_argument('--dual_convergence', type=int, default=0,
                              help="Can specify a number of components to compute using a dual convergence framework.")
     data_diagnosis.add_argument('--prior_maps', action='store', type=Path,

@@ -72,8 +72,6 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
-    dual_regression = traits.Bool(
-        desc="Whether to evaluate dual regression outputs.")
     dual_convergence = traits.Int(
         desc="number of components to compute from dual convergence.")
     DSURQE_regions = traits.Bool(
@@ -113,7 +111,7 @@ class ScanDiagnosis(BaseInterface):
             prior_fit=False
             prior_fit_options=[]
 
-        temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, self.inputs.dual_regression, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
+        temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
 
         fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
@@ -159,9 +157,16 @@ class DatasetDiagnosis(BaseInterface):
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.spatial_info_list))
         if len(merged)<3:
-            raise ValueError("Cannot run statistics on a sample size smaller than 3.")
+            import logging
+            log = logging.getLogger('root')
+            log.warning("Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
+            fig,axes = plt.subplots()
+            fig.savefig(os.path.abspath('empty_dataset_diagnosis.png'), bbox_inches='tight')
 
-        dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_maps', 'prior_modeling_maps']
+            setattr(self, 'figure_dataset_diagnosis', os.path.abspath('empty_dataset_diagnosis.png'))
+            return runtime
+
+        dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_BOLD', 'prior_modeling_maps']
 
         voxelwise_list=[]
         for spatial_info in merged:
@@ -174,8 +179,8 @@ class DatasetDiagnosis(BaseInterface):
         voxelwise_array=np.array(voxelwise_list)
 
         label_name=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr']
-        label_name += ['BOLD DR map %s' % (i) for i in range(num_DR_maps)]
-        label_name += ['BOLD prior modeling map %s' % (i) for i in range(num_prior_maps)]
+        label_name += ['BOLD Dual Regression map %s' % (i) for i in range(num_DR_maps)]
+        label_name += ['BOLD Dual Convergence map %s' % (i) for i in range(num_prior_maps)]
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
@@ -322,7 +327,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_regression=False, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[]):
     temporal_info={}
     spatial_info={}
 
@@ -357,14 +362,29 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
 
 
     '''Temporal Features'''
+    ### compute dual regression
+    ### Here, we adopt an approach where the algorithm should explain the data
+    ### as a linear combination of spatial maps. The data itself, is only temporally
+    ### detrended, and not spatially centered, which could cause inconsistencies during
+    ### linear regression according to https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero
+    ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
+    ### this measure would be removing global signal variations which we are interested in.
+    ### Thus we prefer to avoid this step here, despite modelling limitations.
     X = all_IC_vectors.T
     Y = timeseries.T
     # for one given volume, it's values can be expressed through a linear combination of the components
-    w = analysis_functions.closed_form(X, Y, intercept=True) # take a bias into account in the model
-    w = w[:-1,:] # take out the intercept
+    W = analysis_functions.closed_form(X, Y, intercept=False).T
+    # normalize the component timecourses to unit variance
+    W /= W.std(axis=0)
+    # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
+    C = analysis_functions.closed_form(W, Y.T, intercept=False)
+    DR = {'C':C, 'W':W}
+    temporal_info['DR_all']=DR['W']
+    spatial_info['DR_BOLD'] = DR['C'][prior_bold_idx]
+    spatial_info['DR_all'] = DR['C']
 
-    signal_trace = np.abs(w[prior_bold_idx,:]).mean(axis=0)
-    noise_trace = np.abs(w[prior_confound_idx,:]).mean(axis=0)
+    signal_trace = np.abs(DR['W'][:,prior_bold_idx]).mean(axis=1)
+    noise_trace = np.abs(DR['W'][:,prior_confound_idx]).mean(axis=1)
     temporal_info['signal_trace']=signal_trace
     temporal_info['noise_trace']=noise_trace
 
@@ -387,15 +407,8 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
     DVARS_corr = analysis_functions.vcorrcoef(timeseries.T[:,1:], DVARS[1:])
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
-    if dual_regression:
-        dr_maps = analysis_functions.dual_regression(all_IC_vectors, timeseries)
-        signal_maps=dr_maps[prior_bold_idx]
-    else:
-        signal_maps=np.empty([0,len(temporal_std)])
-
-    prior_out=np.empty([0,len(temporal_std)])
+    prior_fit_out={'C':[],'W':[]}
     if prior_fit:
-        prior_out = []
         [num_comp,convergence_function] = prior_fit_options
         X=timeseries
 
@@ -421,17 +434,21 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
 
             # L-2 norm normalization of the components
             C /= np.sqrt((C ** 2).sum(axis=0))
-            W = analysis_functions.closed_form(C,X.T).T
-            C_norm=C*W.std(axis=0)
+            W = analysis_functions.closed_form(C,X.T, intercept=False).T
+            # the components will contain the weighting/STD/singular value, and the timecourses are normalized
+            C=C*W.std(axis=0)
+            # normalize the component timecourses to unit variance
+            W /= W.std(axis=0)
 
-            prior_out.append(C_norm[:,0])
+            prior_fit_out['C'].append(C[:,0])
+            prior_fit_out['W'].append(W[:,0])
+    spatial_info['prior_modeling_maps'] = prior_fit_out['C']
+    temporal_info['prior_modeling_time'] = prior_fit_out['W']
 
     spatial_info['temporal_std'] = temporal_std
     spatial_info['GS_corr'] = GS_corr
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
-    spatial_info['DR_maps'] = signal_maps
-    spatial_info['prior_modeling_maps'] = prior_out
 
     return temporal_info,spatial_info
 
@@ -443,9 +460,20 @@ def temporal_external_formating(temporal_info, file_dict):
     bold_file = file_dict['bold_file']
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
-    temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info_csv.nii.gz')
+
+    dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
+    pd.DataFrame(temporal_info['DR_all']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
+    if len(temporal_info['prior_modeling_time'])>0:
+        dual_convergence_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_convergence_timecourse.csv')
+        pd.DataFrame(temporal_info['prior_modeling_time']).to_csv(dual_convergence_timecourse_csv, header=False, index=False)
+    else:
+        dual_convergence_timecourse_csv = None
+
+    del temporal_info['DR_all'], temporal_info['prior_modeling_time']
+
+    temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
-    return temporal_info_csv
+    return temporal_info_csv, dual_regression_timecourse_csv, dual_convergence_timecourse_csv
 
 
 def spatial_external_formating(spatial_info, file_dict):
@@ -470,11 +498,8 @@ def spatial_external_formating(spatial_info, file_dict):
     FD_corr_filename = os.path.abspath(filename_split[0]+'_FD_corr.nii.gz')
     analysis_functions.recover_3D(mask_file,spatial_info['FD_corr']).to_filename(FD_corr_filename)
 
-    if len(spatial_info['DR_maps'])>0:
-        DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-        analysis_functions.recover_3D_multiple(mask_file,spatial_info['DR_maps']).to_filename(DR_maps_filename)
-    else:
-        DR_maps_filename = None
+    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
+    analysis_functions.recover_3D_multiple(mask_file,spatial_info['DR_all']).to_filename(DR_maps_filename)
 
     if len(spatial_info['prior_modeling_maps'])>0:
         import numpy as np
@@ -602,7 +627,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional
     ax3.set_ylim([0.0,0.09])
     ax3.set_xlabel('Timepoint', fontsize=15)
 
-    dr_maps=spatial_info['DR_maps']
+    dr_maps=spatial_info['DR_BOLD']
     mask_file=mask_file_dict['brain_mask']
 
     nrows=5+dr_maps.shape[0]
