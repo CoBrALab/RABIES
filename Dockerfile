@@ -117,4 +117,5 @@ ENV XDG_DATA_HOME=$HOME/.local/share
 
 RUN . /etc/profile.d/99conda.sh && . /etc/profile.d/98minc.sh && install_DSURQE.sh $XDG_DATA_HOME/rabies
 
-ENTRYPOINT ["/bin/bash", "--login"]
+SHELL ["/bin/bash", "--login", "-c"]
+ENTRYPOINT ["/bin/bash" , "--login", "-c", "rabies \"$@\"", "bash"]
