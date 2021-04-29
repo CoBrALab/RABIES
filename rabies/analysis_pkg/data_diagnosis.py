@@ -184,7 +184,7 @@ class DatasetDiagnosis(BaseInterface):
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
-        from rabies.preprocess_pkg.preprocess_visual_QC import plot_coronal, otsu_scaling
+        from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
         scaled = otsu_scaling(template_file)
 
         ncols=5
@@ -200,10 +200,10 @@ class DatasetDiagnosis(BaseInterface):
                 Y=voxelwise_array[:,j,:]
                 corr=elementwise_corrcoef(X, Y)
 
-                plot_coronal(ax,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+                plot_3d([ax],scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6, planes=('coronal'))
                 analysis_functions.recover_3D(mask_file,corr).to_filename('temp_img.nii.gz')
                 sitk_img=sitk.ReadImage('temp_img.nii.gz')
-                plot_coronal(ax,sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+                plot_3d([ax],sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
                 ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15)
         fig.savefig(os.path.abspath('dataset_diagnosis.png'), bbox_inches='tight')
 
@@ -639,51 +639,51 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional
 
     axes=axes2[0,:]
     scaled = otsu_scaling(template_file)
-    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(mask_file,spatial_info['temporal_std']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True)
+    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for ax in axes:
         ax.set_title('Temporal STD', fontsize=25)
 
     axes=axes2[1,:]
-    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(mask_file,spatial_info['VE_spatial']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, threshold=0.1)
+    plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
         ax.set_title('CR R^2', fontsize=25)
 
     axes=axes2[2,:]
-    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(mask_file,spatial_info['GS_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
         ax.set_title('Global Signal Correlation', fontsize=25)
 
     axes=axes2[3,:]
-    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(mask_file,spatial_info['DVARS_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=25)
 
     axes=axes2[4,:]
-    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+    plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(mask_file,spatial_info['FD_corr']).to_filename('temp_img.nii.gz')
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+    plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
         ax.set_title('FD Correlation', fontsize=25)
 
     for i in range(dr_maps.shape[0]):
         axes=axes2[i+5,:]
-        plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False)
+        plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
         analysis_functions.recover_3D(mask_file,dr_maps[i,:]).to_filename('temp_img.nii.gz')
         sitk_img=sitk.ReadImage('temp_img.nii.gz')
-        plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1)
+        plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
         for ax in axes:
             ax.set_title('BOLD component %s' % (i), fontsize=25)
 
