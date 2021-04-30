@@ -915,7 +915,6 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         (temporal_external_formating_node, data_diagnosis_datasink, [
             ("temporal_info_csv", "temporal_info_csv"),
             ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ("dual_convergence_timecourse_csv", "dual_convergence_timecourse_csv"),
             ]),
         (spatial_external_formating_node, data_diagnosis_datasink, [
             ("std_filename", "temporal_std_nii"),
@@ -930,6 +929,9 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         workflow.connect([
             (spatial_external_formating_node, data_diagnosis_datasink, [
                 ("prior_modeling_filename", "dual_convergence_nii"),
+                ]),
+            (temporal_external_formating_node, data_diagnosis_datasink, [
+                ("dual_convergence_timecourse_csv", "dual_convergence_timecourse_csv"),
                 ]),
             ])
 

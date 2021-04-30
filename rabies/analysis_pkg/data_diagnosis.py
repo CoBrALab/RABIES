@@ -113,7 +113,8 @@ class ScanDiagnosis(BaseInterface):
 
         temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
 
-        fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
+        confounds_csv = CR_data_dict['confounds_csv']
+        fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, confounds_csv, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
         filename_template = pathlib.Path(bold_file).name.rsplit(".nii")[0]
@@ -172,7 +173,10 @@ class DatasetDiagnosis(BaseInterface):
         for spatial_info in merged:
             sub_list = [spatial_info[key] for key in dict_keys]
             voxelwise_sub = np.array(sub_list[:5])
-            voxelwise_sub = np.concatenate((voxelwise_sub,np.array(sub_list[5]),np.array(sub_list[6])),axis=0)
+            if len(sub_list[6])>0:
+                voxelwise_sub = np.concatenate((voxelwise_sub,np.array(sub_list[5]),np.array(sub_list[6])),axis=0)
+            else:
+                voxelwise_sub = np.concatenate((voxelwise_sub,np.array(sub_list[5])),axis=0)
             voxelwise_list.append(voxelwise_sub)
             num_DR_maps = len(sub_list[5])
             num_prior_maps = len(sub_list[6])
@@ -188,7 +192,7 @@ class DatasetDiagnosis(BaseInterface):
         scaled = otsu_scaling(template_file)
 
         ncols=5
-        fig,axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols,figsize=(12*ncols,3*voxelwise_array.shape[1]))
+        fig,axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols,figsize=(12*ncols,2*voxelwise_array.shape[1]))
         for i,x_label in zip(range(voxelwise_array.shape[1]),label_name):
             for j,y_label in zip(range(ncols),label_name[:ncols]):
                 ax=axes[i,j]
@@ -556,16 +560,18 @@ def grayplot(timeseries_file,mask_file_dict,fig,ax):
     im = ax.imshow(grayplot_array, cmap='gray', vmax=vmax, vmin=-vmax, aspect='auto')
     return im
 
-def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional_grayplot=False):
+def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confounds_csv, regional_grayplot=False):
     template_file = mask_file_dict['template_file']
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    fig, axCenter = plt.subplots(figsize=(6,15))
+    fig, axCenter = plt.subplots(figsize=(6,18))
     fig.subplots_adjust(.2,.1,.8,.95)
 
     divider = make_axes_locatable(axCenter)
-    ax1 = divider.append_axes('bottom', size='50%', pad=0.5)
+    ax1 = divider.append_axes('bottom', size='25%', pad=0.5)
+    ax1_ = divider.append_axes('bottom', size='25%', pad=0.1)
     ax2 = divider.append_axes('bottom', size='50%', pad=0.5)
     ax3 = divider.append_axes('bottom', size='50%', pad=0.5)
+    ax4 = divider.append_axes('bottom', size='50%', pad=0.5)
 
     if regional_grayplot:
         im,slice_alt,region_mask_label = grayplot_regional(bold_file,mask_file_dict,fig,axCenter)
@@ -589,50 +595,66 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, regional
     axCenter.axes.get_yaxis().set_ticks([])
     plt.setp(axCenter.get_xticklabels(), visible=False)
 
-    #ax1.set_title(name, fontsize=15)
-    y=temporal_info['FD_trace']
-    ax1.plot(y, 'r')
-    ax1.set_xlim([0,len(y)])
-    ax1.legend(['Framewise Displacement (FD)'], loc='upper right')
+    # plot the motion timecourses
+    import pandas as pd
+    df = pd.read_csv(confounds_csv)
+    ax1.plot(df['mov1'])
+    ax1.plot(df['mov2'])
+    ax1.plot(df['mov3'])
+    ax1.legend(['translation 1','translation 2','translation 3'], loc='center left', bbox_to_anchor=(1, 0.5))
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
-    ax1.set_ylim([0.0,0.1])
     plt.setp(ax1.get_xticklabels(), visible=False)
+
+    ax1_.plot(df['rot1'])
+    ax1_.plot(df['rot2'])
+    ax1_.plot(df['rot3'])
+    ax1_.legend(['rotation 1','rotation 2','rotation 3'], loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.setp(ax1_.get_xticklabels(), visible=False)
+    ax1_.spines['right'].set_visible(False)
+    ax1_.spines['top'].set_visible(False)
+
+    #ax1.set_title(name, fontsize=15)
+    y=temporal_info['FD_trace']
+    ax2.plot(y, 'r')
+    ax2.set_xlim([0,len(y)])
+    ax2.legend(['Framewise Displacement (FD)'], loc='upper right')
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax2.set_ylim([0.0,0.1])
+    plt.setp(ax2.get_xticklabels(), visible=False)
 
     DVARS=temporal_info['DVARS']
     DVARS[0]=None
     y=DVARS
-    ax2.plot(y)
-    ax2.set_xlim([0,len(y)])
-    ax2.plot(temporal_info['edge_trace'])
-    ax2.plot(temporal_info['WM_trace'])
-    ax2.plot(temporal_info['CSF_trace'])
-    #ax2.plot(temporal_info['not_edge_trace'])
-    ax2.plot(temporal_info['VE_temporal'])
-    #ax2.set_ylabel('Mask L2-norm', fontsize=12)
-    ax2.legend(['DVARS','Edge Mask', 'WM Mask', 'CSF Mask', 'CR R^2'], loc='center left', bbox_to_anchor=(1, 0.5))
-    ax2.spines['right'].set_visible(False)
-    ax2.spines['top'].set_visible(False)
-    ax2.set_ylim([0.0,1])
-    plt.setp(ax2.get_xticklabels(), visible=False)
-
-    y=temporal_info['signal_trace']
     ax3.plot(y)
     ax3.set_xlim([0,len(y)])
-    ax3.plot(temporal_info['noise_trace'])
-    #ax3.set_ylabel('Mean Component Weight', fontsize=12)
-    ax3.legend(['BOLD components', 'Confound components'], loc='upper right')
+    ax3.plot(temporal_info['edge_trace'])
+    ax3.plot(temporal_info['WM_trace'])
+    ax3.plot(temporal_info['CSF_trace'])
+    ax3.plot(temporal_info['VE_temporal'])
+    ax3.legend(['DVARS','Edge Mask', 'WM Mask', 'CSF Mask', 'CR R^2'], loc='center left', bbox_to_anchor=(1, 0.5))
     ax3.spines['right'].set_visible(False)
     ax3.spines['top'].set_visible(False)
-    ax3.set_ylim([0.0,0.09])
-    ax3.set_xlabel('Timepoint', fontsize=15)
+    ax3.set_ylim([0.0,1.5])
+    plt.setp(ax3.get_xticklabels(), visible=False)
+
+    y=temporal_info['signal_trace']
+    ax4.plot(y)
+    ax4.set_xlim([0,len(y)])
+    ax4.plot(temporal_info['noise_trace'])
+    ax4.legend(['BOLD components', 'Confound components'], loc='upper right')
+    ax4.spines['right'].set_visible(False)
+    ax4.spines['top'].set_visible(False)
+    ax4.set_ylim([0.0,4.0])
+    ax4.set_xlabel('Timepoint', fontsize=15)
 
     dr_maps=spatial_info['DR_BOLD']
     mask_file=mask_file_dict['brain_mask']
 
     nrows=5+dr_maps.shape[0]
 
-    fig2,axes2 = plt.subplots(nrows=nrows, ncols=3,figsize=(12*3,3*nrows))
+    fig2,axes2 = plt.subplots(nrows=nrows, ncols=3,figsize=(12*3,2*nrows))
     plt.tight_layout()
 
     from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
