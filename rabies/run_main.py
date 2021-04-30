@@ -411,9 +411,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         raise ValueError("The provided BIDS data path doesn't exists.")
     else:
         # print the input data directory tree
-        from rabies.preprocess_pkg.utils import run_command
-        log.info("INPUT BIDS DATASET: ")
-        rc = run_command('tree %s' % (data_dir_path), verbose = True)
+        log.info("INPUT BIDS DATASET:  \n" + list_files(data_dir_path))
 
     import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
@@ -542,3 +540,15 @@ def install_DSURQE(log):
         from rabies.preprocess_pkg.utils import run_command
         log.info("SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
         rc = run_command('install_DSURQE.sh %s' % (rabies_path), verbose = True)
+
+
+def list_files(startpath):
+    string = ''
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        string+='{}{}/ \n'.format(indent, os.path.basename(root))
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            string+='{}{} \n'.format(subindent, f)
+    return string
