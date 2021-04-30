@@ -815,7 +815,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, temporal_external_formating, spatial_external_formating
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
-        prior_confound_idx=data_diagnosis_opts.prior_confound_idx, dual_regression = data_diagnosis_opts.dual_regression,
+        prior_confound_idx=data_diagnosis_opts.prior_confound_idx,
             dual_convergence = data_diagnosis_opts.dual_convergence, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name=data_diagnosis_opts.wf_name+'_ScanDiagnosis')
 
@@ -827,7 +827,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                            output_names=[
-                                               'temporal_info_csv'],
+                                               'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_convergence_timecourse_csv'],
                                        function=temporal_external_formating),
                               name=data_diagnosis_opts.wf_name+'_temporal_external_formating')
 
@@ -914,26 +914,24 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ]),
         (temporal_external_formating_node, data_diagnosis_datasink, [
             ("temporal_info_csv", "temporal_info_csv"),
+            ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
             ]),
         (spatial_external_formating_node, data_diagnosis_datasink, [
             ("std_filename", "temporal_std_nii"),
             ("GS_corr_filename", "GS_corr_nii"),
             ("DVARS_corr_filename", "DVARS_corr_nii"),
             ("FD_corr_filename", "FD_corr_nii"),
+            ("DR_maps_filename", "dual_regression_nii"),
             ]),
         ])
-
-    if data_diagnosis_opts.dual_regression:
-        workflow.connect([
-            (spatial_external_formating_node, data_diagnosis_datasink, [
-                ("DR_maps_filename", "DR_maps_nii"),
-                ]),
-            ])
 
     if data_diagnosis_opts.dual_convergence>0:
         workflow.connect([
             (spatial_external_formating_node, data_diagnosis_datasink, [
                 ("prior_modeling_filename", "dual_convergence_nii"),
+                ]),
+            (temporal_external_formating_node, data_diagnosis_datasink, [
+                ("dual_convergence_timecourse_csv", "dual_convergence_timecourse_csv"),
                 ]),
             ])
 
@@ -1029,7 +1027,7 @@ def get_iterable_scan_list(scan_list, bold_scan_list):
         for scan in bold_scan_list:
             scan_split_name.append(pathlib.Path(scan).name.rsplit(".nii")[0])
     else:
-        raise ValueError("")
+        raise ValueError("The scan_list input had improper format.")
     return scan_split_name
 
 
@@ -1045,3 +1043,4 @@ def find_iterable(file_list, scan_split_name):
                 raise ValueError("FD_censoring and/or DVARS_censoring during confound regression resulted in an empty file for scan %s. "
                                 "You will have to specify a list of scans that are not empty with --scan_list option." % (file['name_source']))
             return file
+    raise ValueError("No matching file was found for %s" % (scan_split_name))

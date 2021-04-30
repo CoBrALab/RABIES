@@ -304,7 +304,7 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--wf_name', type=str, default='analysis_wf',
+    data_diagnosis.add_argument('--wf_name', type=str, default='data_diagnosis_wf',
                                      help='Can specify a name for the workflow of this data diagnosis run, to avoid potential '
                                      'overlaps with previous runs.')
     data_diagnosis.add_argument('--scan_list', type=str,
@@ -316,9 +316,6 @@ def get_parser():
                                      "or the files can be imbedded into a .txt file with one filename per row."
                                      "By default, 'all' will use all the scans previously processed."
                                      )
-    data_diagnosis.add_argument('--dual_regression', dest='dual_regression', action='store_true',
-                                     default=False,
-                                     help="""Whether to evaluate dual regression outputs.""")
     data_diagnosis.add_argument('--dual_convergence', type=int, default=0,
                              help="Can specify a number of components to compute using a dual convergence framework.")
     data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
@@ -414,9 +411,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         raise ValueError("The provided BIDS data path doesn't exists.")
     else:
         # print the input data directory tree
-        from rabies.preprocess_pkg.utils import run_command
-        log.info("INPUT BIDS DATASET: ")
-        rc = run_command('tree %s' % (data_dir_path), verbose = True)
+        log.info("INPUT BIDS DATASET:  \n" + list_files(data_dir_path))
 
     import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
@@ -545,3 +540,15 @@ def install_DSURQE(log):
         from rabies.preprocess_pkg.utils import run_command
         log.info("SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
         rc = run_command('install_DSURQE.sh %s' % (rabies_path), verbose = True)
+
+
+def list_files(startpath):
+    string = ''
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        string+='{}{}/ \n'.format(indent, os.path.basename(root))
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            string+='{}{} \n'.format(subindent, f)
+    return string
