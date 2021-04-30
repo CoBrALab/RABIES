@@ -93,6 +93,10 @@ RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
 RUN echo 'export PATH=/opt/quarantine/minc-toolkit-extras${PATH:+:$PATH}' >> /etc/profile.d/98minc.sh
 RUN echo 'export PATH=/opt/quarantine/twolevel_ants_dbm${PATH:+:$PATH}' >> /etc/profile.d/98minc.sh
 
+#Enable ANTs
+RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
+RUN echo 'export ANTSPATH=/opt/ANTs/bin' >> /etc/profile.d/99ANTS.sh
+
 #install conda
 RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
     bash Miniforge3-Linux-x86_64.sh -b -p /opt/quarantine/miniforge && \
@@ -104,9 +108,9 @@ RUN echo 'conda activate' >> /etc/profile.d/99conda.sh
 RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
 
 RUN . /etc/profile.d/99conda.sh && conda config --append channels simpleitk && \
-  conda install -y 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
+  conda install -y 'networkx>=2.4' 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
   conda activate && \
-  pip install rabies==0.2.3
+  pip install rabies==0.2.4
 
 USER rabies
 WORKDIR /home/rabies
