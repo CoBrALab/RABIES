@@ -85,6 +85,7 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
         exists=True, desc="Output figure from the scan diagnosis")
     temporal_info = traits.Dict(desc="A dictionary regrouping the temporal features.")
     spatial_info = traits.Dict(desc="A dictionary regrouping the spatial features.")
+    VE_file = File(exists=True, mandatory=True, desc="Output the VE file for the datasink.")
 
 class ScanDiagnosis(BaseInterface):
     """
@@ -126,6 +127,7 @@ class ScanDiagnosis(BaseInterface):
         setattr(self, 'figure_spatial_diagnosis', figure_path+'_spatial_diagnosis.png')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
+        setattr(self, 'VE_file', VE_file)
 
         return runtime
 
@@ -133,7 +135,8 @@ class ScanDiagnosis(BaseInterface):
         return {'figure_temporal_diagnosis': getattr(self, 'figure_temporal_diagnosis'),
                 'figure_spatial_diagnosis': getattr(self, 'figure_spatial_diagnosis'),
                 'temporal_info': getattr(self, 'temporal_info'),
-                'spatial_info': getattr(self, 'spatial_info'), }
+                'spatial_info': getattr(self, 'spatial_info'),
+                'VE_file': getattr(self, 'VE_file'), }
 
 
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):

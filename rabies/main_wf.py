@@ -900,14 +900,11 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
                                      container="data_diagnosis_datasink"),
                             name="data_diagnosis_datasink")
-
     workflow.connect([
-        (confound_regression_wf, data_diagnosis_datasink, [
-            ("outputnode.VE_file", "VE_file"),
-            ]),
         (ScanDiagnosis_node, data_diagnosis_datasink, [
             ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
             ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
+            ("VE_file", "VE_file"),
             ]),
         (DatasetDiagnosis_node, data_diagnosis_datasink, [
             ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
