@@ -847,11 +847,11 @@ def convert_to_RAS(img_file, out_dir=None):
         return out_file
 
 
-def resample_template(template_file, file_list, spacing='inputs_defined', rabies_data_type=8):
+def resample_template(template_file, mask_file, file_list, spacing='inputs_defined', rabies_data_type=8):
     import os
     import SimpleITK as sitk
     import numpy as np
-    from rabies.preprocess_pkg.utils import resample_image_spacing
+    from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
     import logging
     log = logging.getLogger('root')
 
@@ -882,7 +882,13 @@ def resample_template(template_file, file_list, spacing='inputs_defined', rabies
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
         template_file, rabies_data_type), spacing), resampled_template)
 
-    return resampled_template
+    # also resample the brain mask to ensure stable registrations further down
+    resampled_mask = os.path.abspath("resampled_mask.nii.gz")
+    command = 'antsApplyTransforms -d 3 -i %s -r %s -o %s --verbose -n GenericLabel' % (
+        mask_file, resampled_template, resampled_mask,)
+    rc = run_command(command)
+
+    return resampled_template, resampled_mask
 
 
 def run_command(command, verbose = False):
