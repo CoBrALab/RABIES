@@ -142,12 +142,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # Resample the anatomical template according to the resolution of the provided input data
     from rabies.preprocess_pkg.utils import resample_template
-    resample_template_node = pe.Node(Function(input_names=['template_file', 'file_list', 'spacing', 'rabies_data_type'],
+    resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
                                               output_names=[
-                                                  'resampled_template'],
+                                                  'resampled_template', 'resampled_mask'],
                                               function=resample_template),
                                      name='resample_template', mem_gb=1*opts.scale_min_memory)
     resample_template_node.inputs.template_file = str(opts.anat_template)
+    resample_template_node.inputs.mask_file = str(opts.brain_mask)
     resample_template_node.inputs.spacing = opts.anatomical_resampling
     resample_template_node.inputs.file_list = scan_list
     resample_template_node.inputs.rabies_data_type = opts.data_type
@@ -163,7 +164,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                                   'inverse_warp', 'warped_image'],
                                     function=run_antsRegistration),
                            name='template_reg', mem_gb=2*opts.scale_min_memory)
-    template_reg.inputs.anat_mask = str(opts.brain_mask)
     template_reg.inputs.rabies_data_type = opts.data_type
 
     bold_main_wf = init_bold_main_wf(opts=opts)
@@ -179,7 +179,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                   name='commonspace_reg', mem_gb=2*opts.scale_min_memory)
         commonspace_reg.plugin_args = {
             'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
-        commonspace_reg.inputs.anat_mask = str(opts.brain_mask)
         commonspace_reg.inputs.reg_method = str(opts.template_reg_script)
         commonspace_reg.inputs.rabies_data_type = opts.data_type
 
@@ -188,7 +187,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         workflow.connect([
             (resample_template_node, commonspace_reg, [
-             ("resampled_template", "fixed_image")]),
+                ("resampled_template", "fixed_image"),
+                ("resampled_mask", "anat_mask"),
+                ]),
             (commonspace_reg, template_reg, [
                 ("warped_image", "moving_image"),
                 ]),
@@ -220,7 +221,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         workflow.connect([
             (resample_template_node, commonspace_reg, [
-             ("resampled_template", "template_anat")]),
+                ("resampled_template", "template_anat"),
+                ]),
             (commonspace_reg, template_reg, [
                 ("warped_image", "moving_image"),
                 ]),
@@ -273,9 +275,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("resampled_template", "anat_template"),
             ]),
         (resample_template_node, template_reg, [
-         ("resampled_template", "fixed_image")]),
+            ("resampled_template", "fixed_image"),
+            ("resampled_mask", "anat_mask"),
+            ]),
         (resample_template_node, bold_main_wf, [
-         ("resampled_template", "inputnode.template_anat")]),
+            ("resampled_template", "inputnode.template_anat"),
+            ]),
         (resample_template_node, outputnode, [
          ("resampled_template", "commonspace_resampled_template")]),
         (template_reg, bold_main_wf, [
@@ -348,7 +353,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         # setting anat preprocessing nodes
         anat_preproc_wf = init_anat_preproc_wf(opts=opts)
-        anat_preproc_wf.inputs.inputnode.template_mask = str(opts.brain_mask)
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],
                                            output_names=[
@@ -376,6 +380,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
              [("RAS_file", "inputnode.anat_file")]),
             (resample_template_node, anat_preproc_wf, [
                 ("resampled_template", "inputnode.template_anat"),
+                ("resampled_mask", "inputnode.template_mask"),
                 ]),
             (anat_preproc_wf, commonspace_reg, [
                 ("outputnode.anat_preproc", "moving_image"),
@@ -430,7 +435,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ])
 
     else:
-        bold_main_wf.inputs.inputnode.anat_mask = str(opts.brain_mask)
         bold_main_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
         bold_main_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
         bold_main_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
@@ -438,7 +442,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         bias_cor_bold_main_wf = init_bold_main_wf(
             bias_cor_only=True, name='bias_cor_bold_main_wf', opts=opts)
-        bias_cor_bold_main_wf.inputs.inputnode.anat_mask = str(opts.brain_mask)
 
         workflow.connect([
             (bold_convert_to_RAS_node, bias_cor_bold_main_wf, [
@@ -447,6 +450,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (resample_template_node, bias_cor_bold_main_wf, [
                 ("resampled_template", "inputnode.anat_ref"),
                 ("resampled_template", "inputnode.template_anat"),
+                ("resampled_mask", "inputnode.anat_mask"),
+                ]),
+            (resample_template_node, bold_main_wf, [
+                ("resampled_mask", "inputnode.anat_mask"),
                 ]),
             (bias_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
