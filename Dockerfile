@@ -53,7 +53,7 @@ RUN apt-get update && apt-get install -y gnupg software-properties-common --no-i
 #Download and build ANTs
 RUN mkdir -p /opt/ANTs/build && git clone https://github.com/ANTsX/ANTs.git /opt/ANTs/src \
     && cd /opt/ANTs/src \
-    && git checkout 5f1fab66da8ccfb30d242109aefb8df636698e9d \
+    && git checkout 1759e5e23772e114a490cfa33a5764b400307b9d \
     && cd /opt/ANTs/build \
     && cmake -GNinja -DITK_BUILD_MINC_SUPPORT=ON ../src \
     && cmake --build . \
