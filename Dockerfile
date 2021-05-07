@@ -69,11 +69,12 @@ RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
 RUN echo 'export PATH=/opt/quarantine/afni${PATH:+:$PATH}' > /etc/profile.d/99afni.sh
 
 #Install FSL
-RUN curl -L -O https://fsl.fmrib.ox.ac.uk/fsldownloads/fslinstaller.py && \
-    python fslinstaller.py -d /opt/quarantine/fsl -p -q && \
-    rm -f fslinstaller.py
-
-RUN echo 'export FSLDIR=/opt/quarantine/fsl && export PATH=/opt/quarantine/fsl/bin${PATH:+:$PATH} && . ${FSLDIR}/etc/fslconf/fsl.sh' > /etc/profile.d/99fsl.sh
+RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/neurodebian.gpg | apt-key add - && \
+    curl -sSL http://neuro.debian.net/lists/bionic.us-nh.full > /etc/apt/sources.list.d/neurodebian.sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends fsl-core && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo 'export PATH="/usr/share/fsl/5.0/bin:$PATH"' > /etc/profile.d/99fsl.sh && \
+    echo 'export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH' >> /etc/profile.d/99fsl.sh
 
 #Install minc-toolkit
 RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb http://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
