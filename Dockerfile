@@ -1,4 +1,3 @@
-
 FROM ubuntu:18.04 as base
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -7,7 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     imagemagick \
     parallel \
     locales \
-    python \
     gdebi-core curl unzip \
     tcsh \
     xfonts-base \
@@ -15,16 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netpbm \
     libjpeg62 \
     xvfb \
-    libglu1-mesa-dev \
     libglw1-mesa \
     libxm4 \
-    libcurl4-openssl-dev \
-    libxml2-dev \
-    libssl-dev \
     libgfortran4 \
     sudo \
     ca-certificates \
     rsync \
+    gnupg software-properties-common \
   && rm -rf /var/lib/apt/lists/* \
   && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
@@ -41,12 +36,12 @@ FROM base as builder
 RUN apt-get update && apt-get install -y gnupg software-properties-common --no-install-recommends \
     && curl -sSL https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add - \
     && apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' \
-    && apt-get update && apt-get install -y \
+    && apt-get update && apt-get install -y --no-install-recommends \
       git cmake \
       build-essential automake libtool bison \
       libz-dev libjpeg-dev libpng-dev libtiff-dev \
       liblcms2-dev flex libx11-dev freeglut3-dev libxmu-dev \
-      libxi-dev libqt4-dev libxml2-dev ninja-build  \
+      libxi-dev libqt4-dev libxml2-dev ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 
