@@ -36,7 +36,7 @@ class PlotOverlap(BaseInterface):
             filename_template+'_registration.png'
 
         from rabies.preprocess_pkg.utils import run_command
-        command = 'bash %s %s %s %s' % (
+        command = '%s %s %s %s' % (
             script_path, self.inputs.moving, self.inputs.fixed, out_name)
         rc = run_command(command)
 
