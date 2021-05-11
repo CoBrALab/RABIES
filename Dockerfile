@@ -103,10 +103,16 @@ RUN cp /opt/quarantine/miniforge/etc/profile.d/conda.sh /etc/profile.d/99conda.s
 RUN echo 'conda activate' >> /etc/profile.d/99conda.sh
 RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
 
+COPY rabies /src/rabies
+COPY minc-toolkit-extras /src/minc-toolkit-extras
+COPY twolevel_ants_dbm /src/twolevel_ants_dbm
+COPY scripts /src/scripts
+COPY setup.py MANIFEST.in README.md LICENSE dependencies.txt /src/
+
 RUN . /etc/profile.d/99conda.sh && conda config --append channels simpleitk && \
   conda install -y 'networkx>=2.4' 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
   conda activate && \
-  pip install rabies==0.2.4 && \
+  pip install -e /src && \
   conda clean --all -y
 
 USER rabies
