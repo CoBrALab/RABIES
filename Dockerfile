@@ -81,13 +81,8 @@ RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgil
   gdebi -n /tmp/minc-toolkit-1.9.18.deb && \
   rm -f /tmp/minc-toolkit-1.9.18.deb
 
-COPY minc-toolkit-extras /opt/quarantine
-COPY twolevel_ants_dbm /opt/quarantine
-
 #Enable minc-toolkit
 RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
-RUN echo 'export PATH=/opt/quarantine/minc-toolkit-extras${PATH:+:$PATH}' >> /etc/profile.d/98minc.sh
-RUN echo 'export PATH=/opt/quarantine/twolevel_ants_dbm${PATH:+:$PATH}' >> /etc/profile.d/98minc.sh
 
 #Enable ANTs
 RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
