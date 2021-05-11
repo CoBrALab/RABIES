@@ -59,7 +59,7 @@ RUN mkdir -p /opt/ANTs/build && git clone https://github.com/ANTsX/ANTs.git /opt
 ####################################################################################################
 FROM base
 #We only copy the ANTs commands we use, otherwise the container is huge
-COPY --from=builder /opt/ANTs/bin/ /opt/ANTs/bin/
+COPY --from=builder /opt/ANTs/bin/ /opt/quarantine/ANTs/bin/
 
 #Install afni
 RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries && \
@@ -85,8 +85,8 @@ RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgil
 RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
 
 #Enable ANTs
-RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
-RUN echo 'export ANTSPATH=/opt/ANTs/bin' >> /etc/profile.d/99ANTS.sh
+RUN echo 'export PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
+RUN echo 'export ANTSPATH=/opt/quarantine/ANTs/bin' >> /etc/profile.d/99ANTS.sh
 
 #install conda
 RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
