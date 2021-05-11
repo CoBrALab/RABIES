@@ -73,8 +73,7 @@ RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/
     curl -sSL http://neuro.debian.net/lists/bionic.us-nh.full > /etc/apt/sources.list.d/neurodebian.sources.list && \
     apt-get update && apt-get install -y --no-install-recommends fsl-core && \
     rm -rf /var/lib/apt/lists/* && \
-    echo 'export PATH="/usr/share/fsl/5.0/bin:$PATH"' > /etc/profile.d/99fsl.sh && \
-    echo 'export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH' >> /etc/profile.d/99fsl.sh
+    echo '. /etc/fsl/fsl.sh' > /etc/profile.d/99fsl.sh
 
 #Install minc-toolkit
 RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgill.ca/minc-toolkit/min/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
