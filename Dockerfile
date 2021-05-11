@@ -77,7 +77,7 @@ RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/
     echo 'export LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH' >> /etc/profile.d/99fsl.sh
 
 #Install minc-toolkit
-RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb http://packages.bic.mni.mcgill.ca/minc-toolkit/Debian/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
+RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgill.ca/minc-toolkit/min/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
   gdebi -n /tmp/minc-toolkit-1.9.18.deb && \
   rm -f /tmp/minc-toolkit-1.9.18.deb
 
