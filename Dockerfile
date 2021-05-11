@@ -106,7 +106,8 @@ RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
 RUN . /etc/profile.d/99conda.sh && conda config --append channels simpleitk && \
   conda install -y 'networkx>=2.4' 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
   conda activate && \
-  pip install rabies==0.2.4
+  pip install rabies==0.2.4 && \
+  conda clean --all -y
 
 USER rabies
 WORKDIR /home/rabies
