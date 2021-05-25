@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefaile
+set -euo pipefail
 tmpdir=$(mktemp -d)
 
 out_dir=$1

@@ -31,7 +31,7 @@ REQUIRED = [
     'pybids',
     'scikit-learn>=0.20.0',
     'scipy',
-    'simpleitk>=1.2.2',
+    'simpleitk>=2.0.2',
     # from twolevel_dbm
     'tqdm',
     'pathos',
