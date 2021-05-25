@@ -426,6 +426,14 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         raise ValueError('Invalid --data_type provided.')
 
     # template options
+    # make sure we have absolute paths
+    opts.anat_template = os.path.abspath(opts.anat_template)
+    opts.brain_mask = os.path.abspath(opts.brain_mask)
+    opts.WM_mask = os.path.abspath(opts.WM_mask)
+    opts.CSF_mask = os.path.abspath(opts.CSF_mask)
+    opts.vascular_mask = os.path.abspath(opts.vascular_mask)
+    opts.labels = os.path.abspath(opts.labels)
+
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(opts.anat_template):
