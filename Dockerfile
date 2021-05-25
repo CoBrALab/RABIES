@@ -101,10 +101,10 @@ COPY rabies /src/rabies
 COPY minc-toolkit-extras /src/minc-toolkit-extras
 COPY twolevel_ants_dbm /src/twolevel_ants_dbm
 COPY scripts /src/scripts
-COPY setup.py MANIFEST.in README.md LICENSE dependencies.txt /src/
+COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt /src/
 
-RUN . /etc/profile.d/99conda.sh && conda config --append channels simpleitk && \
-  conda install -y 'networkx>=2.4' 'matplotlib>=3.1.1' 'nibabel>=2.3.1' 'nilearn>=0.4.2' 'nipype>=1.1.4' 'numpy>=1.16.2' 'pandas' 'scikit-learn>=0.20.0' 'scipy' 'simpleitk>=1.2.2' 'tqdm' 'pathos' && \
+RUN . /etc/profile.d/99conda.sh && \
+  conda env update -f /src/rabies_environment.yml && \
   conda activate && \
   pip install -e /src && \
   conda clean --all -y
