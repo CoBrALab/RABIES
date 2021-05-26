@@ -67,6 +67,7 @@ RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
     rm -f @update.afni.binaries
 
 RUN echo 'export PATH=/opt/quarantine/afni${PATH:+:$PATH}' > /etc/profile.d/99afni.sh
+ENV PATH=/opt/quarantine/afni${PATH:+:$PATH}
 
 #Install FSL
 RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/neurodebian.gpg | apt-key add - && \
@@ -74,6 +75,14 @@ RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/
     apt-get update && apt-get install -y --no-install-recommends fsl-core && \
     rm -rf /var/lib/apt/lists/* && \
     echo '. /etc/fsl/fsl.sh' > /etc/profile.d/99fsl.sh
+
+# Configure FSL environment
+ENV FSLDIR="/usr/share/fsl/5.0/"
+ENV FSL_DIR="${FSLDIR}" \
+  FSLOUTPUTTYPE=NIFTI_GZ \
+  PATH="/usr/share/fsl/5.0/bin:$PATH" \
+  LD_LIBRARY_PATH=/usr/lib/fsl/5.0:$LD_LIBRARY_PATH
+ENV PATH=/usr/lib/fsl/5.0:$PATH
 
 #Install minc-toolkit
 RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgill.ca/minc-toolkit/min/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
@@ -83,42 +92,69 @@ RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgil
 #Enable minc-toolkit
 RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
 
+# minc-toolkit configuration parameters for 1.9.18-20200813
+ENV MINC_TOOLKIT=/opt/minc/1.9.18 \
+  MINC_TOOLKIT_VERSION="1.9.18-20200813"
+ENV PATH=${MINC_TOOLKIT}/bin:${MINC_TOOLKIT}/pipeline:${PATH} \
+  PERL5LIB=${MINC_TOOLKIT}/perl:${MINC_TOOLKIT}/pipeline${PERL5LIB:+:$PERL5LIB} \
+  LD_LIBRARY_PATH=${MINC_TOOLKIT}/lib:${MINC_TOOLKIT}/lib/InsightToolkit${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
+  MNI_DATAPATH=${MINC_TOOLKIT}/../share:${MINC_TOOLKIT}/share \
+  MINC_FORCE_V2=1 \
+  MINC_COMPRESS=4 \
+  VOLUME_CACHE_THRESHOLD=-1 \
+  MANPATH=${MINC_TOOLKIT}/man${MANPATH:+:$MANPATH} \
+  # integrated ANTs tools
+  ANTSPATH=${MINC_TOOLKIT}/bin
+
 #Enable ANTs
 RUN echo 'export PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
 RUN echo 'export ANTSPATH=/opt/quarantine/ANTs/bin' >> /etc/profile.d/99ANTS.sh
-
-#install conda
-RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
-    bash Miniforge3-Linux-x86_64.sh -b -p /opt/quarantine/miniforge && \
-    rm -f Miniforge3-Linux-x86_64.sh
-
-#enable conda
-RUN cp /opt/quarantine/miniforge/etc/profile.d/conda.sh /etc/profile.d/99conda.sh
-RUN echo 'conda activate' >> /etc/profile.d/99conda.sh
+ENV PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH} \
+  ANTSPATH=/opt/quarantine/ANTs/bin
+ENV PATH=/opt/ANTs/bin${PATH:+:$PATH}
 RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
-
-COPY rabies /src/rabies
-COPY minc-toolkit-extras /src/minc-toolkit-extras
-COPY twolevel_ants_dbm /src/twolevel_ants_dbm
-COPY scripts /src/scripts
-COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt /src/
-
-RUN . /etc/profile.d/99conda.sh && \
-  conda env update -f /src/rabies_environment.yml && \
-  conda activate && \
-  pip install -e /src && \
-  conda clean --all -y
 
 USER rabies
 WORKDIR /home/rabies
 ENV HOME="/home/rabies"
 
-RUN . /etc/profile.d/99conda.sh && conda config --set auto_activate_base true
+#install conda
+RUN curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
+    bash Miniforge3-Linux-x86_64.sh -b -p ${HOME}/miniforge && \
+    rm -f Miniforge3-Linux-x86_64.sh
+ENV CONDA_DIR=${HOME}/miniforge
+
+#enable conda
+RUN echo '. ${HOME}/miniforge/etc/profile.d/conda.sh' >> ${HOME}/.bashrc
+RUN echo 'conda activate' >> ${HOME}/.bashrc
+
+ENV CONDA_EXE='${CONDA_DIR}/bin/conda' \
+  CONDA_PYTHON_EXE='${CONDA_DIR}/bin/python' \
+  # override the path with the conda environment so that it becomes the default
+  PATH=${CONDA_DIR}/bin:$PATH
+
+ENV RABIES=${HOME}/RABIES
+RUN mkdir $RABIES
+
+COPY rabies $RABIES/rabies
+COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
+COPY twolevel_ants_dbm $RABIES/twolevel_ants_dbm
+COPY scripts $RABIES/scripts
+COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt $RABIES/
+
+RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && \
+  conda activate && \
+  conda env update -f $RABIES/rabies_environment.yml && \
+  conda activate && \
+  pip install -e $RABIES && \
+  conda clean --all -y
+
+RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && conda activate && conda config --set auto_activate_base true
 
 # pre-install the template defaults
 ENV XDG_DATA_HOME=$HOME/.local/share
 
-RUN . /etc/profile.d/99conda.sh && . /etc/profile.d/98minc.sh && install_DSURQE.sh $XDG_DATA_HOME/rabies
+RUN install_DSURQE.sh $XDG_DATA_HOME/rabies
 
 SHELL ["/bin/bash", "--login", "-c"]
-ENTRYPOINT ["/bin/bash" , "--login", "-c", "rabies \"$@\"", "bash"]
+ENTRYPOINT ["rabies"]
