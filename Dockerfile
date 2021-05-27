@@ -151,6 +151,9 @@ RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && \
 
 RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && conda activate && conda config --set auto_activate_base true
 
+# adding 'agg' as default backend to avoid matplotlib errors
+ENV MPLBACKEND agg
+
 # pre-install the template defaults
 ENV XDG_DATA_HOME=$HOME/.local/share
 
