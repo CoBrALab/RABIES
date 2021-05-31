@@ -438,7 +438,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         bold_main_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
         bold_main_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
         bold_main_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
-        bold_main_wf.inputs.inputnode.labels = str(opts.atlas_labels)
+        bold_main_wf.inputs.inputnode.labels = str(opts.labels)
 
         bias_cor_bold_main_wf = init_bold_main_wf(
             bias_cor_only=True, name='bias_cor_bold_main_wf', opts=opts)

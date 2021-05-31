@@ -426,16 +426,24 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         raise ValueError('Invalid --data_type provided.')
 
     # template options
+    # make sure we have absolute paths
+    opts.anat_template = os.path.abspath(opts.anat_template)
+    opts.brain_mask = os.path.abspath(opts.brain_mask)
+    opts.WM_mask = os.path.abspath(opts.WM_mask)
+    opts.CSF_mask = os.path.abspath(opts.CSF_mask)
+    opts.vascular_mask = os.path.abspath(opts.vascular_mask)
+    opts.labels = os.path.abspath(opts.labels)
+
     # set OS paths to template and atlas files, and convert files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(opts.anat_template):
         raise ValueError("--anat_template file %s doesn't exists." % (opts.anat_template))
-    opts.template_anat = convert_to_RAS(
+    opts.anat_template = convert_to_RAS(
         str(opts.anat_template), output_folder+'/template_files')
 
     if not os.path.isfile(opts.brain_mask):
         raise ValueError("--brain_mask file %s doesn't exists." % (opts.brain_mask))
-    opts.template_mask = convert_to_RAS(
+    opts.brain_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.WM_mask):
@@ -455,7 +463,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
 
     if not os.path.isfile(opts.labels):
         raise ValueError("--labels file %s doesn't exists." % (opts.labels))
-    opts.atlas_labels = convert_to_RAS(
+    opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
 
     from rabies.main_wf import init_main_wf
