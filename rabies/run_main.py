@@ -438,12 +438,12 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
     from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(opts.anat_template):
         raise ValueError("--anat_template file %s doesn't exists." % (opts.anat_template))
-    opts.template_anat = convert_to_RAS(
+    opts.anat_template = convert_to_RAS(
         str(opts.anat_template), output_folder+'/template_files')
 
     if not os.path.isfile(opts.brain_mask):
         raise ValueError("--brain_mask file %s doesn't exists." % (opts.brain_mask))
-    opts.template_mask = convert_to_RAS(
+    opts.brain_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.WM_mask):
@@ -463,7 +463,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
 
     if not os.path.isfile(opts.labels):
         raise ValueError("--labels file %s doesn't exists." % (opts.labels))
-    opts.atlas_labels = convert_to_RAS(
+    opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
 
     from rabies.main_wf import init_main_wf
