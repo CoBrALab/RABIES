@@ -2,7 +2,7 @@ import os
 import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from .preprocess_pkg.bias_correction import init_anat_preproc_wf
+from .preprocess_pkg.bias_correction import init_bias_correction_wf
 from .preprocess_pkg.commonspace import ANTsDBM
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
@@ -169,7 +169,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     bold_main_wf = init_bold_main_wf(opts=opts)
 
     if opts.fast_commonspace:
-        reg_script = 'null_nonlin.sh'
+        reg_script = 'null_nonlin'
         template_reg.inputs.reg_method = str(reg_script)
 
         commonspace_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
@@ -352,7 +352,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            name='anat_convert_to_RAS')
 
         # setting anat preprocessing nodes
-        anat_preproc_wf = init_anat_preproc_wf(opts=opts)
+        anat_preproc_wf = init_bias_correction_wf(opts=opts, name="anat_preproc_wf")
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],
                                            output_names=[
@@ -376,20 +376,22 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (anat_selectfiles, anat_convert_to_RAS_node,
              [("out_file", "img_file")]),
-            (anat_convert_to_RAS_node, anat_preproc_wf,
-             [("RAS_file", "inputnode.anat_file")]),
+            (anat_convert_to_RAS_node, anat_preproc_wf, [
+                ("RAS_file", "inputnode.target_img"),
+                ("RAS_file", "inputnode.name_source"),
+                ]),
             (resample_template_node, anat_preproc_wf, [
-                ("resampled_template", "inputnode.template_anat"),
-                ("resampled_mask", "inputnode.template_mask"),
+                ("resampled_template", "inputnode.anat_ref"),
+                ("resampled_mask", "inputnode.anat_mask"),
                 ]),
             (anat_preproc_wf, commonspace_reg, [
-                ("outputnode.anat_preproc", "moving_image"),
+                ("outputnode.corrected", "moving_image"),
                 ]),
             (anat_preproc_wf, transform_masks, [
-                ("outputnode.anat_preproc", "reference_image"),
+                ("outputnode.corrected", "reference_image"),
                 ]),
             (anat_preproc_wf, bold_main_wf, [
-                ("outputnode.anat_preproc", "inputnode.anat_ref"),
+                ("outputnode.corrected", "inputnode.anat_ref"),
                 ]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
@@ -414,7 +416,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
-        if not opts.disable_anat_preproc:
+        if not opts.anat_bias_cor_method=='disable':
             anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
                                                function=preprocess_visual_QC.denoising_diagnosis),
                                       name='anat_denoising_diagnosis')
@@ -429,7 +431,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                     ]),
                 (anat_preproc_wf, anat_denoising_diagnosis, [
                     ("outputnode.init_denoise", "init_denoise"),
-                    ("outputnode.anat_preproc", "final_denoise"),
+                    ("outputnode.corrected", "final_denoise"),
                     ("outputnode.denoise_mask", "warped_mask"),
                     ]),
                 ])
@@ -483,7 +485,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (bold_selectfiles, PlotOverlap_EPI2Anat_node,
              [("out_file", "name_source")]),
             (anat_preproc_wf, PlotOverlap_EPI2Anat_node,
-             [("outputnode.anat_preproc", "fixed")]),
+             [("outputnode.corrected", "fixed")]),
             (outputnode, PlotOverlap_EPI2Anat_node, [
                 ("bias_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                 ]),
@@ -603,7 +605,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
             workflow.connect([
                 (anat_preproc_wf, anat_datasink, [
-                    ("outputnode.anat_preproc", "anat_preproc"),
+                    ("outputnode.corrected", "anat_preproc"),
                  ]),
                 (outputnode, anat_datasink, [
                     ("anat_labels", 'anat_labels'),

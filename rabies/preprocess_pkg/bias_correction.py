@@ -5,6 +5,143 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
+def init_bias_correction_wf(opts, name='bias_correction_wf'):
+
+    workflow = pe.Workflow(name=name)
+
+    inputnode = pe.Node(niu.IdentityInterface(
+        fields=['target_img', 'anat_ref', 'anat_mask', 'name_source']), name='inputnode')
+
+    outputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=['corrected', 'denoise_mask', 'init_denoise']),
+        name='outputnode')
+
+    anat_preproc = pe.Node(BiasCorrection(bias_cor_method=opts.anat_bias_cor_method, rabies_data_type=opts.data_type),
+                           name='BiasCorrection', mem_gb=0.6*opts.scale_min_memory)
+
+    workflow.connect([
+        (inputnode, anat_preproc, [
+            ("target_img", "target_img"),
+            ("anat_ref", "anat_ref"),
+            ("anat_mask", "anat_mask"),
+            ("name_source", "name_source"),
+            ]),
+        (anat_preproc, outputnode, [
+            ("corrected", "corrected"),
+            ("init_denoise", "init_denoise"),
+            ("denoise_mask", "denoise_mask"),
+            ]),
+    ])
+
+    return workflow
+
+class BiasCorrectionInputSpec(BaseInterfaceInputSpec):
+    target_img = File(exists=True, mandatory=True,
+                    desc="Anatomical image to preprocess")
+    anat_ref = File(exists=True, mandatory=True,
+                         desc="anatomical template for registration.")
+    anat_mask = File(exists=True, mandatory=True,
+                         desc="The brain mask of the anatomical template.")
+    name_source = File(exists=True, mandatory=True,
+                       desc='Reference BOLD file for naming the output.')
+    bias_cor_method = traits.Str(
+        desc="Option for bias correction.")
+    rabies_data_type = traits.Int(mandatory=True,
+        desc="Integer specifying SimpleITK data type.")
+
+
+class BiasCorrectionOutputSpec(TraitedSpec):
+    corrected = File(exists=True, desc="Preprocessed anatomical image.")
+    denoise_mask = File(
+        exists=True, desc="resampled mask after registration")
+    init_denoise = File(
+        exists=True, desc="Initial correction before registration.")
+
+
+class BiasCorrection(BaseInterface):
+
+    input_spec = BiasCorrectionInputSpec
+    output_spec = BiasCorrectionOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        import numpy as np
+        import SimpleITK as sitk
+        from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
+
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(
+            self.inputs.name_source).name.rsplit(".nii")
+        cwd = os.getcwd()
+
+        # resample the anatomical image to the resolution of the provided template
+        target_img = sitk.ReadImage(
+            self.inputs.target_img, self.inputs.rabies_data_type)
+        anat_dim = target_img.GetSpacing()
+
+        template_image = sitk.ReadImage(
+            self.inputs.anat_ref, self.inputs.rabies_data_type)
+        template_dim = template_image.GetSpacing()
+        if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
+            import logging
+            log = logging.getLogger('root')
+            log.debug('Anat image will be resampled to the template resolution.')
+            resampled = resample_image_spacing(target_img, template_dim)
+            target_img = '%s/%s_resampled.nii.gz' % (cwd, filename_split[0],)
+            sitk.WriteImage(resampled, target_img)
+        else:
+            target_img = self.inputs.target_img
+
+        if self.inputs.bias_cor_method=='otsu_reg':
+            bias_correction = OtsuEPIBiasCorrection(input_ref_EPI = target_img,
+                anat = self.inputs.anat_ref,
+                anat_mask = self.inputs.anat_mask,
+                name_source = self.inputs.name_source,
+                rabies_data_type=self.inputs.rabies_data_type)
+            out = bias_correction.run()
+            corrected = out.outputs.corrected_EPI
+            resampled_mask = out.outputs.denoise_mask
+            init_denoise = out.outputs.init_denoise
+        elif self.inputs.bias_cor_method=='thresh_reg':
+            bias_correction = ThreshBiasCorrection(input_ref_EPI = target_img,
+                anat = self.inputs.anat_ref,
+                anat_mask = self.inputs.anat_mask,
+                name_source = self.inputs.name_source,
+                rabies_data_type=self.inputs.rabies_data_type)
+            out = bias_correction.run()
+            corrected = out.outputs.corrected_EPI
+            resampled_mask = out.outputs.denoise_mask
+            init_denoise = out.outputs.init_denoise
+
+        elif self.inputs.bias_cor_method=='mouse-preprocessing-v5.sh':
+            corrected = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
+            command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask)
+            rc = run_command(command)
+
+            resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'
+            init_denoise = corrected.split('.nii.gz')[0]+'_init_denoise.nii.gz'
+        elif self.inputs.bias_cor_method=='disable':
+            # outputs correspond to the inputs
+            corrected=target_img
+            init_denoise=corrected
+            resampled_mask=self.inputs.anat_mask
+        else:
+            raise ValueError("Wrong --anat_bias_cor_method.")
+
+        # resample image to specified data format
+        sitk.WriteImage(sitk.ReadImage(corrected, self.inputs.rabies_data_type), corrected)
+
+        setattr(self, 'corrected', corrected)
+        setattr(self, 'init_denoise', init_denoise)
+        setattr(self, 'denoise_mask', resampled_mask)
+        return runtime
+
+    def _list_outputs(self):
+        return {'corrected': getattr(self, 'corrected'),
+                'init_denoise': getattr(self, 'init_denoise'),
+                'denoise_mask': getattr(self, 'denoise_mask')}
+
 
 def bias_correction_wf(opts, name='bias_correction_wf'):
 
@@ -311,149 +448,5 @@ class ThreshBiasCorrection(BaseInterface):
     def _list_outputs(self):
         return {'corrected_EPI': getattr(self, 'corrected_EPI'),
                 'warped_EPI': getattr(self, 'warped_EPI'),
-                'init_denoise': getattr(self, 'init_denoise'),
-                'denoise_mask': getattr(self, 'denoise_mask')}
-
-
-def init_anat_preproc_wf(opts, name='anat_preproc_wf'):
-    '''
-    This workflow executes anatomical preprocessing based on anat_preproc.sh,
-    which includes initial N4 bias field correction and Adaptive
-    Non-Local Means Denoising (Manjon et al. 2010), followed by rigid
-    registration to a template atlas to obtain brain mask to then compute an
-    optimized N4 correction and denoising.
-    '''
-
-    workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_file', 'template_anat', 'template_mask']), name='inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(
-        fields=['anat_preproc','init_denoise', 'denoise_mask']), name='outputnode')
-
-    anat_preproc = pe.Node(AnatPreproc(bias_cor_method=opts.anat_bias_cor_method, disable_anat_preproc=opts.disable_anat_preproc, rabies_data_type=opts.data_type),
-                           name='Anat_Preproc', mem_gb=0.6*opts.scale_min_memory)
-
-    workflow.connect([
-        (inputnode, anat_preproc, [
-            ("anat_file", "nii_anat"),
-            ("template_anat", "template_anat"),
-            ("template_mask", "template_mask"),
-            ]),
-        (anat_preproc, outputnode, [
-            ("anat_preproc", "anat_preproc"),
-            ("init_denoise", "init_denoise"),
-            ("denoise_mask", "denoise_mask"),
-            ]),
-    ])
-
-    return workflow
-
-
-class AnatPreprocInputSpec(BaseInterfaceInputSpec):
-    nii_anat = File(exists=True, mandatory=True,
-                    desc="Anatomical image to preprocess")
-    template_anat = File(exists=True, mandatory=True,
-                         desc="anatomical template for registration.")
-    template_mask = File(exists=True, mandatory=True,
-                         desc="The brain mask of the anatomical template.")
-    bias_cor_method = traits.Str(
-        desc="Option for bias correction.")
-    disable_anat_preproc = traits.Bool(
-        desc="If anatomical preprocessing is disabled, then only copy the input to a new file named _preproc.nii.gz.")
-    rabies_data_type = traits.Int(mandatory=True,
-        desc="Integer specifying SimpleITK data type.")
-
-
-class AnatPreprocOutputSpec(TraitedSpec):
-    anat_preproc = File(exists=True, desc="Preprocessed anatomical image.")
-    denoise_mask = File(
-        exists=True, desc="resampled mask after registration")
-    init_denoise = File(
-        exists=True, desc="Initial correction before registration.")
-
-
-class AnatPreproc(BaseInterface):
-
-    input_spec = AnatPreprocInputSpec
-    output_spec = AnatPreprocOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        import numpy as np
-        import SimpleITK as sitk
-        from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
-
-        import pathlib  # Better path manipulation
-        filename_split = pathlib.Path(self.inputs.nii_anat).name.rsplit(".nii")
-        cwd = os.getcwd()
-        output_anat = '%s/%s_preproc.nii.gz' % (cwd, filename_split[0],)
-
-        # resample the anatomical image to the resolution of the provided template
-        anat_image = sitk.ReadImage(
-            self.inputs.nii_anat, self.inputs.rabies_data_type)
-        anat_dim = anat_image.GetSpacing()
-
-        template_image = sitk.ReadImage(
-            self.inputs.template_anat, self.inputs.rabies_data_type)
-        template_dim = template_image.GetSpacing()
-        if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
-            import logging
-            log = logging.getLogger('root')
-            log.debug('Anat image will be resampled to the template resolution.')
-            resampled_anat = resample_image_spacing(anat_image, template_dim)
-            input_anat = '%s/%s_resampled.nii.gz' % (cwd, filename_split[0],)
-            sitk.WriteImage(resampled_anat, input_anat)
-        else:
-            input_anat = self.inputs.nii_anat
-
-        if self.inputs.disable_anat_preproc:
-            # resample image to specified data format
-            sitk.WriteImage(sitk.ReadImage(input_anat, self.inputs.rabies_data_type), output_anat)
-            init_denoise=output_anat
-            resampled_mask=self.inputs.template_mask
-            init_denoise=cwd+'/denoise.nii.gz'
-            resampled_mask=cwd+'/resampled_mask.nii.gz'
-        else:
-            if self.inputs.bias_cor_method=='otsu_reg':
-                bias_correction = OtsuEPIBiasCorrection(input_ref_EPI = input_anat,
-                    anat = self.inputs.template_anat,
-                    anat_mask = self.inputs.template_mask,
-                    name_source = self.inputs.nii_anat,
-                    rabies_data_type=self.inputs.rabies_data_type)
-                out = bias_correction.run()
-                output_anat = out.outputs.corrected_EPI
-                resampled_mask = out.outputs.denoise_mask
-                init_denoise = out.outputs.init_denoise
-            elif self.inputs.bias_cor_method=='thresh_reg':
-                bias_correction = ThreshBiasCorrection(input_ref_EPI = input_anat,
-                    anat = self.inputs.template_anat,
-                    anat_mask = self.inputs.template_mask,
-                    name_source = self.inputs.nii_anat,
-                    rabies_data_type=self.inputs.rabies_data_type)
-                out = bias_correction.run()
-                output_anat = out.outputs.corrected_EPI
-                resampled_mask = out.outputs.denoise_mask
-                init_denoise = out.outputs.init_denoise
-
-            elif self.inputs.bias_cor_method=='mouse-preprocessing-v5.sh':
-                command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (input_anat, output_anat, self.inputs.template_anat,self.inputs.template_mask)
-                rc = run_command(command)
-
-                resampled_mask = output_anat.split('.nii.gz')[0]+'_mask.nii.gz'
-                init_denoise = output_anat.split('.nii.gz')[0]+'_init_denoise.nii.gz'
-
-            else:
-                raise ValueError("Wrong --anat_bias_cor_method.")
-
-            # resample image to specified data format
-            sitk.WriteImage(sitk.ReadImage(output_anat, self.inputs.rabies_data_type), output_anat)
-
-        setattr(self, 'anat_preproc', output_anat)
-        setattr(self, 'init_denoise', init_denoise)
-        setattr(self, 'denoise_mask', resampled_mask)
-        return runtime
-
-    def _list_outputs(self):
-        return {'anat_preproc': getattr(self, 'anat_preproc'),
                 'init_denoise': getattr(self, 'init_denoise'),
                 'denoise_mask': getattr(self, 'denoise_mask')}
