@@ -66,15 +66,13 @@ RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
     tcsh @update.afni.binaries -package linux_ubuntu_16_64 -apsearch yes -bindir /opt/quarantine/afni && \
     rm -f @update.afni.binaries
 
-RUN echo 'export PATH=/opt/quarantine/afni${PATH:+:$PATH}' > /etc/profile.d/99afni.sh
 ENV PATH=/opt/quarantine/afni${PATH:+:$PATH}
 
 #Install FSL
 RUN curl -sSL https://raw.githubusercontent.com/nipy/nipype/master/docker/files/neurodebian.gpg | apt-key add - && \
     curl -sSL http://neuro.debian.net/lists/bionic.us-nh.full > /etc/apt/sources.list.d/neurodebian.sources.list && \
     apt-get update && apt-get install -y --no-install-recommends fsl-core && \
-    rm -rf /var/lib/apt/lists/* && \
-    echo '. /etc/fsl/fsl.sh' > /etc/profile.d/99fsl.sh
+    rm -rf /var/lib/apt/lists/*
 
 # Configure FSL environment
 ENV FSLDIR="/usr/share/fsl/5.0/"
@@ -89,9 +87,6 @@ RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb https://packages.bic.mni.mcgil
   gdebi -n /tmp/minc-toolkit-1.9.18.deb && \
   rm -f /tmp/minc-toolkit-1.9.18.deb
 
-#Enable minc-toolkit
-RUN echo '. /opt/minc/1.9.18/minc-toolkit-config.sh' > /etc/profile.d/98minc.sh
-
 # minc-toolkit configuration parameters for 1.9.18-20200813
 ENV MINC_TOOLKIT=/opt/minc/1.9.18 \
   MINC_TOOLKIT_VERSION="1.9.18-20200813"
@@ -102,17 +97,12 @@ ENV PATH=${MINC_TOOLKIT}/bin:${MINC_TOOLKIT}/pipeline:${PATH} \
   MINC_FORCE_V2=1 \
   MINC_COMPRESS=4 \
   VOLUME_CACHE_THRESHOLD=-1 \
-  MANPATH=${MINC_TOOLKIT}/man${MANPATH:+:$MANPATH} \
-  # integrated ANTs tools
-  ANTSPATH=${MINC_TOOLKIT}/bin
+  MANPATH=${MINC_TOOLKIT}/man${MANPATH:+:$MANPATH}
 
 #Enable ANTs
-RUN echo 'export PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH}' > /etc/profile.d/99ANTS.sh
-RUN echo 'export ANTSPATH=/opt/quarantine/ANTs/bin' >> /etc/profile.d/99ANTS.sh
 ENV PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH} \
   ANTSPATH=/opt/quarantine/ANTs/bin
 ENV PATH=/opt/ANTs/bin${PATH:+:$PATH}
-RUN echo 'export PATH=/opt/ANTs/bin${PATH:+:$PATH}' >> /etc/profile.d/99ANTs.sh
 
 USER rabies
 WORKDIR /home/rabies
@@ -133,6 +123,7 @@ ENV CONDA_EXE='${CONDA_DIR}/bin/conda' \
   # override the path with the conda environment so that it becomes the default
   PATH=${CONDA_DIR}/bin:$PATH
 
+# install RABIES
 ENV RABIES=${HOME}/RABIES
 RUN mkdir $RABIES
 
