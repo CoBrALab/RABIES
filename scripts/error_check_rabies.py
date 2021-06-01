@@ -6,7 +6,7 @@ import numpy as np
 import tempfile
 import shutil
 import subprocess
-from rabies.preprocess_pkg.utils import resample_image_spacing
+from rabies.preprocess_pkg.utils import resample_image_spacing, copyInfo_4DImage
 
 tmppath = tempfile.mkdtemp()
 os.makedirs(tmppath+'/inputs')
@@ -20,7 +20,7 @@ template="%s/DSURQE_40micron_average.nii.gz" % (rabies_path)
 mask="%s/DSURQE_40micron_mask.nii.gz" % (rabies_path)
 
 img = sitk.ReadImage(template)
-spacing = (float(2), float(2), float(2)) # resample to 1mmx1mmx1mm
+spacing = (float(1), float(1), float(1)) # resample to 1mmx1mmx1mm
 resampled = resample_image_spacing(sitk.ReadImage(template), spacing)
 array = sitk.GetArrayFromImage(resampled)
 array_4d = np.repeat(array[:,:,:,np.newaxis], 15, axis=3)
@@ -29,6 +29,8 @@ sitk.WriteImage(resampled, tmppath+'/inputs/sub-token_T1w.nii.gz')
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False), tmppath+'/inputs/sub-token_bold.nii.gz')
 resampled = resample_image_spacing(sitk.ReadImage(mask), spacing)
 sitk.WriteImage(resampled, tmppath+'/inputs/token_mask.nii.gz')
+
+sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
 
 command = "rabies preprocess %s/inputs %s/outputs --debug --anat_bias_cor_method disable --bold_bias_cor_method disable \
     --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask.nii.gz --CSF_mask %s/inputs/token_mask.nii.gz --vascular_mask %s/inputs/token_mask.nii.gz --labels %s/inputs/token_mask.nii.gz \
