@@ -92,9 +92,6 @@ def get_parser():
                             choices=['intraSubjectBOLD', '0', '1', '2', '3'],
                             help="Select an option for head motion realignment among the pre-built options "
                             "from https://github.com/ANTsX/ANTsR/blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_motion_estimation.R.")
-    preprocess.add_argument("--HMC_transform", type=str, default='Rigid',
-                            choices=['Rigid', 'Affine'],
-                            help="Select between Rigid and Affine registration for head motion realignment.")
     preprocess.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
                             help="Whether to apply a slice-specific motion correction after initial volumetric rigid correction. "
                             "This second motion correction can correct for interslice misalignment resulting from within-TR motion."

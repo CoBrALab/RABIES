@@ -49,7 +49,7 @@ process = subprocess.run(
 command = "rabies preprocess %s/inputs %s/outputs --debug --anat_bias_cor_method disable --bold_bias_cor_method disable \
     --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask.nii.gz --CSF_mask %s/inputs/token_mask.nii.gz --vascular_mask %s/inputs/token_mask.nii.gz --labels %s/inputs/token_mask.nii.gz \
     --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 -e --detect_dummy \
-    --HMC_transform Affine --tpattern seq" % (tmppath,tmppath,tmppath,tmppath,tmppath,tmppath,tmppath,tmppath)
+    --tpattern seq" % (tmppath,tmppath,tmppath,tmppath,tmppath,tmppath,tmppath,tmppath)
 process = subprocess.run(
     command,
     check=True,
