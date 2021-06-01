@@ -148,6 +148,7 @@ setup(
         'scripts/rabies',
         'scripts/gen_DSURQE_masks.py',
         'scripts/install_DSURQE.sh',
+        'scripts/error_check_rabies.py',
         'scripts/preprocess_scripts/ants_dbm.sh',
         'scripts/preprocess_scripts/heavy_SyN_registration.sh',
         'scripts/preprocess_scripts/light_SyN_registration.sh',

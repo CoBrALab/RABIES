@@ -131,6 +131,8 @@ def define_reg_script(reg_option):
         reg_call = 'heavy_SyN_registration.sh'
     elif reg_option == 'multiRAT':
         reg_call = 'multiRAT_registration.sh'
+    elif reg_option == 'null_nonlin':
+        reg_call = 'null_nonlin.sh'
     else:
         '''
         For user-provided antsRegistration command.

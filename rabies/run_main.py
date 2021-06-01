@@ -76,17 +76,15 @@ def get_parser():
                             " is executed through registration of the EPI-generated template from ants_dbm"
                             " to the anatomical template.")
     preprocess.add_argument("--bold_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
-                            choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
+                            choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh', 'disable'],
                             help="Choose the algorithm for bias field correction of the EPI before registration."
                             "otsu_reg will conduct an initial serie of N4BiasFieldCorrection oriented by Otsu masking method, "
                             "followed by a rigid registration to provide a brain mask orienting the final correction."
                             "thresh_reg will instead use an initial voxel intensity thresholding method for masking, and will "
                             "conduct a subsequent rigid registration to provide a brain mask orienting the final correction.")
     preprocess.add_argument("--anat_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
-                            choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh'],
+                            choices=['otsu_reg', 'thresh_reg', 'mouse-preprocessing-v5.sh', 'disable'],
                             help="Same as --bold_bias_cor_method but for the anatomical image.")
-    preprocess.add_argument("--disable_anat_preproc", dest='disable_anat_preproc', action='store_true',
-                            help="This option disables the preprocessing of anatomical images before commonspace template generation.")
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="Whether to apply despiking of the EPI timeseries based on AFNI's "
                             "3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.")
@@ -114,7 +112,7 @@ def get_parser():
 
     g_registration = preprocess.add_argument_group(
         "Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN', 'multiRAT', but"
-        " can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template)."
+        " can specify a custom registration script following the template script structure (see RABIES/scripts/preprocess_scripts/ for template)."
         "'Rigid', 'Affine' and 'SyN' options rely on an adaptive registration framework which adapts parameters to the images dimensions")
     g_registration.add_argument("--coreg_script", type=str, default='SyN',
                                 help="Specify EPI to anat coregistration script.")

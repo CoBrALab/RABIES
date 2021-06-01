@@ -5,7 +5,7 @@ from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
-from .bias_correction import bias_correction_wf
+from .bias_correction import init_bias_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
@@ -137,7 +137,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
     if bias_cor_only or (not opts.bold_only):
         bold_reference_wf = init_bold_reference_wf(opts=opts)
-        bias_cor_wf = bias_correction_wf(opts=opts)
+        bias_cor_wf = init_bias_correction_wf(opts=opts)
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -167,7 +167,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
         workflow.connect([
             (inputnode, bias_cor_wf, [
-                ('anat_ref', 'inputnode.anat'),
+                ('anat_ref', 'inputnode.anat_ref'),
                 ('anat_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),
@@ -175,7 +175,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
                 ('bold_file', 'inputnode.bold_file'),
                 ]),
             (bold_reference_wf, bias_cor_wf, [
-                ('outputnode.ref_image', 'inputnode.ref_EPI'),
+                ('outputnode.ref_image', 'inputnode.target_img'),
                 ]),
             (bold_reference_wf, transitionnode, [
                 ('outputnode.ref_image', 'bold_ref'),
@@ -183,7 +183,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
             (bias_cor_wf, transitionnode, [
                 ('outputnode.init_denoise', 'init_denoise'),
                 ('outputnode.denoise_mask', 'denoise_mask'),
-                ('outputnode.corrected_EPI', 'corrected_EPI'),
+                ('outputnode.corrected', 'corrected_EPI'),
                 ]),
             ])
 
