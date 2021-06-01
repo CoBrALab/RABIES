@@ -363,6 +363,8 @@ def feature_time_series(melmix, mc):
 
     # Read melodic mix file (IC time-series), subsequently define a set of squared time-series
     mix = np.loadtxt(melmix)
+    if len(mix.shape)==1:
+        mix = mix[:,np.newaxis]
 
     # Read motion parameter file
     rp6 = np.loadtxt(mc)
