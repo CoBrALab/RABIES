@@ -143,68 +143,6 @@ class BiasCorrection(BaseInterface):
                 'denoise_mask': getattr(self, 'denoise_mask')}
 
 
-def bias_correction_wf(opts, name='bias_correction_wf'):
-
-    workflow = pe.Workflow(name=name)
-
-    inputnode = pe.Node(niu.IdentityInterface(
-        fields=['ref_EPI', 'anat', 'anat_mask', 'name_source']), name='inputnode')
-
-    outputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=['corrected_EPI', 'denoise_mask', 'init_denoise']),
-        name='outputnode')
-
-    if opts.bold_bias_cor_method=='otsu_reg':
-        bias_correction = pe.Node(OtsuEPIBiasCorrection(rabies_data_type=opts.data_type),
-                                  name='bias_correction', mem_gb=0.3*opts.scale_min_memory)
-
-    elif opts.bold_bias_cor_method=='thresh_reg':
-        bias_correction = pe.Node(ThreshBiasCorrection(rabies_data_type=opts.data_type),
-                                  name='bias_correction', mem_gb=0.3*opts.scale_min_memory)
-    elif opts.bold_bias_cor_method=='mouse-preprocessing-v5.sh':
-        from nipype.interfaces.utility import Function
-
-        def mouse_preprocess_func(input_ref_EPI,anat,anat_mask,name_source):
-            import os
-
-            import pathlib  # Better path manipulation
-            filename_split = pathlib.Path(
-                name_source).name.rsplit(".nii")
-            cwd = os.getcwd()
-            corrected_EPI = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
-
-            import rabies
-            dir_path = os.path.dirname(os.path.realpath(rabies.__file__))
-            from rabies.preprocess_pkg.utils import run_command
-            command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (input_ref_EPI, corrected_EPI,anat,anat_mask)
-            rc = run_command(command)
-            denoise_mask = corrected_EPI.split('.nii.gz')[0]+'_mask.nii.gz'
-            init_denoise = corrected_EPI.split('.nii.gz')[0]+'_init_denoise.nii.gz'
-            return corrected_EPI, denoise_mask, init_denoise
-
-        bias_correction = pe.Node(Function(input_names=['input_ref_EPI','anat','anat_mask','name_source'],
-                                                    output_names=['corrected_EPI', 'denoise_mask', 'init_denoise'],
-                                                    function=mouse_preprocess_func),
-                                           name='bold_bias_correction')
-    else:
-        raise ValueError("Wrong --bold_bias_cor_method.")
-
-    workflow.connect([
-        (inputnode, bias_correction, [('ref_EPI', 'input_ref_EPI'),
-                                      ('anat', 'anat'),
-                                      ('anat_mask', 'anat_mask'),
-                                      ('name_source', 'name_source'),
-                                      ]),
-        (bias_correction, outputnode, [('corrected_EPI', 'corrected_EPI'),
-                                       ('denoise_mask', 'denoise_mask'),
-                                       ('init_denoise', 'init_denoise'),
-                                       ]),
-    ])
-
-    return workflow
-
-
 class OtsuEPIBiasCorrectionInputSpec(BaseInterfaceInputSpec):
     input_ref_EPI = File(exists=True, mandatory=True,
                          desc="The input 3D ref EPI to correct for bias fields")
