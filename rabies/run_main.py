@@ -127,12 +127,12 @@ def get_parser():
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
-    g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
+    g_resampling.add_argument('--nativespace_resampling', type=str, default='inputs_defined',
                               help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
-                              "if 'origin' is specified.")
-    g_resampling.add_argument('--commonspace_resampling', type=str, default='origin',
+                              "if 'inputs_defined' is specified.")
+    g_resampling.add_argument('--commonspace_resampling', type=str, default='inputs_defined',
                               help="Can specify a resampling dimension for the commonspace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
-                              "if 'origin' is specified."
+                              "if 'inputs_defined' is specified."
                               "***this option specifies the resampling for the --bold_only workflow")
     g_resampling.add_argument(
         '--anatomical_resampling', type=str, default='inputs_defined',
@@ -481,6 +481,10 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
     opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
 
+    check_resampling_syntax(opts.nativespace_resampling)
+    check_resampling_syntax(opts.commonspace_resampling)
+    check_resampling_syntax(opts.anatomical_resampling)
+
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
                             opts, cr_opts=cr_opts, analysis_opts=analysis_opts, data_diagnosis_opts=data_diagnosis_opts)
@@ -569,6 +573,19 @@ def check_binary_masks(mask):
     array = sitk.GetArrayFromImage(img)
     if ((array!=1)*(array!=0)).sum()>0:
         raise ValueError("The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
+
+def check_resampling_syntax(resampling):
+    if resampling=='inputs_defined':
+        return
+    try:
+        if not 'x' in resampling:
+            raise
+        shape = resampling.split('x')
+        if not len(shape)==3:
+            raise
+        spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+    except:
+        raise ValueError("Resampling %s must follow the format 'dim1xdim2xdim3', e.g. '0.1x0.1x0.1', (in mm) following the RAS axis convention." % (resampling))
 
 def list_files(startpath):
     string = ''
