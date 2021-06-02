@@ -251,8 +251,8 @@ def get_parser():
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
     analysis.add_argument('--output_name', type=str, default='analysis_wf',
-                                     help='Creates a new output folder to store the workflow of this CR run, to avoid potential '
-                                     'overlaps with previous runs (can be useful if investigating multiple strategies).')
+                                     help='Creates a new output folder to store the workflow of this analysis run, to avoid potential '
+                                     'overlaps with previous runs.')
     analysis.add_argument('--scan_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=['all'],
@@ -316,8 +316,8 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--wf_name', type=str, default='data_diagnosis_wf',
-                                     help='Can specify a name for the workflow of this data diagnosis run, to avoid potential '
+    data_diagnosis.add_argument('--output_name', type=str, default='data_diagnosis_wf',
+                                     help='Creates a new output folder to store the workflow of this analysis run, to avoid potential '
                                      'overlaps with previous runs.')
     data_diagnosis.add_argument('--scan_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list

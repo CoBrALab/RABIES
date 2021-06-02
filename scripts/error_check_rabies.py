@@ -23,7 +23,7 @@ img = sitk.ReadImage(template)
 spacing = (float(1), float(1), float(1)) # resample to 1mmx1mmx1mm
 resampled = resample_image_spacing(sitk.ReadImage(template), spacing)
 array = sitk.GetArrayFromImage(resampled)
-array_4d = np.repeat(array[:,:,:,np.newaxis], 15, axis=3)
+array_4d = np.repeat(array[np.newaxis,:,:,:], 15, axis=0)
 array_4d += np.random.normal(0,array_4d.mean()/100,array_4d.shape) # add gaussian noise
 sitk.WriteImage(resampled, tmppath+'/inputs/sub-token_T1w.nii.gz')
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False), tmppath+'/inputs/sub-token_bold.nii.gz')
