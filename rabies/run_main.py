@@ -5,6 +5,7 @@ import logging
 import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
+import SimpleITK as sitk
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
@@ -424,7 +425,6 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(data_dir_path))
 
-    import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
     elif str(opts.data_type) == 'int32':
@@ -454,21 +454,25 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
 
     if not os.path.isfile(opts.brain_mask):
         raise ValueError("--brain_mask file %s doesn't exists." % (opts.brain_mask))
+    check_binary_masks(opts.brain_mask)
     opts.brain_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.WM_mask):
         raise ValueError("--WM_mask file %s doesn't exists." % (opts.WM_mask))
+    check_binary_masks(opts.WM_mask)
     opts.WM_mask = convert_to_RAS(
         str(opts.WM_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.CSF_mask):
         raise ValueError("--CSF_mask file %s doesn't exists." % (opts.CSF_mask))
+    check_binary_masks(opts.CSF_mask)
     opts.CSF_mask = convert_to_RAS(
         str(opts.CSF_mask), output_folder+'/template_files')
 
     if not os.path.isfile(opts.vascular_mask):
         raise ValueError("--vascular_mask file %s doesn't exists." % (opts.vascular_mask))
+    check_binary_masks(opts.vascular_mask)
     opts.vascular_mask = convert_to_RAS(
         str(opts.vascular_mask), output_folder+'/template_files')
 
@@ -560,6 +564,11 @@ def install_DSURQE(log):
         log.info("SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
         rc = run_command('install_DSURQE.sh %s' % (rabies_path), verbose = True)
 
+def check_binary_masks(mask):
+    img = sitk.ReadImage(mask)
+    array = sitk.GetArrayFromImage(img)
+    if ((array!=1)*(array!=0)).sum()>0:
+        raise ValueError("The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
 
 def list_files(startpath):
     string = ''

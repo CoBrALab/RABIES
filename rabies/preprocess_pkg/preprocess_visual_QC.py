@@ -152,6 +152,7 @@ def plot_reg(image1,image2, name_source, out_dir):
 
 def template_info(anat_template, opts, out_dir):
     import os
+    import SimpleITK as sitk
     from nilearn import plotting
     import matplotlib.pyplot as plt
     from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
@@ -161,14 +162,6 @@ def template_info(anat_template, opts, out_dir):
     vascular_mask = str(opts.vascular_mask)
     labels = str(opts.labels)
     os.makedirs(out_dir, exist_ok=True)
-
-    import SimpleITK as sitk
-    # make sure that masks are binary
-    for mask in [brain_mask,WM_mask,vascular_mask]:
-        img = sitk.ReadImage(mask)
-        array = sitk.GetArrayFromImage(img)
-        if ((array!=1)*(array!=0)).sum()>0:
-            raise ValueError("The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
 
     scaled = otsu_scaling(anat_template)
 
