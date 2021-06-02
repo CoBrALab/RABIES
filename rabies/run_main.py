@@ -457,29 +457,34 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
     check_binary_masks(opts.brain_mask)
     opts.brain_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.brain_mask)
 
     if not os.path.isfile(opts.WM_mask):
         raise ValueError("--WM_mask file %s doesn't exists." % (opts.WM_mask))
     check_binary_masks(opts.WM_mask)
     opts.WM_mask = convert_to_RAS(
         str(opts.WM_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.WM_mask)
 
     if not os.path.isfile(opts.CSF_mask):
         raise ValueError("--CSF_mask file %s doesn't exists." % (opts.CSF_mask))
     check_binary_masks(opts.CSF_mask)
     opts.CSF_mask = convert_to_RAS(
         str(opts.CSF_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.CSF_mask)
 
     if not os.path.isfile(opts.vascular_mask):
         raise ValueError("--vascular_mask file %s doesn't exists." % (opts.vascular_mask))
     check_binary_masks(opts.vascular_mask)
     opts.vascular_mask = convert_to_RAS(
         str(opts.vascular_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.vascular_mask)
 
     if not os.path.isfile(opts.labels):
         raise ValueError("--labels file %s doesn't exists." % (opts.labels))
     opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.labels)
 
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
@@ -573,6 +578,12 @@ def check_binary_masks(mask):
     array = sitk.GetArrayFromImage(img)
     if ((array!=1)*(array!=0)).sum()>0:
         raise ValueError("The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
+
+def check_template_overlap(template,mask):
+    template_img = sitk.ReadImage(template)
+    mask_img = sitk.ReadImage(mask)
+    if not template_img.GetOrigin()==mask_img.GetOrigin() and template_img.GetDirection()==mask_img.GetDirection():
+        raise ValueError("The file %s does not appear to overlap with provided template %s." % (mask, template))
 
 def check_resampling_syntax(resampling):
     if resampling=='inputs_defined':

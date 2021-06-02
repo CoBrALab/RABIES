@@ -14,7 +14,7 @@ if len(sys.argv)==2:
 else:
     tmppath = tempfile.mkdtemp()
 
-os.makedirs(tmppath+'/inputs')
+os.makedirs(tmppath+'/inputs', exist_ok=True)
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
