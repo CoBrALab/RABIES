@@ -15,7 +15,8 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'DR_data_file',
-                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'sub_token', 'group_token']), name='outputnode')
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'sub_token', 'group_token',
+                                                       'dual_ICA_timecourse_csv', 'dual_ICA_filename']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -120,6 +121,35 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                     ("IC_file", "IC_file"),
                     ]),
                 ])
+
+    if opts.dual_ICA>0:
+        if not commonspace_cr:
+            raise ValueError(
+                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_bold.')
+        from .analysis_functions import dual_ICA_wrapper
+        from .data_diagnosis import resample_IC_file
+        resample_IC = pe.Node(Function(input_names=['in_file', 'ref_file'],
+                                     output_names=['out_file'],
+                                     function=resample_IC_file),
+                            name='resample_IC', mem_gb=1)
+
+        dual_ICA_node = pe.Node(dual_ICA_wrapper(),
+                            name='dual_ICA_node', mem_gb=1)
+        dual_ICA_node.inputs.num_comp = opts.dual_ICA
+        dual_ICA_node.inputs.prior_bold_idx = opts.prior_bold_idx
+        dual_ICA_node.inputs.prior_maps = opts.prior_maps
+
+        workflow.connect([
+            (subject_inputnode, dual_ICA_node, [
+                ("bold_file", "bold_file"),
+                ("mask_file", "mask_file"),
+                ]),
+            (dual_ICA_node, outputnode, [
+                ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+                ("dual_ICA_filename", "dual_ICA_filename"),
+                ]),
+            ])
+
 
     if opts.FC_matrix:
         FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'atlas', 'roi_type'],

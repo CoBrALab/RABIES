@@ -267,7 +267,10 @@ class EstimateReferenceImage(BaseInterface):
                 '%s_cropped_dummy.nii.gz' % (filename_split[0],))
             img_array = sitk.GetArrayFromImage(
                 in_nii)[n_volumes_to_discard:, :, :, :]
-            sitk.WriteImage(img_array, out_bold_file)
+
+            image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
+                img_array, isVector=False), in_nii, in_nii)
+            sitk.WriteImage(image_4d, out_bold_file)
 
         else:
             out_bold_file = self.inputs.in_file

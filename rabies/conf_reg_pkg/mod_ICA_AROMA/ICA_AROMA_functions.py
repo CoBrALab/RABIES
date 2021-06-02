@@ -363,6 +363,8 @@ def feature_time_series(melmix, mc):
 
     # Read melodic mix file (IC time-series), subsequently define a set of squared time-series
     mix = np.loadtxt(melmix)
+    if len(mix.shape)==1:
+        mix = mix[:,np.newaxis]
 
     # Read motion parameter file
     rp6 = np.loadtxt(mc)
@@ -442,6 +444,8 @@ def feature_frequency(melFTmix, TR):
 
     # Load melodic_FTmix file
     FT = np.loadtxt(melFTmix)
+    if len(FT.shape)==1:
+        FT = FT[:,np.newaxis]
 
     # Determine which frequencies are associated with every row in the melodic_FTmix file  (assuming the rows range from 0Hz to Nyquist)
     f = Ny * (np.array(list(range(1, FT.shape[0] + 1)))) / (FT.shape[0])

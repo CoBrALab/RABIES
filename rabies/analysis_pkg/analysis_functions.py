@@ -353,3 +353,75 @@ def dual_regression(IC_vectors, timeseries):
     Y = timeseries
     # return recovered components of dim num_ICsxnum_voxels
     return closed_form(X, Y, intercept=False)
+
+
+from nipype.interfaces.base import (
+    traits, TraitedSpec, BaseInterfaceInputSpec,
+    File, BaseInterface
+)
+
+class dual_ICA_wrapperInputSpec(BaseInterfaceInputSpec):
+    bold_file = File(exists=True, mandatory=True, desc="Timeseries to fit.")
+    mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
+    prior_maps = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
+    prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
+    num_comp = traits.Int(
+        desc="number of components to compute from dual ICA.")
+
+class dual_ICA_wrapperOutputSpec(TraitedSpec):
+    dual_ICA_timecourse_csv = File(
+        exists=True, desc=".csv with timecourses from dual ICA")
+    dual_ICA_filename = File(
+        exists=True, desc=".nii file of the Dual ICA maps")
+
+class dual_ICA_wrapper(BaseInterface):
+    """
+
+    """
+
+    input_spec = dual_ICA_wrapperInputSpec
+    output_spec = dual_ICA_wrapperOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        import numpy as np
+        import nibabel as nb
+        import pandas as pd
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(
+            self.inputs.bold_file).name.rsplit(".nii")
+
+        from rabies.analysis_pkg.data_diagnosis import resample_IC_file
+        resampled_priors = resample_IC_file(self.inputs.prior_maps, self.inputs.mask_file)
+
+
+        brain_mask=np.asarray(nb.load(self.inputs.mask_file).dataobj)
+        volume_indices=brain_mask.astype(bool)
+
+        data_array=np.asarray(nb.load(self.inputs.bold_file).dataobj)
+        timeseries=np.zeros([data_array.shape[3],volume_indices.sum()])
+        for i in range(data_array.shape[3]):
+            timeseries[i,:]=(data_array[:,:,:,i])[volume_indices]
+
+        all_IC_array=np.asarray(nb.load(resampled_priors).dataobj)
+        all_IC_vectors=np.zeros([all_IC_array.shape[3],volume_indices.sum()])
+        for i in range(all_IC_array.shape[3]):
+            all_IC_vectors[i,:]=(all_IC_array[:,:,:,i])[volume_indices]
+
+        from rabies.analysis_pkg.prior_modeling import dual_ICA_fit
+        prior_fit_out = dual_ICA_fit(timeseries, self.inputs.num_comp, all_IC_vectors, self.inputs.prior_bold_idx)
+
+        dual_ICA_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_ICA_timecourse.csv')
+        pd.DataFrame(prior_fit_out['W']).to_csv(dual_ICA_timecourse_csv, header=False, index=False)
+
+        dual_ICA_filename = os.path.abspath(filename_split[0]+'_dual_ICA.nii.gz')
+        recover_3D_multiple(self.inputs.mask_file,np.array(prior_fit_out['C'])).to_filename(dual_ICA_filename)
+
+        setattr(self, 'dual_ICA_timecourse_csv', dual_ICA_timecourse_csv)
+        setattr(self, 'dual_ICA_filename', dual_ICA_filename)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'dual_ICA_timecourse_csv': getattr(self, 'dual_ICA_timecourse_csv'),
+                'dual_ICA_filename': getattr(self, 'dual_ICA_filename')}

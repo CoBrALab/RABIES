@@ -72,8 +72,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     mask_file_dict = traits.Dict(desc="A dictionary regrouping the all required accompanying files.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(desc="The index for the ICA components that correspond to confounding sources.")
-    dual_convergence = traits.Int(
-        desc="number of components to compute from dual convergence.")
+    dual_ICA = traits.Int(
+        desc="number of components to compute from dual ICA.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
@@ -103,16 +103,7 @@ class ScanDiagnosis(BaseInterface):
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
-        if self.inputs.dual_convergence>0:
-            num_comp=self.inputs.dual_convergence
-            convergence_function='ICA'
-            prior_fit_options=[num_comp,convergence_function]
-            prior_fit=True
-        else:
-            prior_fit=False
-            prior_fit_options=[]
-
-        temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=prior_fit,prior_fit_options=prior_fit_options)
+        temporal_info, spatial_info = process_data(bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
 
         confounds_csv = CR_data_dict['confounds_csv']
         fig,fig2 = scan_diagnosis(bold_file,self.inputs.mask_file_dict,temporal_info,spatial_info, confounds_csv, regional_grayplot=self.inputs.DSURQE_regions)
@@ -170,7 +161,7 @@ class DatasetDiagnosis(BaseInterface):
             setattr(self, 'figure_dataset_diagnosis', os.path.abspath('empty_dataset_diagnosis.png'))
             return runtime
 
-        dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_BOLD', 'prior_modeling_maps']
+        dict_keys=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr','DR_BOLD', 'dual_ICA_maps']
 
         voxelwise_list=[]
         for spatial_info in merged:
@@ -187,7 +178,7 @@ class DatasetDiagnosis(BaseInterface):
 
         label_name=['temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr']
         label_name += ['BOLD Dual Regression map %s' % (i) for i in range(num_DR_maps)]
-        label_name += ['BOLD Dual Convergence map %s' % (i) for i in range(num_prior_maps)]
+        label_name += ['BOLD Dual ICA map %s' % (i) for i in range(num_prior_maps)]
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
@@ -334,7 +325,7 @@ def compute_edge_mask(in_mask,out_file, num_edge_voxels=1):
 Prepare the subject data
 '''
 
-def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, prior_fit=False,prior_fit_options=[]):
+def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
     temporal_info={}
     spatial_info={}
 
@@ -415,42 +406,12 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     prior_fit_out={'C':[],'W':[]}
-    if prior_fit:
-        [num_comp,convergence_function] = prior_fit_options
-        X=timeseries
+    if dual_ICA>0:
+        num_comp = dual_ICA
+        prior_fit_out = prior_modeling.dual_ICA_fit(timeseries, num_comp, all_IC_vectors, prior_bold_idx)
 
-        prior_networks = all_IC_vectors[prior_bold_idx,:].T
-
-        C_prior=prior_networks
-        C_conf = prior_modeling.deflation_fit(X, q=num_comp, c_init=None, C_convergence=convergence_function,
-                          C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
-        for network in range(prior_networks.shape[1]):
-            prior=prior_networks[:,network].reshape(-1,1)
-            C_prior=np.concatenate((prior_networks[:,:network],prior_networks[:,network+1:],C_conf),axis=1)
-
-            C_fit = prior_modeling.deflation_fit(X, q=1, c_init=prior, C_convergence=convergence_function,
-                                  C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
-
-            # make sure the sign of weights is the same as the prior
-            corr = np.corrcoef(C_fit.flatten(), prior.flatten())[0, 1]
-            if corr < 0:
-                C_fit = C_fit*-1
-
-            # the finalized C
-            C = np.concatenate((C_fit, C_prior), axis=1)
-
-            # L-2 norm normalization of the components
-            C /= np.sqrt((C ** 2).sum(axis=0))
-            W = analysis_functions.closed_form(C,X.T, intercept=False).T
-            # the components will contain the weighting/STD/singular value, and the timecourses are normalized
-            C=C*W.std(axis=0)
-            # normalize the component timecourses to unit variance
-            W /= W.std(axis=0)
-
-            prior_fit_out['C'].append(C[:,0])
-            prior_fit_out['W'].append(W[:,0])
-    spatial_info['prior_modeling_maps'] = prior_fit_out['C']
-    temporal_info['prior_modeling_time'] = prior_fit_out['W']
+    spatial_info['dual_ICA_maps'] = prior_fit_out['C']
+    temporal_info['dual_ICA_time'] = prior_fit_out['W']
 
     spatial_info['temporal_std'] = temporal_std
     spatial_info['GS_corr'] = GS_corr
@@ -470,17 +431,17 @@ def temporal_external_formating(temporal_info, file_dict):
 
     dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
     pd.DataFrame(temporal_info['DR_all']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
-    if len(temporal_info['prior_modeling_time'])>0:
-        dual_convergence_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_convergence_timecourse.csv')
-        pd.DataFrame(temporal_info['prior_modeling_time']).to_csv(dual_convergence_timecourse_csv, header=False, index=False)
+    if len(temporal_info['dual_ICA_time'])>0:
+        dual_ICA_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_ICA_timecourse.csv')
+        pd.DataFrame(temporal_info['dual_ICA_time']).to_csv(dual_ICA_timecourse_csv, header=False, index=False)
     else:
-        dual_convergence_timecourse_csv = None
+        dual_ICA_timecourse_csv = None
 
-    del temporal_info['DR_all'], temporal_info['prior_modeling_time']
+    del temporal_info['DR_all'], temporal_info['dual_ICA_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
-    return temporal_info_csv, dual_regression_timecourse_csv, dual_convergence_timecourse_csv
+    return temporal_info_csv, dual_regression_timecourse_csv, dual_ICA_timecourse_csv
 
 
 def spatial_external_formating(spatial_info, file_dict):
@@ -508,14 +469,14 @@ def spatial_external_formating(spatial_info, file_dict):
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
     analysis_functions.recover_3D_multiple(mask_file,spatial_info['DR_all']).to_filename(DR_maps_filename)
 
-    if len(spatial_info['prior_modeling_maps'])>0:
+    if len(spatial_info['dual_ICA_maps'])>0:
         import numpy as np
-        prior_modeling_filename = os.path.abspath(filename_split[0]+'_prior_modeling.nii.gz')
-        analysis_functions.recover_3D_multiple(mask_file,np.array(spatial_info['prior_modeling_maps'])).to_filename(prior_modeling_filename)
+        dual_ICA_filename = os.path.abspath(filename_split[0]+'_dual_ICA.nii.gz')
+        analysis_functions.recover_3D_multiple(mask_file,np.array(spatial_info['dual_ICA_maps'])).to_filename(dual_ICA_filename)
     else:
-        prior_modeling_filename = None
+        dual_ICA_filename = None
 
-    return std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, prior_modeling_filename
+    return std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
 
 
 '''
