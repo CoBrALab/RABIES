@@ -196,8 +196,8 @@ def get_parser():
                                      help='path to RABIES preprocessing output directory with the datasinks.')
     confound_regression.add_argument('output_dir', action='store', type=Path,
                                      help='path to drop confound regression output datasink.')
-    confound_regression.add_argument('--wf_name', type=str, default='confound_regression_wf',
-                                     help='Can specify a name for the workflow of this confound regression run, to avoid potential '
+    confound_regression.add_argument('--output_name', type=str, default='confound_regression_wf',
+                                     help='Creates a new output folder to store the workflow of this CR run, to avoid potential '
                                      'overlaps with previous runs (can be useful if investigating multiple strategies).')
     confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
                                      help='If should run confound regression on the commonspace bold output.')
@@ -249,9 +249,9 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
-    analysis.add_argument('--wf_name', type=str, default='analysis_wf',
-                                     help='Can specify a name for the workflow of this analysis run, to avoid potential '
-                                     'overlaps with previous runs.')
+    analysis.add_argument('--output_name', type=str, default='analysis_wf',
+                                     help='Creates a new output folder to store the workflow of this CR run, to avoid potential '
+                                     'overlaps with previous runs (can be useful if investigating multiple strategies).')
     analysis.add_argument('--scan_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=['all'],
