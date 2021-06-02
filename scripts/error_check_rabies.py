@@ -2,13 +2,18 @@
 
 import SimpleITK as sitk
 import os
+import sys
 import numpy as np
 import tempfile
 import shutil
 import subprocess
 from rabies.preprocess_pkg.utils import resample_image_spacing, copyInfo_4DImage
 
-tmppath = tempfile.mkdtemp()
+if len(sys.argv)==2:
+    tmppath = sys.argv[1]
+else:
+    tmppath = tempfile.mkdtemp()
+
 os.makedirs(tmppath+'/inputs')
 
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -29,7 +34,9 @@ sitk.WriteImage(resampled, tmppath+'/inputs/sub-token_T1w.nii.gz')
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False), tmppath+'/inputs/sub-token_bold.nii.gz')
 
 resampled = resample_image_spacing(sitk.ReadImage(mask), spacing)
-array = sitk.GetArrayFromImage(resampled).astype(bool).astype(int)
+array = sitk.GetArrayFromImage(resampled)
+array[array<1]=0
+array[array>1]=1
 binarized = sitk.GetImageFromArray(array, isVector=False)
 binarized.CopyInformation(resampled)
 sitk.WriteImage(binarized, tmppath+'/inputs/token_mask.nii.gz')
@@ -89,4 +96,5 @@ process = subprocess.run(
     )
 
 
-shutil.rmtree(tmppath)
+if not len(sys.argv)==2:
+    shutil.rmtree(tmppath)
