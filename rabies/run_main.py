@@ -294,6 +294,22 @@ def get_parser():
                           default=None,
                           help="Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run. "
                           "If none is provided, a group-ICA will be run with the dataset cleaned timeseries.")
+    g_dual_ICA = analysis.add_argument_group("Options for performing a Dual ICA."
+                                           "Need to provide the prior maps to fit --prior_maps, and the idx for the target components in --prior_bold_idx")
+
+    g_dual_ICA.add_argument('--dual_ICA', type=int, default=0,
+                             help="Can specify a number of components to compute using dual ICA.")
+    g_dual_ICA.add_argument('--prior_maps', action='store', type=Path,
+                          default="%s/melodic_IC.nii.gz" % (
+                              rabies_path),
+                          help="Provide a 4D nifti image with a series of spatial priors representing common sources of signal (e.g. ICA components from a group-ICA run)."
+                          "The default file corresponds to a MELODIC run on a combined group of anesthetized-ventilated mice with MEDISO and awake mice."
+                          "Confound regression consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors."
+                          )
+    g_dual_ICA.add_argument('--prior_bold_idx', type=str,
+                                     nargs="*",  # 0 or more values expected => creates a list
+                                     default=[5,12,19],
+                                     help="")
 
     data_diagnosis.add_argument('confound_regression_out', action='store', type=Path,
                           help='path to RABIES confound regression output directory with the datasink.')
@@ -311,8 +327,8 @@ def get_parser():
                                      "or the files can be imbedded into a .txt file with one filename per row."
                                      "By default, 'all' will use all the scans previously processed."
                                      )
-    data_diagnosis.add_argument('--dual_convergence', type=int, default=0,
-                             help="Can specify a number of components to compute using a dual convergence framework.")
+    data_diagnosis.add_argument('--dual_ICA', type=int, default=0,
+                             help="Can specify a number of components to compute using dual ICA.")
     data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
                           default="%s/melodic_IC.nii.gz" % (
                               rabies_path),

@@ -810,6 +810,8 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
+            ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+            ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
             ]),
         ])
 
@@ -825,7 +827,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
     from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, temporal_external_formating, spatial_external_formating
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
         prior_confound_idx=data_diagnosis_opts.prior_confound_idx,
-            dual_convergence = data_diagnosis_opts.dual_convergence, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
+            dual_ICA = data_diagnosis_opts.dual_ICA, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
         name=data_diagnosis_opts.wf_name+'_ScanDiagnosis')
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(data_diagnosis_opts.prior_maps)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
@@ -836,13 +838,13 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                            output_names=[
-                                               'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_convergence_timecourse_csv'],
+                                               'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv'],
                                        function=temporal_external_formating),
                               name=data_diagnosis_opts.wf_name+'_temporal_external_formating')
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                            output_names=[
-                                               'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'prior_modeling_filename'],
+                                               'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
                                        function=spatial_external_formating),
                               name=data_diagnosis_opts.wf_name+'_spatial_external_formating')
 
@@ -931,13 +933,13 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ]),
         ])
 
-    if data_diagnosis_opts.dual_convergence>0:
+    if data_diagnosis_opts.dual_ICA>0:
         workflow.connect([
             (spatial_external_formating_node, data_diagnosis_datasink, [
-                ("prior_modeling_filename", "dual_convergence_nii"),
+                ("dual_ICA_filename", "dual_ICA_nii"),
                 ]),
             (temporal_external_formating_node, data_diagnosis_datasink, [
-                ("dual_convergence_timecourse_csv", "dual_convergence_timecourse_csv"),
+                ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
                 ]),
             ])
 

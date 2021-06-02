@@ -74,7 +74,14 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies data_diagnosis %s/outputs %s/outputs --dual_convergence 1" % (tmppath,tmppath)
+command = "rabies data_diagnosis %s/outputs %s/outputs --dual_ICA 1" % (tmppath,tmppath)
+process = subprocess.run(
+    command,
+    check=True,
+    shell=True,
+    )
+
+command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1" % (tmppath,tmppath)
 process = subprocess.run(
     command,
     check=True,

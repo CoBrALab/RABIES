@@ -81,3 +81,40 @@ def deflation_fit(X, q=1, c_init=None, C_convergence='OLS', C_prior=None, W_prio
                         'Convergence failed. Consider increasing max_iter or decreasing tol.')
         C = np.concatenate((C, c), axis=1)
     return C
+
+def dual_ICA_fit(timeseries, num_comp, all_IC_vectors, prior_bold_idx):
+    prior_fit_out={'C':[],'W':[]}
+    convergence_function = 'ICA'
+    X=timeseries
+
+    prior_networks = all_IC_vectors[prior_bold_idx,:].T
+
+    C_prior=prior_networks
+    C_conf = deflation_fit(X, q=num_comp, c_init=None, C_convergence=convergence_function,
+                      C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
+    for network in range(prior_networks.shape[1]):
+        prior=prior_networks[:,network].reshape(-1,1)
+        C_prior=np.concatenate((prior_networks[:,:network],prior_networks[:,network+1:],C_conf),axis=1)
+
+        C_fit = deflation_fit(X, q=1, c_init=prior, C_convergence=convergence_function,
+                              C_prior=C_prior, W_prior=None, W_ortho=True, tol=1e-6, max_iter=200, verbose=1)
+
+        # make sure the sign of weights is the same as the prior
+        corr = np.corrcoef(C_fit.flatten(), prior.flatten())[0, 1]
+        if corr < 0:
+            C_fit = C_fit*-1
+
+        # the finalized C
+        C = np.concatenate((C_fit, C_prior), axis=1)
+
+        # L-2 norm normalization of the components
+        C /= np.sqrt((C ** 2).sum(axis=0))
+        W = closed_form(C,X.T, intercept=False).T
+        # the components will contain the weighting/STD/singular value, and the timecourses are normalized
+        C=C*W.std(axis=0)
+        # normalize the component timecourses to unit variance
+        W /= W.std(axis=0)
+
+        prior_fit_out['C'].append(C[:,0])
+        prior_fit_out['W'].append(W[:,0])
+    return prior_fit_out
