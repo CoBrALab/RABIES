@@ -659,8 +659,8 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
 
     if cr_opts.rabies_step == 'confound_regression':
         confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
-                                                        container="confound_regression_datasink"),
-                                               name="confound_regression_datasink")
+                                                        container=cr_opts.output_name+"_datasink"),
+                                               name=cr_opts.output_name+"_datasink")
         workflow.connect([
             (confound_regression_wf, confound_regression_datasink, [
                 ("outputnode.cleaned_path", "cleaned_timeseries"),
@@ -738,8 +738,8 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
         opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list, name=analysis_opts.output_name)
 
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container="analysis_datasink"),
-                                name="analysis_datasink")
+                                         container=analysis_opts.output_name+"_datasink"),
+                                name=analysis_opts.output_name+"_datasink")
 
     def prep_dict(bold_file, mask_file, atlas_file, name_source):
         return {'bold_file':bold_file, 'mask_file':mask_file, 'atlas_file':atlas_file, 'name_source':name_source}
@@ -909,8 +909,8 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
         ])
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
-                                     container="data_diagnosis_datasink"),
-                            name="data_diagnosis_datasink")
+                                     container=data_diagnosis_opts.output_name+"_datasink"),
+                            name=data_diagnosis_opts.output_name+"_datasink")
     workflow.connect([
         (ScanDiagnosis_node, data_diagnosis_datasink, [
             ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
