@@ -6,6 +6,22 @@ import os
 import numpy as np
 import SimpleITK as sitk
 import matplotlib.pyplot as plt
+# set a dark background
+plt.rcParams.update({
+    "lines.color": "white",
+    "patch.edgecolor": "white",
+    "text.color": "black",
+    "axes.facecolor": "white",
+    "axes.edgecolor": "lightgray",
+    "axes.labelcolor": "white",
+    "xtick.color": "white",
+    "ytick.color": "white",
+    "grid.color": "lightgray",
+    "figure.facecolor": "black",
+    "figure.edgecolor": "black",
+    "savefig.facecolor": "black",
+    "savefig.edgecolor": "black"})
+
 
 class PlotOverlapInputSpec(BaseInterfaceInputSpec):
     moving = File(exists=True, mandatory=True,
@@ -90,10 +106,11 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
     if 'sagittal' in planes:
         ax=axes[ax_number]
         ax_number+=1
-        slices=np.empty([array.shape[0],1])
+        empty_slice = np.array([np.nan]).repeat(array.shape[0])[:,np.newaxis]
+        slices=empty_slice
         for s in slice_fractions:
             slice=array[::-1,:,int(array.shape[2]*s)]
-            slices=np.concatenate((slices,slice,np.empty([array.shape[0],1])),axis=1)
+            slices=np.concatenate((slices,slice,empty_slice),axis=1)
         pos = ax.imshow(slices, extent=[0,physical_dimensions[1]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
@@ -102,10 +119,11 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
     if 'coronal' in planes:
         ax=axes[ax_number]
         ax_number+=1
-        slices=np.empty([array.shape[0],1])
+        empty_slice = np.array([np.nan]).repeat(array.shape[0])[:,np.newaxis]
+        slices=empty_slice
         for s in slice_fractions:
             slice=array[::-1,int(array.shape[1]*s),:]
-            slices=np.concatenate((slices,slice,np.empty([array.shape[0],1])),axis=1)
+            slices=np.concatenate((slices,slice,empty_slice),axis=1)
         pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
@@ -114,10 +132,11 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
     if 'horizontal' in planes:
         ax=axes[ax_number]
         ax_number+=1
-        slices=np.empty([array.shape[1],1])
+        empty_slice = np.array([np.nan]).repeat(array.shape[1])[:,np.newaxis]
+        slices=empty_slice
         for s in slice_fractions:
             slice=array[int(array.shape[0]*s),::-1,:]
-            slices=np.concatenate((slices,slice,np.empty([array.shape[1],1])),axis=1)
+            slices=np.concatenate((slices,slice,empty_slice),axis=1)
         pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[1]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
@@ -173,6 +192,8 @@ def template_info(anat_template, opts, out_dir):
     mask = brain_mask
     sitk_mask = sitk.ReadImage(
         mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
     axes[0,1].set_title('Brain Mask', fontsize=20)
     plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:,1],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
@@ -180,6 +201,8 @@ def template_info(anat_template, opts, out_dir):
     mask = WM_mask
     sitk_mask = sitk.ReadImage(
         mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
     axes[0,2].set_title('WM Mask', fontsize=20)
     plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
@@ -187,6 +210,8 @@ def template_info(anat_template, opts, out_dir):
     mask = CSF_mask
     sitk_mask = sitk.ReadImage(
         mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
     axes[0,3].set_title('CSF Mask', fontsize=20)
     plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:,3],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
@@ -194,6 +219,8 @@ def template_info(anat_template, opts, out_dir):
     mask = vascular_mask
     sitk_mask = sitk.ReadImage(
         mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
     axes[0,4].set_title('Vascular Mask', fontsize=20)
     plot_3d(axes[:,4],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:,4],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
@@ -202,6 +229,8 @@ def template_info(anat_template, opts, out_dir):
     mask = labels
     sitk_mask = sitk.ReadImage(
         mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
     axes[0,5].set_title('Atlas Labels', fontsize=20)
     plot_3d(axes[:,5],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
@@ -301,7 +330,10 @@ def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sou
 
     axes[0,2].set_title('Resampled Mask', fontsize=20)
     plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
-    plot_3d(axes[:,2],sitk.ReadImage(warped_mask,sitk.sitkFloat32),fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
+    sitk_mask = sitk.ReadImage(warped_mask,sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
+    plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(final_denoise)
     axes[0,3].set_title('Final Denoising', fontsize=20)
