@@ -5,6 +5,7 @@ import logging
 import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
+import SimpleITK as sitk
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
@@ -126,12 +127,12 @@ def get_parser():
 
     g_resampling = preprocess.add_argument_group("Options for the resampling of the EPI. "
                                                  "Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).")
-    g_resampling.add_argument('--nativespace_resampling', type=str, default='origin',
+    g_resampling.add_argument('--nativespace_resampling', type=str, default='inputs_defined',
                               help="Can specify a resampling dimension for the nativespace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
-                              "if 'origin' is specified.")
-    g_resampling.add_argument('--commonspace_resampling', type=str, default='origin',
+                              "if 'inputs_defined' is specified.")
+    g_resampling.add_argument('--commonspace_resampling', type=str, default='inputs_defined',
                               help="Can specify a resampling dimension for the commonspace outputs. Must be of the form dim1xdim2xdim3 (in mm). The original dimensions are conserved "
-                              "if 'origin' is specified."
+                              "if 'inputs_defined' is specified."
                               "***this option specifies the resampling for the --bold_only workflow")
     g_resampling.add_argument(
         '--anatomical_resampling', type=str, default='inputs_defined',
@@ -196,8 +197,8 @@ def get_parser():
                                      help='path to RABIES preprocessing output directory with the datasinks.')
     confound_regression.add_argument('output_dir', action='store', type=Path,
                                      help='path to drop confound regression output datasink.')
-    confound_regression.add_argument('--wf_name', type=str, default='confound_regression_wf',
-                                     help='Can specify a name for the workflow of this confound regression run, to avoid potential '
+    confound_regression.add_argument('--output_name', type=str, default='confound_regression_wf',
+                                     help='Creates a new output folder to store the workflow of this CR run, to avoid potential '
                                      'overlaps with previous runs (can be useful if investigating multiple strategies).')
     confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
                                      help='If should run confound regression on the commonspace bold output.')
@@ -249,8 +250,8 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     analysis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop analysis outputs.')
-    analysis.add_argument('--wf_name', type=str, default='analysis_wf',
-                                     help='Can specify a name for the workflow of this analysis run, to avoid potential '
+    analysis.add_argument('--output_name', type=str, default='analysis_wf',
+                                     help='Creates a new output folder to store the workflow of this analysis run, to avoid potential '
                                      'overlaps with previous runs.')
     analysis.add_argument('--scan_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
@@ -315,8 +316,8 @@ def get_parser():
                           help='path to RABIES confound regression output directory with the datasink.')
     data_diagnosis.add_argument('output_dir', action='store', type=Path,
                           help='the output path to drop data_diagnosis outputs.')
-    data_diagnosis.add_argument('--wf_name', type=str, default='data_diagnosis_wf',
-                                     help='Can specify a name for the workflow of this data diagnosis run, to avoid potential '
+    data_diagnosis.add_argument('--output_name', type=str, default='data_diagnosis_wf',
+                                     help='Creates a new output folder to store the workflow of this analysis run, to avoid potential '
                                      'overlaps with previous runs.')
     data_diagnosis.add_argument('--scan_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
@@ -356,7 +357,12 @@ def execute_workflow():
     parser = get_parser()
     opts = parser.parse_args()
 
-    output_folder = os.path.abspath(str(opts.output_dir))
+    try:
+        output_folder = os.path.abspath(str(opts.output_dir))
+    except:
+        parser.print_help()
+        return
+
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
@@ -424,7 +430,6 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(data_dir_path))
 
-    import SimpleITK as sitk
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
     elif str(opts.data_type) == 'int32':
@@ -454,28 +459,41 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
 
     if not os.path.isfile(opts.brain_mask):
         raise ValueError("--brain_mask file %s doesn't exists." % (opts.brain_mask))
+    check_binary_masks(opts.brain_mask)
     opts.brain_mask = convert_to_RAS(
         str(opts.brain_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.brain_mask)
 
     if not os.path.isfile(opts.WM_mask):
         raise ValueError("--WM_mask file %s doesn't exists." % (opts.WM_mask))
+    check_binary_masks(opts.WM_mask)
     opts.WM_mask = convert_to_RAS(
         str(opts.WM_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.WM_mask)
 
     if not os.path.isfile(opts.CSF_mask):
         raise ValueError("--CSF_mask file %s doesn't exists." % (opts.CSF_mask))
+    check_binary_masks(opts.CSF_mask)
     opts.CSF_mask = convert_to_RAS(
         str(opts.CSF_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.CSF_mask)
 
     if not os.path.isfile(opts.vascular_mask):
         raise ValueError("--vascular_mask file %s doesn't exists." % (opts.vascular_mask))
+    check_binary_masks(opts.vascular_mask)
     opts.vascular_mask = convert_to_RAS(
         str(opts.vascular_mask), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.vascular_mask)
 
     if not os.path.isfile(opts.labels):
         raise ValueError("--labels file %s doesn't exists." % (opts.labels))
     opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
+    check_template_overlap(opts.anat_template,opts.labels)
+
+    check_resampling_syntax(opts.nativespace_resampling)
+    check_resampling_syntax(opts.commonspace_resampling)
+    check_resampling_syntax(opts.anatomical_resampling)
 
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
@@ -560,6 +578,30 @@ def install_DSURQE(log):
         log.info("SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
         rc = run_command('install_DSURQE.sh %s' % (rabies_path), verbose = True)
 
+def check_binary_masks(mask):
+    img = sitk.ReadImage(mask)
+    array = sitk.GetArrayFromImage(img)
+    if ((array!=1)*(array!=0)).sum()>0:
+        raise ValueError("The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
+
+def check_template_overlap(template,mask):
+    template_img = sitk.ReadImage(template)
+    mask_img = sitk.ReadImage(mask)
+    if not template_img.GetOrigin()==mask_img.GetOrigin() and template_img.GetDirection()==mask_img.GetDirection():
+        raise ValueError("The file %s does not appear to overlap with provided template %s." % (mask, template))
+
+def check_resampling_syntax(resampling):
+    if resampling=='inputs_defined':
+        return
+    try:
+        if not 'x' in resampling:
+            raise
+        shape = resampling.split('x')
+        if not len(shape)==3:
+            raise
+        spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+    except:
+        raise ValueError("Resampling %s must follow the format 'dim1xdim2xdim3', e.g. '0.1x0.1x0.1', (in mm) following the RAS axis convention." % (resampling))
 
 def list_files(startpath):
     string = ''

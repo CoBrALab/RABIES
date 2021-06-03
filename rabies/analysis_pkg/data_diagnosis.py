@@ -202,7 +202,7 @@ class DatasetDiagnosis(BaseInterface):
                 analysis_functions.recover_3D(mask_file,corr).to_filename('temp_img.nii.gz')
                 sitk_img=sitk.ReadImage('temp_img.nii.gz')
                 plot_3d([ax],sitk_img,fig,vmin=-0.7,vmax=0.7,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-                ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15)
+                ax.set_title('Cross-correlation for %s and %s' % (x_label,y_label), fontsize=15, color='white')
         fig.savefig(os.path.abspath('dataset_diagnosis.png'), bbox_inches='tight')
 
         setattr(self, 'figure_dataset_diagnosis', os.path.abspath('dataset_diagnosis.png'))
@@ -630,7 +630,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for ax in axes:
-        ax.set_title('Temporal STD', fontsize=25)
+        ax.set_title('Temporal STD', fontsize=30, color='white')
 
     axes=axes2[1,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
@@ -638,7 +638,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=0,vmax=1,cmap='inferno', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
-        ax.set_title('CR R^2', fontsize=25)
+        ax.set_title('CR R^2', fontsize=30, color='white')
 
     axes=axes2[2,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
@@ -646,7 +646,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
-        ax.set_title('Global Signal Correlation', fontsize=25)
+        ax.set_title('Global Signal Correlation', fontsize=30, color='white')
 
     axes=axes2[3,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
@@ -654,7 +654,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
-        ax.set_title('DVARS Correlation', fontsize=25)
+        ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
     axes=axes2[4,:]
     plot_3d(axes,scaled,fig2,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6)
@@ -662,7 +662,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
     sitk_img=sitk.ReadImage('temp_img.nii.gz')
     plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for ax in axes:
-        ax.set_title('FD Correlation', fontsize=25)
+        ax.set_title('FD Correlation', fontsize=30, color='white')
 
     for i in range(dr_maps.shape[0]):
         axes=axes2[i+5,:]
@@ -671,7 +671,7 @@ def scan_diagnosis(bold_file,mask_file_dict,temporal_info,spatial_info, confound
         sitk_img=sitk.ReadImage('temp_img.nii.gz')
         plot_3d(axes,sitk_img,fig2,vmin=-1,vmax=1,cmap='cold_hot', alpha=1, cbar=True, threshold=0.1, num_slices=6)
         for ax in axes:
-            ax.set_title('BOLD component %s' % (i), fontsize=25)
+            ax.set_title('BOLD component %s' % (i), fontsize=30, color='white')
 
     return fig,fig2
 

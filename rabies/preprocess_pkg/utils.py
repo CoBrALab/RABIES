@@ -621,7 +621,7 @@ class slice_applyTransforms(BaseInterface):
 
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
 
-        if not self.inputs.resampling_dim == 'origin':
+        if not self.inputs.resampling_dim == 'inputs_defined':
             shape = self.inputs.resampling_dim.split('x')
             spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
         else:

@@ -612,7 +612,10 @@ def mod_feature_spatial(fslDir, tempDir, melIC, mask_csf, mask_edge, mask_out):
         outSum = outMean * outVox
 
         # Determine edge and CSF fraction
-        if not (totSum == 0):
+        if totSum==csfSum:
+            edgeFract[i] = 1
+            csfFract[i] = 1
+        elif not (totSum == 0):
             edgeFract[i] = old_div((outSum + edgeSum), (totSum - csfSum))
             csfFract[i] = old_div(csfSum, totSum)
         else:
