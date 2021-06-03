@@ -357,7 +357,12 @@ def execute_workflow():
     parser = get_parser()
     opts = parser.parse_args()
 
-    output_folder = os.path.abspath(str(opts.output_dir))
+    try:
+        output_folder = os.path.abspath(str(opts.output_dir))
+    except:
+        parser.print_help()
+        return
+
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
