@@ -5,10 +5,7 @@ from .utils import slice_applyTransforms, init_bold_reference_wf, Merge
 
 
 def init_bold_preproc_trans_wf(opts, name='bold_native_trans_wf'):
-    """
-    This workflow resamples the input fMRI in its native (original)
-    space in a "single shot" from the original BOLD series.
-    """
+
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file']),
