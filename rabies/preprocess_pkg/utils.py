@@ -59,7 +59,7 @@ def prep_bids_iter(layout, bold_only=False):
                                'bold', 'cbv'], extension=['nii', 'nii.gz'], return_type='filename')
         bold_dict[sub][ses][run] = bold_list
 
-    # if bold_only, then the bold_list and run_iter will be a dictionary with keys being the anat filename
+    # if not bold_only, then the bold_list and run_iter will be a dictionary with keys being the anat filename
     # otherwise, it will be a list of bold scans themselves
     for sub in list(bold_dict.keys()):
         for ses in list(bold_dict[sub].keys()):

@@ -9,54 +9,54 @@ atlas_file = os.path.abspath(sys.argv[1])
 csv_labels = os.path.abspath(sys.argv[2])
 prefix = str(sys.argv[3])
 
+
 def compute_masks(atlas, csv_labels, prefix):
     df = pd.read_csv(csv_labels)
 
     '''create lists with the region label numbers'''
 
-    GM_right_labels = df['right label'][np.array(df['tissue type']=='GM')]
-    GM_left_labels = df['left label'][np.array(df['tissue type']=='GM')]
+    GM_right_labels = df['right label'][np.array(df['tissue type'] == 'GM')]
+    GM_left_labels = df['left label'][np.array(df['tissue type'] == 'GM')]
 
     # take only labels that are specific to one axis to avoid overlap
-    right_hem_labels = list(GM_right_labels[GM_right_labels!=GM_left_labels])
-    left_hem_labels = list(GM_left_labels[GM_right_labels!=GM_left_labels])
+    right_hem_labels = list(GM_right_labels[GM_right_labels != GM_left_labels])
+    left_hem_labels = list(GM_left_labels[GM_right_labels != GM_left_labels])
 
     GM_labels = \
-        list(df['right label'][np.array(df['tissue type']=='GM')]) + \
-        list(df['left label'][np.array(df['tissue type']=='GM')])
+        list(df['right label'][np.array(df['tissue type'] == 'GM')]) + \
+        list(df['left label'][np.array(df['tissue type'] == 'GM')])
 
     WM_labels = \
-        list(df['right label'][np.array(df['tissue type']=='WM')]) + \
-        list(df['left label'][np.array(df['tissue type']=='WM')])
+        list(df['right label'][np.array(df['tissue type'] == 'WM')]) + \
+        list(df['left label'][np.array(df['tissue type'] == 'WM')])
 
     CSF_labels = \
-        list(df['right label'][np.array(df['tissue type']=='CSF')]) + \
-        list(df['left label'][np.array(df['tissue type']=='CSF')])
-
+        list(df['right label'][np.array(df['tissue type'] == 'CSF')]) + \
+        list(df['left label'][np.array(df['tissue type'] == 'CSF')])
 
     '''extract the voxels which fall into the labels'''
     atlas_img = sitk.ReadImage(os.path.abspath(atlas), sitk.sitkInt32)
     atlas_data = sitk.GetArrayFromImage(atlas_img)
     shape = atlas_data.shape
 
-    right_hem_mask=np.zeros(shape).astype(bool)
-    left_hem_mask=np.zeros(shape).astype(bool)
-    GM_mask=np.zeros(shape).astype(bool)
-    WM_mask=np.zeros(shape).astype(bool)
-    CSF_mask=np.zeros(shape).astype(bool)
+    right_hem_mask = np.zeros(shape).astype(bool)
+    left_hem_mask = np.zeros(shape).astype(bool)
+    GM_mask = np.zeros(shape).astype(bool)
+    WM_mask = np.zeros(shape).astype(bool)
+    CSF_mask = np.zeros(shape).astype(bool)
 
     for i in range(atlas_data.max()+1):
-        roi_mask=atlas_data==i
+        roi_mask = atlas_data == i
         if i in right_hem_labels:
-            right_hem_mask+=roi_mask
+            right_hem_mask += roi_mask
         if i in left_hem_labels:
-            left_hem_mask+=roi_mask
+            left_hem_mask += roi_mask
         if i in GM_labels:
-            GM_mask+=roi_mask
+            GM_mask += roi_mask
         if i in WM_labels:
-            WM_mask+=roi_mask
+            WM_mask += roi_mask
         if i in CSF_labels:
-            CSF_mask+=roi_mask
+            CSF_mask += roi_mask
 
     GM_mask_file = '%s_GM_mask.nii.gz' % (prefix,)
     WM_mask_file = '%s_WM_mask.nii.gz' % (prefix,)
@@ -106,6 +106,8 @@ def compute_masks(atlas, csv_labels, prefix):
     eroded_CSF_mask_img.CopyInformation(atlas_img)
     sitk.WriteImage(eroded_CSF_mask_img, eroded_CSF_mask_file)
 
-    return GM_mask_file, WM_mask_file, CSF_mask_file, right_hem_mask_file, left_hem_mask_file, eroded_WM_mask_file, eroded_CSF_mask_file
+    return [GM_mask_file, WM_mask_file, CSF_mask_file, right_hem_mask_file,
+            left_hem_mask_file, eroded_WM_mask_file, eroded_CSF_mask_file]
+
 
 out = compute_masks(atlas_file, csv_labels, prefix)
