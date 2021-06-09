@@ -15,7 +15,7 @@ from nipype.interfaces.utility import Function
 
 def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, data_diagnosis_opts=None, name='main_wf'):
     '''
-    This workflow includes complete anatomical and BOLD preprocessing within a single workflow.
+    This workflow organizes the entire processing.
 
     **Parameters**
 
@@ -23,32 +23,22 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             Path to the input data directory with proper BIDS folder structure.
         output_folder
             path to output folder for the workflow and datasink
-        apply_despiking
-            whether to apply despiking using AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
-        tr
-            repetition time for the EPI
-        tpattern
-            specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
-        no_STC
-            whether to apply slice timing correction (STC) or not
-        detect_dummy
-            whether to detect and remove dummy volumes at the beginning of the EPI Sequences
-        slice_mc
-            whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
-            of within-TR motion
-        template_reg_script
-            registration script for the registration of the dataset template to the commonspace template
-        coreg_script
-            path to registration script for EPI to anat coregistraion. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'SyN' registration.
-        nativespace_resampling
-            Specified dimensions for the resampling of the corrected EPI in native space.
-        commonspace_resampling
-            Specified dimensions for the resampling of the corrected EPI in common space.
+        opts
+            parser options for preprocess
+        cr_opts
+            parser options for confound_regression
+        analysis_opts
+            parser options for analysis
+        data_diagnosis_opts
+            parser options for data_diagnosis
 
     **Outputs**
 
+
+        input_bold
+            Input EPIs to the preprocessing
+        commonspace_resampled_template
+            the anatomical commonspace template after initial resampling
         anat_preproc
             Preprocessed anatomical image after bias field correction and denoising
         anat_mask
@@ -63,18 +53,19 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             Initial EPI median volume subsequently used as 3D reference EPI volume
         bias_cor_bold
             3D reference EPI volume after bias field correction
-        itk_bold_to_anat
-            Composite transforms from the EPI space to the anatomical space
-        itk_anat_to_bold
-            Composite transforms from the anatomical space to the EPI space
+        affine_bold2anat
+            affine transform from the EPI space to the anatomical space
+        warp_bold2anat
+            non-linear transform from the EPI space to the anatomical space
+        inverse_warp_bold2anat
+            inverse non-linear transform from the EPI space to the anatomical space
         bias_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
-            Original BOLD timeseries resampled through motion realignment and
-            susceptibility distortion correction based on registration to the
-            anatomical image
+            Preprocessed EPI resampled to match the anatomical space for
+            susceptibility distortion correction
         corrected_bold_ref
-            3D median EPI volume from the resampled native BOLD timeseries
+            3D ref EPI volume from the native EPI timeseries
         confounds_csv
             .csv file with measured confound timecourses, including global signal,
             WM signal, CSF signal, 6 rigid body motion parameters + their first
@@ -107,8 +98,14 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             EPI WM mask for commonspace bold
         commonspace_CSF_mask
             EPI CSF mask for commonspace bold
+        commonspace_vascular_mask
+            EPI vascular mask for commonspace bold
         commonspace_labels
             EPI anatomical labels for commonspace bold
+        std_filename
+            temporal STD map of the preprocessed timeseries
+        tSNR_filename
+            temporal SNR map of the preprocessed timeseries
     '''
 
     workflow = pe.Workflow(name=name)

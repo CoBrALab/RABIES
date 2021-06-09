@@ -18,27 +18,10 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
     **Parameters**
 
-        apply_despiking
-            whether to apply despiking using AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
-        tr
-            repetition time for the EPI
-        tpattern
-            specification for the within TR slice acquisition method. The input is fed to AFNI's 3dTshift
-        no_STC
-            whether to apply slice timing correction (STC) or not
-        detect_dummy
-            whether to detect and remove dummy volumes at the beginning of the EPI Sequences
-        slice_mc
-            whether to apply slice-specific motion correction through 2D registration of each slice, which can improve the correction
-            of within-TR motion
-        coreg_script
-            path to registration script for EPI to anat coregistraion. The script must
-            follow the template structure of registration scripts in shell_scripts/.
-            Default is set to 'SyN' registration.
-        nativespace_resampling
-            Specified dimensions for the resampling of the corrected EPI in native space.
-        commonspace_resampling
-            Specified dimensions for the resampling of the corrected EPI in common space.
+        opts
+            parser options for preprocess
+        bias_cor_only
+            whether to run the bias correction steps, or further processing steps.
 
     **Inputs**
 
@@ -49,16 +32,23 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
         anat_mask
             Brain mask inherited from the common space registration
         WM_mask
-            Eroded WM mask inherited from the common space registration
+            WM mask inherited from the common space registration
         CSF_mask
-            Eroded CSF mask inherited from the common space registration
+            CSF mask inherited from the common space registration
+        vascular_mask
+            vascular mask inherited from the common space registration
         labels
             Anatomical labels inherited from the common space registration
-        commonspace_transforms_list
-            list of transforms to be applied to resample to commonspace
-        commonspace_inverses
-            Specification for the application of inverse affine transform for
-            the provided commonspace transforms
+        template_to_common_affine
+            affine transform from the dataset template space to the commonspace space
+        template_to_common_warp
+            non-linear transform from the dataset template space to the commonspace space
+        anat_to_template_affine
+            affine transform from the subject anatomical to the dataset template space
+        anat_to_template_warp
+            non-linear transform from the subject anatomical to the dataset template space
+        template_anat
+            commonspace anatomical template
 
     **Outputs**
 
@@ -68,14 +58,20 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
             Initial EPI median volume subsequently used as 3D reference EPI volume
         motcorr_params
             motion parameters file provided from antsMotionCorr
+        init_denoise
+            Corrected 3D ref EPI after initial correction step
+        denoise_mask
+            resampled mask used for final denoising
         corrected_EPI
             3D reference EPI volume after bias field correction
-        itk_bold_to_anat
-            Composite transforms from the EPI space to the anatomical space
-        itk_anat_to_bold
-            Composite transforms from the anatomical space to the EPI space
         output_warped_bold
             Bias field corrected 3D EPI volume warped to the anatomical space
+        affine_bold2anat
+            affine transform from the EPI space to the anatomical space
+        warp_bold2anat
+            non-linear transform from the EPI space to the anatomical space
+        inverse_warp_bold2anat
+            inverse non-linear transform from the EPI space to the anatomical space
         resampled_bold
             Original BOLD timeseries resampled through motion realignment and
             susceptibility distortion correction based on registration to the
@@ -114,18 +110,26 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
             EPI WM mask for commonspace bold
         commonspace_CSF_mask
             EPI CSF mask for commonspace bold
+        commonspace_vascular_mask
+            EPI vascular mask for commonspace bold
         commonspace_labels
             EPI anatomical labels for commonspace bold
     """
 
     workflow = pe.Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['subject_id', 'bold', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine', 'anat_to_template_warp', 'template_anat']),
+    inputnode = pe.Node(niu.IdentityInterface(
+                fields=['bold', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
+                        'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine',
+                        'anat_to_template_warp', 'template_anat']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
-                        'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
+                fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
+                        'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat',
+                        'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                        'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
+                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
                 name='outputnode')
 
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),

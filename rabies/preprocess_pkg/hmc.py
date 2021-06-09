@@ -7,26 +7,6 @@ from nipype.interfaces.base import (
 from .utils import SliceMotionCorrection, antsMotionCorr
 
 def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
-    """
-    This workflow estimates the motion parameters to perform HMC over the BOLD image.
-
-    **Parameters**
-
-        name : str
-            Name of workflow (default: ``bold_hmc_wf``)
-
-    **Inputs**
-
-        bold_file
-            BOLD series NIfTI file
-        ref_image
-            Reference image to which BOLD series is motion corrected
-
-    **Outputs**
-
-        movpar_file
-            CSV file with antsMotionCorr motion parameters
-    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),

@@ -89,7 +89,13 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
 
 class ScanDiagnosis(BaseInterface):
     """
-
+    Extracts several spatial and temporal features on the target scan.
+    Spatial features include tSTD, CR-R^2 (variance explained from confound regression),
+    correlation maps with global signal/DVARS/FD, and network maps from specified
+    BOLD priors at the indices of prior_bold_idx.
+    Temporal features include grayplot, 6 motion parameters, framewise displacement,
+    DVARS, WM/CSV/edge mask timecourses, CR-R^2, and the average amplitude of BOLD and
+    confound components seperately.
     """
 
     input_spec = ScanDiagnosisInputSpec
@@ -142,7 +148,9 @@ class DatasetDiagnosisOutputSpec(TraitedSpec):
 
 class DatasetDiagnosis(BaseInterface):
     """
-
+    Conducts a group-level correlation analysis to assess artefact effects.
+    Computes the voxelwise cross-subject correlation between each spatial features
+    from the previously run scan diagnosis.
     """
 
     input_spec = DatasetDiagnosisInputSpec

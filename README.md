@@ -23,75 +23,41 @@ The following section describes the --help outputs from the command line interfa
 <p>
 
 ```
-usage: rabies [-h]
-              [-p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}]
-              [--local_threads LOCAL_THREADS]
-              [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
-              Processing step ...
+usage: rabies [-h] [-p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}] [--local_threads LOCAL_THREADS] [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC] Processing step ...
 
-RABIES performs processing of rodent fMRI images. Can either run on datasets
-that only contain EPI images, or both structural and EPI images.
+RABIES performs processing of rodent fMRI images. Can either run on datasets that only contain EPI images, or both structural and EPI images.
 
 optional arguments:
   -h, --help            show this help message and exit
 
 Commands:
-  The RABIES workflow is seperated into three different processing steps:
-  preprocessing, confound regression and analysis. Outputs from the
-  preprocessing provides the inputs for the subsequent confound regression,
-  and finally analysis.
+  The RABIES workflow is seperated into three different processing steps: preprocessing, confound regression and analysis. Outputs from the preprocessing provides the inputs for the subsequent
+  confound regression, and finally analysis.
 
   Processing step       Description
-    preprocess          Conducts preprocessing on an input dataset in BIDS
-                        format. Preprocessing includes realignment for motion,
-                        correction for susceptibility distortions through non-
-                        linear registration, registration to a commonspace
-                        atlas and associated masks, evaluation of confounding
-                        timecourses, and includes various execution options
-                        (see --help).
+    preprocess          Conducts preprocessing on an input dataset in BIDS format. Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear
+                        registration, registration to a commonspace atlas and associated masks, evaluation of confounding timecourses, and includes various execution options (see --help).
     confound_regression
-                        Different options for confound regression are
-                        available to apply directly on preprocessing outputs
-                        from RABIES. Detrending of timeseries is always
-                        applied. Otherwise only selected confound regression
-                        and denoising strategies are applied. The denoising
-                        steps are applied in the following order: detrending
-                        first then ICA-AROMA, then highpass/lowpass filtering
-                        followed by temporal censoring, then regression of
-                        confound timeseries, standardization of timeseries,
-                        and finally smoothing.
-    analysis            A few built-in resting-state functional connectivity
-                        (FC) analysis options are provided to conduct rapid
-                        analysis on the cleaned timeseries. The options
-                        include seed-based FC, voxelwise or parcellated whole-
-                        brain FC, group-ICA and dual regression.
-    data_diagnosis      This workflow regroups a set of tools which allow to
-                        establish the influence of confounding sources on FC
-                        measures. We recommend to conduct a data diagnosis
-                        from this workflow to complement FC analysis by
-                        evaluating the effectiveness of the confound
-                        correction strategies and ensure reliable subsequent
-                        interpretations.
+                        Flexible options for confound regression are available to apply directly on preprocessing outputs from RABIES. After linear detrending, only selected options are applied
+                        sequentially in following the order: 1) ICA-AROMA, 2) highpass/lowpass filtering, 3) frame censoring (from FD/DVARS measures), 4) regression of confound timeseries, 5)
+                        standardization of timeseries, and 6) spatial smoothing.
+    analysis            A few built-in resting-state functional connectivity (FC) analysis options are provided to conduct rapid analysis on the cleaned timeseries. Options include seed-based FC, whole-
+                        brain correlation FC matrix, group-ICA, dual regression and dual ICA.
+    data_diagnosis      This workflow executes an automated set of scan-level followed by a group-level analyses which allow to establish the influence of confounding sources on FC measures. Scan-level
+                        analysis outputs a spatio-temporal diagnosis allowing the combined visualization of key temporal and spatial features to identify artefacts corrupting neural sources of signal.
+                        Group-level diagnosis consists of the cross-subject correlation between spatial features, to control persisting corruption of neural measures at the group level. We recommend to
+                        conduct a data diagnosis from this workflow to complement FC analysis by evaluating the intrinsic corruption of the dataset as well as the effectiveness of the confound
+                        correction strategies.
 
 Options for managing the execution of the workflow.:
   -p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}, --plugin {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}
-                        Specify the nipype plugin for workflow execution.
-                        Consult nipype plugin documentation for detailed
-                        options. Linear, MultiProc, SGE and SGEGraph have been
-                        tested. (default: Linear)
+                        Specify the nipype plugin for workflow execution. Consult https://nipype.readthedocs.io/en/0.11.0/users/plugins.html for details. (default: Linear)
   --local_threads LOCAL_THREADS
-                        For local MultiProc execution, set the maximum number
-                        of processors run in parallel, defaults to number of
-                        CPUs. This option only applies to the MultiProc
-                        execution plugin, otherwise it is set to 1. (default:
-                        12)
+                        For local MultiProc execution, set the maximum number of processors run in parallel, defaults to number of CPUs. This option only applies to the MultiProc execution plugin,
+                        otherwise it is set to 1. (default: 12)
   --scale_min_memory SCALE_MIN_MEMORY
-                        For a parallel execution with MultiProc, the minimal
-                        memory attributed to nodes can be scaled with this
-                        multiplier to avoid memory crashes. (default: 1.0)
-  --min_proc MIN_PROC   For SGE parallel processing, specify the minimal
-                        number of nodes to be assigned to avoid memory
-                        crashes. (default: 1)
+                        For a parallel execution with MultiProc, the minimal memory attributed to nodes can be scaled with this multiplier to avoid memory crashes. (default: 1.0)
+  --min_proc MIN_PROC   For SGE parallel processing, specify the minimal number of nodes to be assigned to avoid memory crashes. (default: 1)
 ```
 </p>
 </details>
@@ -101,173 +67,94 @@ Options for managing the execution of the workflow.:
 <p>
 
 ```
-usage: rabies preprocess [-h] [-e]
-                         [--bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}]
-                         [--anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}]
-                         [--disable_anat_preproc] [--apply_despiking]
-                         [--HMC_option {intraSubjectBOLD,0,1,2,3}]
-                         [--HMC_transform {Rigid,Affine}] [--apply_slice_mc]
-                         [--detect_dummy]
-                         [--data_type {int16,int32,float32,float64}] [--debug]
-                         [--coreg_script COREG_SCRIPT]
-                         [--template_reg_script TEMPLATE_REG_SCRIPT]
-                         [--fast_commonspace]
-                         [--nativespace_resampling NATIVESPACE_RESAMPLING]
-                         [--commonspace_resampling COMMONSPACE_RESAMPLING]
-                         [--anatomical_resampling ANATOMICAL_RESAMPLING]
-                         [--cluster_type {local,sge,pbs,slurm}]
-                         [--walltime WALLTIME] [--TR TR] [--no_STC]
-                         [--tpattern {alt,seq}]
-                         [--anat_template ANAT_TEMPLATE]
-                         [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK]
-                         [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
+usage: rabies preprocess [-h] [-e] [--bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh,disable}] [--anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh,disable}]
+                         [--apply_despiking] [--HMC_option {intraSubjectBOLD,0,1,2,3}] [--apply_slice_mc] [--detect_dummy] [--data_type {int16,int32,float32,float64}] [--debug]
+                         [--coreg_script COREG_SCRIPT] [--template_reg_script TEMPLATE_REG_SCRIPT] [--fast_commonspace] [--nativespace_resampling NATIVESPACE_RESAMPLING]
+                         [--commonspace_resampling COMMONSPACE_RESAMPLING] [--anatomical_resampling ANATOMICAL_RESAMPLING] [--cluster_type {local,sge,pbs,slurm}] [--walltime WALLTIME] [--TR TR]
+                         [--no_STC] [--tpattern {alt,seq}] [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK] [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
                          [--labels LABELS]
                          bids_dir output_dir
 
 positional arguments:
-  bids_dir              the root folder of the BIDS-formated input data
-                        directory.
-  output_dir            the output path to drop outputs from major
-                        preprocessing steps.
+  bids_dir              the root folder of the BIDS-formated input data directory.
+  output_dir            the output path to drop outputs from major preprocessing steps.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -e, --bold_only       Apply preprocessing with only EPI scans. commonspace
-                        registration is executed through registration of the
-                        EPI-generated template from ants_dbm to the anatomical
-                        template. (default: False)
-  --bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}
-                        Choose the algorithm for bias field correction of the
-                        EPI before registration.otsu_reg will conduct an
-                        initial serie of N4BiasFieldCorrection oriented by
-                        Otsu masking method, followed by a rigid registration
-                        to provide a brain mask orienting the final
-                        correction.thresh_reg will instead use an initial
-                        voxel intensity thresholding method for masking, and
-                        will conduct a subsequent rigid registration to
-                        provide a brain mask orienting the final correction.
-                        (default: mouse-preprocessing-v5.sh)
-  --anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh}
-                        Same as --bold_bias_cor_method but for the anatomical
-                        image. (default: mouse-preprocessing-v5.sh)
-  --disable_anat_preproc
-                        This option disables the preprocessing of anatomical
-                        images before commonspace template generation.
-                        (default: False)
-  --apply_despiking     Whether to apply despiking of the EPI timeseries based
-                        on AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist
-                        /doc/program_help/3dDespike.html. (default: False)
+  -e, --bold_only       Apply preprocessing with only EPI scans. Commonspace registration is executed directly using the denoised EPI 3D reference images. The commonspace registration simultaneously
+                        applies distortion correction, so only commonspace outputs are provided with this option. (default: False)
+  --bold_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh,disable}
+                        Choose the algorithm for bias field correction of the EPI before registration. Each algorithm consists of 1) initial denoising, 2) registration to the masked anatomical reference
+                        3) use the mask to enhance bias field correction to provide the final corrected image. 'mouse-preprocessing-v5.sh' from https://github.com/CoBrALab/minc-toolkit-extras has been
+                        extensively validated on anatomical images across spaces, and uses an Affine registration. 'otsu_reg' uses a otsu masking approach to support bias field correction together with
+                        a Rigid registration. 'thresh_reg' uses a simple threshold masking approach to support bias field correction together with a Rigid registration. (default: mouse-
+                        preprocessing-v5.sh)
+  --anat_bias_cor_method {otsu_reg,thresh_reg,mouse-preprocessing-v5.sh,disable}
+                        Same as --bold_bias_cor_method but for the anatomical image. (default: mouse-preprocessing-v5.sh)
+  --apply_despiking     Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html. (default: False)
   --HMC_option {intraSubjectBOLD,0,1,2,3}
-                        Select an option for head motion realignment among the
-                        pre-built options from https://github.com/ANTsX/ANTsR/
-                        blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_m
-                        otion_estimation.R. (default: intraSubjectBOLD)
-  --HMC_transform {Rigid,Affine}
-                        Select between Rigid and Affine registration for head
-                        motion realignment. (default: Rigid)
-  --apply_slice_mc      Whether to apply a slice-specific motion correction
-                        after initial volumetric rigid correction. This second
-                        motion correction can correct for interslice
-                        misalignment resulting from within-TR motion.With this
-                        option, motion corrections and the subsequent
-                        resampling from registration are applied
-                        sequentially,since the 2D slice registrations cannot
-                        be concatenate with 3D transforms. (default: False)
-  --detect_dummy        Detect and remove initial dummy volumes from the EPI,
-                        and generate a reference EPI based on these volumes if
-                        detected.Dummy volumes will be removed from the output
-                        preprocessed EPI. (default: False)
+                        Select an option for head motion realignment among the pre-built options from https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R. (default: intraSubjectBOLD)
+  --apply_slice_mc      Whether to apply a slice-specific motion correction after initial volumetric HMC. This can correct for interslice misalignment resulting from within-TR motion. With this option,
+                        motion corrections and the subsequent resampling from registration are applied sequentially, since the 2D slice registrations cannot be concatenate with 3D transforms. (default:
+                        False)
+  --detect_dummy        Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on these volumes if detected. Dummy volumes will be removed from the output preprocessed
+                        EPI. (default: False)
   --data_type {int16,int32,float32,float64}
-                        Specify data format outputs to control for file size.
-                        (default: float32)
+                        Specify data format outputs to control for file size. (default: float32)
   --debug               Run in debug mode. (default: False)
 
-Options for the registration steps. Built-in options for selecting registration scripts include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN', 'multiRAT', but can specify a custom registration script following the template script structure (see RABIES/rabies/shell_scripts/ for template).'Rigid', 'Affine' and 'SyN' options rely on an adaptive registration framework which adapts parameters to the images dimensions:
+        Options for the registration steps.
+        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN' and 'multiRAT'.
+        A custom registration script can be provided instead following the template script structure
+        from other registration scripts (see RABIES/scripts/preprocess_scripts/ for template).
+        :
   --coreg_script COREG_SCRIPT
-                        Specify EPI to anat coregistration script. (default:
-                        SyN)
+                        Specify EPI to anat coregistration script. (default: SyN)
   --template_reg_script TEMPLATE_REG_SCRIPT
-                        Registration script that will be used for registration
-                        of the generated dataset template to the provided
-                        commonspace atlas for masking and labeling. (default:
-                        SyN)
-  --fast_commonspace    Choosing this option will skip the generation of a
-                        dataset template, and instead, each anatomical scan
-                        will be individually registered to the commonspace
-                        template using the --template_reg_script.Note that
-                        this option, although faster, is expected to reduce
-                        the quality of commonspace registration. (default:
-                        False)
+                        Registration script that will be used for registration of the generated dataset template to the provided commonspace atlas for masking and labeling. (default: SyN)
+  --fast_commonspace    This option will skip the generation of a dataset template from https://github.com/CoBrALab/twolevel_ants_dbm. Instead each anatomical scan will be individually registered to the
+                        commonspace template using the --template_reg_script. Note that this option, although faster, is expected to reduce the quality of commonspace registration. (default: False)
 
-Options for the resampling of the EPI. Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).:
+        Options for the resampling of the EPI.
+        Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis
+        convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).
+        The original dimensions are conserved if 'inputs_defined' is specified.
+        :
   --nativespace_resampling NATIVESPACE_RESAMPLING
-                        Can specify a resampling dimension for the nativespace
-                        outputs. Must be of the form dim1xdim2xdim3 (in mm).
-                        The original dimensions are conserved if 'origin' is
-                        specified. (default: origin)
+                        Can specify a resampling dimension for the nativespace outputs. (default: inputs_defined)
   --commonspace_resampling COMMONSPACE_RESAMPLING
-                        Can specify a resampling dimension for the commonspace
-                        outputs. Must be of the form dim1xdim2xdim3 (in mm).
-                        The original dimensions are conserved if 'origin' is
-                        specified.***this option specifies the resampling for
-                        the --bold_only workflow (default: origin)
+                        Can specify a resampling dimension for the commonspace outputs. (default: inputs_defined)
   --anatomical_resampling ANATOMICAL_RESAMPLING
-                        To optimize the efficiency of registration, the
-                        provided anatomical template is resampled based on the
-                        provided input images. The dimension with the lowest
-                        resolution among the provided anatomical images (EPI
-                        images instead if --bold_only is True) is selected as
-                        a basis for resampling the template to isotropic
-                        resolution, if the provided resolution is lower than
-                        the original resolution of the template.
-                        Alternatively, the user can provide a custom
-                        resampling dimension. This allows to accelerate
-                        registration steps with minimal sampling dimensions.
-                        (default: inputs_defined)
+                        To optimize the efficiency of registration, the provided anatomical template is resampled based on the provided input images. The smallest dimension among the anatomical images
+                        (EPI images instead if --bold_only is True) defines the isotropic resolution for resampling. Alternatively, resampling dimension can be specified. (default: inputs_defined)
 
-cluster options for running ants_dbm (options copied from twolevel_dbm.py)::
+        Cluster options for running twolevel_dbm.py.
+        :
   --cluster_type {local,sge,pbs,slurm}
-                        Choose the type of cluster system to submit jobs to
-                        (default: local)
-  --walltime WALLTIME   Option for job submission specifying requested time
-                        per pairwise registration. (default: 20:00:00)
+                        Choose the type of cluster system to submit jobs to (default: local)
+  --walltime WALLTIME   Option for job submission specifying requested time per pairwise registration. (default: 20:00:00)
 
-Specify Slice Timing Correction info that is fed to AFNI 3dTshift
-    (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
-    anterior-posterior orientation, assuming slices were acquired in this direction.:
-  --TR TR               Specify repetition time (TR) in seconds. (default:
-                        1.0s)
-  --no_STC              Select this option to ignore the STC step. (default:
-                        False)
-  --tpattern {alt,seq}  Specify if interleaved or sequential acquisition.
-                        'alt' for interleaved, 'seq' for sequential. (default:
-                        alt)
+        Specify Slice Timing Correction info that is fed to AFNI 3dTshift
+        (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
+        anterior-posterior orientation, assuming slices were acquired in this direction.
+        :
+  --TR TR               Specify repetition time (TR) in seconds. (default: 1.0s)
+  --no_STC              Select this option to ignore the STC step. (default: False)
+  --tpattern {alt,seq}  Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential. (default: alt)
 
-Provided commonspace atlas files.:
+        Specify commonspace template and associated mask/label files.
+        A mouse atlas is provided as default https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.
+        :
   --anat_template ANAT_TEMPLATE
-                        Anatomical file for the commonspace template.
-                        (default: /home/gabriel/.local/share/rabies/DSURQE_40m
-                        icron_average.nii.gz)
+                        Anatomical file for the commonspace template. (default: /home/gabriel/.local/share/rabies/DSURQE_40micron_average.nii.gz)
   --brain_mask BRAIN_MASK
-                        Brain mask for the template. (default: /home/gabriel/.
-                        local/share/rabies/DSURQE_40micron_mask.nii.gz)
-  --WM_mask WM_MASK     White matter mask for the template. (default: /home/ga
-                        briel/.local/share/rabies/DSURQE_40micron_eroded_WM_ma
-                        sk.nii.gz)
-  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/.lo
-                        cal/share/rabies/DSURQE_40micron_eroded_CSF_mask.nii.g
-                        z)
+                        Brain mask for the template. (default: /home/gabriel/.local/share/rabies/DSURQE_40micron_mask.nii.gz)
+  --WM_mask WM_MASK     White matter mask for the template. (default: /home/gabriel/.local/share/rabies/DSURQE_40micron_eroded_WM_mask.nii.gz)
+  --CSF_mask CSF_MASK   CSF mask for the template. (default: /home/gabriel/.local/share/rabies/DSURQE_40micron_eroded_CSF_mask.nii.gz)
   --vascular_mask VASCULAR_MASK
-                        Can provide a mask of major blood vessels for
-                        computing confound timeseries. The default mask was
-                        generated by applying MELODIC ICA and selecting the
-                        resulting component mapping onto major veins.
-                        (Grandjean et al. 2020, NeuroImage; Beckmann et al.
-                        2005) (default: /home/gabriel/.local/share/rabies/vasc
-                        ular_mask.nii.gz)
-  --labels LABELS       Atlas file with anatomical labels. (default: /home/gab
-                        riel/.local/share/rabies/DSURQE_40micron_labels.nii.gz
-                        )
+                        Can provide a mask of major blood vessels for computing confound timeseries. The default mask was generated by applying MELODIC ICA and selecting the resulting component mapping
+                        onto major veins. (default: /home/gabriel/.local/share/rabies/vascular_mask.nii.gz)
+  --labels LABELS       Atlas file with anatomical labels. (default: /home/gabriel/.local/share/rabies/DSURQE_40micron_labels.nii.gz)
 ```
 
 </p>
@@ -278,77 +165,46 @@ Provided commonspace atlas files.:
 <p>
 
 ```
-usage: rabies confound_regression [-h] [--wf_name WF_NAME]
-                                  [--commonspace_bold] [--TR TR]
-                                  [--highpass HIGHPASS] [--lowpass LOWPASS]
-                                  [--smoothing_filter SMOOTHING_FILTER]
-                                  [--run_aroma] [--aroma_dim AROMA_DIM]
-                                  [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]]]
-                                  [--FD_censoring]
-                                  [--FD_threshold FD_THRESHOLD]
-                                  [--DVARS_censoring] [--standardize]
-                                  [--timeseries_interval TIMESERIES_INTERVAL]
+usage: rabies confound_regression [-h] [--output_name OUTPUT_NAME] [--commonspace_bold] [--TR TR] [--highpass HIGHPASS] [--lowpass LOWPASS] [--smoothing_filter SMOOTHING_FILTER] [--run_aroma]
+                                  [--aroma_dim AROMA_DIM] [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]] [--FD_censoring]
+                                  [--FD_threshold FD_THRESHOLD] [--DVARS_censoring] [--minimum_timepoint MINIMUM_TIMEPOINT] [--standardize] [--timeseries_interval TIMESERIES_INTERVAL]
                                   preprocess_out output_dir
 
 positional arguments:
-  preprocess_out        path to RABIES preprocessing output directory with the
-                        datasinks.
+  preprocess_out        path to RABIES preprocessing output directory with the datasinks.
   output_dir            path to drop confound regression output datasink.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --wf_name WF_NAME     Can specify a name for the workflow of this confound
-                        regression run, to avoid potential overlaps with
-                        previous runs (can be useful if investigating multiple
-                        strategies). (default: confound_regression_wf)
-  --commonspace_bold    If should run confound regression on the commonspace
-                        bold output. (default: False)
-  --TR TR               Specify repetition time (TR) in seconds. (default:
-                        1.0s)
+  --output_name OUTPUT_NAME
+                        Creates a new output folder to store the workflow of this CR run, to avoid potential overlaps with previous runs (can be useful if investigating multiple strategies). (default:
+                        confound_regression_wf)
+  --commonspace_bold    If should run confound regression on the commonspace bold output. (default: False)
+  --TR TR               Specify repetition time (TR) in seconds. (default: 1.0s)
   --highpass HIGHPASS   Specify highpass filter frequency. (default: None)
   --lowpass LOWPASS     Specify lowpass filter frequency. (default: None)
   --smoothing_filter SMOOTHING_FILTER
-                        Specify smoothing filter size in mm. (default: None)
-  --run_aroma           Whether to run ICA-AROMA or not. The classifier
-                        implemented within RABIES is a slightly modified
-                        version from the original (Pruim et al. 2015), with
-                        parameters and masks adapted for rodent images.
-                        (default: False)
+                        Specify spatial smoothing filter size in mm. Uses nilearn's function https://nilearn.github.io/modules/generated/nilearn.image.smooth_img.html (default: None)
+  --run_aroma           Whether to run ICA-AROMA or not. The classifier implemented within RABIES is a slightly modified version from the original (Pruim et al. 2015), with parameters and masks adapted
+                        for rodent images. (default: False)
   --aroma_dim AROMA_DIM
-                        Can specify a number of dimension for the MELODIC run
-                        before ICA-AROMA. (default: 0)
-  --conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]]
-                        list of nuisance regressors that will be applied on
-                        voxel timeseries. mot_6 corresponds to the 6 rigid
-                        body parameters, and mot_24 corresponds to the 6 rigid
-                        parameters, their temporal derivative, and all 12
-                        parameters squared (Friston et al. 1996). aCompCor
-                        corresponds the timeseries of components from a PCA
-                        conducted on the combined WM and CSF masks voxel
-                        timeseries, including all components that together
-                        explain 50 percent. of the variance, as in Muschelli
-                        et al. 2014. (default: [])
-  --FD_censoring        Whether to remove timepoints that exceed a framewise
-                        displacement threshold, before other confound
-                        regression steps. The frames that exceed the given
-                        threshold together with 1 back and 4 forward frames
-                        will be masked out (based on Power et al. 2012).
-                        (default: False)
+                        Can specify a fixed number of dimension for the MELODIC run before ICA-AROMA. (default: 0)
+  --conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]
+                        List of nuisance regressors that will be applied on voxel timeseries. WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain masks. mot_6: 6 rigid
+                        HMC parameters. mot_24: mot_6 + their temporal derivative, and all 12 parameters squared (Friston et al. 1996). aCompCor: corresponds to the timeseries of components from a PCA
+                        conducted on the combined WM and CSF masks voxel timeseries, including all components that together explain 50/100 of the variance, as in Muschelli et al. 2014. mean_FD: the mean
+                        framewise displacement timecourse (default: [])
+  --FD_censoring        Whether to remove timepoints that exceed a framewise displacement threshold. The frames that exceed the given threshold together with 1 back and 4 forward frames will be masked
+                        out (based on Power et al. 2012). (default: False)
   --FD_threshold FD_THRESHOLD
-                        Scrubbing threshold for the mean framewise
-                        displacement in mm (averaged across the brain mask) to
-                        select corrupted volumes. (default: 0.05)
-  --DVARS_censoring     Whether to remove timepoints that present outlier
-                        values on the DVARS metric (temporal derivative of
-                        global signal). This option will create a distribution
-                        of DVARS values which has no outlier values above or
-                        below 2.5 standard deviations. (default: False)
-  --standardize         Whether to standardize timeseries to unit variance.
-                        (default: False)
+                        Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain mask) to select corrupted volumes. (default: 0.05)
+  --DVARS_censoring     Whether to remove timepoints that present outlier values on the DVARS metric (temporal derivative of global signal). This will censor out timepoints until a distribution of DVARS
+                        values is obtained without outliers values above or below 2.5 standard deviations. (default: False)
+  --minimum_timepoint MINIMUM_TIMEPOINT
+                        Can select a threshold number of timepoint to remain after censoring, and return empty files for scans that don't pass threshold. (default: 3)
+  --standardize         Whether to standardize timeseries to unit variance. (default: False)
   --timeseries_interval TIMESERIES_INTERVAL
-                        Specify a time interval in the timeseries to keep.
-                        e.g. "0,80". By default all timeseries are kept.
-                        (default: all)
+                        Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept. (default: all)
 ```
 
 </p>
@@ -359,69 +215,61 @@ optional arguments:
 <p>
 
 ```
-usage: rabies analysis [-h] [--scan_list [SCAN_LIST [SCAN_LIST ...]]]
-                       [--seed_list [SEED_LIST [SEED_LIST ...]]] [--FC_matrix]
-                       [--ROI_type {parcellated,voxelwise}] [--group_ICA]
-                       [--TR TR] [--dim DIM] [--DR_ICA] [--IC_file IC_FILE]
+usage: rabies analysis [-h] [--output_name OUTPUT_NAME] [--scan_list [SCAN_LIST ...]] [--seed_list [SEED_LIST ...]] [--FC_matrix] [--ROI_type {parcellated,voxelwise}] [--group_ICA] [--TR TR] [--dim DIM]
+                       [--DR_ICA] [--IC_file IC_FILE] [--dual_ICA DUAL_ICA] [--prior_maps PRIOR_MAPS] [--prior_bold_idx [PRIOR_BOLD_IDX ...]]
                        confound_regression_out output_dir
 
 positional arguments:
   confound_regression_out
-                        path to RABIES confound regression output directory
-                        with the datasink.
-  output_dir            the output path to drop analysis outputs.
+                        path to RABIES confound regression output directory with the datasink.
+  output_dir            path to drop analysis outputs.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --scan_list [SCAN_LIST [SCAN_LIST ...]]
-                        This option offers to run the analysis on a subset of
-                        the scans.The scans selected are specified by
-                        providing the full path to each EPI file from the
-                        input BIDS folder.The list of scan can be specified
-                        manually as a list of file name '--scan_list
-                        scan1.nii.gz scan2.nii.gz ...' or the files can be
-                        imbedded into a .txt file with one filename per row.By
-                        default, 'all' will use all the scans previously
-                        processed. (default: ['all'])
-  --seed_list [SEED_LIST [SEED_LIST ...]]
-                        Can provide a list of seed .nii images that will be
-                        used to evaluate seed-based correlation maps based on
-                        Pearson's r.Each seed must consist of a binary mask
-                        representing the ROI in commonspace. (default: [])
+  --output_name OUTPUT_NAME
+                        Creates a new output folder to store the workflow of this analysis run, to avoid potential overlaps with previous runs. (default: analysis_wf)
+  --scan_list [SCAN_LIST ...]
+                        This option offers to run the analysis on a subset of the scans. The scans selected are specified by providing the full path to each EPI file from the input BIDS folder. The list
+                        of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row. By
+                        default, 'all' will use all the scans previously processed. (default: ['all'])
+  --seed_list [SEED_LIST ...]
+                        Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps based on Pearson's r. Each seed must consist of a binary mask representing the
+                        ROI in commonspace. (default: [])
 
-Options for performing a whole-brain timeseries correlation matrix analysis.:
-  --FC_matrix           Choose this option to derive a whole-brain functional
-                        connectivity matrix, based on the Pearson's r
-                        correlation of regional timeseries for each subject
-                        cleaned timeseries. (default: False)
+        Options for performing a whole-brain timeseries correlation matrix analysis.
+        :
+  --FC_matrix           Choose this option to derive a whole-brain functional connectivity matrix, based on the Pearson's r correlation of regional timeseries for each subject cleaned timeseries.
+                        (default: False)
   --ROI_type {parcellated,voxelwise}
-                        Define the types of ROI to extract regional timeseries
-                        for correlation matrix analysis. Options are
-                        'parcellated', in which case the atlas labels provided
-                        for preprocessing are used as ROIs, or 'voxelwise', in
-                        which case all voxel timeseries are cross-correlated.
-                        (default: parcellated)
+                        Define the types of ROI to extract regional timeseries for correlation matrix analysis. Options are 'parcellated', in which case the atlas labels provided for preprocessing are
+                        used as ROIs, or 'voxelwise', in which case all voxel timeseries are cross-correlated. (default: parcellated)
 
-Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.Note that confound regression must have been conducted on commonspace outputs.:
-  --group_ICA           Choose this option to conduct group-ICA. (default:
-                        False)
-  --TR TR               Specify repetition time (TR) in seconds. (default:
-                        1.0s)
-  --dim DIM             You can specify the number of ICA components to be
-                        derived. The default uses an automatic estimation.
-                        (default: 0)
+        Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.
+        Note that confound regression must have been conducted on commonspace outputs.
+        :
+  --group_ICA           Choose this option to conduct group-ICA. (default: False)
+  --TR TR               Specify repetition time (TR) in seconds. (default: 1.0s)
+  --dim DIM             You can specify the number of ICA components to be derived. The default uses an automatic estimation. (default: 0)
 
-Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC. Note that confound regression must have been conducted on commonspace outputs.:
-  --DR_ICA              Choose this option to conduct dual regression on each
-                        subject timeseries. This analysis will output the
-                        spatial maps corresponding to the linear coefficients
-                        from the second linear regression. See
-                        rabies.analysis_pkg.analysis_functions.dual_regression
-                        for the specific code. (default: False)
-  --IC_file IC_FILE     Option to provide a melodic_IC.nii.gz file with the
-                        ICA components from a previous group-ICA run. If none
-                        is provided, a group-ICA will be run with the dataset
-                        cleaned timeseries. (default: None)
+        Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC.
+        Note that confound regression must have been conducted on commonspace outputs.
+        :
+  --DR_ICA              Choose this option to conduct dual regression on each subject timeseries. This analysis will output the spatial maps corresponding to the linear coefficients from the second
+                        linear regression. See rabies.analysis_pkg.analysis_functions.dual_regression for the specific code. (default: False)
+  --IC_file IC_FILE     Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run. If none is provided, a group-ICA will be run with the dataset cleaned
+                        timeseries. (default: None)
+
+        Options for performing a Dual ICA.
+        Need to provide the prior maps to fit --prior_maps, and the associated indices for the target components
+        in --prior_bold_idx
+        :
+  --dual_ICA DUAL_ICA   Specify how many subject-specific sources to compute using dual ICA. (default: 0)
+  --prior_maps PRIOR_MAPS
+                        Provide a 4D nifti image with a series of spatial priors representing common sources of signal (e.g. ICA components from a group-ICA run). Default: Corresponds to a MELODIC run
+                        on a combined group of anesthetized- ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and
+                        mot_6,WM_signal,CSF_signal as regressors. (default: /home/gabriel/.local/share/rabies/melodic_IC.nii.gz)
+  --prior_bold_idx [PRIOR_BOLD_IDX ...]
+                        Specify the indices for the priors to fit from --prior_maps. (default: [5, 12, 19])
 ```
 
 </p>
@@ -432,51 +280,33 @@ Options for performing a dual regression analysis based on a previous group-ICA 
 <p>
 
 ```
-usage: rabies data_diagnosis [-h] [--scan_list [SCAN_LIST [SCAN_LIST ...]]]
-                             [--dual_regression]
-                             [--dual_convergence DUAL_CONVERGENCE]
-                             [--prior_maps PRIOR_MAPS]
-                             [--prior_bold_idx [PRIOR_BOLD_IDX [PRIOR_BOLD_IDX ...]]]
-                             [--prior_confound_idx [PRIOR_CONFOUND_IDX [PRIOR_CONFOUND_IDX ...]]]
-                             [--DSURQE_regions]
+usage: rabies data_diagnosis [-h] [--output_name OUTPUT_NAME] [--scan_list [SCAN_LIST ...]] [--dual_ICA DUAL_ICA] [--prior_maps PRIOR_MAPS] [--prior_bold_idx [PRIOR_BOLD_IDX ...]]
+                             [--prior_confound_idx [PRIOR_CONFOUND_IDX ...]] [--DSURQE_regions]
                              confound_regression_out output_dir
 
 positional arguments:
   confound_regression_out
-                        path to RABIES confound regression output directory
-                        with the datasink.
-  output_dir            the output path to drop data_diagnosis outputs.
+                        path to RABIES confound regression output directory with the datasink.
+  output_dir            path to drop data_diagnosis outputs.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --scan_list [SCAN_LIST [SCAN_LIST ...]]
-                        This option offers to run the analysis on a subset of
-                        the scans.The scans selected are specified by
-                        providing the full path to each EPI file from the
-                        input BIDS folder.The list of scan can be specified
-                        manually as a list of file name '--scan_list
-                        scan1.nii.gz scan2.nii.gz ...' or the files can be
-                        imbedded into a .txt file with one filename per row.By
-                        default, 'all' will use all the scans previously
-                        processed. (default: ['all'])
-  --dual_regression     Whether to evaluate dual regression outputs. (default:
-                        False)
-  --dual_convergence DUAL_CONVERGENCE
-                        Can specify a number of components to compute using a
-                        dual convergence framework. (default: 0)
+  --output_name OUTPUT_NAME
+                        Creates a new output folder to store the workflow of this analysis run, to avoid potential overlaps with previous runs. (default: data_diagnosis_wf)
+  --scan_list [SCAN_LIST ...]
+                        This option offers to run the analysis on a subset of the scans. The scans selected are specified by providing the full path to each EPI file from the input BIDS folder. The list
+                        of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row. By
+                        default, 'all' will use all the scans previously processed. (default: ['all'])
+  --dual_ICA DUAL_ICA   Specify how many subject-specific sources to compute using dual ICA. (default: 0)
   --prior_maps PRIOR_MAPS
-                        Provide a 4D nifti image with a series of spatial
-                        priors representing common sources of signal (e.g. ICA
-                        components from a group-ICA run).The default file
-                        corresponds to a MELODIC run on a combined group of
-                        anesthetized-ventilated mice with MEDISO and awake
-                        mice.Confound regression consisted of highpass at 0.01
-                        Hz, FD censoring at 0.03mm, DVARS censoring, and
-                        mot_6,WM_signal,CSF_signal as regressors. (default:
-                        /home/gabriel/.local/share/rabies/melodic_IC.nii.gz)
-  --prior_bold_idx [PRIOR_BOLD_IDX [PRIOR_BOLD_IDX ...]]
-  --prior_confound_idx [PRIOR_CONFOUND_IDX [PRIOR_CONFOUND_IDX ...]]
-  --DSURQE_regions      (default: False)
+                        Provide a 4D nifti image with a series of spatial priors representing common sources of signal (e.g. ICA components from a group-ICA run). Default: Corresponds to a MELODIC run
+                        on a combined group of anesthetized- ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and
+                        mot_6,WM_signal,CSF_signal as regressors. (default: /home/gabriel/.local/share/rabies/melodic_IC.nii.gz)
+  --prior_bold_idx [PRIOR_BOLD_IDX ...]
+                        Specify the indices for the BOLD components from --prior_maps. (default: [5, 12, 19])
+  --prior_confound_idx [PRIOR_CONFOUND_IDX ...]
+                        Specify the indices for the confound components from --prior_maps. (default: [0, 1, 2, 6, 7, 8, 9, 10, 11, 13, 14, 21, 22, 24, 26, 28, 29])
+  --DSURQE_regions      If using the default mouse DSURQE atlas, will organize the grayplot to have regional labels. (default: False)
 ```
 
 </p>

@@ -4,39 +4,6 @@ from nipype import Function
 
 
 def init_bold_reg_wf(opts, name='bold_reg_wf'):
-    """
-    This workflow registers the reference BOLD image to anat-space, using
-    antsRegistration, either applying Affine registration only, or the
-    combination of Affine followed by non-linear registration using the SyN
-    algorithm, which may apply distortion correction through the registration
-    to the structural image.
-
-    **Parameters**
-
-        SyN_reg : bool
-            Determine whether SyN registration will used or not, and uses the
-            transform from the registration as SDC transforms to transform from
-            bold to anat
-
-    **Inputs**
-
-        ref_bold_brain
-            Reference image to which BOLD series is aligned
-        anat_ref
-            Bias-corrected structural template image
-        anat_mask
-            Mask of the skull-stripped template image
-
-    **Outputs**
-
-        itk_bold_to_anat
-            Transform from ``ref_bold_brain`` to anat space
-        itk_anat_to_bold
-            Transform from anat space to BOLD space (ITK format)
-        output_warped_bold
-            output warped image from antsRegistration
-
-    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(

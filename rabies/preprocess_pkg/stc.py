@@ -4,28 +4,7 @@ from nipype.interfaces import utility as niu
 
 
 def init_bold_stc_wf(opts, name='bold_stc_wf'):
-    """
-    This workflow performs :abbr:`STC (slice-timing correction)` over the input
-    :abbr:`BOLD (blood-oxygen-level dependent)` image.
 
-    **Parameters**
-
-        name : str
-            Name of workflow (default: ``bold_stc_wf``)
-
-    **Inputs**
-
-        bold_file
-            BOLD series NIfTI file
-        skip_vols
-            Number of non-steady-state volumes detected at beginning of ``bold_file``
-
-    **Outputs**
-
-        stc_file
-            Slice-timing corrected BOLD series NIfTI file
-
-    """
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file']), name='inputnode')
