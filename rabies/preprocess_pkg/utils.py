@@ -862,11 +862,9 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
     log.info("Resampling template to %sx%sx%smm dimensions." %
           (spacing[0], spacing[1], spacing[2],))
     resampled_template = os.path.abspath("resampled_template.nii.gz")
-    print('resampling')
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
         template_file, rabies_data_type), spacing), resampled_template)
 
-    print('apply transforms')
     # also resample the brain mask to ensure stable registrations further down
     resampled_mask = os.path.abspath("resampled_mask.nii.gz")
     command = 'antsApplyTransforms -d 3 -i %s -r %s -o %s --verbose -n GenericLabel' % (
