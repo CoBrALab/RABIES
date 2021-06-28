@@ -151,7 +151,7 @@ def get_parser():
 
     g_registration = preprocess.add_argument_group("""
         Options for the registration steps.
-        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN' and 'multiRAT'.
+        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), and 'multiRAT'.
         A custom registration script can be provided instead following the template script structure
         from other registration scripts (see RABIES/scripts/preprocess_scripts/ for template).
         """)
