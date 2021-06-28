@@ -349,7 +349,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            name='anat_convert_to_RAS')
 
         # setting anat preprocessing nodes
-        anat_preproc_wf = init_bias_correction_wf(opts=opts, name="anat_preproc_wf")
+        anat_preproc_wf = init_bias_correction_wf(opts=opts, bias_cor_method=opts.bold_denoising_method, name="anat_denoising_wf")
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],
                                            output_names=[
@@ -413,7 +413,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
-        if not opts.anat_bias_cor_method=='disable':
+        if not opts.anat_denoising_method=='disable':
             anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
                                                function=preprocess_visual_QC.denoising_diagnosis),
                                       name='anat_denoising_diagnosis')

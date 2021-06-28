@@ -15,6 +15,7 @@ input=$1
 output=$2
 modelfile=$3
 modelmask=$4
+reg_option=$5
 
 # convert inputs to mnc
 nii2mnc ${input} ${tmpdir}/input.mnc
@@ -131,7 +132,15 @@ mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/prec
 minc_anlm --clobber --mt $(nproc) ${tmpdir}/precorrect.mnc ${tmpdir}/denoise.mnc
 n3input=${tmpdir}/denoise.mnc
 
-antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} \
+if [ $reg_option == 'Rigid' ]; then
+  reg_type="--linear-type rigid --skip-nonlinear"
+elif [ $reg_option == 'Affine' ]; then
+  reg_type="--linear-type affine --skip-nonlinear"
+elif [ $reg_option == 'SyN' ]; then
+  reg_type="--linear-type affine"
+fi
+
+antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} $reg_type \
   ${n3input} ${modelfile} ${tmpdir}/tomodel
 
 antsApplyTransforms -d 3 -i ${modelmask} -t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] -t ${tmpdir}/tomodel1_inverse_NL.xfm \

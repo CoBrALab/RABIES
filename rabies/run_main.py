@@ -102,24 +102,18 @@ def get_parser():
                             correction, so only commonspace outputs are provided with this
                             option.
                             """)
-    preprocess.add_argument("--bold_bias_cor_method", type=str, default='rabies-rodent-preprocessing.sh',
-                            choices=['otsu_reg', 'thresh_reg',
-                                     'rabies-rodent-preprocessing.sh', 'disable'],
+    preprocess.add_argument("--bold_denoising_method", type=str, default='SyN',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
                             help="""
-                            Choose the algorithm for bias field correction of the EPI before registration.
-                            Each algorithm consists of 1) initial denoising, 2) registration to the masked anatomical
-                            reference 3) use the mask to enhance bias field correction to provide the final corrected image.
-                            'rabies-rodent-preprocessing.sh' from https://github.com/CoBrALab/minc-toolkit-extras has been
-                            extensively validated on anatomical images across spaces, and uses an Affine registration.
-                            'otsu_reg' uses a otsu masking approach to support bias field correction together with
-                            a Rigid registration.
-                            'thresh_reg' uses a simple threshold masking approach to support bias field correction
-                            together with a Rigid registration.
+                            Select a registration type for masking during initial denoising of the EPI.
                             """)
-    preprocess.add_argument("--anat_bias_cor_method", type=str, default='rabies-rodent-preprocessing.sh',
-                            choices=['otsu_reg', 'thresh_reg',
-                                     'rabies-rodent-preprocessing.sh', 'disable'],
-                            help="Same as --bold_bias_cor_method but for the anatomical image.")
+    preprocess.add_argument("--anat_denoising_method", type=str, default='SyN',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
+                            help="""
+                            Select a registration type for masking during initial denoising of the anatomical scan.
+                            """)
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""
                             Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
