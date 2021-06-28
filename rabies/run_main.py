@@ -102,23 +102,23 @@ def get_parser():
                             correction, so only commonspace outputs are provided with this
                             option.
                             """)
-    preprocess.add_argument("--bold_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
+    preprocess.add_argument("--bold_bias_cor_method", type=str, default='rabies-rodent-preprocessing.sh',
                             choices=['otsu_reg', 'thresh_reg',
-                                     'mouse-preprocessing-v5.sh', 'disable'],
+                                     'rabies-rodent-preprocessing.sh', 'disable'],
                             help="""
                             Choose the algorithm for bias field correction of the EPI before registration.
                             Each algorithm consists of 1) initial denoising, 2) registration to the masked anatomical
                             reference 3) use the mask to enhance bias field correction to provide the final corrected image.
-                            'mouse-preprocessing-v5.sh' from https://github.com/CoBrALab/minc-toolkit-extras has been
+                            'rabies-rodent-preprocessing.sh' from https://github.com/CoBrALab/minc-toolkit-extras has been
                             extensively validated on anatomical images across spaces, and uses an Affine registration.
                             'otsu_reg' uses a otsu masking approach to support bias field correction together with
                             a Rigid registration.
                             'thresh_reg' uses a simple threshold masking approach to support bias field correction
                             together with a Rigid registration.
                             """)
-    preprocess.add_argument("--anat_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
+    preprocess.add_argument("--anat_bias_cor_method", type=str, default='rabies-rodent-preprocessing.sh',
                             choices=['otsu_reg', 'thresh_reg',
-                                     'mouse-preprocessing-v5.sh', 'disable'],
+                                     'rabies-rodent-preprocessing.sh', 'disable'],
                             help="Same as --bold_bias_cor_method but for the anatomical image.")
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""
@@ -528,7 +528,6 @@ def execute_workflow():
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
     opts = parser.parse_args()
-    print(opts)
 
     try:
         output_folder = os.path.abspath(str(opts.output_dir))

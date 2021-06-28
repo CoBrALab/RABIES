@@ -114,9 +114,9 @@ class BiasCorrection(BaseInterface):
             resampled_mask = out.outputs.denoise_mask
             init_denoise = out.outputs.init_denoise
 
-        elif self.inputs.bias_cor_method=='mouse-preprocessing-v5.sh':
+        elif self.inputs.bias_cor_method=='rabies-rodent-preprocessing.sh':
             corrected = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
-            command = 'rabies-mouse-preprocessing-v5.sh %s %s %s %s' % (target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask)
+            command = 'rabies-rodent-preprocessing.sh %s %s %s %s' % (target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask)
             rc = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'

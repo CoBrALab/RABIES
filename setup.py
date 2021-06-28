@@ -158,7 +158,7 @@ setup(
         'scripts/preprocess_scripts/null_nonlin.sh',
         'scripts/preprocess_scripts/plot_overlap.sh',
         'scripts/preprocess_scripts/rabies_antsMultivariateTemplateConstruction2.sh',
-        'scripts/preprocess_scripts/rabies-mouse-preprocessing-v5.sh',
+        'scripts/preprocess_scripts/rabies-rodent-preprocessing.sh',
         'twolevel_ants_dbm/twolevel_dbm.py',
         'minc-toolkit-extras/ants_generate_iterations.py',
         'minc-toolkit-extras/antsRegistration_affine_SyN.sh',

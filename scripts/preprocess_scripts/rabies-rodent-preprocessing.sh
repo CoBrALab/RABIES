@@ -13,8 +13,25 @@ tmpdir=$(mktemp -d)
 
 input=$1
 output=$2
+modelfile=$3
+modelmask=$4
 
-origdistance=20
+# convert inputs to mnc
+nii2mnc ${input} ${tmpdir}/input.mnc
+input=${tmpdir}/input.mnc
+nii2mnc ${modelfile} ${tmpdir}/modelfile.mnc
+modelfile=${tmpdir}/modelfile.mnc
+nii2mnc ${modelmask} ${tmpdir}/modelmask.mnc
+modelmask=${tmpdir}/modelmask.mnc
+
+#Calculate Maximum FOV using the foreground/background of the fixed image
+ThresholdImage 3 ${modelfile} ${tmpdir}/bgmask.h5 1e-12 Inf 1 0
+ThresholdImage 3 ${modelfile} ${tmpdir}/otsu.h5 Otsu 4 ${tmpdir}/bgmask.h5
+ThresholdImage 3 ${tmpdir}/otsu.h5 ${tmpdir}/otsu.h5 2 Inf 1 0
+LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv
+fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${modelfile} 1)\".split(\"x\")]])]))")
+
+origdistance=$fixed_maximum_resolution
 distance=${origdistance}
 levels=4
 cycles=3
@@ -41,22 +58,6 @@ do_correct() {
   done
 
 }
-
-
-
-#modelfile=${QUARANTINE_PATH}/resources/in-vivo-MEMRI_90micron/Dorr_2008_on_MEMRI_C57BL6_P43_average_recenter.mnc
-#modelmask=${QUARANTINE_PATH}/resources/in-vivo-MEMRI_90micron/Dorr_2008_on_MEMRI_C57BL6_P43_mask_recenter.mnc
-modelfile=$3
-modelmask=$4
-
-# convert inputs to mnc
-nii2mnc ${input} ${tmpdir}/input.mnc
-input=${tmpdir}/input.mnc
-nii2mnc ${modelfile} ${tmpdir}/modelfile.mnc
-modelfile=${tmpdir}/modelfile.mnc
-nii2mnc ${modelmask} ${tmpdir}/modelmask.mnc
-modelmask=${tmpdir}/modelmask.mnc
-
 
 minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
 
