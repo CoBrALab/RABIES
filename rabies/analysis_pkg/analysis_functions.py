@@ -270,8 +270,10 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
+    import numpy as np
+    import nibabel as nb
     import SimpleITK as sitk
-    from rabies.analysis_pkg.analysis_functions import sub_DR_ICA, recover_3D_multiple, resample_4D
+    from rabies.analysis_pkg.analysis_functions import recover_3D_multiple, resample_4D, dual_regression
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     # check if the IC_file has the same dimensions as bold_file
@@ -281,19 +283,6 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
         log.info('Resampling file with IC components to match the scan dimensionality.')
         IC_file = resample_4D(IC_file, bold_file)
 
-    sub_ICs = sub_DR_ICA(bold_file, mask_file, IC_file)
-
-    data_file = os.path.abspath(filename_split[0]+'_DR_ICA.csv')
-    df=pd.DataFrame(sub_ICs.T)
-    df.to_csv(data_file,sep=',')
-
-    # save the subjects' IC maps as .nii file
-    nii_file = os.path.abspath(filename_split[0]+'_DR_ICA.nii.gz')
-    recover_3D_multiple(mask_file, sub_ICs).to_filename(nii_file)
-    return data_file, nii_file
-
-
-def sub_DR_ICA(bold_file, mask_file, IC_file):
     brain_mask = np.asarray(nb.load(mask_file).dataobj)
     volume_indices = brain_mask.astype(bool)
 
@@ -308,8 +297,15 @@ def sub_DR_ICA(bold_file, mask_file, IC_file):
     for i in range(all_IC_array.shape[3]):
         all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
 
-    sub_ICs = dual_regression(all_IC_vectors, sub_timeseries)
-    return sub_ICs
+    DR = dual_regression(all_IC_vectors, sub_timeseries)
+
+    dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
+    pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
+
+    # save the subjects' IC maps as .nii file
+    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
+    recover_3D_multiple(mask_file,DR['C']).to_filename(DR_maps_filename)
+    return DR_maps_filename, dual_regression_timecourse_csv
 
 
 '''
@@ -327,32 +323,25 @@ def mse(X, Y, w):  # function that computes the Mean Square Error (MSE)
     return np.mean((Y-np.matmul(X, w))**2)
 
 
-def dual_regression(IC_vectors, timeseries):
-    # IC_vectors is of shape num_ICxnum_voxels
-    # timeseries is of shape num_timepointsxnum_voxels
-    X = IC_vectors.transpose()
-    Y = timeseries.transpose()
-
-    # spatial and temporal centering of the matrices as suggested here https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero).
-    # spatial centering of the group ICs
-    X = X-X.mean(axis=0)
-    # spatial and temporal centering of the timeseries
-    Y = Y-Y.mean(axis=0)
-    Y = (Y.T-Y.mean(axis=1)).T
-
-    # for one given volume, it's values can be expressed through a linear combination of the components ()
-    w = closed_form(X, Y, intercept=False)
-
+def dual_regression(all_IC_vectors, timeseries):
+    ### compute dual regression
+    ### Here, we adopt an approach where the algorithm should explain the data
+    ### as a linear combination of spatial maps. The data itself, is only temporally
+    ### detrended, and not spatially centered, which could cause inconsistencies during
+    ### linear regression according to https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero
+    ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
+    ### this measure would be removing global signal variations which we are interested in.
+    ### Thus we prefer to avoid this step here, despite modelling limitations.
+    X = all_IC_vectors.T
+    Y = timeseries.T
+    # for one given volume, it's values can be expressed through a linear combination of the components
+    W = closed_form(X, Y, intercept=False).T
     # normalize the component timecourses to unit variance
-    std = w.std(axis=1)
-    for i in range(w.shape[0]):
-        w[i, :] = w[i, :]/std[i]
-
+    W /= W.std(axis=0)
     # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
-    X = w.transpose()
-    Y = timeseries
-    # return recovered components of dim num_ICsxnum_voxels
-    return closed_form(X, Y, intercept=False)
+    C = closed_form(W, Y.T, intercept=False)
+    DR = {'C':C, 'W':W}
+    return DR
 
 
 from nipype.interfaces.base import (

@@ -70,7 +70,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --run_aroma --FD_censoring --DVARS_censoring" % (
+command = "rabies confound_regression %s/outputs %s/outputs --run_aroma --FD_censoring --DVARS_censoring --commonspace_analysis" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -78,7 +78,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --conf_list mot_6 --smoothing_filter 0.3 --commonspace_analysis" % (
+command = "rabies confound_regression %s/outputs %s/outputs --conf_list mot_6 --smoothing_filter 0.3" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -86,7 +86,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies data_diagnosis %s/outputs %s/outputs --dual_ICA 1" % (
+command = "rabies analysis %s/outputs %s/outputs --DR_ICA --dual_ICA 1" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -94,7 +94,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1" % (
+command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1 --data_diagnosis --DR_ICA" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,

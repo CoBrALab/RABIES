@@ -14,7 +14,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'DR_data_file',
+    outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'sub_token', 'group_token',
                                                        'dual_ICA_timecourse_csv', 'dual_ICA_filename']), name='outputnode')
 
@@ -61,13 +61,13 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
 
     include_group_ICA = opts.group_ICA
 
-    if opts.DR_ICA:
+    if opts.DR_ICA and not opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_analysis.')
 
         DR_ICA = pe.Node(Function(input_names=['bold_file', 'mask_file', 'IC_file'],
-                                  output_names=['data_file', 'nii_file'],
+                                  output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
                                   function=run_DR_ICA),
                          name='DR_ICA', mem_gb=1)
 
@@ -77,8 +77,8 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ("mask_file", "mask_file"),
                 ]),
             (DR_ICA, outputnode, [
-                ("data_file", "DR_data_file"),
-                ("nii_file", "DR_nii_file"),
+                ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
+                ("DR_maps_filename", "DR_nii_file"),
                 ]),
             ])
 
@@ -122,7 +122,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                     ]),
                 ])
 
-    if opts.dual_ICA>0:
+    if opts.dual_ICA>0 and not opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_analysis.')
