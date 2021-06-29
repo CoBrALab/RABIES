@@ -312,6 +312,8 @@ def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sou
     import os
     import pathlib
     import SimpleITK as sitk
+    # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+    sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
     filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
     os.makedirs(out_dir, exist_ok=True)
     prefix = out_dir+'/'+ \
