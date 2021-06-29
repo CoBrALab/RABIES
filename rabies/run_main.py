@@ -94,13 +94,12 @@ def get_parser():
                             help="""
                             the output path to drop outputs from major preprocessing steps.
                             """)
-    preprocess.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
+    preprocess.add_argument("--bold_only", dest='bold_only', action='store_true',
                             help="""
                             Apply preprocessing with only EPI scans. Commonspace registration
                             is executed directly using the denoised EPI 3D reference images.
                             The commonspace registration simultaneously applies distortion
-                            correction, so only commonspace outputs are provided with this
-                            option.
+                            correction, this option will produce only commonspace outputs.
                             """)
     preprocess.add_argument("--bold_denoising_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
@@ -278,7 +277,7 @@ def get_parser():
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
                                      overlaps with previous runs (can be useful if investigating multiple strategies).
                                      """)
-    confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
+    confound_regression.add_argument('--commonspace_analysis', dest='commonspace_analysis', action='store_false',
                                      help="""
                                      If should run confound regression on the commonspace bold output.
                                      """)

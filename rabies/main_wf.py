@@ -519,12 +519,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
-                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_bold, bold_scan_list)
+                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_analysis, bold_scan_list)
 
         # Integrate data_diagnosis
         if data_diagnosis_opts is not None:
             workflow = integrate_data_diagnosis(
-                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_bold, bold_scan_list)
+                workflow, outputnode, confound_regression_wf, data_diagnosis_opts, opts.bold_only, cr_opts.commonspace_analysis, bold_scan_list)
 
     elif opts.rabies_step == 'preprocess':
         # Datasink - creates output folder for important outputs
@@ -633,11 +633,11 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
             ]),
         ])
 
-    if bold_only and not cr_opts.commonspace_bold:
+    if bold_only and not cr_opts.commonspace_analysis:
         raise ValueError(
             'Must select --commonspace option for running confound regression on outputs from --bold_only.')
 
-    if cr_opts.commonspace_bold:
+    if cr_opts.commonspace_analysis:
         workflow.connect([
             (outputnode, confound_regression_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
