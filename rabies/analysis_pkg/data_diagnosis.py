@@ -47,9 +47,13 @@ class PrepMasks(BaseInterface):
         sitk.WriteImage(resampled,template_file)
 
         if self.inputs.DSURQE_regions:
-            right_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_right_hem_mask.nii.gz',
+            if 'XDG_DATA_HOME' in os.environ.keys():
+                rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
+            else:
+                rabies_path = os.environ['HOME']+'/.local/share/rabies'
+            right_hem_mask_file = resample_mask(rabies_path+'/DSURQE_40micron_right_hem_mask.nii.gz',
                     brain_mask_file)
-            left_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_left_hem_mask.nii.gz',
+            left_hem_mask_file = resample_mask(rabies_path+'/DSURQE_40micron_left_hem_mask.nii.gz',
                     brain_mask_file)
         else:
             right_hem_mask_file=''
