@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import nibabel as nb
+import SimpleITK as sitk
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
@@ -100,7 +100,8 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     import os
     import numpy as np
     import pandas as pd
-    from rabies.conf_reg_pkg.utils import select_confound_timecourses,recover_3D_multiple
+    import SimpleITK as sitk
+    from rabies.conf_reg_pkg.utils import select_confound_timecourses
 
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
@@ -110,11 +111,6 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
     else:
         confounds_array = select_confound_timecourses(cr_opts.conf_list,confounds_file,FD_file)
 
-    import nibabel as nb
-    brain_mask = np.asarray(nb.load(brain_mask_file).dataobj)
-    volume_indices = brain_mask.astype(bool)
-
-    data_array = np.asarray(nb.load(bold_file).dataobj)
     FD_trace = pd.read_csv(FD_file).get('Mean')
 
     # select the subset of timeseries specified
@@ -125,9 +121,9 @@ def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
         FD_trace = FD_trace[lowcut:highcut]
         time_range = range(lowcut,highcut)
     else:
-        time_range = range(data_array.shape[3])
+        time_range = range(sitk.ReadImage(bold_file).GetSize()[3])
 
-    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_csv':confounds_file}
+    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
 def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
@@ -183,24 +179,30 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
 
 
 def recover_3D(mask_file, vector_map):
-    brain_mask=np.asarray(nb.load(mask_file).dataobj)
+    from rabies.preprocess_pkg.utils import copyInfo_3DImage
+    mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
     volume=np.zeros(brain_mask.shape)
     volume[volume_indices]=vector_map
-    volume_img=nb.Nifti1Image(volume, nb.load(mask_file).affine, nb.load(mask_file).header)
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        volume, isVector=False), mask_img)
     return volume_img
 
-def recover_3D_multiple(mask_file, vector_maps):
+def recover_4D(mask_file, vector_maps, ref_4d):
+    from rabies.preprocess_pkg.utils import copyInfo_4DImage
     #vector maps of shape num_volumeXnum_voxel
-    brain_mask=np.asarray(nb.load(mask_file).dataobj)
+    mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
-    shape=(brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2],vector_maps.shape[0])
+    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
     volumes=np.zeros(shape)
     for i in range(vector_maps.shape[0]):
-        volume=volumes[:,:,:,i]
+        volume=volumes[i,:,:,:]
         volume[volume_indices]=vector_maps[i,:]
-        volumes[:,:,:,i]=volume
-    volume_img=nb.Nifti1Image(volumes, nb.load(mask_file).affine, nb.load(mask_file).header)
+        volumes[i,:,:,:]=volume
+    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
+        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
     return volume_img
 
 def select_confound_timecourses(conf_list,confounds_file,FD_file):
@@ -236,31 +238,33 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
 def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     import os
     import numpy as np
-    from rabies.conf_reg_pkg.utils import recover_3D,recover_3D_multiple,temporal_filtering
+    import SimpleITK as sitk
+    from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_filtering
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     FD_trace=data_dict['FD_trace']
     confounds_array=data_dict['confounds_array']
     confounds_file=data_dict['confounds_csv']
+    time_range=data_dict['time_range']
 
     cr_out = os.getcwd()
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
-    import nibabel as nb
-    brain_mask = np.asarray(nb.load(brain_mask_file).dataobj)
+    brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file, sitk.sitkFloat32))
     volume_indices = brain_mask.astype(bool)
 
-    data_array = np.asarray(nb.load(bold_file).dataobj)
-    timeseries = np.zeros([data_array.shape[3], volume_indices.sum()])
-    for i in range(data_array.shape[3]):
-        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
+    data_array = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+    timeseries = timeseries[time_range,:]
 
     TR = float(cr_opts.TR.split('s')[0])
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
     if data_dict is None:
-        import SimpleITK as sitk
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')
         sitk.WriteImage(empty_img, empty_file)
@@ -296,14 +300,17 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
         timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
     VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
-    timeseries_3d = recover_3D_multiple(brain_mask_file, timeseries)
+    timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
+    cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
+    sitk.WriteImage(timeseries_3d, cleaned_path)
+    VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
+    sitk.WriteImage(VE_spatial_map, VE_file_path)
+
     if cr_opts.smoothing_filter is not None:
         import nilearn.image
-        timeseries_3d = nilearn.image.smooth_img(timeseries_3d, cr_opts.smoothing_filter)
+        import nibabel as nb
+        timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
+        timeseries_3d.to_filename(cleaned_path)
 
-    cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
-    timeseries_3d.to_filename(cleaned_path)
-    VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
-    VE_spatial_map.to_filename(VE_file_path)
     data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
     return cleaned_path, VE_file_path, data_dict

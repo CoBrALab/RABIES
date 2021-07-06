@@ -798,7 +798,9 @@ def resample_image_spacing(image, output_spacing, resampling_interpolation='BSpl
     output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]
                                                              * sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
 
-    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSpline,
+    # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+    sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
+    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkLinear,
                                     image.GetOrigin(), output_spacing, image.GetDirection())
     # clip potential negative values
     array = sitk.GetArrayFromImage(resampled_image)

@@ -51,9 +51,9 @@ sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
 sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
                 + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
 
-command = "rabies preprocess %s/inputs %s/outputs --debug --anat_bias_cor_method disable --bold_bias_cor_method disable \
+command = "rabies preprocess %s/inputs %s/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
     --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask.nii.gz --CSF_mask %s/inputs/token_mask.nii.gz --vascular_mask %s/inputs/token_mask.nii.gz --labels %s/inputs/token_mask.nii.gz \
-    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 -e --detect_dummy \
+    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --bold_only --detect_dummy \
     --tpattern seq" % (tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -61,7 +61,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies preprocess %s/inputs %s/outputs --debug --anat_bias_cor_method disable --bold_bias_cor_method disable \
+command = "rabies preprocess %s/inputs %s/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
     --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask_half.nii.gz --CSF_mask %s/inputs/token_mask_half.nii.gz --vascular_mask %s/inputs/token_mask_half.nii.gz --labels %s/inputs/token_mask.nii.gz \
     --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --HMC_option 0" % (tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
 process = subprocess.run(
@@ -70,7 +70,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --run_aroma --FD_censoring --DVARS_censoring" % (
+command = "rabies confound_regression %s/outputs %s/outputs --run_aroma --FD_censoring --DVARS_censoring --commonspace_analysis" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -78,7 +78,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --conf_list mot_6 --smoothing_filter 0.3 --commonspace_bold" % (
+command = "rabies confound_regression %s/outputs %s/outputs --conf_list mot_6 --smoothing_filter 0.3" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -86,7 +86,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies data_diagnosis %s/outputs %s/outputs --dual_ICA 1" % (
+command = "rabies analysis %s/outputs %s/outputs --DR_ICA --dual_ICA 1" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -94,7 +94,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1" % (
+command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1 --data_diagnosis --DR_ICA" % (
     tmppath, tmppath)
 process = subprocess.run(
     command,

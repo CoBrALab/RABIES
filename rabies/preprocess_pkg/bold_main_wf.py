@@ -141,7 +141,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
     if bias_cor_only or (not opts.bold_only):
         bold_reference_wf = init_bold_reference_wf(opts=opts)
-        bias_cor_wf = init_bias_correction_wf(opts=opts)
+        bias_cor_wf = init_bias_correction_wf(opts=opts, image_type='EPI', bias_cor_method=opts.bold_denoising_method, name="bold_denoising_wf")
 
         if opts.apply_despiking:
             despike = pe.Node(

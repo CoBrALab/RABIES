@@ -48,17 +48,6 @@ def get_parser():
         on the cleaned timeseries.
         Options include seed-based FC, whole-brain correlation FC matrix, group-ICA, dual regression and dual ICA.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    data_diagnosis = subparsers.add_parser("data_diagnosis",
-                                           help="""
-        This workflow executes an automated set of scan-level followed by a group-level analyses which allow to establish
-        the influence of confounding sources on FC measures.
-        Scan-level analysis outputs a spatio-temporal diagnosis allowing the combined visualization of key temporal and
-        spatial features to identify artefacts corrupting neural sources of signal. Group-level diagnosis consists of the
-        cross-subject correlation between spatial features, to control persisting corruption of neural measures at the
-        group level.
-        We recommend to conduct a data diagnosis from this workflow to complement FC analysis by evaluating the intrinsic
-        corruption of the dataset as well as the effectiveness of the confound correction strategies.
-        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
         "Options for managing the execution of the workflow.")
@@ -94,32 +83,25 @@ def get_parser():
                             help="""
                             the output path to drop outputs from major preprocessing steps.
                             """)
-    preprocess.add_argument("-e", "--bold_only", dest='bold_only', action='store_true',
+    preprocess.add_argument("--bold_only", dest='bold_only', action='store_true',
                             help="""
                             Apply preprocessing with only EPI scans. Commonspace registration
                             is executed directly using the denoised EPI 3D reference images.
                             The commonspace registration simultaneously applies distortion
-                            correction, so only commonspace outputs are provided with this
-                            option.
+                            correction, this option will produce only commonspace outputs.
                             """)
-    preprocess.add_argument("--bold_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
-                            choices=['otsu_reg', 'thresh_reg',
-                                     'mouse-preprocessing-v5.sh', 'disable'],
+    preprocess.add_argument("--bold_denoising_method", type=str, default='Rigid',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
                             help="""
-                            Choose the algorithm for bias field correction of the EPI before registration.
-                            Each algorithm consists of 1) initial denoising, 2) registration to the masked anatomical
-                            reference 3) use the mask to enhance bias field correction to provide the final corrected image.
-                            'mouse-preprocessing-v5.sh' from https://github.com/CoBrALab/minc-toolkit-extras has been
-                            extensively validated on anatomical images across spaces, and uses an Affine registration.
-                            'otsu_reg' uses a otsu masking approach to support bias field correction together with
-                            a Rigid registration.
-                            'thresh_reg' uses a simple threshold masking approach to support bias field correction
-                            together with a Rigid registration.
+                            Select a registration type for masking during initial denoising of the EPI.
                             """)
-    preprocess.add_argument("--anat_bias_cor_method", type=str, default='mouse-preprocessing-v5.sh',
-                            choices=['otsu_reg', 'thresh_reg',
-                                     'mouse-preprocessing-v5.sh', 'disable'],
-                            help="Same as --bold_bias_cor_method but for the anatomical image.")
+    preprocess.add_argument("--anat_denoising_method", type=str, default='SyN',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
+                            help="""
+                            Select a registration type for masking during initial denoising of the anatomical scan.
+                            """)
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""
                             Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
@@ -151,7 +133,7 @@ def get_parser():
 
     g_registration = preprocess.add_argument_group("""
         Options for the registration steps.
-        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), 'light_SyN', 'heavy_SyN' and 'multiRAT'.
+        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), and 'multiRAT'.
         A custom registration script can be provided instead following the template script structure
         from other registration scripts (see RABIES/scripts/preprocess_scripts/ for template).
         """)
@@ -284,7 +266,7 @@ def get_parser():
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
                                      overlaps with previous runs (can be useful if investigating multiple strategies).
                                      """)
-    confound_regression.add_argument('--commonspace_bold', dest='commonspace_bold', action='store_true',
+    confound_regression.add_argument('--commonspace_analysis', dest='commonspace_analysis', action='store_false',
                                      help="""
                                      If should run confound regression on the commonspace bold output.
                                      """)
@@ -390,6 +372,16 @@ def get_parser():
                           Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps
                           based on Pearson's r. Each seed must consist of a binary mask representing the ROI in commonspace.
                           """)
+    analysis.add_argument("--data_diagnosis", dest='data_diagnosis', action='store_true',
+                             help="""
+                             This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al.
+                             The diagnosis outputs key temporal and spatial features at the scan level allowing the
+                             identification of sources of confounds in individual scans. A follow-up group-level correlation
+                             between spatial features is also conducted to evaluate corruption of group-level outputs.
+                             We recommend to conduct a data diagnosis from this workflow to complement FC analysis by
+                             evaluating the intrinsic corruption of the dataset as well as the effectiveness of the confound
+                             correction strategies.""")
+
     g_fc_matrix = analysis.add_argument_group("""
         Options for performing a whole-brain timeseries correlation matrix analysis.
         """)
@@ -462,63 +454,13 @@ def get_parser():
                             help="""
                             Specify the indices for the priors to fit from --prior_maps.
                             """)
-
-    data_diagnosis.add_argument('confound_regression_out', action='store', type=Path,
-                                help="""
-                                path to RABIES confound regression output directory with the datasink.
-                                """)
-    data_diagnosis.add_argument('output_dir', action='store', type=Path,
-                                help="""
-                                path to drop data_diagnosis outputs.
-                                """)
-    data_diagnosis.add_argument('--output_name', type=str, default='data_diagnosis_wf',
-                                help="""
-                                Creates a new output folder to store the workflow of this analysis run,
-                                to avoid potential overlaps with previous runs.
-                                """)
-    data_diagnosis.add_argument('--scan_list', type=str,
-                                nargs="*",  # 0 or more values expected => creates a list
-                                default=['all'],
-                                help="""
-                                This option offers to run the analysis on a subset of the scans.
-                                The scans selected are specified by providing the full path to each EPI
-                                file from the input BIDS folder. The list of scan can be specified
-                                manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...'
-                                or the files can be imbedded into a .txt file with one filename per row.
-                                By default, 'all' will use all the scans previously processed.
-                                """)
-    data_diagnosis.add_argument('--dual_ICA', type=int, default=0,
-                                help="""
-                                Specify how many subject-specific sources to compute using dual ICA.
-                                """)
-    data_diagnosis.add_argument('--prior_maps', action='store', type=Path,
-                                default="%s/melodic_IC.nii.gz" % (
-                                    rabies_path),
-                                help="""
-                                Provide a 4D nifti image with a series of spatial priors representing common sources of
-                                signal (e.g. ICA components from a group-ICA run).
-                                Default: Corresponds to a MELODIC run on a combined group of anesthetized-
-                                ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
-                                FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
-                                """)
-    data_diagnosis.add_argument('--prior_bold_idx', type=str,
-                                nargs="*",  # 0 or more values expected => creates a list
-                                default=[5, 12, 19],
-                                help="""
-                                Specify the indices for the BOLD components from --prior_maps.
-                                """)
-    data_diagnosis.add_argument('--prior_confound_idx', type=str,
+    g_dual_ICA.add_argument('--prior_confound_idx', type=str,
                                 nargs="*",  # 0 or more values expected => creates a list
                                 default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
                                          13, 14, 21, 22, 24, 26, 28, 29],
                                 help="""
                                 Specify the indices for the confound components from --prior_maps.
-                                """)
-    data_diagnosis.add_argument('--DSURQE_regions', dest='DSURQE_regions', action='store_true',
-                                default=False,
-                                help="""
-                                If using the default mouse DSURQE atlas, will organize the grayplot to have
-                                regional labels.
+                                This is pertinent for the --data_diagnosis outputs.
                                 """)
 
     return parser
@@ -528,7 +470,6 @@ def execute_workflow():
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
     opts = parser.parse_args()
-    print(opts)
 
     try:
         output_folder = os.path.abspath(str(opts.output_dir))
@@ -573,13 +514,11 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        workflow = preprocess(opts, None, None, None, log)
+        workflow = preprocess(opts, None, None, log)
     elif opts.rabies_step == 'confound_regression':
-        workflow = confound_regression(opts, None, None, log)
+        workflow = confound_regression(opts, None, log)
     elif opts.rabies_step == 'analysis':
         workflow = analysis(opts, log)
-    elif opts.rabies_step == 'data_diagnosis':
-        workflow = data_diagnosis(opts, log)
     else:
         parser.print_help()
 
@@ -594,7 +533,7 @@ def execute_workflow():
         raise
 
 
-def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
+def preprocess(opts, cr_opts, analysis_opts, log):
     # Verify input and output directories
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
@@ -675,7 +614,7 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
 
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
-                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts, data_diagnosis_opts=data_diagnosis_opts)
+                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
 
     workflow.base_dir = output_folder
 
@@ -698,14 +637,14 @@ def preprocess(opts, cr_opts, analysis_opts, data_diagnosis_opts, log):
     return workflow
 
 
-def confound_regression(opts, analysis_opts, data_diagnosis_opts, log):
+def confound_regression(opts, analysis_opts, log):
 
     cli_file = '%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
     workflow = preprocess(preprocess_opts, opts,
-                          analysis_opts, data_diagnosis_opts, log)
+                          analysis_opts, log)
 
     return workflow
 
@@ -717,22 +656,9 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         confound_regression_opts = pickle.load(handle)
 
-    workflow = confound_regression(confound_regression_opts, opts, None, log)
+    workflow = confound_regression(confound_regression_opts, opts, log)
 
     return workflow
-
-
-def data_diagnosis(opts, log):
-
-    cli_file = '%s/rabies_confound_regression.pkl' % (
-        opts.confound_regression_out, )
-    with open(cli_file, 'rb') as handle:
-        confound_regression_opts = pickle.load(handle)
-
-    workflow = confound_regression(confound_regression_opts, None, opts, log)
-
-    return workflow
-
 
 def install_DSURQE(log):
 

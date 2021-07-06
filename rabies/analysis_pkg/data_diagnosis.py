@@ -35,7 +35,7 @@ class PrepMasks(BaseInterface):
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.mask_dict_list))
         mask_dict = merged[0] # all mask files are assumed to be identical
-        brain_mask_file = mask_dict['brain_mask_file']
+        brain_mask_file = mask_dict['mask_file']
         WM_mask_file = mask_dict['WM_mask_file']
         CSF_mask_file = mask_dict['CSF_mask_file']
 
@@ -47,9 +47,13 @@ class PrepMasks(BaseInterface):
         sitk.WriteImage(resampled,template_file)
 
         if self.inputs.DSURQE_regions:
-            right_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_right_hem_mask.nii.gz',
+            if 'XDG_DATA_HOME' in os.environ.keys():
+                rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
+            else:
+                rabies_path = os.environ['HOME']+'/.local/share/rabies'
+            right_hem_mask_file = resample_mask(rabies_path+'/DSURQE_40micron_right_hem_mask.nii.gz',
                     brain_mask_file)
-            left_hem_mask_file = resample_mask(os.environ['RABIES']+'/template_files/DSURQE_100micron_left_hem_mask.nii.gz',
+            left_hem_mask_file = resample_mask(rabies_path+'/DSURQE_40micron_left_hem_mask.nii.gz',
                     brain_mask_file)
         else:
             right_hem_mask_file=''
@@ -368,23 +372,7 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
 
 
     '''Temporal Features'''
-    ### compute dual regression
-    ### Here, we adopt an approach where the algorithm should explain the data
-    ### as a linear combination of spatial maps. The data itself, is only temporally
-    ### detrended, and not spatially centered, which could cause inconsistencies during
-    ### linear regression according to https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero
-    ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
-    ### this measure would be removing global signal variations which we are interested in.
-    ### Thus we prefer to avoid this step here, despite modelling limitations.
-    X = all_IC_vectors.T
-    Y = timeseries.T
-    # for one given volume, it's values can be expressed through a linear combination of the components
-    W = analysis_functions.closed_form(X, Y, intercept=False).T
-    # normalize the component timecourses to unit variance
-    W /= W.std(axis=0)
-    # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
-    C = analysis_functions.closed_form(W, Y.T, intercept=False)
-    DR = {'C':C, 'W':W}
+    DR = analysis_functions.dual_regression(all_IC_vectors, timeseries)
     temporal_info['DR_all']=DR['W']
     spatial_info['DR_BOLD'] = DR['C'][prior_bold_idx]
     spatial_info['DR_all'] = DR['C']
@@ -456,7 +444,7 @@ def spatial_external_formating(spatial_info, file_dict):
     import os
     import pathlib  # Better path manipulation
     from rabies.analysis_pkg import analysis_functions
-    mask_file = file_dict['brain_mask_file']
+    mask_file = file_dict['mask_file']
     bold_file = file_dict['bold_file']
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")

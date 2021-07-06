@@ -94,6 +94,11 @@ class ANTsDBM(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
+        #QBATCH_SYSTEM=$cluster_type             # queuing system to use ("pbs", "sge","slurm", or "local")
+        #QBATCH_CORES=$local_threads        # commonds to run in parallel per job
+        #QBATCH_MEM=$memory_request                  # requested memory per job
+        #$HOME/Work/resources/software/RABIES/optimized_antsMultivariateTemplateConstruction/modelbuild.sh --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target $template_anat
+
         command = 'cd %s ; ants_dbm.sh %s %s %s %s %s %s' % (
             template_folder, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
         rc = run_command(command)
