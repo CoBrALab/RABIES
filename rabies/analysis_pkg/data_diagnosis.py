@@ -656,24 +656,29 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
-    #ax1.set_title(name, fontsize=15)
     y = temporal_info['FD_trace'].to_numpy()
     ax2.plot(x,y, 'r')
-    ax2.legend(['Framewise Displacement (FD)'], loc='upper right')
+    DVARS = temporal_info['DVARS']
+    DVARS[0] = None
+    y2 = DVARS
+    # scale to match FD range
+    y2-=y2[1:].mean()
+    y2/=y2[1:].std()
+    y2*=y.std()
+    y2+=y.mean()
+    ax2.plot(x,y2, 'b')
+    ax2.legend(['Framewise Displacement (FD)', 'DVARS (scaled to match FD)'], loc='upper right')
+    ax2.set_ylabel('FD in mm', fontsize=15)
     ax2.spines['right'].set_visible(False)
     ax2.spines['top'].set_visible(False)
     ax2.set_ylim([0.0, 0.1])
     plt.setp(ax2.get_xticklabels(), visible=False)
 
-    DVARS = temporal_info['DVARS']
-    DVARS[0] = None
-    y = DVARS
-    ax3.plot(x,y)
     ax3.plot(x,temporal_info['edge_trace'])
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
     ax3.plot(x,temporal_info['VE_temporal'])
-    ax3.legend(['DVARS', 'Edge Mask', 'WM Mask', 'CSF Mask',
+    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask',
                'CR R^2'], loc='center left', bbox_to_anchor=(1, 0.5))
     ax3.spines['right'].set_visible(False)
     ax3.spines['top'].set_visible(False)
