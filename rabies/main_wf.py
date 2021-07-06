@@ -3,7 +3,7 @@ import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .preprocess_pkg.bias_correction import init_bias_correction_wf
-from .preprocess_pkg.commonspace import ANTsDBM
+from .preprocess_pkg.commonspace import GenerateTemplate
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
@@ -153,6 +153,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     if opts.local_threads < num_scan:
         num_scan = opts.local_threads
 
+    EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
+                                        name="EPI_target_buffer")
     # execute the registration of the generate anatomical template with the provided atlas for labeling and masking
     template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
@@ -202,10 +204,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         # setting up commonspace registration within the workflow
         commonspace_mem = 1*num_scan*opts.scale_min_memory
-        commonspace_reg = pe.JoinNode(ANTsDBM(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.cluster_type,
-                                              walltime=opts.walltime, memory_request=str(int(commonspace_mem))+'gb', local_threads=opts.local_threads),
+        commonspace_reg = pe.JoinNode(GenerateTemplate(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.plugin,
+                                              memory_request=str(int(commonspace_mem))+'gb'),
                                       joinsource='main_split', joinfield=['moving_image'],
-                                      name='commonspace_reg', n_procs=num_scan, mem_gb=commonspace_mem)
+                                      name='commonspace_reg', n_procs=opts.local_threads, mem_gb=commonspace_mem)
 
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_anat_list'],
@@ -274,7 +276,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("resampled_mask", "anat_mask"),
             ]),
         (resample_template_node, bold_main_wf, [
-            ("resampled_template", "inputnode.template_anat"),
+            ("resampled_template", "inputnode.commonspace_ref"),
             ]),
         (resample_template_node, outputnode, [
          ("resampled_template", "commonspace_resampled_template")]),
@@ -388,6 +390,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (anat_preproc_wf, bold_main_wf, [
                 ("outputnode.corrected", "inputnode.anat_ref"),
                 ]),
+            (EPI_target_buffer, bold_main_wf, [
+                ("EPI_template", "inputnode.bias_cor_anat"),
+                ("EPI_mask", "inputnode.bias_cor_mask"),
+                ]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
                 ("inverse_warp", "template_to_common_inverse_warp"),
@@ -410,6 +416,16 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("CSF_mask", "CSF_mask"),
                 ]),
             ])
+
+        if not opts.robust_bold_denoising:
+            workflow.connect([
+                (anat_preproc_wf, EPI_target_buffer, [
+                    ("outputnode.corrected", "EPI_template"),
+                    ]),
+                (transform_masks, EPI_target_buffer, [
+                    ("brain_mask", 'EPI_mask'),
+                    ]),
+                ])
 
         if not opts.anat_denoising_method=='disable':
             anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
@@ -444,10 +460,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (bold_convert_to_RAS_node, bias_cor_bold_main_wf, [
                 ("RAS_file", "inputnode.bold"),
                 ]),
-            (resample_template_node, bias_cor_bold_main_wf, [
-                ("resampled_template", "inputnode.anat_ref"),
-                ("resampled_template", "inputnode.template_anat"),
-                ("resampled_mask", "inputnode.anat_mask"),
+            (EPI_target_buffer, bias_cor_bold_main_wf, [
+                ("EPI_template", "inputnode.bias_cor_anat"),
+                ("EPI_mask", "inputnode.bias_cor_mask"),
                 ]),
             (resample_template_node, bold_main_wf, [
                 ("resampled_mask", "inputnode.anat_mask"),
@@ -461,6 +476,123 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (bias_cor_bold_main_wf, commonspace_reg, [
              ("transitionnode.corrected_EPI", "moving_image")]),
+            ])
+
+        if not opts.robust_bold_denoising:
+            workflow.connect([
+                (resample_template_node, EPI_target_buffer, [
+                    ("resampled_template", "EPI_template"),
+                    ("resampled_mask", "EPI_mask"),
+                    ]),
+                ])
+
+    if opts.robust_bold_denoising:
+        bias_cor_bold_init_wf = init_bold_main_wf(
+            bias_cor_only=True, name='bias_cor_bold_init_wf', opts=opts)
+
+        joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                                             name='bias_cor_init_joinnode_main',
+                                             joinsource='main_split',
+                                             joinfield=['file_list'])
+
+        # setting up commonspace registration within the workflow
+        commonspace_mem = 1*num_scan*opts.scale_min_memory
+        EPI_template_gen_node = pe.Node(GenerateTemplate(output_folder=output_folder+'/EPI_template_gen/', cluster_type=opts.plugin,
+                                              memory_request=str(int(commonspace_mem))+'gb'),
+                                      name='EPI_template_gen', n_procs=opts.local_threads, mem_gb=commonspace_mem)
+
+        EPI_template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+                                        output_names=['affine', 'warp',
+                                                      'inverse_warp', 'warped_image'],
+                                        function=run_antsRegistration),
+                               name='EPI_template_reg', mem_gb=2*opts.scale_min_memory)
+        EPI_template_reg.inputs.rabies_data_type = opts.data_type
+        EPI_template_reg.plugin_args = {
+            'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
+        EPI_template_reg.inputs.reg_method = str(opts.template_reg_script)
+
+        EPI_template_mask = pe.Node(Function(input_names=['fixed_mask', 'moving_image', 'inverse_warp', 'affine'],
+                                        output_names=['new_mask'],
+                                        function=transform_mask),
+                               name='EPI_template_mask')
+
+        workflow.connect([
+            (bold_convert_to_RAS_node, bias_cor_bold_init_wf, [
+                ("RAS_file", "inputnode.bold"),
+                ]),
+            (resample_template_node, EPI_template_gen_node, [
+                ("resampled_template", "template_anat"),
+                ]),
+            (joinnode_main, EPI_template_gen_node, [
+                ("file_list", "moving_image"),
+                ]),
+            (EPI_template_gen_node, EPI_template_reg, [
+                ("warped_image", "moving_image"),
+                ]),
+            (resample_template_node, EPI_template_reg, [
+                ("resampled_template", "fixed_image"),
+                ("resampled_mask", "anat_mask"),
+                ]),
+            (resample_template_node, EPI_template_mask, [
+                ("resampled_mask", "fixed_mask"),
+                ]),
+            (EPI_template_gen_node, EPI_template_mask, [
+                ("warped_image", "moving_image"),
+                ]),
+            (EPI_template_reg, EPI_template_mask, [
+                ("affine", "affine"),
+                ("inverse_warp", "inverse_warp"),
+                ]),
+            (EPI_template_gen_node, EPI_target_buffer, [
+                ("warped_image", "EPI_template"),
+                ]),
+            (EPI_template_mask, EPI_target_buffer, [
+                ("new_mask", "EPI_mask"),
+                ]),
+            ])
+
+        if not opts.bold_only:
+            joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                                                name="bias_cor_init_joinnode_run",
+                                                joinsource='run_split',
+                                                joinfield=['file_list'])
+
+            workflow.connect([
+                (anat_preproc_wf, bias_cor_bold_init_wf, [
+                    ("outputnode.corrected", "inputnode.bias_cor_anat"),
+                    ]),
+                (transform_masks, bias_cor_bold_init_wf, [
+                    ("brain_mask", "inputnode.bias_cor_mask"),
+                    ]),
+                (joinnode_run, joinnode_main, [
+                    ("file_list", "file_list"),
+                    ]),
+                (bias_cor_bold_init_wf, joinnode_run, [
+                    ("transitionnode.corrected_EPI", "file_list"),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (resample_template_node, bias_cor_bold_init_wf, [
+                    ("resampled_template", "inputnode.bias_cor_anat"),
+                    ("resampled_mask", "inputnode.bias_cor_mask"),
+                    ]),
+                (bias_cor_bold_init_wf, joinnode_main, [
+                    ("transitionnode.corrected_EPI", "file_list"),
+                    ]),
+                ])
+
+        PlotOverlap_EPITemplate2Commonspace_node = pe.Node(
+            preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPITemplate2Commonspace')
+        PlotOverlap_EPITemplate2Commonspace_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPITemplate2Commonspace'
+        PlotOverlap_EPITemplate2Commonspace_node.inputs.name_source = ''
+
+        workflow.connect([
+            (resample_template_node, PlotOverlap_EPITemplate2Commonspace_node,
+             [("resampled_template", "fixed")]),
+            (EPI_template_reg, PlotOverlap_EPITemplate2Commonspace_node, [
+                ("warped_image", "moving"),
+                ]),
             ])
 
 
@@ -1056,6 +1188,31 @@ def select_commonspace_outputs(filename, affine_list, warp_list, inverse_warp_li
         filename, inverse_warp_list)
     warped_anat = select_from_list(filename, warped_anat_list)
     return anat_to_template_affine, anat_to_template_warp, anat_to_template_inverse_warp, warped_anat
+
+
+def transform_mask(fixed_mask, moving_image, inverse_warp, affine):
+    # function to transform atlas masks to individual anatomical scans
+    import os
+    from rabies.preprocess_pkg.utils import run_command
+    cwd = os.getcwd()
+
+    import pathlib  # Better path manipulation
+    filename_template = pathlib.Path(moving_image).name.rsplit(".nii")[0]
+
+    new_mask = '%s/%s_%s' % (cwd,
+                               filename_template, '_mask.nii.gz')
+    if inverse_warp=='NULL':
+        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
+            fixed_mask, affine, moving_image, new_mask,)
+    else:
+        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
+            fixed_mask, inverse_warp, affine, moving_image, new_mask,)
+    rc = run_command(command)
+    if not os.path.isfile(new_mask):
+        raise ValueError(
+            "Missing output mask. Transform call failed: "+command)
+
+    return new_mask
 
 
 def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_in, atlas_labels_in, reference_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_affine, template_to_common_inverse_warp):

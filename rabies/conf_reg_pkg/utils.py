@@ -312,5 +312,5 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
         timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
         timeseries_3d.to_filename(cleaned_path)
 
-    data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
+    data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
     return cleaned_path, VE_file_path, data_dict

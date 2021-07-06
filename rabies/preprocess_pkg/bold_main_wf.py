@@ -47,7 +47,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
             affine transform from the subject anatomical to the dataset template space
         anat_to_template_warp
             non-linear transform from the subject anatomical to the dataset template space
-        template_anat
+        commonspace_ref
             commonspace anatomical template
 
     **Outputs**
@@ -119,9 +119,9 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(niu.IdentityInterface(
-                fields=['bold', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
+                fields=['bold', 'bias_cor_anat', 'bias_cor_mask', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
                         'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine',
-                        'anat_to_template_warp', 'template_anat']),
+                        'anat_to_template_warp', 'commonspace_ref']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -171,8 +171,8 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
         workflow.connect([
             (inputnode, bias_cor_wf, [
-                ('anat_ref', 'inputnode.anat_ref'),
-                ('anat_mask', 'inputnode.anat_mask'),
+                ('bias_cor_anat', 'inputnode.anat_ref'),
+                ('bias_cor_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),
             (boldbuffer, bold_reference_wf, [
@@ -191,7 +191,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
                 ]),
             ])
 
-    if opts.bold_only and bias_cor_only:
+    if bias_cor_only:
         return workflow
 
     bold_stc_wf = init_bold_stc_wf(opts=opts)
@@ -272,7 +272,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
          ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (inputnode, bold_commonspace_trans_wf, [
             ('bold', 'inputnode.name_source'),
-            ('template_anat', 'inputnode.ref_file'),
+            ('commonspace_ref', 'inputnode.ref_file'),
             ]),
         (bold_commonspace_trans_wf, outputnode, [
             ('outputnode.bold', 'commonspace_bold'),
