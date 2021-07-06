@@ -1,6 +1,6 @@
 [submodule "minc-toolkit-extras"]
 	path = minc-toolkit-extras
 	url = https://github.com/CoBrALab/minc-toolkit-extras.git
-[submodule "twolevel_ants_dbm"]
-	path = twolevel_ants_dbm
-	url = https://github.com/CoBrALab/twolevel_ants_dbm.git
+[submodule "optimized_antsMultivariateTemplateConstruction"]
+	path = optimized_antsMultivariateTemplateConstruction
+	url = https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction.git

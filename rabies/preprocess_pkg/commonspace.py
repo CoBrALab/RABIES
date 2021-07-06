@@ -8,7 +8,7 @@ from nipype.interfaces.base import (
 )
 
 
-class ANTsDBMInputSpec(BaseInterfaceInputSpec):
+class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
     moving_image = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
     output_folder = traits.Str(
@@ -17,15 +17,13 @@ class ANTsDBMInputSpec(BaseInterfaceInputSpec):
                          desc="Reference anatomical template to define the target space.")
     cluster_type = traits.Str(
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
-    walltime = traits.Str(
-        exists=True, mandatory=True, desc="Option for job submission specifying requested time per pairwise registration.")
+    #walltime = traits.Str(
+    #    exists=True, mandatory=True, desc="Option for job submission specifying requested time per pairwise registration.")
     memory_request = traits.Str(
         exists=True, mandatory=True, desc="Option for job submission specifying requested memory per pairwise registration.")
-    local_threads = traits.Int(
-        exists=True, mandatory=True, desc="Number of threads to run in parallel if cluster_type is local.")
 
 
-class ANTsDBMOutputSpec(TraitedSpec):
+class GenerateTemplateOutputSpec(TraitedSpec):
     warped_image = File(
         exists=True, desc="Output template generated from commonspace registration.")
     affine_list = traits.List(exists=True, mandatory=True,
@@ -38,27 +36,24 @@ class ANTsDBMOutputSpec(TraitedSpec):
                                    desc="List of anatomical images warped to template space..")
 
 
-class ANTsDBM(BaseInterface):
+class GenerateTemplate(BaseInterface):
     """
     Runs commonspace registration using ants_dbm.
     """
 
-    input_spec = ANTsDBMInputSpec
-    output_spec = ANTsDBMOutputSpec
+    input_spec = GenerateTemplateInputSpec
+    output_spec = GenerateTemplateOutputSpec
 
     def _run_interface(self, runtime):
         import os
         import pandas as pd
         import pathlib
+        import multiprocessing
         from rabies.preprocess_pkg.utils import run_command
 
         cwd = os.getcwd()
-        template_folder = self.inputs.output_folder+'/ants_dbm_outputs/'
+        template_folder = self.inputs.output_folder
 
-        if os.path.isdir(template_folder):
-            # remove previous run
-            command = 'rm -r %s' % (template_folder,)
-            rc = run_command(command)
         command = 'mkdir -p %s' % (template_folder,)
         rc = run_command(command)
 
@@ -94,22 +89,34 @@ class ANTsDBM(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        '''
-        QBATCH_SYSTEM=$cluster_type \             # queuing system to use ("pbs", "sge","slurm", or "local")
-        QBATCH_CORES=$local_threads \        # commands to run in parallel per job
-        QBATCH_MEM=$memory_request \                  # requested memory per job
-        $HOME/Work/resources/software/RABIES/optimized_antsMultivariateTemplateConstruction/modelbuild.sh \
-        --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target $template_anat --stages nlin \
-        --output-dir template_folder --debug csv_path
-        '''
 
-        command = 'cd %s ; ants_dbm.sh %s %s %s %s %s %s' % (
-            template_folder, csv_path, self.inputs.template_anat, self.inputs.cluster_type, self.inputs.walltime, self.inputs.memory_request, self.inputs.local_threads)
+        # convert nipype plugin spec to match QBATCH
+        plugin = self.inputs.cluster_type
+        if plugin=='MultiProc' or plugin=='Linear':
+            cluster_type='local'
+            num_threads = multiprocessing.cpu_count()
+        elif plugin=='SGE' or plugin=='SGEGraph':
+            cluster_type='sge'
+            num_threads = 1
+        elif plugin=='PBS':
+            cluster_type='PBS'
+            num_threads = 1
+        elif plugin=='SLURM' or plugin=='SLURMGraph':
+            cluster_type='slurm'
+            num_threads = 1
+        else:
+            raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
+
+        command = 'QBATCH_SYSTEM=%s QBATCH_CORES=%s QBATCH_MEM=%s \
+            modelbuild.sh \
+            --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target %s --stages nlin \
+            --output-dir %s --sharpen-type none --debug %s' % (
+            cluster_type, num_threads, self.inputs.memory_request, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
         # verify that all outputs are present
         ants_dbm_template = template_folder + \
-            '/output/secondlevel/secondlevel_template0.nii.gz'
+            '/nlin/2/average/template.nii.gz'
         if not os.path.isfile(ants_dbm_template):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
@@ -122,22 +129,22 @@ class ANTsDBM(BaseInterface):
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            anat_to_template_inverse_warp = '%s/output/secondlevel/secondlevel_%s%s1InverseWarp.nii.gz' % (
-                template_folder, filename_template, str(i),)
+            anat_to_template_inverse_warp = '%s/nlin/2/transforms/%s_1InverseWarp.nii.gz' % (
+                template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_inverse_warp):
                 raise ValueError(
                     anat_to_template_inverse_warp+" file doesn't exists.")
-            anat_to_template_warp = '%s/output/secondlevel/secondlevel_%s%s1Warp.nii.gz' % (
-                template_folder, filename_template, str(i),)
+            anat_to_template_warp = '%s/nlin/2/transforms/%s_1Warp.nii.gz' % (
+                template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_warp):
                 raise ValueError(anat_to_template_warp+" file doesn't exists.")
-            anat_to_template_affine = '%s/output/secondlevel/secondlevel_%s%s0GenericAffine.mat' % (
-                template_folder, filename_template, str(i),)
+            anat_to_template_affine = '%s/nlin/2/transforms/%s_0GenericAffine.mat' % (
+                template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_affine):
                 raise ValueError(anat_to_template_affine
                                  + " file doesn't exists.")
-            warped_anat = '%s/output/secondlevel/secondlevel_template0%s%sWarpedToTemplate.nii.gz' % (
-                template_folder, filename_template, str(i),)
+            warped_anat = '%s/nlin/2/resample/%s.nii.gz' % (
+                template_folder, filename_template, )
             if not os.path.isfile(warped_anat):
                 raise ValueError(warped_anat
                                  + " file doesn't exists.")

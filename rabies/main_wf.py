@@ -3,7 +3,7 @@ import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from .preprocess_pkg.bias_correction import init_bias_correction_wf
-from .preprocess_pkg.commonspace import ANTsDBM
+from .preprocess_pkg.commonspace import GenerateTemplate
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
@@ -204,10 +204,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         # setting up commonspace registration within the workflow
         commonspace_mem = 1*num_scan*opts.scale_min_memory
-        commonspace_reg = pe.JoinNode(ANTsDBM(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.cluster_type,
-                                              walltime=opts.walltime, memory_request=str(int(commonspace_mem))+'gb', local_threads=opts.local_threads),
+        commonspace_reg = pe.JoinNode(GenerateTemplate(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.plugin,
+                                              memory_request=str(int(commonspace_mem))+'gb'),
                                       joinsource='main_split', joinfield=['moving_image'],
-                                      name='commonspace_reg', n_procs=num_scan, mem_gb=commonspace_mem)
+                                      name='commonspace_reg', n_procs=opts.local_threads, mem_gb=commonspace_mem)
 
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_anat_list'],
@@ -497,9 +497,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         # setting up commonspace registration within the workflow
         commonspace_mem = 1*num_scan*opts.scale_min_memory
-        EPI_template_gen_node = pe.Node(ANTsDBM(output_folder=output_folder+'/EPI_template_gen/', cluster_type=opts.cluster_type,
-                                              walltime=opts.walltime, memory_request=str(int(commonspace_mem))+'gb', local_threads=opts.local_threads),
-                                      name='EPI_template_gen', n_procs=num_scan, mem_gb=commonspace_mem)
+        EPI_template_gen_node = pe.Node(GenerateTemplate(output_folder=output_folder+'/EPI_template_gen/', cluster_type=opts.plugin,
+                                              memory_request=str(int(commonspace_mem))+'gb'),
+                                      name='EPI_template_gen', n_procs=opts.local_threads, mem_gb=commonspace_mem)
 
         EPI_template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                         output_names=['affine', 'warp',

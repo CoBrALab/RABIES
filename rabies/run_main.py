@@ -61,8 +61,7 @@ def get_parser():
     g_execution.add_argument('--local_threads', type=int, default=multiprocessing.cpu_count(),
                              help="""
                              For local MultiProc execution, set the maximum number of processors run in parallel,
-                             defaults to number of CPUs. This option only applies to the MultiProc execution plugin,
-                             otherwise it is set to 1.
+                             defaults to number of CPUs.
                              """)
     g_execution.add_argument("--scale_min_memory", type=float, default=1.0,
                              help="""
@@ -186,18 +185,6 @@ def get_parser():
                               --bold_only is True) defines the isotropic resolution for resampling.
                               Alternatively, resampling dimension can be specified.
                               """)
-
-    g_ants_dbm = preprocess.add_argument_group("""
-        Cluster options for running twolevel_dbm.py.
-        """)
-    g_ants_dbm.add_argument('--cluster_type', default="local", choices=["local", "sge", "pbs", "slurm"],
-                            help="""
-                            Choose the type of cluster system to submit jobs to
-                            """)
-    g_ants_dbm.add_argument('--walltime', default="20:00:00",
-                            help="""
-                            Option for job submission specifying requested time per pairwise registration.
-                            """)
 
     g_stc = preprocess.add_argument_group("""
         Specify Slice Timing Correction info that is fed to AFNI 3dTshift
@@ -488,9 +475,6 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-    # Shouldn't be using more than one thread if not MultiProc
-    if not opts.plugin == 'MultiProc':
-        opts.local_threads = 1
 
     # managing log info
     cli_file = '%s/rabies_%s.pkl' % (output_folder, opts.rabies_step, )
