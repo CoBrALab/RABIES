@@ -96,6 +96,14 @@ def get_parser():
                             help="""
                             Select a registration type for masking during initial denoising of the EPI.
                             """)
+    preprocess.add_argument("--robust_bold_denoising", dest='robust_bold_denoising', action='store_true',
+                            help="""
+                            This option will conduct an iterative scheme for denoising of the EPIs, where
+                            an initial denoising step is run to generate a unbiased EPI template from the
+                            dataset, to provide a novel dataset-specific EPI target. This new target is then
+                            used for a final round of denoising, instead of structural images. This can help
+                            the denoising of EPIs with bad anatomical contrasts and high distortions.
+                            """)
     preprocess.add_argument("--anat_denoising_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
