@@ -90,7 +90,7 @@ def get_parser():
                             The commonspace registration simultaneously applies distortion
                             correction, this option will produce only commonspace outputs.
                             """)
-    preprocess.add_argument("--bold_denoising_method", type=str, default='SyN',
+    preprocess.add_argument("--bold_denoising_method", type=str, default='Rigid',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
                             help="""

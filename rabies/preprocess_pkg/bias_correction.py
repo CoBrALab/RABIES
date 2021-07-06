@@ -5,7 +5,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-def init_bias_correction_wf(opts, bias_cor_method='Affine', name='bias_correction_wf'):
+def init_bias_correction_wf(opts, image_type, bias_cor_method='Affine', name='bias_correction_wf'):
 
     workflow = pe.Workflow(name=name)
 
@@ -17,7 +17,7 @@ def init_bias_correction_wf(opts, bias_cor_method='Affine', name='bias_correctio
             fields=['corrected', 'denoise_mask', 'init_denoise']),
         name='outputnode')
 
-    anat_preproc = pe.Node(BiasCorrection(bias_cor_method=bias_cor_method, rabies_data_type=opts.data_type),
+    anat_preproc = pe.Node(BiasCorrection(image_type=image_type, bias_cor_method=bias_cor_method, rabies_data_type=opts.data_type),
                            name='BiasCorrection', mem_gb=0.6*opts.scale_min_memory)
 
     workflow.connect([
@@ -45,6 +45,8 @@ class BiasCorrectionInputSpec(BaseInterfaceInputSpec):
                          desc="The brain mask of the anatomical template.")
     name_source = File(exists=True, mandatory=True,
                        desc='Reference BOLD file for naming the output.')
+    image_type = traits.Str(
+        desc="Between 'EPI' or 'structural'.")
     bias_cor_method = traits.Str(
         desc="Option for bias correction.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -100,7 +102,13 @@ class BiasCorrection(BaseInterface):
             resampled_mask=self.inputs.anat_mask
         elif self.inputs.bias_cor_method in ['Rigid','Affine','SyN']:
             corrected = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
-            command = 'rabies-rodent-preprocessing.sh %s %s %s %s %s' % (target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask, self.inputs.bias_cor_method)
+            if self.inputs.image_type=='EPI':
+                processing_script='EPI-preprocessing.sh'
+            elif self.inputs.image_type=='structural':
+                processing_script='structural-preprocessing.sh'
+            else:
+                raise ValueError("Image type must be 'EPI' or 'structural', %s" % (self.inputs.image_type))
+            command = '%s %s %s %s %s %s' % (processing_script, target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask, self.inputs.bias_cor_method)
             rc = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'
