@@ -203,11 +203,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         template_reg.inputs.reg_method = str(opts.template_reg_script)
 
         # setting up commonspace registration within the workflow
-        commonspace_mem = 1*num_scan*opts.scale_min_memory
         commonspace_reg = pe.JoinNode(GenerateTemplate(output_folder=output_folder+'/commonspace_datasink/', cluster_type=opts.plugin,
-                                              memory_request=str(int(commonspace_mem))+'gb'),
+                                              ),
                                       joinsource='main_split', joinfield=['moving_image'],
-                                      name='commonspace_reg', n_procs=opts.local_threads, mem_gb=commonspace_mem)
+                                      name='commonspace_reg', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
 
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_anat_list'],
@@ -496,10 +495,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                              joinfield=['file_list'])
 
         # setting up commonspace registration within the workflow
-        commonspace_mem = 1*num_scan*opts.scale_min_memory
         EPI_template_gen_node = pe.Node(GenerateTemplate(output_folder=output_folder+'/EPI_template_gen/', cluster_type=opts.plugin,
-                                              memory_request=str(int(commonspace_mem))+'gb'),
-                                      name='EPI_template_gen', n_procs=opts.local_threads, mem_gb=commonspace_mem)
+                                              ),
+                                      name='EPI_template_gen', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
 
         EPI_template_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
                                         output_names=['affine', 'warp',

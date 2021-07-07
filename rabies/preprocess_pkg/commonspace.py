@@ -19,9 +19,6 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
     #walltime = traits.Str(
     #    exists=True, mandatory=True, desc="Option for job submission specifying requested time per pairwise registration.")
-    memory_request = traits.Str(
-        exists=True, mandatory=True, desc="Option for job submission specifying requested memory per pairwise registration.")
-
 
 class GenerateTemplateOutputSpec(TraitedSpec):
     warped_image = File(
@@ -107,11 +104,11 @@ class GenerateTemplate(BaseInterface):
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
-        command = 'QBATCH_SYSTEM=%s QBATCH_CORES=%s QBATCH_MEM=%s \
+        command = 'QBATCH_SYSTEM=%s QBATCH_CORES=%s \
             modelbuild.sh \
             --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target %s --stages nlin \
             --output-dir %s --sharpen-type none --debug %s' % (
-            cluster_type, num_threads, self.inputs.memory_request, self.inputs.template_anat, template_folder, csv_path)
+            cluster_type, num_threads, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
         # verify that all outputs are present
