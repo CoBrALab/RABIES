@@ -111,9 +111,38 @@ class GenerateTemplate(BaseInterface):
             cluster_type, num_threads, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
+        if not cluster_type=='local':
+            # for cluster submissions, we need to wait until all jobs are done
+            import time
+            import glob
+            while True:
+                done=True
+                #job_filenames = glob.glob(cwd+'/logs/*') # get the job submitted IDs
+                #job_ids=[]
+                #for job_file in job_filenames:
+                #    id=pathlib.Path(job_file).name.split(".")[1][1:]
+                #    if not id in job_ids:
+                #        job_ids.append(id)
+                # iterate through each row of qstat, and keep going if there is still a corresponding job listed
+                temp_file = '%s/qstat.txt' % (cwd,)
+                command='qstat > ' + temp_file
+                os.system(command)
+                file1 = open(temp_file, 'r')
+                Lines = file1.readlines()
+                for line in Lines:
+                    #for id in job_ids:
+                    if 'modelbuild' in line:
+                        done=False
+                        break
+                if not done:
+                    time.sleep(3)
+                else:
+                    print('done')
+                    break
+
         # verify that all outputs are present
         ants_dbm_template = template_folder + \
-            '/nlin/2/average/template.nii.gz'
+            '/nlin/2/average/template_sharpen_shapeupdate.nii.gz'
         if not os.path.isfile(ants_dbm_template):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
