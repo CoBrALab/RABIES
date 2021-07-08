@@ -104,45 +104,28 @@ class GenerateTemplate(BaseInterface):
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
-        command = 'QBATCH_SYSTEM=%s QBATCH_CORES=%s \
+        command = 'QBATCH_OPTIONS="-sync y" QBATCH_SYSTEM=%s QBATCH_CORES=%s \
             modelbuild.sh \
             --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target %s --stages nlin \
             --output-dir %s --sharpen-type none --debug %s' % (
             cluster_type, num_threads, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
-        if not cluster_type=='local':
-            # for cluster submissions, we need to wait until all jobs are done
-            import time
-            import glob
-            while True:
-                done=True
-                #job_filenames = glob.glob(cwd+'/logs/*') # get the job submitted IDs
-                #job_ids=[]
-                #for job_file in job_filenames:
-                #    id=pathlib.Path(job_file).name.split(".")[1][1:]
-                #    if not id in job_ids:
-                #        job_ids.append(id)
-                # iterate through each row of qstat, and keep going if there is still a corresponding job listed
-                temp_file = '%s/qstat.txt' % (cwd,)
-                command='qstat > ' + temp_file
-                os.system(command)
-                file1 = open(temp_file, 'r')
-                Lines = file1.readlines()
-                for line in Lines:
-                    #for id in job_ids:
-                    if 'modelbuild' in line:
-                        done=False
-                        break
-                if not done:
-                    time.sleep(3)
-                else:
-                    print('done')
-                    break
 
-        # verify that all outputs are present
+        # PBS and SLURM were not tested, so the execution remains in a while loop waiting for the final output file
         ants_dbm_template = template_folder + \
             '/nlin/2/average/template_sharpen_shapeupdate.nii.gz'
+        if not cluster_type in ['local', 'sge']:
+            import time
+            filename = ants_dbm_template
+            while True:
+                try:
+                    with open(filename, 'rb') as _:
+                        break
+                except IOError:
+                    time.sleep(3)
+
+        # verify that all outputs are present
         if not os.path.isfile(ants_dbm_template):
             raise ValueError(ants_dbm_template+" doesn't exists.")
 
