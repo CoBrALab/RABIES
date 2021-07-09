@@ -86,6 +86,9 @@ class GenerateTemplate(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
+        global OPTIONS
+        OPTIONS = [os.environ.get("QBATCH_OPTIONS")] if os.environ.get(
+            "QBATCH_OPTIONS") else []
 
         # convert nipype plugin spec to match QBATCH
         plugin = self.inputs.cluster_type
@@ -95,20 +98,23 @@ class GenerateTemplate(BaseInterface):
         elif plugin=='SGE' or plugin=='SGEGraph':
             cluster_type='sge'
             num_threads = 1
+            OPTIONS.append("-sync y ")
         elif plugin=='PBS':
             cluster_type='PBS'
             num_threads = 1
+            OPTIONS.append("-Wblock=true ")
         elif plugin=='SLURM' or plugin=='SLURMGraph':
             cluster_type='slurm'
             num_threads = 1
+            OPTIONS.append("--wait ")
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
-        command = 'QBATCH_OPTIONS="-sync y" QBATCH_SYSTEM=%s QBATCH_CORES=%s \
+        command = '%s QBATCH_SYSTEM=%s QBATCH_CORES=%s \
             modelbuild.sh \
             --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target %s --stages nlin \
             --output-dir %s --sharpen-type none --debug %s' % (
-            cluster_type, num_threads, self.inputs.template_anat, template_folder, csv_path)
+            'QBATCH_OPTIONS='.join(OPTIONS), cluster_type, num_threads, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
 
