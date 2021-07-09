@@ -98,15 +98,15 @@ class GenerateTemplate(BaseInterface):
         elif plugin=='SGE' or plugin=='SGEGraph':
             cluster_type='sge'
             num_threads = 1
-            OPTIONS.append("-sync y ")
+            OPTIONS.append("'-sync y'")
         elif plugin=='PBS':
             cluster_type='PBS'
             num_threads = 1
-            OPTIONS.append("-Wblock=true ")
+            OPTIONS.append("'-Wblock=true'")
         elif plugin=='SLURM' or plugin=='SLURMGraph':
             cluster_type='slurm'
             num_threads = 1
-            OPTIONS.append("--wait ")
+            OPTIONS.append("'--wait'")
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
