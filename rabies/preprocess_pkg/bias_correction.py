@@ -90,7 +90,7 @@ class BiasCorrection(BaseInterface):
             log = logging.getLogger('root')
             log.debug('Anat image will be resampled to the template resolution.')
             resampled = resample_image_spacing(target_img, template_dim)
-            target_img = '%s/%s_resampled.nii.gz' % (cwd, filename_split[0],)
+            target_img = '{}/{}_resampled.nii.gz'.format(cwd, filename_split[0],)
             sitk.WriteImage(resampled, target_img)
         else:
             target_img = self.inputs.target_img
@@ -101,14 +101,14 @@ class BiasCorrection(BaseInterface):
             init_denoise=corrected
             resampled_mask=self.inputs.anat_mask
         elif self.inputs.bias_cor_method in ['Rigid','Affine','SyN']:
-            corrected = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
+            corrected = '{}/{}_bias_cor.nii.gz'.format(cwd, filename_split[0],)
             if self.inputs.image_type=='EPI':
                 processing_script='EPI-preprocessing.sh'
             elif self.inputs.image_type=='structural':
                 processing_script='structural-preprocessing.sh'
             else:
-                raise ValueError("Image type must be 'EPI' or 'structural', %s" % (self.inputs.image_type))
-            command = '%s %s %s %s %s %s' % (processing_script, target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask, self.inputs.bias_cor_method)
+                raise ValueError("Image type must be 'EPI' or 'structural', {}".format(self.inputs.image_type))
+            command = '{} {} {} {} {} {}'.format(processing_script, target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask, self.inputs.bias_cor_method)
             rc = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'
@@ -175,11 +175,11 @@ class OtsuEPIBiasCorrection(BaseInterface):
         from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
-        resampled = '%s/%s_resampled.nii.gz' % (
+        resampled = '{}/{}_resampled.nii.gz'.format(
             cwd, filename_split[0])
-        resampled_mask = '%s/%s_resampled_mask.nii.gz' % (
+        resampled_mask = '{}/{}_resampled_mask.nii.gz'.format(
             cwd, filename_split[0])
-        biascor_EPI = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
+        biascor_EPI = '{}/{}_bias_cor.nii.gz'.format(cwd, filename_split[0],)
 
         input_ref_EPI_img = sitk.ReadImage(
             self.inputs.input_ref_EPI, self.inputs.rabies_data_type)
@@ -194,7 +194,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
 
         [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=cwd+'/corrected_iter2.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
 
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, cwd+'/corrected_iter2.nii.gz',resampled_mask)
+        command = 'antsApplyTransforms -d 3 -i {} -t [{},1] -r {} -o {} -n GenericLabel'.format(self.inputs.anat_mask, affine, cwd+'/corrected_iter2.nii.gz',resampled_mask)
         rc = run_command(command)
 
         otsu_bias_cor(target=bias_cor_input, otsu_ref=cwd+'/corrected_iter2.nii.gz', out_name=cwd+'/final_otsu.nii.gz', b_value=b_value, mask=resampled_mask)
@@ -226,9 +226,9 @@ class OtsuEPIBiasCorrection(BaseInterface):
 def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     import SimpleITK as sitk
     from rabies.preprocess_pkg.utils import run_command
-    command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (otsu_ref)
+    command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean {} 0'.format(otsu_ref)
     rc = run_command(command)
-    command = 'ThresholdImage 3 %s otsu_weight.nii.gz Otsu 4' % (otsu_ref)
+    command = 'ThresholdImage 3 {} otsu_weight.nii.gz Otsu 4'.format(otsu_ref)
     rc = run_command(command)
 
     otsu_img = sitk.ReadImage(
@@ -267,19 +267,19 @@ def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     mask_img.CopyInformation(otsu_img)
     sitk.WriteImage(mask_img, 'mask1234.nii.gz')
 
-    command = 'N4BiasFieldCorrection -d 3 -i %s -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask12.nii.gz -x null_mask.nii.gz -o corrected1.nii.gz' % (target, str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i {} -b {} -s 1 -c [{}x{}x{},1e-4] -w mask12.nii.gz -x null_mask.nii.gz -o corrected1.nii.gz'.format(target, str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected1.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask34.nii.gz -x null_mask.nii.gz -o corrected2.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected1.nii.gz -b {} -s 1 -c [{}x{}x{},1e-4] -w mask34.nii.gz -x null_mask.nii.gz -o corrected2.nii.gz'.format(str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected2.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask123.nii.gz -x null_mask.nii.gz -o corrected3.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected2.nii.gz -b {} -s 1 -c [{}x{}x{},1e-4] -w mask123.nii.gz -x null_mask.nii.gz -o corrected3.nii.gz'.format(str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected3.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask234.nii.gz -x null_mask.nii.gz -o corrected4.nii.gz' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected3.nii.gz -b {} -s 1 -c [{}x{}x{},1e-4] -w mask234.nii.gz -x null_mask.nii.gz -o corrected4.nii.gz'.format(str(b_value), str(n_iter),str(n_iter),str(n_iter),)
     rc = run_command(command)
 
-    command = 'N4BiasFieldCorrection -d 3 -i corrected4.nii.gz -b %s -s 1 -c [%sx%sx%s,1e-4] -w mask1234.nii.gz -x null_mask.nii.gz -o %s' % (str(b_value), str(n_iter),str(n_iter),str(n_iter),out_name,)
+    command = 'N4BiasFieldCorrection -d 3 -i corrected4.nii.gz -b {} -s 1 -c [{}x{}x{},1e-4] -w mask1234.nii.gz -x null_mask.nii.gz -o {}'.format(str(b_value), str(n_iter),str(n_iter),str(n_iter),out_name,)
     rc = run_command(command)
 
 class ThreshBiasCorrectionInputSpec(BaseInterfaceInputSpec):
@@ -328,26 +328,26 @@ class ThreshBiasCorrection(BaseInterface):
         from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
-        resampled_mask = '%s/%s_resampled_mask.nii.gz' % (
+        resampled_mask = '{}/{}_resampled_mask.nii.gz'.format(
             cwd, filename_split[0])
-        biascor_EPI = '%s/%s_bias_cor.nii.gz' % (cwd, filename_split[0],)
+        biascor_EPI = '{}/{}_bias_cor.nii.gz'.format(cwd, filename_split[0],)
 
-        command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (self.inputs.input_ref_EPI)
+        command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean {} 0'.format(self.inputs.input_ref_EPI)
         rc = run_command(command)
-        command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean %s 2' % (self.inputs.input_ref_EPI)
+        command = 'ImageMath 3 thresh_mask.nii.gz ThresholdAtMean {} 2'.format(self.inputs.input_ref_EPI)
         rc = run_command(command)
 
-        command = 'N4BiasFieldCorrection -d 3 -s 4 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w thresh_mask.nii.gz -x null_mask.nii.gz -o corrected.nii.gz' % (self.inputs.input_ref_EPI)
+        command = 'N4BiasFieldCorrection -d 3 -s 4 -i {} -b 20 -s 1 -c [100x100x100x100,1e-6] -w thresh_mask.nii.gz -x null_mask.nii.gz -o corrected.nii.gz'.format(self.inputs.input_ref_EPI)
         rc = run_command(command)
         command = 'DenoiseImage -d 3 -i corrected.nii.gz -o denoise.nii.gz'
         rc = run_command(command)
 
         [affine, warp, inverse_warp, warped_image] = run_antsRegistration(reg_method='Rigid', moving_image=cwd+'/denoise.nii.gz', fixed_image=self.inputs.anat, anat_mask=self.inputs.anat_mask)
 
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s -n GenericLabel' % (self.inputs.anat_mask, affine, self.inputs.input_ref_EPI,resampled_mask)
+        command = 'antsApplyTransforms -d 3 -i {} -t [{},1] -r {} -o {} -n GenericLabel'.format(self.inputs.anat_mask, affine, self.inputs.input_ref_EPI,resampled_mask)
         rc = run_command(command)
 
-        command = 'N4BiasFieldCorrection -d 3 -s 2 -i %s -b 20 -s 1 -c [100x100x100x100,1e-6] -w %s -x null_mask.nii.gz -o %s' % (self.inputs.input_ref_EPI, resampled_mask,cwd+'/iter_corrected.nii.gz')
+        command = 'N4BiasFieldCorrection -d 3 -s 2 -i {} -b 20 -s 1 -c [100x100x100x100,1e-6] -w {} -x null_mask.nii.gz -o {}'.format(self.inputs.input_ref_EPI, resampled_mask,cwd+'/iter_corrected.nii.gz')
         rc = run_command(command)
         command = 'DenoiseImage -d 3 -i iter_corrected.nii.gz -o iter_corrected_denoise.nii.gz'
         rc = run_command(command)

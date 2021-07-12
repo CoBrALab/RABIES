@@ -58,11 +58,11 @@ def compute_masks(atlas, csv_labels, prefix):
         if i in CSF_labels:
             CSF_mask += roi_mask
 
-    GM_mask_file = '%s_GM_mask.nii.gz' % (prefix,)
-    WM_mask_file = '%s_WM_mask.nii.gz' % (prefix,)
-    CSF_mask_file = '%s_CSF_mask.nii.gz' % (prefix,)
-    right_hem_mask_file = '%s_right_hem_mask.nii.gz' % (prefix,)
-    left_hem_mask_file = '%s_left_hem_mask.nii.gz' % (prefix,)
+    GM_mask_file = '{}_GM_mask.nii.gz'.format(prefix,)
+    WM_mask_file = '{}_WM_mask.nii.gz'.format(prefix,)
+    CSF_mask_file = '{}_CSF_mask.nii.gz'.format(prefix,)
+    right_hem_mask_file = '{}_right_hem_mask.nii.gz'.format(prefix,)
+    left_hem_mask_file = '{}_left_hem_mask.nii.gz'.format(prefix,)
 
     GM_mask_img = sitk.GetImageFromArray(
         GM_mask.astype('int16'), isVector=False)
@@ -94,8 +94,8 @@ def compute_masks(atlas, csv_labels, prefix):
     eroded_WM_mask = binary_erosion(WM_mask, iterations=1)
     eroded_CSF_mask = binary_erosion(CSF_mask, iterations=1)
 
-    eroded_WM_mask_file = '%s_eroded_WM_mask.nii.gz' % (prefix,)
-    eroded_CSF_mask_file = '%s_eroded_CSF_mask.nii.gz' % (prefix,)
+    eroded_WM_mask_file = '{}_eroded_WM_mask.nii.gz'.format(prefix,)
+    eroded_CSF_mask_file = '{}_eroded_CSF_mask.nii.gz'.format(prefix,)
 
     eroded_WM_mask_img = sitk.GetImageFromArray(
         eroded_WM_mask.astype('int16'), isVector=False)

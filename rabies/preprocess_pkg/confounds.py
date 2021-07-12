@@ -34,7 +34,7 @@ def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
     estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=opts.data_type),
                                  name='estimate_confounds', mem_gb=2.3*opts.scale_min_memory)
     estimate_confounds.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(2*opts.min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp {}'.format(str(2*opts.min_proc)), 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
@@ -131,19 +131,19 @@ class EstimateConfounds(BaseInterface):
 
         # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         # first the voxelwise positioning map
-        command = 'antsMotionCorrStats -m %s -o %s_pos_file.csv -x %s \
-                    -d %s -s %s_pos_voxelwise.nii.gz' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        command = 'antsMotionCorrStats -m {} -o {}_pos_file.csv -x {} \
+                    -d {} -s {}_pos_voxelwise.nii.gz'.format(self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
         rc = run_command(command)
         pos_voxelwise = os.path.abspath(
-            "%s_pos_file.nii.gz" % filename_split[0])
+            "{}_pos_file.nii.gz".format(filename_split[0]))
 
         # then the voxelwise framewise displacement map
-        command = 'antsMotionCorrStats -m %s -o %s_FD_file.csv -x %s \
-                    -d %s -s %s_FD_voxelwise.nii.gz -f 1' % (self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        command = 'antsMotionCorrStats -m {} -o {}_FD_file.csv -x {} \
+                    -d {} -s {}_FD_voxelwise.nii.gz -f 1'.format(self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
         rc = run_command(command)
 
-        FD_csv = os.path.abspath("%s_FD_file.csv" % filename_split[0])
-        FD_voxelwise = os.path.abspath("%s_FD_file.nii.gz" % filename_split[0])
+        FD_csv = os.path.abspath("{}_FD_file.csv".format(filename_split[0]))
+        FD_voxelwise = os.path.abspath("{}_FD_file.nii.gz".format(filename_split[0]))
 
         confounds = []
         csv_columns = []
@@ -199,7 +199,7 @@ def write_confound_csv(confound_array, column_names, filename_template):
     import pandas as pd
     df = pd.DataFrame(confound_array)
     df.columns = column_names
-    csv_path = os.path.abspath("%s_confounds.csv" % filename_template)
+    csv_path = os.path.abspath("{}_confounds.csv".format(filename_template))
     df.to_csv(csv_path)
     return csv_path
 
@@ -328,9 +328,9 @@ class MaskEPI(BaseInterface):
 
         if self.inputs.name_spec is None:
             new_mask_path = os.path.abspath(
-                '%s_EPI_mask.nii.gz' % (filename_split[0],))
+                '{}_EPI_mask.nii.gz'.format(filename_split[0],))
         else:
-            new_mask_path = os.path.abspath('%s_%s.nii.gz' % (
+            new_mask_path = os.path.abspath('{}_{}.nii.gz'.format(
                 filename_split[0], self.inputs.name_spec,))
 
         command = 'antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + \

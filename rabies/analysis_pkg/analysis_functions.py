@@ -32,7 +32,7 @@ def seed_corr(bold_file, brain_mask, seed):
     from nilearn.input_data import NiftiMasker
 
     resampled = os.path.abspath('resampled.nii.gz')
-    os.system('antsApplyTransforms -i %s -r %s -o %s -n GenericLabel' %
+    os.system('antsApplyTransforms -i {} -r {} -o {} -n GenericLabel' %
               (seed, brain_mask, resampled))
 
     masker = NiftiMasker(mask_img=nb.load(resampled), standardize=False, verbose=0)
@@ -135,7 +135,7 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
         corr_matrix = voxelwise_FC_matrix(bold_file, mask_file)
     else:
         raise ValueError(
-            "Invalid --ROI_type provided: %s. Must be either 'parcellated' or 'voxelwise.'" % (roi_type))
+            "Invalid --ROI_type provided: {}. Must be either 'parcellated' or 'voxelwise.'".format(roi_type))
     plot_matrix(figname, corr_matrix)
 
     data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
@@ -221,7 +221,7 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
 
     from rabies.preprocess_pkg.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
-    command = 'melodic -i %s -m %s -o %s --tr=%s -d %s --report' % (
+    command = 'melodic -i {} -m {} -o {} --tr={} -d {} --report'.format(
         file_path, mask_file, out_dir, tr, dim)
     rc = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
@@ -257,7 +257,7 @@ def resample_4D(input_4d, ref_file):
             "resampled_volume" + str(x) + ".nii.gz")
         resampled_volumes.append(resampled_vol_fname)
 
-        command = 'antsApplyTransforms -i %s -n BSpline[5] -r %s -o %s' % (
+        command = 'antsApplyTransforms -i {} -n BSpline[5] -r {} -o {}'.format(
             split_volumes_files[x], new_ref, resampled_vol_fname)
         rc = run_command(command)
         # change image to specified data type

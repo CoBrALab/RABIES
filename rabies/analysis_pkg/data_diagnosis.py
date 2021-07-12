@@ -216,9 +216,9 @@ class DatasetDiagnosis(BaseInterface):
 
         label_name = ['temporal_std', 'VE_spatial',
                       'GS_corr', 'DVARS_corr', 'FD_corr']
-        label_name += ['BOLD Dual Regression map %s' %
+        label_name += ['BOLD Dual Regression map {}' %
                        (i) for i in range(num_DR_maps)]
-        label_name += ['BOLD Dual ICA map %s' %
+        label_name += ['BOLD Dual ICA map {}' %
                        (i) for i in range(num_prior_maps)]
 
         template_file = self.inputs.mask_file_dict['template_file']
@@ -247,7 +247,7 @@ class DatasetDiagnosis(BaseInterface):
                 sitk_img = sitk.ReadImage('temp_img.nii.gz')
                 plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
                         alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-                ax.set_title('Cross-correlation for %s and %s' %
+                ax.set_title('Cross-correlation for {} and {}' %
                              (x_label, y_label), fontsize=15, color='white')
         fig.savefig(os.path.abspath('dataset_diagnosis.png'),
                     bbox_inches='tight')
@@ -276,11 +276,11 @@ def resample_mask(in_file, ref_file):
         if transform == 'NULL':
             continue
         elif bool(inverse):
-            transform_string += "-t [%s,1] " % (transform,)
+            transform_string += "-t [{},1] ".format(transform,)
         else:
-            transform_string += "-t %s " % (transform,)
+            transform_string += "-t {} ".format(transform,)
 
-    command = 'antsApplyTransforms -i %s %s-n GenericLabel -r %s -o %s' % (
+    command = 'antsApplyTransforms -i {} {}-n GenericLabel -r {} -o {}'.format(
         in_file, transform_string, ref_file, out_file)
     rc = run_command(command)
     return out_file
@@ -304,9 +304,9 @@ def resample_IC_file(in_file, ref_file):
         if transform == 'NULL':
             continue
         elif bool(inverse):
-            transform_string += "-t [%s,1] " % (transform,)
+            transform_string += "-t [{},1] ".format(transform,)
         else:
-            transform_string += "-t %s " % (transform,)
+            transform_string += "-t {} ".format(transform,)
 
     # Splitting bold file into lists of single volumes
     [volumes_list, num_volumes] = split_volumes(
@@ -318,7 +318,7 @@ def resample_IC_file(in_file, ref_file):
             "deformed_volume" + str(x) + ".nii.gz")
         warped_volumes.append(warped_vol_fname)
 
-        command = 'antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (
+        command = 'antsApplyTransforms -i {} {}-n BSpline[5] -r {} -o {}'.format(
             volumes_list[x], transform_string, ref_file, warped_vol_fname)
         rc = run_command(command)
 
@@ -770,7 +770,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
                 alpha=1, cbar=True, threshold=0.1, num_slices=6)
         for ax in axes:
-            ax.set_title('BOLD component %s' % (i), fontsize=30, color='white')
+            ax.set_title('BOLD component {}'.format(i), fontsize=30, color='white')
 
     return fig, fig2
 
@@ -838,6 +838,6 @@ for i,x_label in zip(range(len(x_name)),x_name):
         stat_map=np.zeros(voxelwise_array.shape[2])
         stat_map[non_nan_idx]=ts_b[:,j,i]
 
-        ax.set_title('T-value of %s on %s' % (y_label,x_label), fontsize=15)
+        ax.set_title('T-value of {} on {}'.format(y_label,x_label), fontsize=15)
         plot_stat_map(analysis_functions.recover_3D(mask_file,stat_map),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y')
 '''

@@ -51,7 +51,7 @@ class GenerateTemplate(BaseInterface):
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
 
-        command = 'mkdir -p %s' % (template_folder,)
+        command = 'mkdir -p {}'.format(template_folder,)
         rc = run_command(command)
 
         # create a csv file of the input image list
@@ -110,10 +110,10 @@ class GenerateTemplate(BaseInterface):
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
-        qbatch_extras='%s QBATCH_SYSTEM=%s QBATCH_CORES=%s' % ('QBATCH_OPTIONS='+','.join(OPTIONS), cluster_type, num_threads,)
-        command = '%s modelbuild.sh \
-            --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target %s --stages nlin \
-            --output-dir %s --sharpen-type none --debug %s' % (
+        qbatch_extras='{} QBATCH_SYSTEM={} QBATCH_CORES={}'.format('QBATCH_OPTIONS='+','.join(OPTIONS), cluster_type, num_threads,)
+        command = '{} modelbuild.sh \
+            --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target {} --stages nlin \
+            --output-dir {} --sharpen-type none --debug {}'.format(
             qbatch_extras, self.inputs.template_anat, template_folder, csv_path)
         rc = run_command(command)
 
@@ -144,21 +144,21 @@ class GenerateTemplate(BaseInterface):
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            anat_to_template_inverse_warp = '%s/nlin/2/transforms/%s_1InverseWarp.nii.gz' % (
+            anat_to_template_inverse_warp = '{}/nlin/2/transforms/{}_1InverseWarp.nii.gz'.format(
                 template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_inverse_warp):
                 raise ValueError(
                     anat_to_template_inverse_warp+" file doesn't exists.")
-            anat_to_template_warp = '%s/nlin/2/transforms/%s_1Warp.nii.gz' % (
+            anat_to_template_warp = '{}/nlin/2/transforms/{}_1Warp.nii.gz'.format(
                 template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_warp):
                 raise ValueError(anat_to_template_warp+" file doesn't exists.")
-            anat_to_template_affine = '%s/nlin/2/transforms/%s_0GenericAffine.mat' % (
+            anat_to_template_affine = '{}/nlin/2/transforms/{}_0GenericAffine.mat'.format(
                 template_folder, filename_template, )
             if not os.path.isfile(anat_to_template_affine):
                 raise ValueError(anat_to_template_affine
                                  + " file doesn't exists.")
-            warped_anat = '%s/nlin/2/resample/%s.nii.gz' % (
+            warped_anat = '{}/nlin/2/resample/{}.nii.gz'.format(
                 template_folder, filename_template, )
             if not os.path.isfile(warped_anat):
                 raise ValueError(warped_anat
