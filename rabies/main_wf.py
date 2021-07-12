@@ -1200,75 +1200,46 @@ def transform_mask(fixed_mask, moving_image, inverse_warp, affine):
     new_mask = '%s/%s_%s' % (cwd,
                                filename_template, '_mask.nii.gz')
     if inverse_warp=='NULL':
-        command = 'antsApplyTransforms -d 3 -i %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-            fixed_mask, affine, moving_image, new_mask,)
+        transforms = [affine]
+        inverses = [1]
     else:
-        command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-            fixed_mask, inverse_warp, affine, moving_image, new_mask,)
-    rc = run_command(command)
-    if not os.path.isfile(new_mask):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+        transforms = [affine,inverse_warp]
+        inverses = [1,0]
 
+    from rabies.preprocess_pkg.utils import exec_applyTransforms
+    exec_applyTransforms(transforms, inverses, fixed_mask, moving_image, new_mask, mask=True)
     return new_mask
-
 
 def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_in, atlas_labels_in, reference_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_affine, template_to_common_inverse_warp):
     # function to transform atlas masks to individual anatomical scans
     import os
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.preprocess_pkg.utils import exec_applyTransforms
     cwd = os.getcwd()
+
+    transforms = [anat_to_template_affine, anat_to_template_inverse_warp, template_to_common_affine, template_to_common_inverse_warp]
+    inverses = [1,0,1,0]
 
     import pathlib  # Better path manipulation
     filename_template = pathlib.Path(reference_image).name.rsplit(".nii")[0]
 
-    input_image = brain_mask_in
     brain_mask = '%s/%s_%s' % (cwd,
                                filename_template, 'anat_mask.nii.gz')
-    command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-        input_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_inverse_warp, template_to_common_affine, reference_image, brain_mask,)
-    rc = run_command(command)
-    if not os.path.isfile(brain_mask):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+    exec_applyTransforms(transforms, inverses, brain_mask_in, reference_image, brain_mask, mask=True)
 
-    input_image = WM_mask_in
+
     WM_mask = '%s/%s_%s' % (cwd, filename_template, 'WM_mask.nii.gz')
-    command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-        input_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_inverse_warp, template_to_common_affine, reference_image, WM_mask,)
-    rc = run_command(command)
-    if not os.path.isfile(WM_mask):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+    exec_applyTransforms(transforms, inverses, WM_mask_in, reference_image, WM_mask, mask=True)
 
-    input_image = CSF_mask_in
     CSF_mask = '%s/%s_%s' % (cwd, filename_template, 'CSF_mask.nii.gz')
-    command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-        input_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_inverse_warp, template_to_common_affine, reference_image, CSF_mask,)
-    rc = run_command(command)
-    if not os.path.isfile(CSF_mask):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+    exec_applyTransforms(transforms, inverses, CSF_mask_in, reference_image, CSF_mask, mask=True)
 
-    input_image = vascular_mask_in
     vascular_mask = '%s/%s_%s' % (cwd,
                                   filename_template, 'vascular_mask.nii.gz')
-    command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-        input_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_inverse_warp, template_to_common_affine, reference_image, vascular_mask,)
-    rc = run_command(command)
-    if not os.path.isfile(vascular_mask):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+    exec_applyTransforms(transforms, inverses, vascular_mask_in, reference_image, vascular_mask, mask=True)
 
-    input_image = atlas_labels_in
     anat_labels = '%s/%s_%s' % (cwd,
                                 filename_template, 'atlas_labels.nii.gz')
-    command = 'antsApplyTransforms -d 3 -i %s -t %s -t [%s,1] -t %s -t [%s,1] -r %s -o %s --verbose -n GenericLabel' % (
-        input_image, anat_to_template_inverse_warp, anat_to_template_affine, template_to_common_inverse_warp, template_to_common_affine, reference_image, anat_labels,)
-    rc = run_command(command)
-    if not os.path.isfile(anat_labels):
-        raise ValueError(
-            "Missing output mask. Transform call failed: "+command)
+    exec_applyTransforms(transforms, inverses, atlas_labels_in, reference_image, anat_labels, mask=True)
 
     return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
 

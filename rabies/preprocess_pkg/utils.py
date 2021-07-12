@@ -558,6 +558,30 @@ class SliceMotionCorrection(BaseInterface):
     def _list_outputs(self):
         return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold')}
 
+def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_image, mask=False):
+    from rabies.preprocess_pkg.utils import run_command
+    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
+    transform_string = ""
+    for transform, inverse in zip(transforms, inverses):
+        if transform=='NULL':
+            continue
+        elif bool(inverse):
+            transform_string += "-t [%s,1] " % (transform,)
+        else:
+            transform_string += "-t %s " % (transform,)
+
+    if mask:
+        interpolation = 'GenericLabel'
+    else:
+        interpolation = 'BSpline[5]'
+
+    command = 'antsApplyTransforms -i {} {}-n {} -r {} -o {}'.format(
+        input_image, transform_string, interpolation, ref_image, output_image)
+    rc = run_command(command)
+    if not os.path.isfile(output_image):
+        raise ValueError(
+            "Missing output image. Transform call failed: "+command)
+
 
 class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
@@ -608,16 +632,6 @@ class slice_applyTransforms(BaseInterface):
             self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
         sitk.WriteImage(resampled, 'resampled.nii.gz')
 
-        # tranforms is a list of transform files, set in order of call within antsApplyTransforms
-        transform_string = ""
-        for transform, inverse in zip(self.inputs.transforms, self.inputs.inverses):
-            if transform=='NULL':
-                continue
-            elif bool(inverse):
-                transform_string += "-t [%s,1] " % (transform,)
-            else:
-                transform_string += "-t %s " % (transform,)
-
         # Splitting bold file into lists of single volumes
         [bold_volumes, num_volumes] = split_volumes(
             self.inputs.in_file, "bold_", self.inputs.rabies_data_type)
@@ -630,17 +644,18 @@ class slice_applyTransforms(BaseInterface):
             warped_vol_fname = os.path.abspath(
                 "deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
+
+            transforms = self.inputs.transforms
+            inverses = self.inputs.inverses
             if self.inputs.apply_motcorr:
                 command = 'antsMotionCorrStats -m %s -o motcorr_vol%s.mat -t %s' % (
                     motcorr_params, x, x)
                 rc = run_command(command)
-                command = 'antsApplyTransforms -i %s %s-t motcorr_vol%s.mat -n BSpline[5] -r %s -o %s' % (
-                    bold_volumes[x], transform_string, x, ref_img, warped_vol_fname)
-                rc = run_command(command)
-            else:
-                command = 'antsApplyTransforms -i %s %s-n BSpline[5] -r %s -o %s' % (
-                    bold_volumes[x], transform_string, ref_img, warped_vol_fname)
-                rc = run_command(command)
+
+                transforms.append('motcorr_vol{}.mat'.format(x))
+                inverses.append(0)
+
+            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, mask=False)
             # change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname,
                                            self.inputs.rabies_data_type), warped_vol_fname)
