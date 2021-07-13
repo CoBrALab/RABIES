@@ -85,29 +85,29 @@ def get_parser():
     preprocess.add_argument("--bold_only", dest='bold_only', action='store_true',
                             help="""
                             Apply preprocessing with only EPI scans. Commonspace registration
-                            is executed directly using the denoised EPI 3D reference images.
+                            is executed directly using the corrected EPI 3D reference images.
                             The commonspace registration simultaneously applies distortion
                             correction, this option will produce only commonspace outputs.
                             """)
-    preprocess.add_argument("--bold_denoising_method", type=str, default='Rigid',
+    preprocess.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
                             help="""
-                            Select a registration type for masking during initial denoising of the EPI.
+                            Select a registration type for masking during inhomogeneity correction of the EPI.
                             """)
-    preprocess.add_argument("--robust_bold_denoising", dest='robust_bold_denoising', action='store_true',
+    preprocess.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
                             help="""
-                            This option will conduct an iterative scheme for denoising of the EPIs, where
-                            an initial denoising step is run to generate a unbiased EPI template from the
+                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
+                            an initial correction step is run to generate a unbiased EPI template from the
                             dataset, to provide a novel dataset-specific EPI target. This new target is then
-                            used for a final round of denoising, instead of structural images. This can help
-                            the denoising of EPIs with bad anatomical contrasts and high distortions.
+                            used for a final round of correction, instead of structural images. This can help
+                            the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
                             """)
-    preprocess.add_argument("--anat_denoising_method", type=str, default='SyN',
+    preprocess.add_argument("--anat_inho_cor_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
                             help="""
-                            Select a registration type for masking during initial denoising of the anatomical scan.
+                            Select a registration type for masking during inhomogeneity correction of the structural image.
                             """)
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""

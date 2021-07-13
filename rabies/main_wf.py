@@ -2,7 +2,7 @@ import os
 import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from .preprocess_pkg.bias_correction import init_bias_correction_wf
+from .preprocess_pkg.inho_correction import init_inho_correction_wf
 from .preprocess_pkg.commonspace import GenerateTemplate
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
@@ -49,7 +49,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             Eroded CSF mask inherited from the common space registration
         initial_bold_ref
             Initial EPI median volume subsequently used as 3D reference EPI volume
-        bias_cor_bold
+        inho_cor_bold
             3D reference EPI volume after bias field correction
         affine_bold2anat
             affine transform from the EPI space to the anatomical space
@@ -57,7 +57,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             non-linear transform from the EPI space to the anatomical space
         inverse_warp_bold2anat
             inverse non-linear transform from the EPI space to the anatomical space
-        bias_cor_bold_warped2anat
+        inho_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
             Preprocessed EPI resampled to match the anatomical space for
@@ -110,7 +110,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask', 'initial_bold_ref', 'bias_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'bias_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
+        fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'anat_mask', 'anat_labels', 'WM_mask', 'CSF_mask', 'initial_bold_ref', 'inho_cor_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'inho_cor_bold_warped2anat', 'native_corrected_bold', 'corrected_bold_ref', 'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv',
                 'bold_brain_mask', 'bold_WM_mask', 'bold_CSF_mask', 'bold_labels', 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels', 'std_filename', 'tSNR_filename']),
         name='outputnode')
 
@@ -237,10 +237,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     template_diagnosis.inputs.opts = opts
     template_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/template_files/'
 
-    bold_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
-                                       function=preprocess_visual_QC.denoising_diagnosis),
-                              name='bold_denoising_diagnosis')
-    bold_denoising_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/bold_denoising/'
+    bold_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+                                       function=preprocess_visual_QC.inho_cor_diagnosis),
+                              name='bold_inho_cor_diagnosis')
+    bold_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/bold_inho_cor/'
 
     temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'confounds_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
                                           output_names=[
@@ -289,7 +289,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
-            ("outputnode.corrected_EPI", "bias_cor_bold"),
+            ("outputnode.corrected_EPI", "inho_cor_bold"),
             ("outputnode.EPI_brain_mask", "bold_brain_mask"),
             ("outputnode.EPI_WM_mask", "bold_WM_mask"),
             ("outputnode.EPI_CSF_mask", "bold_CSF_mask"),
@@ -301,7 +301,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ('outputnode.affine_bold2anat', 'affine_bold2anat'),
             ('outputnode.warp_bold2anat', 'warp_bold2anat'),
             ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
-            ("outputnode.output_warped_bold", "bias_cor_bold_warped2anat"),
+            ("outputnode.output_warped_bold", "inho_cor_bold_warped2anat"),
             ("outputnode.resampled_bold", "native_corrected_bold"),
             ("outputnode.resampled_ref_bold", "corrected_bold_ref"),
             ("outputnode.commonspace_bold", "commonspace_bold"),
@@ -311,13 +311,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
             ]),
-        (bold_main_wf, bold_denoising_diagnosis, [
+        (bold_main_wf, bold_inho_cor_diagnosis, [
             ("outputnode.bold_ref", "raw_img"),
             ("outputnode.init_denoise", "init_denoise"),
             ("outputnode.corrected_EPI", "final_denoise"),
             ("outputnode.denoise_mask", "warped_mask"),
             ]),
-        (bold_selectfiles, bold_denoising_diagnosis,
+        (bold_selectfiles, bold_inho_cor_diagnosis,
          [("out_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
             ("outputnode.commonspace_bold", "bold_file"),
@@ -348,7 +348,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            name='anat_convert_to_RAS')
 
         # setting anat preprocessing nodes
-        anat_preproc_wf = init_bias_correction_wf(opts=opts, image_type='structural', bias_cor_method=opts.anat_denoising_method, name="anat_denoising_wf")
+        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', inho_cor_method=opts.anat_inho_cor_method, name="anat_inho_cor_wf")
 
         transform_masks = pe.Node(Function(input_names=['brain_mask_in', 'WM_mask_in', 'CSF_mask_in', 'vascular_mask_in', 'atlas_labels_in', 'reference_image', 'anat_to_template_inverse_warp', 'anat_to_template_affine', 'template_to_common_affine', 'template_to_common_inverse_warp'],
                                            output_names=[
@@ -372,26 +372,26 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (anat_selectfiles, anat_convert_to_RAS_node,
              [("out_file", "img_file")]),
-            (anat_convert_to_RAS_node, anat_preproc_wf, [
+            (anat_convert_to_RAS_node, anat_inho_cor_wf, [
                 ("RAS_file", "inputnode.target_img"),
                 ("RAS_file", "inputnode.name_source"),
                 ]),
-            (resample_template_node, anat_preproc_wf, [
+            (resample_template_node, anat_inho_cor_wf, [
                 ("resampled_template", "inputnode.anat_ref"),
                 ("resampled_mask", "inputnode.anat_mask"),
                 ]),
-            (anat_preproc_wf, commonspace_reg, [
+            (anat_inho_cor_wf, commonspace_reg, [
                 ("outputnode.corrected", "moving_image"),
                 ]),
-            (anat_preproc_wf, transform_masks, [
+            (anat_inho_cor_wf, transform_masks, [
                 ("outputnode.corrected", "reference_image"),
                 ]),
-            (anat_preproc_wf, bold_main_wf, [
+            (anat_inho_cor_wf, bold_main_wf, [
                 ("outputnode.corrected", "inputnode.anat_ref"),
                 ]),
             (EPI_target_buffer, bold_main_wf, [
-                ("EPI_template", "inputnode.bias_cor_anat"),
-                ("EPI_mask", "inputnode.bias_cor_mask"),
+                ("EPI_template", "inputnode.inho_cor_anat"),
+                ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
             (template_reg, transform_masks, [
                 ("affine", "template_to_common_affine"),
@@ -416,9 +416,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
-        if not opts.robust_bold_denoising:
+        if not opts.robust_bold_inho_cor:
             workflow.connect([
-                (anat_preproc_wf, EPI_target_buffer, [
+                (anat_inho_cor_wf, EPI_target_buffer, [
                     ("outputnode.corrected", "EPI_template"),
                     ]),
                 (transform_masks, EPI_target_buffer, [
@@ -426,20 +426,20 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                     ]),
                 ])
 
-        if not opts.anat_denoising_method=='disable':
-            anat_denoising_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
-                                               function=preprocess_visual_QC.denoising_diagnosis),
-                                      name='anat_denoising_diagnosis')
-            anat_denoising_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/anat_denoising/'
+        if not opts.anat_inho_cor_method=='disable':
+            anat_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+                                               function=preprocess_visual_QC.inho_cor_diagnosis),
+                                      name='anat_inho_cor_diagnosis')
+            anat_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/anat_inho_cor/'
 
             workflow.connect([
-                (anat_convert_to_RAS_node, anat_denoising_diagnosis, [
+                (anat_convert_to_RAS_node, anat_inho_cor_diagnosis, [
                     ("RAS_file", "raw_img"),
                     ]),
-                (anat_selectfiles, anat_denoising_diagnosis, [
+                (anat_selectfiles, anat_inho_cor_diagnosis, [
                     ("out_file", "name_source"),
                     ]),
-                (anat_preproc_wf, anat_denoising_diagnosis, [
+                (anat_inho_cor_wf, anat_inho_cor_diagnosis, [
                     ("outputnode.init_denoise", "init_denoise"),
                     ("outputnode.corrected", "final_denoise"),
                     ("outputnode.denoise_mask", "warped_mask"),
@@ -452,32 +452,32 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         bold_main_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
         bold_main_wf.inputs.inputnode.labels = str(opts.labels)
 
-        bias_cor_bold_main_wf = init_bold_main_wf(
-            bias_cor_only=True, name='bias_cor_bold_main_wf', opts=opts)
+        inho_cor_bold_main_wf = init_bold_main_wf(
+            inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
 
         workflow.connect([
-            (bold_convert_to_RAS_node, bias_cor_bold_main_wf, [
+            (bold_convert_to_RAS_node, inho_cor_bold_main_wf, [
                 ("RAS_file", "inputnode.bold"),
                 ]),
-            (EPI_target_buffer, bias_cor_bold_main_wf, [
-                ("EPI_template", "inputnode.bias_cor_anat"),
-                ("EPI_mask", "inputnode.bias_cor_mask"),
+            (EPI_target_buffer, inho_cor_bold_main_wf, [
+                ("EPI_template", "inputnode.inho_cor_anat"),
+                ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
             (resample_template_node, bold_main_wf, [
                 ("resampled_mask", "inputnode.anat_mask"),
                 ]),
-            (bias_cor_bold_main_wf, bold_main_wf, [
+            (inho_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
                 ("transitionnode.bold_ref", "transitionnode.bold_ref"),
                 ("transitionnode.init_denoise", "transitionnode.init_denoise"),
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),
-            (bias_cor_bold_main_wf, commonspace_reg, [
+            (inho_cor_bold_main_wf, commonspace_reg, [
              ("transitionnode.corrected_EPI", "moving_image")]),
             ])
 
-        if not opts.robust_bold_denoising:
+        if not opts.robust_bold_inho_cor:
             workflow.connect([
                 (resample_template_node, EPI_target_buffer, [
                     ("resampled_template", "EPI_template"),
@@ -485,12 +485,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                     ]),
                 ])
 
-    if opts.robust_bold_denoising:
-        bias_cor_bold_init_wf = init_bold_main_wf(
-            bias_cor_only=True, name='bias_cor_bold_init_wf', opts=opts)
+    if opts.robust_bold_inho_cor:
+        inho_cor_bold_init_wf = init_bold_main_wf(
+            inho_cor_only=True, name='inho_cor_bold_init_wf', opts=opts)
 
         joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                                             name='bias_cor_init_joinnode_main',
+                                             name='inho_cor_init_joinnode_main',
                                              joinsource='main_split',
                                              joinfield=['file_list'])
 
@@ -515,7 +515,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                name='EPI_template_mask')
 
         workflow.connect([
-            (bold_convert_to_RAS_node, bias_cor_bold_init_wf, [
+            (bold_convert_to_RAS_node, inho_cor_bold_init_wf, [
                 ("RAS_file", "inputnode.bold"),
                 ]),
             (resample_template_node, EPI_template_gen_node, [
@@ -551,31 +551,31 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
         if not opts.bold_only:
             joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                                                name="bias_cor_init_joinnode_run",
+                                                name="inho_cor_init_joinnode_run",
                                                 joinsource='run_split',
                                                 joinfield=['file_list'])
 
             workflow.connect([
-                (anat_preproc_wf, bias_cor_bold_init_wf, [
-                    ("outputnode.corrected", "inputnode.bias_cor_anat"),
+                (anat_inho_cor_wf, inho_cor_bold_init_wf, [
+                    ("outputnode.corrected", "inputnode.inho_cor_anat"),
                     ]),
-                (transform_masks, bias_cor_bold_init_wf, [
-                    ("brain_mask", "inputnode.bias_cor_mask"),
+                (transform_masks, inho_cor_bold_init_wf, [
+                    ("brain_mask", "inputnode.inho_cor_mask"),
                     ]),
                 (joinnode_run, joinnode_main, [
                     ("file_list", "file_list"),
                     ]),
-                (bias_cor_bold_init_wf, joinnode_run, [
+                (inho_cor_bold_init_wf, joinnode_run, [
                     ("transitionnode.corrected_EPI", "file_list"),
                     ]),
                 ])
         else:
             workflow.connect([
-                (resample_template_node, bias_cor_bold_init_wf, [
-                    ("resampled_template", "inputnode.bias_cor_anat"),
-                    ("resampled_mask", "inputnode.bias_cor_mask"),
+                (resample_template_node, inho_cor_bold_init_wf, [
+                    ("resampled_template", "inputnode.inho_cor_anat"),
+                    ("resampled_mask", "inputnode.inho_cor_mask"),
                     ]),
-                (bias_cor_bold_init_wf, joinnode_main, [
+                (inho_cor_bold_init_wf, joinnode_main, [
                     ("transitionnode.corrected_EPI", "file_list"),
                     ]),
                 ])
@@ -609,10 +609,10 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         workflow.connect([
             (bold_selectfiles, PlotOverlap_EPI2Anat_node,
              [("out_file", "name_source")]),
-            (anat_preproc_wf, PlotOverlap_EPI2Anat_node,
+            (anat_inho_cor_wf, PlotOverlap_EPI2Anat_node,
              [("outputnode.corrected", "fixed")]),
             (outputnode, PlotOverlap_EPI2Anat_node, [
-                ("bias_cor_bold_warped2anat", "moving"),  # warped EPI to anat
+                ("inho_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                 ]),
             (anat_selectfiles, PlotOverlap_Anat2Template_node, [
                 ("out_file", "name_source"),
@@ -695,13 +695,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (outputnode, bold_datasink, [
                 ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
-                ("bias_cor_bold", "bias_cor_bold"),  # inspect bias correction
+                ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction
                 ("bold_brain_mask", "bold_brain_mask"),  # get the EPI labels
                 ("bold_WM_mask", "bold_WM_mask"),  # get the EPI labels
                 ("bold_CSF_mask", "bold_CSF_mask"),  # get the EPI labels
                 ("bold_labels", "bold_labels"),  # get the EPI labels
                 # warped EPI to anat
-                ("bias_cor_bold_warped2anat", "bias_cor_bold_warped2anat"),
+                ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),
                 # resampled EPI after motion realignment and SDC
                 ("native_corrected_bold", "corrected_bold"),
                 # resampled EPI after motion realignment and SDC
@@ -724,7 +724,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                     name="anat_datasink")
 
             workflow.connect([
-                (anat_preproc_wf, anat_datasink, [
+                (anat_inho_cor_wf, anat_datasink, [
                     ("outputnode.corrected", "anat_preproc"),
                  ]),
                 (outputnode, anat_datasink, [

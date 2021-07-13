@@ -5,13 +5,13 @@ from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
 from .stc import init_bold_stc_wf
-from .bias_correction import init_bias_correction_wf
+from .inho_correction import init_inho_correction_wf
 from .registration import init_bold_reg_wf
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 
-def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
+def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -20,7 +20,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
 
         opts
             parser options for preprocess
-        bias_cor_only
+        inho_cor_only
             whether to run the bias correction steps, or further processing steps.
 
     **Inputs**
@@ -119,7 +119,7 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(niu.IdentityInterface(
-                fields=['bold', 'bias_cor_anat', 'bias_cor_mask', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
+                fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
                         'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine',
                         'anat_to_template_warp', 'commonspace_ref']),
                         name="inputnode")
@@ -135,13 +135,13 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
                          name="boldbuffer")
 
-    # this node will serve as a relay of outputs from the bias_cor main_wf to the inputs for the rest of the main_wf for bold_only
+    # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
     transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
                              name="transitionnode")
 
-    if bias_cor_only or (not opts.bold_only):
+    if inho_cor_only or (not opts.bold_only):
         bold_reference_wf = init_bold_reference_wf(opts=opts)
-        bias_cor_wf = init_bias_correction_wf(opts=opts, image_type='EPI', bias_cor_method=opts.bold_denoising_method, name="bold_denoising_wf")
+        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', inho_cor_method=opts.bold_inho_cor_method, name="bold_inho_cor_wf")
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -170,28 +170,28 @@ def init_bold_main_wf(opts, bias_cor_only=False, name='bold_main_wf'):
                 ])
 
         workflow.connect([
-            (inputnode, bias_cor_wf, [
-                ('bias_cor_anat', 'inputnode.anat_ref'),
-                ('bias_cor_mask', 'inputnode.anat_mask'),
+            (inputnode, inho_cor_wf, [
+                ('inho_cor_anat', 'inputnode.anat_ref'),
+                ('inho_cor_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
                 ]),
             (boldbuffer, bold_reference_wf, [
                 ('bold_file', 'inputnode.bold_file'),
                 ]),
-            (bold_reference_wf, bias_cor_wf, [
+            (bold_reference_wf, inho_cor_wf, [
                 ('outputnode.ref_image', 'inputnode.target_img'),
                 ]),
             (bold_reference_wf, transitionnode, [
                 ('outputnode.ref_image', 'bold_ref'),
                 ]),
-            (bias_cor_wf, transitionnode, [
+            (inho_cor_wf, transitionnode, [
                 ('outputnode.init_denoise', 'init_denoise'),
                 ('outputnode.denoise_mask', 'denoise_mask'),
                 ('outputnode.corrected', 'corrected_EPI'),
                 ]),
             ])
 
-    if bias_cor_only:
+    if inho_cor_only:
         return workflow
 
     bold_stc_wf = init_bold_stc_wf(opts=opts)

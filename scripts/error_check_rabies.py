@@ -51,7 +51,7 @@ sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
 sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
                 + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
 
-command = "rabies preprocess {}/inputs {}/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
+command = "rabies preprocess {}/inputs {}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {}/inputs/sub-token_T1w.nii.gz --brain_mask {}/inputs/token_mask.nii.gz --WM_mask {}/inputs/token_mask.nii.gz --CSF_mask {}/inputs/token_mask.nii.gz --vascular_mask {}/inputs/token_mask.nii.gz --labels {}/inputs/token_mask.nii.gz \
     --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --bold_only --detect_dummy \
     --tpattern seq".format(tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
@@ -61,7 +61,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies preprocess {}/inputs {}/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
+command = "rabies preprocess {}/inputs {}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {}/inputs/sub-token_T1w.nii.gz --brain_mask {}/inputs/token_mask.nii.gz --WM_mask {}/inputs/token_mask_half.nii.gz --CSF_mask {}/inputs/token_mask_half.nii.gz --vascular_mask {}/inputs/token_mask_half.nii.gz --labels {}/inputs/token_mask.nii.gz \
     --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --HMC_option 0".format(tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
 process = subprocess.run(
