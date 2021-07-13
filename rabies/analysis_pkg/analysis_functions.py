@@ -135,7 +135,7 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
         corr_matrix = voxelwise_FC_matrix(bold_file, mask_file)
     else:
         raise ValueError(
-            "Invalid --ROI_type provided: {}. Must be either 'parcellated' or 'voxelwise.'".format(roi_type))
+            f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
     plot_matrix(figname, corr_matrix)
 
     data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
@@ -221,8 +221,7 @@ def run_group_ICA(bold_file_list, mask_file, dim, tr):
 
     from rabies.preprocess_pkg.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
-    command = 'melodic -i {} -m {} -o {} --tr={} -d {} --report'.format(
-        file_path, mask_file, out_dir, tr, dim)
+    command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} --tr={tr} -d {dim} --report'
     rc = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file
@@ -257,8 +256,7 @@ def resample_4D(input_4d, ref_file):
             "resampled_volume" + str(x) + ".nii.gz")
         resampled_volumes.append(resampled_vol_fname)
 
-        command = 'antsApplyTransforms -i {} -n BSpline[5] -r {} -o {}'.format(
-            split_volumes_files[x], new_ref, resampled_vol_fname)
+        command = f'antsApplyTransforms -i {split_volumes_files[x]} -n BSpline[5] -r {new_ref} -o {resampled_vol_fname}'
         rc = run_command(command)
         # change image to specified data type
         sitk.WriteImage(sitk.ReadImage(resampled_vol_fname, rabies_data_type), resampled_vol_fname)

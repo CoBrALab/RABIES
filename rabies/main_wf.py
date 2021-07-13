@@ -175,7 +175,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                            function=run_antsRegistration),
                                   name='commonspace_reg', mem_gb=2*opts.scale_min_memory)
         commonspace_reg.plugin_args = {
-            'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+            f'qsub_args': '-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
         commonspace_reg.inputs.reg_method = str(opts.template_reg_script)
         commonspace_reg.inputs.rabies_data_type = opts.data_type
 
@@ -199,7 +199,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ])
     else:
         template_reg.plugin_args = {
-            'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
         template_reg.inputs.reg_method = str(opts.template_reg_script)
 
         # setting up commonspace registration within the workflow
@@ -506,7 +506,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                name='EPI_template_reg', mem_gb=2*opts.scale_min_memory)
         EPI_template_reg.inputs.rabies_data_type = opts.data_type
         EPI_template_reg.plugin_args = {
-            'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
         EPI_template_reg.inputs.reg_method = str(opts.template_reg_script)
 
         EPI_template_mask = pe.Node(Function(input_names=['fixed_mask', 'moving_image', 'inverse_warp', 'affine'],
@@ -1197,8 +1197,7 @@ def transform_mask(fixed_mask, moving_image, inverse_warp, affine):
     import pathlib  # Better path manipulation
     filename_template = pathlib.Path(moving_image).name.rsplit(".nii")[0]
 
-    new_mask = '{}/{}_{}'.format(cwd,
-                               filename_template, '_mask.nii.gz')
+    new_mask = f'{cwd}/{filename_template}_mask.nii.gz'
     if inverse_warp=='NULL':
         transforms = [affine]
         inverses = [1]
@@ -1222,23 +1221,20 @@ def transform_masks_anat(brain_mask_in, WM_mask_in, CSF_mask_in, vascular_mask_i
     import pathlib  # Better path manipulation
     filename_template = pathlib.Path(reference_image).name.rsplit(".nii")[0]
 
-    brain_mask = '{}/{}_{}'.format(cwd,
-                               filename_template, 'anat_mask.nii.gz')
+    brain_mask = f'{cwd}/{filename_template}_anat_mask.nii.gz'
     exec_applyTransforms(transforms, inverses, brain_mask_in, reference_image, brain_mask, mask=True)
 
 
-    WM_mask = '{}/{}_{}'.format(cwd, filename_template, 'WM_mask.nii.gz')
+    WM_mask = f'{cwd}/{filename_template}_WM_mask.nii.gz'
     exec_applyTransforms(transforms, inverses, WM_mask_in, reference_image, WM_mask, mask=True)
 
-    CSF_mask = '{}/{}_{}'.format(cwd, filename_template, 'CSF_mask.nii.gz')
+    CSF_mask = f'{cwd}/{filename_template}_CSF_mask.nii.gz'
     exec_applyTransforms(transforms, inverses, CSF_mask_in, reference_image, CSF_mask, mask=True)
 
-    vascular_mask = '{}/{}_{}'.format(cwd,
-                                  filename_template, 'vascular_mask.nii.gz')
+    vascular_mask = f'{cwd}/{filename_template}_vascular_mask.nii.gz'
     exec_applyTransforms(transforms, inverses, vascular_mask_in, reference_image, vascular_mask, mask=True)
 
-    anat_labels = '{}/{}_{}'.format(cwd,
-                                filename_template, 'atlas_labels.nii.gz')
+    anat_labels = f'{cwd}/{filename_template}_atlas_labels.nii.gz'
     exec_applyTransforms(transforms, inverses, atlas_labels_in, reference_image, anat_labels, mask=True)
 
     return brain_mask, WM_mask, CSF_mask, vascular_mask, anat_labels
@@ -1276,7 +1272,7 @@ def find_iterable(file_list, scan_split_name):
         if scan_split_name in file['name_source']:
             import os
             if os.path.basename(file['bold_file']) == 'empty.nii.gz':
-                raise ValueError("FD_censoring and/or DVARS_censoring during confound regression resulted in an empty file for scan {}. "
-                                "You will have to specify a list of scans that are not empty with --scan_list option.".format(file['name_source']))
+                raise ValueError(f"FD_censoring and/or DVARS_censoring during confound regression resulted in an empty file for scan {file['name_source']}. \
+                                You will have to specify a list of scans that are not empty with --scan_list option.")
             return file
-    raise ValueError("No matching file was found for {}".format(scan_split_name))
+    raise ValueError(f"No matching file was found for {scan_split_name}")

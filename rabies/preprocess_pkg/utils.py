@@ -68,10 +68,10 @@ def prep_bids_iter(layout, bold_only=False):
                                        'T2w', 'T1w'], extension=['nii', 'nii.gz'], return_type='filename')
                 if len(anat_list) == 0:
                     raise ValueError(
-                        'Missing an anatomical image for sub {} and ses- {}'.format(sub, ses))
+                        f'Missing an anatomical image for sub {sub} and ses- {ses}')
                 if len(anat_list) > 1:
                     raise ValueError(
-                        'Duplicate was found for the anatomical file sub- {}, ses- {}: {}'.format(sub, ses, str(anat_list)))
+                        f'Duplicate was found for the anatomical file sub- {sub}, ses- {ses}: {str(anat_list)}')
                 file = anat_list[0]
                 scan_list.append(file)
                 filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
@@ -83,7 +83,7 @@ def prep_bids_iter(layout, bold_only=False):
                 bold_list = bold_dict[sub][ses][run]
                 if len(bold_list) > 1:
                     raise ValueError(
-                        'Duplicate was found for bold files sub- {}, ses- {} and run {}: {}'.format(sub, ses, run, str(bold_list)))
+                        f'Duplicate was found for bold files sub- {sub}, ses- {ses} and run {run}: {str(bold_list)}')
                 file = bold_list[0]
                 bold_scan_list.append(file)
                 if bold_only:
@@ -141,14 +141,14 @@ class BIDSDataGraber(BaseInterface):
                 file_list = layout.get(subject=subject_id, session=session, run=run, extension=[
                                   'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
             if len(file_list) > 1:
-                raise ValueError('Provided BIDS spec lead to duplicates: {}'.format(
-                    str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
+                raise ValueError(f'Provided BIDS spec lead to duplicates: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
             elif len(file_list)==0:
-                raise ValueError('No file for found corresponding to the following BIDS spec: {}'.format(
-                    str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
+                raise ValueError(f'No file for found corresponding to the following BIDS spec: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
         except:
-            raise ValueError('Error with BIDS spec: {}'.format(
-                str(self.inputs.suffix)+' sub-'+subject_id+' ses-'+session+' run-'+str(run)))
+            raise ValueError(f'Error with BIDS spec: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
 
         setattr(self, 'out_file', file_list[0])
 
@@ -175,7 +175,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
     gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
                       name='gen_ref', mem_gb=2*opts.scale_min_memory)
     gen_ref.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(2*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
 
     workflow.connect([
         (inputnode, gen_ref, [('bold_file', 'in_file')]),
@@ -233,7 +233,7 @@ class EstimateReferenceImage(BaseInterface):
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
         out_ref_fname = os.path.abspath(
-            '{}_bold_ref.nii.gz'.format(filename_split[0],))
+            f'{filename_split[0]}_bold_ref.nii.gz')
 
         if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
             log.info("Detected "+str(n_volumes_to_discard)
@@ -242,7 +242,7 @@ class EstimateReferenceImage(BaseInterface):
                 data_slice[:n_volumes_to_discard, :, :, :], axis=0)
 
             out_bold_file = os.path.abspath(
-                '{}_cropped_dummy.nii.gz'.format(filename_split[0],))
+                f'{filename_split[0]}_cropped_dummy.nii.gz')
             img_array = sitk.GetArrayFromImage(
                 in_nii)[n_volumes_to_discard:, :, :, :]
 
@@ -303,8 +303,7 @@ class EstimateReferenceImage(BaseInterface):
 
         # denoise the resulting reference image through non-local mean denoising
         # Denoising reference image.
-        command = 'DenoiseImage -d 3 -i {} -o {}'.format(
-            out_ref_fname, out_ref_fname)
+        command = f'DenoiseImage -d 3 -i {out_ref_fname} -o {out_ref_fname}'
         from rabies.preprocess_pkg.utils import run_command
         rc = run_command(command)
 
@@ -396,8 +395,8 @@ class antsMotionCorr(BaseInterface):
             low_dim = np.asarray(img.GetSize()[:3]).min()
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
-            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {} , \
-                {} , 1 , {} ] -t {}[0.1,3,0] -i 100x50x30 -s 2x1x0 -f {}x2x1 -u 1 -e 1 -l 1 -n {} -v {}".format(fixed, moving, str(mibins), txtype, str(shrinking_factor), str(n), str(verbose))
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 2):
             # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
@@ -406,20 +405,20 @@ class antsMotionCorr(BaseInterface):
             low_dim = np.asarray(img.GetSize()[:3]).min()
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
-            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {} , \
-                {} , 1 , {} , regular, 0.25 ] -t {}[ 0.1 ] -i 100x50x30 -s 2x1x0 -f {}x2x1 -u 1 -e 1 -l 1 -n {} -v {}".format(fixed, moving, str(mibins), txtype, str(shrinking_factor), str(n), str(verbose))
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == "intraSubjectBOLD"):
-            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {} , \
-                {} , 1 , {} , regular, 0.2 ] -t {}[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -l 1 -n {} -v {}".format(fixed, moving, str(mibins), txtype, str(n), str(verbose))
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} , regular, 0.2 ] -t {txtype}[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 1):
-            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {} , \
-                {} , 1 , {} , regular, 0.25 ] -t {}[ 0.1 ] -i 100 -s 0 -f 1 -u 1 -e 1 -l 1 -n {} -v {}".format(fixed, moving, str(mibins), txtype, str(n), str(verbose))
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100 -s 0 -f 1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 0):
-            command = "antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {} , \
-                {} , 1 , {} , regular, 0.02 ] -t {}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -l 1 -n {} -v {}".format(fixed, moving, str(mibins), txtype, str(n), str(verbose))
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
         else:
             raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
@@ -566,17 +565,16 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
         if transform=='NULL':
             continue
         elif bool(inverse):
-            transform_string += "-t [{},1] ".format(transform,)
+            transform_string += f"-t [{transform},1] "
         else:
-            transform_string += "-t {} ".format(transform,)
+            transform_string += f"-t {transform} "
 
     if mask:
         interpolation = 'GenericLabel'
     else:
         interpolation = 'BSpline[5]'
 
-    command = 'antsApplyTransforms -i {} {}-n {} -r {} -o {}'.format(
-        input_image, transform_string, interpolation, ref_image, output_image)
+    command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
     rc = run_command(command)
     if not os.path.isfile(output_image):
         raise ValueError(
@@ -648,11 +646,10 @@ class slice_applyTransforms(BaseInterface):
             transforms = self.inputs.transforms
             inverses = self.inputs.inverses
             if self.inputs.apply_motcorr:
-                command = 'antsMotionCorrStats -m {} -o motcorr_vol{}.mat -t {}'.format(
-                    motcorr_params, x, x)
+                command = f'antsMotionCorrStats -m {motcorr_params} -o motcorr_vol{x}.mat -t {x}'
                 rc = run_command(command)
 
-                transforms.append('motcorr_vol{}.mat'.format(x))
+                transforms.append(f'motcorr_vol{x}.mat')
                 inverses.append(0)
 
             exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, mask=False)
@@ -739,7 +736,7 @@ class Merge(BaseInterface):
         if (i != length):
             raise ValueError("Error occured with Merge.")
         combined_files = os.path.abspath(
-            "{}_combined.nii.gz".format(filename_split[0],))
+            f"{filename_split[0]}_combined.nii.gz")
 
         if self.inputs.clip_negative:
             # clip potential negative values
@@ -874,16 +871,14 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
         shape = spacing.split('x')
         spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
 
-    log.info("Resampling template to {}x{}x{}mm dimensions.".format(
-          spacing[0], spacing[1], spacing[2],))
+    log.info(f"Resampling template to {spacing[0]}x{spacing[1]}x{spacing[2]}mm dimensions.")
     resampled_template = os.path.abspath("resampled_template.nii.gz")
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
         template_file, rabies_data_type), spacing), resampled_template)
 
     # also resample the brain mask to ensure stable registrations further down
     resampled_mask = os.path.abspath("resampled_mask.nii.gz")
-    command = 'antsApplyTransforms -d 3 -i {} -r {} -o {} --verbose -n GenericLabel'.format(
-        mask_file, resampled_template, resampled_mask,)
+    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {resampled_template} -o {resampled_mask} --verbose -n GenericLabel'
     rc = run_command(command)
 
     return resampled_template, resampled_mask
@@ -944,9 +939,9 @@ def select_from_list(filename, filelist):
                 selected_file = file
             else:
                 raise ValueError(
-                    "Found duplicates for filename {}.".format(filename))
+                    f"Found duplicates for filename {filename}.")
 
     if selected_file is None:
-        raise ValueError("No file associated with {} were found.".format(filename))
+        raise ValueError(f"No file associated with {filename} were found.")
     else:
         return selected_file

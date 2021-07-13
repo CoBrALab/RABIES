@@ -26,7 +26,7 @@ def init_bold_reg_wf(opts, name='bold_reg_wf'):
     run_reg.inputs.reg_method = opts.coreg_script
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -53,21 +53,17 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
     reg_call = define_reg_script(reg_method)
 
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
-        command = "{} --fixed-mask {} --resampled-output {}_output_warped_image.nii.gz {} {} {}_output_".format(
-            reg_call, anat_mask, filename_split[0], moving_image, fixed_image, filename_split[0])
+        command = f"{reg_call} --fixed-mask {anat_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
-        command = '{} {} {} {} {}'.format(
-            reg_call, moving_image, fixed_image, anat_mask, filename_split[0])
+        command = f'{reg_call} {moving_image} {fixed_image} {anat_mask} {filename_split[0]}'
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
     cwd = os.getcwd()
-    warped_image = '{}/{}_output_warped_image.nii.gz'.format(
-        cwd, filename_split[0],)
-    affine = '{}/{}_output_0GenericAffine.mat'.format(cwd, filename_split[0],)
-    warp = '{}/{}_output_1Warp.nii.gz'.format(cwd, filename_split[0],)
-    inverse_warp = '{}/{}_output_1InverseWarp.nii.gz'.format(
-        cwd, filename_split[0],)
+    warped_image = f'{cwd}/{filename_split[0]}_output_warped_image.nii.gz'
+    affine = f'{cwd}/{filename_split[0]}_output_0GenericAffine.mat'
+    warp = f'{cwd}/{filename_split[0]}_output_1Warp.nii.gz'
+    inverse_warp = f'{cwd}/{filename_split[0]}_output_1InverseWarp.nii.gz'
     if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError(
             'REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')

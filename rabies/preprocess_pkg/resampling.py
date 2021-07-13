@@ -23,7 +23,7 @@ def init_bold_preproc_trans_wf(opts, name='bold_native_trans_wf'):
 
     merge = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), name='merge', mem_gb=4*opts.scale_min_memory)
     merge.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)
@@ -68,7 +68,7 @@ def init_bold_commonspace_trans_wf(opts, name='bold_commonspace_trans_wf'):
 
     merge = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), name='merge', mem_gb=4*opts.scale_min_memory)
     merge.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)

@@ -276,12 +276,11 @@ def resample_mask(in_file, ref_file):
         if transform == 'NULL':
             continue
         elif bool(inverse):
-            transform_string += "-t [{},1] ".format(transform,)
+            transform_string += f"-t [{transform},1] "
         else:
-            transform_string += "-t {} ".format(transform,)
+            transform_string += f"-t {transform} "
 
-    command = 'antsApplyTransforms -i {} {}-n GenericLabel -r {} -o {}'.format(
-        in_file, transform_string, ref_file, out_file)
+    command = f'antsApplyTransforms -i {in_file} {transform_string}-n GenericLabel -r {ref_file} -o {out_file}'
     rc = run_command(command)
     return out_file
 
@@ -304,9 +303,9 @@ def resample_IC_file(in_file, ref_file):
         if transform == 'NULL':
             continue
         elif bool(inverse):
-            transform_string += "-t [{},1] ".format(transform,)
+            transform_string += f"-t [{transform},1] "
         else:
-            transform_string += "-t {} ".format(transform,)
+            transform_string += f"-t {transform} "
 
     # Splitting bold file into lists of single volumes
     [volumes_list, num_volumes] = split_volumes(
@@ -318,8 +317,7 @@ def resample_IC_file(in_file, ref_file):
             "deformed_volume" + str(x) + ".nii.gz")
         warped_volumes.append(warped_vol_fname)
 
-        command = 'antsApplyTransforms -i {} {}-n BSpline[5] -r {} -o {}'.format(
-            volumes_list[x], transform_string, ref_file, warped_vol_fname)
+        command = f'antsApplyTransforms -i {volumes_list[x]} {transform_string}-n BSpline[5] -r {ref_file} -o {warped_vol_fname}'
         rc = run_command(command)
 
     sample_volume = sitk.ReadImage(
@@ -770,7 +768,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
                 alpha=1, cbar=True, threshold=0.1, num_slices=6)
         for ax in axes:
-            ax.set_title('BOLD component {}'.format(i), fontsize=30, color='white')
+            ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
 
     return fig, fig2
 

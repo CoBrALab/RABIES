@@ -20,7 +20,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     motion_estimation = pe.Node(antsMotionCorr(prebuilt_option=opts.HMC_option,transform_type='Rigid', second=False, rabies_data_type=opts.data_type),
                          name='ants_MC', mem_gb=1.1*opts.scale_min_memory)
     motion_estimation.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     workflow.connect([
         (inputnode, motion_estimation, [('ref_image', 'ref_file'),
@@ -34,7 +34,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
         slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs),
                                 name='slice_mc', mem_gb=1*slice_mc_n_procs, n_procs=slice_mc_n_procs)
         slice_mc_node.plugin_args = {
-            'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
         # conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
         workflow.connect([

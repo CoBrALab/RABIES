@@ -52,8 +52,7 @@ class PlotOverlap(BaseInterface):
             filename_template+'_registration.png'
 
         from rabies.preprocess_pkg.utils import run_command
-        command = '{} {} {} {}'.format(
-            script_path, self.inputs.moving, self.inputs.fixed, out_name)
+        command = f'{script_path} {self.inputs.moving} {self.inputs.fixed} {out_name}'
         rc = run_command(command)
 
         setattr(self, 'out_png', out_name)
@@ -71,7 +70,7 @@ def otsu_scaling(image_file):
 
     # select a smart vmax for the image display to enhance contrast
     from rabies.preprocess_pkg.utils import run_command
-    command = 'ThresholdImage 3 {} otsu_weight.nii.gz Otsu 4'.format(image_file)
+    command = f'ThresholdImage 3 {image_file} otsu_weight.nii.gz Otsu 4'
     rc = run_command(command)
 
     # clip off the background
@@ -166,7 +165,7 @@ def plot_reg(image1,image2, name_source, out_dir):
     display1.add_edges(image1)
     display2.add_edges(image1)
     display3.add_edges(image1)
-    fig.savefig('{}_registration.png'.format(prefix), bbox_inches='tight')
+    fig.savefig(f'{prefix}_registration.png', bbox_inches='tight')
 
 
 def template_info(anat_template, opts, out_dir):
@@ -303,7 +302,7 @@ def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_s
     axes[0,2].set_title('Temporal SNR', fontsize=30, color='white')
     plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
-    fig.savefig('{}_temporal_features.png'.format(prefix), bbox_inches='tight')
+    fig.savefig(f'{prefix}_temporal_features.png', bbox_inches='tight')
 
     return std_filename, tSNR_filename
 
@@ -347,7 +346,7 @@ def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sour
     plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     plt.tight_layout()
-    fig.savefig('{}_inho_cor.png'.format(prefix), bbox_inches='tight')
+    fig.savefig(f'{prefix}_inho_cor.png', bbox_inches='tight')
 
 def add_filenames(ax, file_dict, line_length=40):
     txt=""
