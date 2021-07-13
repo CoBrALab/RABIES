@@ -52,7 +52,7 @@ class PlotOverlap(BaseInterface):
             filename_template+'_registration.png'
 
         from rabies.preprocess_pkg.utils import run_command
-        command = '%s %s %s %s' % (
+        command = '{} {} {} {}'.format(
             script_path, self.inputs.moving, self.inputs.fixed, out_name)
         rc = run_command(command)
 
@@ -71,7 +71,7 @@ def otsu_scaling(image_file):
 
     # select a smart vmax for the image display to enhance contrast
     from rabies.preprocess_pkg.utils import run_command
-    command = 'ThresholdImage 3 %s otsu_weight.nii.gz Otsu 4' % (image_file)
+    command = 'ThresholdImage 3 {} otsu_weight.nii.gz Otsu 4'.format(image_file)
     rc = run_command(command)
 
     # clip off the background
@@ -166,7 +166,7 @@ def plot_reg(image1,image2, name_source, out_dir):
     display1.add_edges(image1)
     display2.add_edges(image1)
     display3.add_edges(image1)
-    fig.savefig('%s_registration.png' % (prefix), bbox_inches='tight')
+    fig.savefig('{}_registration.png'.format(prefix), bbox_inches='tight')
 
 
 def template_info(anat_template, opts, out_dir):
@@ -303,12 +303,12 @@ def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_s
     axes[0,2].set_title('Temporal SNR', fontsize=30, color='white')
     plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
-    fig.savefig('%s_temporal_features.png' % (prefix), bbox_inches='tight')
+    fig.savefig('{}_temporal_features.png'.format(prefix), bbox_inches='tight')
 
     return std_filename, tSNR_filename
 
 
-def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_source, out_dir):
+def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_source, out_dir):
     import os
     import pathlib
     import SimpleITK as sitk
@@ -337,17 +337,17 @@ def denoising_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sou
     plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(init_denoise)
-    axes[0,1].set_title('Initial Denoising', fontsize=30, color='white')
+    axes[0,1].set_title('Initial Correction', fontsize=30, color='white')
     #add_filenames(axes[-1,1], {'File':init_denoise})
     plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     scaled = otsu_scaling(final_denoise)
-    axes[0,3].set_title('Final Denoising', fontsize=30, color='white')
+    axes[0,3].set_title('Final Correction', fontsize=30, color='white')
     #add_filenames(axes[-1,3], {'File':final_denoise})
     plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     plt.tight_layout()
-    fig.savefig('%s_denoising.png' % (prefix), bbox_inches='tight')
+    fig.savefig('{}_inho_cor.png'.format(prefix), bbox_inches='tight')
 
 def add_filenames(ax, file_dict, line_length=40):
     txt=""

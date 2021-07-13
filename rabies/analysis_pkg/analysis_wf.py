@@ -42,7 +42,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
             file = os.path.abspath(file)
             if not os.path.isfile(file):
                 raise ValueError(
-                    "Provide seed file path %s doesn't exists." % (file))
+                    "Provide seed file path {} doesn't exists.".format(file))
             seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
             name_list.append(seed_name)
             seed_dict[seed_name] = file

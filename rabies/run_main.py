@@ -85,29 +85,29 @@ def get_parser():
     preprocess.add_argument("--bold_only", dest='bold_only', action='store_true',
                             help="""
                             Apply preprocessing with only EPI scans. Commonspace registration
-                            is executed directly using the denoised EPI 3D reference images.
+                            is executed directly using the corrected EPI 3D reference images.
                             The commonspace registration simultaneously applies distortion
                             correction, this option will produce only commonspace outputs.
                             """)
-    preprocess.add_argument("--bold_denoising_method", type=str, default='Rigid',
+    preprocess.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
                             help="""
-                            Select a registration type for masking during initial denoising of the EPI.
+                            Select a registration type for masking during inhomogeneity correction of the EPI.
                             """)
-    preprocess.add_argument("--robust_bold_denoising", dest='robust_bold_denoising', action='store_true',
+    preprocess.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
                             help="""
-                            This option will conduct an iterative scheme for denoising of the EPIs, where
-                            an initial denoising step is run to generate a unbiased EPI template from the
+                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
+                            an initial correction step is run to generate a unbiased EPI template from the
                             dataset, to provide a novel dataset-specific EPI target. This new target is then
-                            used for a final round of denoising, instead of structural images. This can help
-                            the denoising of EPIs with bad anatomical contrasts and high distortions.
+                            used for a final round of correction, instead of structural images. This can help
+                            the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
                             """)
-    preprocess.add_argument("--anat_denoising_method", type=str, default='SyN',
+    preprocess.add_argument("--anat_inho_cor_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'disable'],
                             help="""
-                            Select a registration type for masking during initial denoising of the anatomical scan.
+                            Select a registration type for masking during inhomogeneity correction of the structural image.
                             """)
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""
@@ -210,31 +210,31 @@ def get_parser():
         A mouse atlas is provided as default https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.
         """)
     g_atlas.add_argument('--anat_template', action='store', type=Path,
-                         default="%s/DSURQE_40micron_average.nii.gz" % (
+                         default="{}/DSURQE_40micron_average.nii.gz".format(
                              rabies_path),
                          help="""
                          Anatomical file for the commonspace template.
                          """)
     g_atlas.add_argument('--brain_mask', action='store', type=Path,
-                         default="%s/DSURQE_40micron_mask.nii.gz" % (
+                         default="{}/DSURQE_40micron_mask.nii.gz".format(
                              rabies_path),
                          help="""
                          Brain mask for the template.
                          """)
     g_atlas.add_argument('--WM_mask', action='store', type=Path,
-                         default="%s/DSURQE_40micron_eroded_WM_mask.nii.gz" % (
+                         default="{}/DSURQE_40micron_eroded_WM_mask.nii.gz".format(
                              rabies_path),
                          help="""
                          White matter mask for the template.
                          """)
     g_atlas.add_argument('--CSF_mask', action='store', type=Path,
-                         default="%s/DSURQE_40micron_eroded_CSF_mask.nii.gz" % (
+                         default="{}/DSURQE_40micron_eroded_CSF_mask.nii.gz".format(
                              rabies_path),
                          help="""
                          CSF mask for the template.
                          """)
     g_atlas.add_argument('--vascular_mask', action='store', type=Path,
-                         default="%s/vascular_mask.nii.gz" % (
+                         default="{}/vascular_mask.nii.gz".format(
                              rabies_path),
                          help="""
                          Can provide a mask of major blood vessels for computing confound timeseries.
@@ -242,7 +242,7 @@ def get_parser():
                          mapping onto major veins.
                          """)
     g_atlas.add_argument('--labels', action='store', type=Path,
-                         default="%s/DSURQE_40micron_labels.nii.gz" % (
+                         default="{}/DSURQE_40micron_labels.nii.gz".format(
                              rabies_path),
                          help="""
                          Atlas file with anatomical labels.
@@ -434,7 +434,7 @@ def get_parser():
                             Specify how many subject-specific sources to compute using dual ICA.
                             """)
     g_dual_ICA.add_argument('--prior_maps', action='store', type=Path,
-                            default="%s/melodic_IC.nii.gz" % (
+                            default="{}/melodic_IC.nii.gz".format(
                               rabies_path),
                             help="""
                             Provide a 4D nifti image with a series of spatial priors representing common sources of
@@ -477,11 +477,11 @@ def execute_workflow():
 
 
     # managing log info
-    cli_file = '%s/rabies_%s.pkl' % (output_folder, opts.rabies_step, )
+    cli_file = '{}/rabies_{}.pkl'.format(output_folder, opts.rabies_step, )
     with open(cli_file, 'wb') as handle:
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    logging.basicConfig(filename='%s/rabies_%s.log' % (output_folder, opts.rabies_step, ), filemode='w',
+    logging.basicConfig(filename='{}/rabies_{}.log'.format(output_folder, opts.rabies_step, ), filemode='w',
                         format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger('root')
 
@@ -515,13 +515,13 @@ def execute_workflow():
         parser.print_help()
 
     try:
-        log.info('Running workflow with %s plugin.' % opts.plugin)
+        log.info('Running workflow with {} plugin.'.format(opts.plugin))
         # execute workflow, with plugin_args limiting the cluster load for parallel execution
         workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
-                                                      'n_procs': opts.local_threads, 'qsub_args': '-pe smp %s' % (str(opts.min_proc))})
+                                                      'n_procs': opts.local_threads, 'qsub_args': '-pe smp {}'.format(str(opts.min_proc))})
 
     except Exception as e:
-        log.critical('RABIES failed: %s', e)
+        log.critical('RABIES failed: {}'.format(e))
         raise
 
 
@@ -558,13 +558,13 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     # convert template files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
     if not os.path.isfile(opts.anat_template):
-        raise ValueError("--anat_template file %s doesn't exists." %
+        raise ValueError("--anat_template file {} doesn't exists." %
                          (opts.anat_template))
     opts.anat_template = convert_to_RAS(
         str(opts.anat_template), output_folder+'/template_files')
 
     if not os.path.isfile(opts.brain_mask):
-        raise ValueError("--brain_mask file %s doesn't exists." %
+        raise ValueError("--brain_mask file {} doesn't exists." %
                          (opts.brain_mask))
     check_binary_masks(opts.brain_mask)
     opts.brain_mask = convert_to_RAS(
@@ -572,14 +572,14 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     check_template_overlap(opts.anat_template, opts.brain_mask)
 
     if not os.path.isfile(opts.WM_mask):
-        raise ValueError("--WM_mask file %s doesn't exists." % (opts.WM_mask))
+        raise ValueError("--WM_mask file {} doesn't exists.".format(opts.WM_mask))
     check_binary_masks(opts.WM_mask)
     opts.WM_mask = convert_to_RAS(
         str(opts.WM_mask), output_folder+'/template_files')
     check_template_overlap(opts.anat_template, opts.WM_mask)
 
     if not os.path.isfile(opts.CSF_mask):
-        raise ValueError("--CSF_mask file %s doesn't exists." %
+        raise ValueError("--CSF_mask file {} doesn't exists." %
                          (opts.CSF_mask))
     check_binary_masks(opts.CSF_mask)
     opts.CSF_mask = convert_to_RAS(
@@ -587,7 +587,7 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     check_template_overlap(opts.anat_template, opts.CSF_mask)
 
     if not os.path.isfile(opts.vascular_mask):
-        raise ValueError("--vascular_mask file %s doesn't exists." %
+        raise ValueError("--vascular_mask file {} doesn't exists." %
                          (opts.vascular_mask))
     check_binary_masks(opts.vascular_mask)
     opts.vascular_mask = convert_to_RAS(
@@ -595,7 +595,7 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     check_template_overlap(opts.anat_template, opts.vascular_mask)
 
     if not os.path.isfile(opts.labels):
-        raise ValueError("--labels file %s doesn't exists." % (opts.labels))
+        raise ValueError("--labels file {} doesn't exists.".format(opts.labels))
     opts.labels = convert_to_RAS(
         str(opts.labels), output_folder+'/template_files')
     check_template_overlap(opts.anat_template, opts.labels)
@@ -631,7 +631,7 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
 def confound_regression(opts, analysis_opts, log):
 
-    cli_file = '%s/rabies_preprocess.pkl' % (opts.preprocess_out, )
+    cli_file = '{}/rabies_preprocess.pkl'.format(opts.preprocess_out, )
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
@@ -643,7 +643,7 @@ def confound_regression(opts, analysis_opts, log):
 
 def analysis(opts, log):
 
-    cli_file = '%s/rabies_confound_regression.pkl' % (
+    cli_file = '{}/rabies_confound_regression.pkl'.format(
         opts.confound_regression_out, )
     with open(cli_file, 'rb') as handle:
         confound_regression_opts = pickle.load(handle)
@@ -656,25 +656,25 @@ def install_DSURQE(log):
 
     install = False
     # verifies whether default template files are installed and installs them otherwise
-    if not os.path.isfile("%s/DSURQE_40micron_average.nii.gz" % (rabies_path)):
+    if not os.path.isfile("{}/DSURQE_40micron_average.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/DSURQE_40micron_mask.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/DSURQE_40micron_mask.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/DSURQE_40micron_eroded_WM_mask.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/DSURQE_40micron_eroded_WM_mask.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/DSURQE_40micron_eroded_CSF_mask.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/DSURQE_40micron_eroded_CSF_mask.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/DSURQE_40micron_labels.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/DSURQE_40micron_labels.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/vascular_mask.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/vascular_mask.nii.gz".format(rabies_path)):
         install = True
-    elif not os.path.isfile("%s/melodic_IC.nii.gz" % (rabies_path)):
+    elif not os.path.isfile("{}/melodic_IC.nii.gz".format(rabies_path)):
         install = True
     if install:
         from rabies.preprocess_pkg.utils import run_command
         log.info(
             "SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
-        rc = run_command('install_DSURQE.sh %s' % (rabies_path), verbose=True)
+        rc = run_command('install_DSURQE.sh {}'.format(rabies_path), verbose=True)
 
 
 def check_binary_masks(mask):
@@ -682,7 +682,7 @@ def check_binary_masks(mask):
     array = sitk.GetArrayFromImage(img)
     if ((array != 1)*(array != 0)).sum() > 0:
         raise ValueError(
-            "The file %s is not a binary mask. Non-binary masks cannot be processed." % (mask))
+            "The file {} is not a binary mask. Non-binary masks cannot be processed.".format(mask))
 
 
 def check_template_overlap(template, mask):
@@ -690,7 +690,7 @@ def check_template_overlap(template, mask):
     mask_img = sitk.ReadImage(mask)
     if not template_img.GetOrigin() == mask_img.GetOrigin() and template_img.GetDirection() == mask_img.GetDirection():
         raise ValueError(
-            "The file %s does not appear to overlap with provided template %s." % (mask, template))
+            "The file {} does not appear to overlap with provided template {}.".format(mask, template))
 
 
 def check_resampling_syntax(resampling):
@@ -705,7 +705,7 @@ def check_resampling_syntax(resampling):
         spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
     except:
         raise ValueError(
-            "Resampling %s must follow the format 'dim1xdim2xdim3', e.g. '0.1x0.1x0.1', (in mm) following the RAS axis convention." % (resampling))
+            "Resampling {} must follow the format 'dim1xdim2xdim3', e.g. '0.1x0.1x0.1', (in mm) following the RAS axis convention.".format(resampling))
 
 
 def list_files(startpath):

@@ -26,7 +26,7 @@ def init_bold_reg_wf(opts, name='bold_reg_wf'):
     run_reg.inputs.reg_method = opts.coreg_script
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
-        'qsub_args': '-pe smp %s' % (str(3*opts.min_proc)), 'overwrite': True}
+        'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -53,20 +53,20 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
     reg_call = define_reg_script(reg_method)
 
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
-        command = "%s --fixed-mask %s --resampled-output %s_output_warped_image.nii.gz %s %s %s_output_" % (
+        command = "{} --fixed-mask {} --resampled-output {}_output_warped_image.nii.gz {} {} {}_output_".format(
             reg_call, anat_mask, filename_split[0], moving_image, fixed_image, filename_split[0])
     else:
-        command = '%s %s %s %s %s' % (
+        command = '{} {} {} {} {}'.format(
             reg_call, moving_image, fixed_image, anat_mask, filename_split[0])
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 
     cwd = os.getcwd()
-    warped_image = '%s/%s_output_warped_image.nii.gz' % (
+    warped_image = '{}/{}_output_warped_image.nii.gz'.format(
         cwd, filename_split[0],)
-    affine = '%s/%s_output_0GenericAffine.mat' % (cwd, filename_split[0],)
-    warp = '%s/%s_output_1Warp.nii.gz' % (cwd, filename_split[0],)
-    inverse_warp = '%s/%s_output_1InverseWarp.nii.gz' % (
+    affine = '{}/{}_output_0GenericAffine.mat'.format(cwd, filename_split[0],)
+    warp = '{}/{}_output_1Warp.nii.gz'.format(cwd, filename_split[0],)
+    inverse_warp = '{}/{}_output_1InverseWarp.nii.gz'.format(
         cwd, filename_split[0],)
     if not os.path.isfile(warped_image) or not os.path.isfile(affine):
         raise ValueError(

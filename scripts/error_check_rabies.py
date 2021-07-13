@@ -21,8 +21,8 @@ if 'XDG_DATA_HOME' in os.environ.keys():
 else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
 
-template = "%s/DSURQE_40micron_average.nii.gz" % (rabies_path)
-mask = "%s/DSURQE_40micron_mask.nii.gz" % (rabies_path)
+template = "{}/DSURQE_40micron_average.nii.gz".format(rabies_path)
+mask = "{}/DSURQE_40micron_mask.nii.gz".format(rabies_path)
 
 img = sitk.ReadImage(template)
 spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
@@ -51,26 +51,26 @@ sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
 sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
                 + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
 
-command = "rabies preprocess %s/inputs %s/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
-    --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask.nii.gz --CSF_mask %s/inputs/token_mask.nii.gz --vascular_mask %s/inputs/token_mask.nii.gz --labels %s/inputs/token_mask.nii.gz \
+command = "rabies preprocess {}/inputs {}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+    --anat_template {}/inputs/sub-token_T1w.nii.gz --brain_mask {}/inputs/token_mask.nii.gz --WM_mask {}/inputs/token_mask.nii.gz --CSF_mask {}/inputs/token_mask.nii.gz --vascular_mask {}/inputs/token_mask.nii.gz --labels {}/inputs/token_mask.nii.gz \
     --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --bold_only --detect_dummy \
-    --tpattern seq" % (tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
+    --tpattern seq".format(tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
 process = subprocess.run(
     command,
     check=True,
     shell=True,
     )
 
-command = "rabies preprocess %s/inputs %s/outputs --debug --anat_denoising_method disable --bold_denoising_method disable \
-    --anat_template %s/inputs/sub-token_T1w.nii.gz --brain_mask %s/inputs/token_mask.nii.gz --WM_mask %s/inputs/token_mask_half.nii.gz --CSF_mask %s/inputs/token_mask_half.nii.gz --vascular_mask %s/inputs/token_mask_half.nii.gz --labels %s/inputs/token_mask.nii.gz \
-    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --HMC_option 0" % (tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
+command = "rabies preprocess {}/inputs {}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+    --anat_template {}/inputs/sub-token_T1w.nii.gz --brain_mask {}/inputs/token_mask.nii.gz --WM_mask {}/inputs/token_mask_half.nii.gz --CSF_mask {}/inputs/token_mask_half.nii.gz --vascular_mask {}/inputs/token_mask_half.nii.gz --labels {}/inputs/token_mask.nii.gz \
+    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --HMC_option 0".format(tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath, tmppath)
 process = subprocess.run(
     command,
     check=True,
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --run_aroma --FD_censoring --DVARS_censoring --commonspace_analysis" % (
+command = "rabies confound_regression {}/outputs {}/outputs --run_aroma --FD_censoring --DVARS_censoring --commonspace_analysis".format(
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -78,7 +78,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies confound_regression %s/outputs %s/outputs --conf_list mot_6 --smoothing_filter 0.3" % (
+command = "rabies confound_regression {}/outputs {}/outputs --conf_list mot_6 --smoothing_filter 0.3".format(
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -86,7 +86,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies analysis %s/outputs %s/outputs --DR_ICA --dual_ICA 1" % (
+command = "rabies analysis {}/outputs {}/outputs --DR_ICA --dual_ICA 1".format(
     tmppath, tmppath)
 process = subprocess.run(
     command,
@@ -94,7 +94,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = "rabies analysis %s/outputs %s/outputs --dual_ICA 1 --data_diagnosis --DR_ICA" % (
+command = "rabies analysis {}/outputs {}/outputs --dual_ICA 1 --data_diagnosis --DR_ICA".format(
     tmppath, tmppath)
 process = subprocess.run(
     command,
