@@ -10,12 +10,15 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap
 
 
-def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink, num_scan, name='commonspace_reg'):
-    inputnode_subjects = pe.Node(niu.IdentityInterface(fields=['moving_image', 'split_name']),
-                                        name="inputnode_subjects")
-    inputnode_atlas = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
-                                        name="inputnode_atlas")
-    outputnode = pe.Node(niu.IdentityInterface(fields=['native_mask', 'native_to_commonspace_transform_list','native_to_commonspace_inverse_list','commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
+def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, name='commonspace_reg_wf'):
+    inputnode_iterable = pe.Node(niu.IdentityInterface(fields=['iter_name']),
+                                        name="inputnode_iterable")
+    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'atlas_anat', 'atlas_mask']),
+                                        name="inputnode")
+    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
+                                                       'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
+                                                       'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
+                                                       'commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
@@ -41,14 +44,16 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
     prep_commonspace_transform_node.inputs.fast_commonspace = opts.fast_commonspace
 
     workflow.connect([
-        (inputnode_atlas, atlas_reg, [
+        (inputnode, atlas_reg, [
             ("atlas_anat", "fixed_image"),
             ("atlas_mask", "anat_mask"),
             ]),
-        (inputnode_subjects, prep_commonspace_transform_node, [
-            ("moving_image", "native_ref"),
-            ]),
         (atlas_reg, prep_commonspace_transform_node, [
+            ("affine", "to_atlas_affine"),
+            ("warp", "to_atlas_warp"),
+            ("inverse_warp", "to_atlas_inverse_warp"),
+            ]),
+        (atlas_reg, outputnode, [
             ("affine", "to_atlas_affine"),
             ("warp", "to_atlas_warp"),
             ("inverse_warp", "to_atlas_inverse_warp"),
@@ -72,13 +77,16 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
         PlotOverlap_Native2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Atlas/'
 
         workflow.connect([
-            (inputnode_subjects, atlas_reg, [
+            (inputnode, atlas_reg, [
                 ("moving_image", "moving_image"),
                 ]),
-            (inputnode_subjects, PlotOverlap_Native2Atlas_node, [
-                ("split_name", "name_source"),
+            (inputnode, prep_commonspace_transform_node, [
+                ("moving_image", "native_ref"),
                 ]),
-            (inputnode_atlas, PlotOverlap_Native2Atlas_node,[
+            (inputnode_iterable, PlotOverlap_Native2Atlas_node, [
+                ("iter_name", "name_source"),
+                ]),
+            (inputnode, PlotOverlap_Native2Atlas_node,[
                 ("atlas_anat", "fixed"),
                 ]),
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
@@ -88,15 +96,14 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
 
     else:
         # setup a node to select the proper files associated with a given input scan for commonspace registration
-        commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
+        commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
                                                    output_names=[
-                                                       'warped_native', 'native_to_unbiased_affine','native_to_unbiased_warp','native_to_unbiased_inverse_warp'],
+                                                       'native_ref', 'warped_native', 'native_to_unbiased_affine','native_to_unbiased_warp','native_to_unbiased_inverse_warp'],
                                                    function=select_commonspace_outputs),
                                           name='commonspace_selectfiles')
 
-        generate_template = pe.JoinNode(GenerateTemplate(output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
+        generate_template = pe.Node(GenerateTemplate(output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
                                               ),
-                                      joinsource=joinsource, joinfield=['moving_image'],
                                       name='generate_template', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
@@ -108,14 +115,21 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
         workflow.connect([
-            (inputnode_subjects, generate_template, [
-                ("moving_image", "moving_image"),
-                ]),
-            (inputnode_atlas, generate_template, [
+            (inputnode, generate_template, [
+                ("moving_image", "moving_image_list"),
                 ("atlas_anat", "template_anat"),
                 ]),
-            (inputnode_subjects, commonspace_selectfiles, [
-                ("split_name", "filename"),
+            (inputnode, commonspace_selectfiles, [
+                ("moving_image", "native_list"),
+                ]),
+            (inputnode, PlotOverlap_Unbiased2Atlas_node,[
+                ("atlas_anat", "fixed"),
+                ]),
+            (inputnode_iterable, commonspace_selectfiles, [
+                ("iter_name", "filename"),
+                ]),
+            (inputnode_iterable, PlotOverlap_Native2Unbiased_node, [
+                ("iter_name", "name_source"),
                 ]),
             (generate_template, atlas_reg, [
                 ("unbiased_template", "moving_image"),
@@ -126,16 +140,19 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
                 ("inverse_warp_list", "inverse_warp_list"),
                 ("warped_image_list", "warped_native_list"),
                 ]),
+            (generate_template, outputnode, [
+                ("unbiased_template", "unbiased_template"),
+                ]),
             (commonspace_selectfiles, prep_commonspace_transform_node, [
+                ("native_ref", "native_ref"),
                 ("native_to_unbiased_affine", "native_to_unbiased_affine"),
                 ("native_to_unbiased_warp", "native_to_unbiased_warp"),
                 ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
                 ]),
-            (inputnode_subjects, PlotOverlap_Native2Unbiased_node, [
-                ("split_name", "name_source"),
-                ]),
-            (inputnode_atlas, PlotOverlap_Unbiased2Atlas_node,[
-                ("atlas_anat", "fixed"),
+            (commonspace_selectfiles, outputnode, [
+                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
                 ]),
             (commonspace_selectfiles, PlotOverlap_Native2Unbiased_node, [
                 ("warped_native", "moving"),
@@ -174,14 +191,15 @@ def init_commonspace_reg_wf(opts, output_folder, joinsource, transforms_datasink
     return workflow
 
 
-def select_commonspace_outputs(filename, affine_list, warp_list, inverse_warp_list, warped_native_list):
+def select_commonspace_outputs(filename, native_list, affine_list, warp_list, inverse_warp_list, warped_native_list):
     from rabies.preprocess_pkg.utils import select_from_list
     native_to_unbiased_affine = select_from_list(filename, affine_list)
     native_to_unbiased_warp = select_from_list(filename, warp_list)
     native_to_unbiased_inverse_warp = select_from_list(
         filename, inverse_warp_list)
     warped_native = select_from_list(filename, warped_native_list)
-    return warped_native, native_to_unbiased_affine, native_to_unbiased_warp, native_to_unbiased_inverse_warp
+    native_ref = select_from_list(filename, native_list)
+    return native_ref, warped_native, native_to_unbiased_affine, native_to_unbiased_warp, native_to_unbiased_inverse_warp
 
 
 def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine,
@@ -211,7 +229,7 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
 
 
 class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
-    moving_image = traits.List(exists=True, mandatory=True,
+    moving_image_list = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
     output_folder = traits.Str(
         exists=True, mandatory=True, desc="Path to output folder.")
@@ -257,7 +275,7 @@ class GenerateTemplate(BaseInterface):
         # create a csv file of the input image list
         csv_path = cwd+'/commonspace_input_files.csv'
         from rabies.preprocess_pkg.utils import flatten_list
-        merged = flatten_list(list(self.inputs.moving_image))
+        merged = flatten_list(list(self.inputs.moving_image_list))
 
         if len(merged) == 1:
             import logging

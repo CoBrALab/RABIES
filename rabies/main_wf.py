@@ -175,7 +175,15 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, joinsource="main_split", transforms_datasink=transforms_datasink, num_scan=num_scan, name='commonspace_reg')
+    if opts.fast_commonspace:
+        # if fast commonspace, then the inputs iterables are not merged
+        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list']),
+                                            name="fast_commonreg_buffer")
+        merged_join_common_reg = source_join_common_reg
+    else:
+        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg')
+
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_scan=num_scan, name='commonspace_reg_wf')
 
     bold_main_wf = init_bold_main_wf(opts=opts)
 
@@ -204,9 +212,6 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         (main_split, bold_selectfiles, [
             ("scan_info", "scan_info"),
             ]),
-        (main_split, commonspace_reg_wf, [
-            ("split_name", "inputnode_subjects.split_name"),
-            ]),
         (bold_selectfiles, bold_convert_to_RAS_node, [
             ('out_file', 'img_file'),
             ]),
@@ -220,14 +225,18 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("resampled_template", "anat_template"),
             ]),
         (resample_template_node, commonspace_reg_wf, [
-            ("resampled_template", "inputnode_atlas.atlas_anat"),
-            ("resampled_mask", "inputnode_atlas.atlas_mask"),
+            ("resampled_template", "inputnode.atlas_anat"),
+            ("resampled_mask", "inputnode.atlas_mask"),
             ]),
         (resample_template_node, bold_main_wf, [
             ("resampled_template", "inputnode.commonspace_ref"),
             ]),
         (resample_template_node, outputnode, [
-         ("resampled_template", "commonspace_resampled_template")]),
+            ("resampled_template", "commonspace_resampled_template"),
+            ]),
+        (merged_join_common_reg, commonspace_reg_wf, [
+            ("file_list", "inputnode.moving_image"),
+            ]),
         (commonspace_reg_wf, bold_main_wf, [
             ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
             ("outputnode.native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
@@ -326,8 +335,11 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("EPI_template", "inputnode.inho_cor_anat"),
                 ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
+            (anat_inho_cor_wf, source_join_common_reg, [
+                ("outputnode.corrected", "file_list"),
+                ]),
             (anat_inho_cor_wf, commonspace_reg_wf, [
-                ("outputnode.corrected", "inputnode_subjects.moving_image"),
+                ("outputnode.corrected", "inputnode_iterable.iter_name"),
                 ]),
             ])
 
@@ -380,8 +392,12 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),
+            (inho_cor_bold_main_wf, source_join_common_reg, [
+                ("transitionnode.corrected_EPI", "file_list"),
+                ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
-             ("transitionnode.corrected_EPI", "inputnode_subjects.moving_image")]),
+                ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
+                ]),
             ])
 
         if not opts.robust_bold_inho_cor:
@@ -399,71 +415,17 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         inho_cor_robust_wf = init_bold_main_wf(
             inho_cor_only=True, name='inho_cor_robust_wf', opts=opts)
 
-        joinnode_main = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                                             name='inho_cor_init_joinnode_main',
-                                             joinsource='main_split',
-                                             joinfield=['file_list'])
+        generate_EPI_template_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink,
+                                                           num_scan=num_scan, name='generate_EPI_template_wf')
 
-        # setting up commonspace registration within the workflow
-        EPI_template_gen_node = pe.Node(GenerateTemplate(output_folder=output_folder+'/EPI_template_gen/', cluster_type=opts.plugin,
-                                              ),
-                                      name='EPI_template_gen', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
-
-        EPI_atlas_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
-                                        output_names=['affine', 'warp',
-                                                      'inverse_warp', 'warped_image'],
-                                        function=run_antsRegistration),
-                               name='EPI_atlas_reg', mem_gb=2*opts.scale_min_memory)
-        EPI_atlas_reg.inputs.rabies_data_type = opts.data_type
-        EPI_atlas_reg.plugin_args = {
-            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-        EPI_atlas_reg.inputs.reg_method = str(opts.atlas_reg_script)
-
-        EPI_template_mask = pe.Node(Function(input_names=['fixed_mask', 'moving_image', 'inverse_warp', 'affine'],
+        EPI_template_masking = pe.Node(Function(input_names=['fixed_mask', 'moving_image', 'inverse_warp', 'affine'],
                                         output_names=['new_mask'],
                                         function=transform_mask),
-                               name='EPI_template_mask')
-
-        workflow.connect([
-            (bold_convert_to_RAS_node, inho_cor_robust_wf, [
-                ("RAS_file", "inputnode.bold"),
-                ]),
-            (resample_template_node, EPI_template_gen_node, [
-                ("resampled_template", "template_anat"),
-                ]),
-            (joinnode_main, EPI_template_gen_node, [
-                ("file_list", "moving_image"),
-                ]),
-            (EPI_template_gen_node, EPI_atlas_reg, [
-                ("unbiased_template", "moving_image"),
-                ]),
-            (resample_template_node, EPI_atlas_reg, [
-                ("resampled_template", "fixed_image"),
-                ("resampled_mask", "anat_mask"),
-                ]),
-            (resample_template_node, EPI_template_mask, [
-                ("resampled_mask", "fixed_mask"),
-                ]),
-            (EPI_template_gen_node, EPI_template_mask, [
-                ("unbiased_template", "moving_image"),
-                ]),
-            (EPI_atlas_reg, EPI_template_mask, [
-                ("affine", "affine"),
-                ("inverse_warp", "inverse_warp"),
-                ]),
-            (EPI_template_gen_node, EPI_target_buffer, [
-                ("unbiased_template", "EPI_template"),
-                ]),
-            (EPI_template_mask, EPI_target_buffer, [
-                ("new_mask", "EPI_mask"),
-                ]),
-            ])
+                               name='EPI_template_masking')
+        EPI_template_masking.inputs.fixed_mask = str(opts.brain_mask)
 
         if not opts.bold_only:
-            joinnode_run = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
-                                                name="inho_cor_init_joinnode_run",
-                                                joinsource='run_split',
-                                                joinfield=['file_list'])
+            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['run_split','main_split'], node_prefix='robust_bold_inho_cor')
 
             workflow.connect([
                 (anat_inho_cor_wf, inho_cor_robust_wf, [
@@ -472,34 +434,44 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 (commonspace_reg_wf, inho_cor_robust_wf, [
                     ("outputnode.native_mask", 'inputnode.inho_cor_mask'),
                     ]),
-                (joinnode_run, joinnode_main, [
-                    ("file_list", "file_list"),
-                    ]),
-                (inho_cor_robust_wf, joinnode_run, [
-                    ("transitionnode.corrected_EPI", "file_list"),
-                    ]),
                 ])
         else:
+            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='robust_bold_inho_cor')
             workflow.connect([
                 (resample_template_node, inho_cor_robust_wf, [
                     ("resampled_template", "inputnode.inho_cor_anat"),
                     ("resampled_mask", "inputnode.inho_cor_mask"),
                     ]),
-                (inho_cor_robust_wf, joinnode_main, [
-                    ("transitionnode.corrected_EPI", "file_list"),
-                    ]),
                 ])
 
-        PlotOverlap_EPIUnbiased2Atlas_node = pe.Node(
-            preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPIUnbiased2Atlas')
-        PlotOverlap_EPIUnbiased2Atlas_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPIUnbiased2Atlas'
-        PlotOverlap_EPIUnbiased2Atlas_node.inputs.name_source = ''
-
         workflow.connect([
-            (resample_template_node, PlotOverlap_EPIUnbiased2Atlas_node,
-             [("resampled_template", "fixed")]),
-            (EPI_atlas_reg, PlotOverlap_EPIUnbiased2Atlas_node, [
-                ("warped_image", "moving"),
+            (bold_convert_to_RAS_node, inho_cor_robust_wf, [
+                ("RAS_file", "inputnode.bold"),
+                ]),
+            (inho_cor_robust_wf, source_join_robust_cor, [
+                ("transitionnode.corrected_EPI", "file_list"),
+                ]),
+            (inho_cor_robust_wf, generate_EPI_template_wf, [
+                ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
+                ]),
+            (resample_template_node, generate_EPI_template_wf, [
+                ("resampled_template", "inputnode.atlas_anat"),
+                ]),
+            (merged_join_robust_cor, generate_EPI_template_wf, [
+                ("file_list", "inputnode.moving_image"),
+                ]),
+            (generate_EPI_template_wf, EPI_template_masking, [
+                ("outputnode.unbiased_template", "moving_image"),
+                ]),
+            (generate_EPI_template_wf, EPI_template_masking, [
+                ("outputnode.to_atlas_affine", "affine"),
+                ("outputnode.to_atlas_inverse_warp", "inverse_warp"),
+                ]),
+            (generate_EPI_template_wf, EPI_target_buffer, [
+                ("outputnode.unbiased_template", "EPI_template"),
+                ]),
+            (EPI_template_masking, EPI_target_buffer, [
+                ("new_mask", "EPI_mask"),
                 ]),
             ])
 
@@ -632,6 +604,31 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
                 ])
 
     return workflow, confound_regression_wf
+
+
+def join_iterables(workflow, joinsource_list, node_prefix):
+
+    i=0
+    for joinsource in joinsource_list:
+        joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+                                            name=f"{node_prefix}_{joinsource}_joinnode",
+                                            joinsource=joinsource,
+                                            joinfield=['file_list'])
+        if i==0:
+            source_join = joinnode
+        else:
+            workflow.connect([
+                (joinnode_prev, joinnode, [
+                    ("file_list", "file_list"),
+                    ]),
+                ])
+
+        joinnode_prev = joinnode
+        i+=1
+
+    merged_join = joinnode
+
+    return workflow, source_join, merged_join
 
 
 def transit_iterables(workflow, prep_dict_node, scan_list, bold_only, bold_scan_list, node_prefix=''):

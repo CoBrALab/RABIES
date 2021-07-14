@@ -932,16 +932,19 @@ def flatten_list(l):
 
 
 def select_from_list(filename, filelist):
+    filelist = flatten_list(filelist)
+    import pathlib
+    filename_template = pathlib.Path(filename).name.rsplit(".nii")[0]
     selected_file = None
     for file in filelist:
-        if filename in file:
+        if filename_template in file:
             if selected_file is None:
                 selected_file = file
             else:
                 raise ValueError(
-                    f"Found duplicates for filename {filename}.")
+                    f"Found duplicates for filename {filename_template}.")
 
     if selected_file is None:
-        raise ValueError(f"No file associated with {filename} were found.")
+        raise ValueError(f"No file associated with {filename_template} were found from list {filelist}.")
     else:
         return selected_file
