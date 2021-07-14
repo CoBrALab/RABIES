@@ -393,6 +393,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ])
 
     if opts.robust_bold_inho_cor:
+        if opts.fast_commonspace:
+            raise ValueError("--fast_commonspace prevents to gain any benefit from --robust_bold_inho_cor")
+
         inho_cor_robust_wf = init_bold_main_wf(
             inho_cor_only=True, name='inho_cor_robust_wf', opts=opts)
 
@@ -432,7 +435,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("file_list", "moving_image"),
                 ]),
             (EPI_template_gen_node, EPI_atlas_reg, [
-                ("warped_image", "moving_image"),
+                ("unbiased_template", "moving_image"),
                 ]),
             (resample_template_node, EPI_atlas_reg, [
                 ("resampled_template", "fixed_image"),
@@ -442,14 +445,14 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("resampled_mask", "fixed_mask"),
                 ]),
             (EPI_template_gen_node, EPI_template_mask, [
-                ("warped_image", "moving_image"),
+                ("unbiased_template", "moving_image"),
                 ]),
             (EPI_atlas_reg, EPI_template_mask, [
                 ("affine", "affine"),
                 ("inverse_warp", "inverse_warp"),
                 ]),
             (EPI_template_gen_node, EPI_target_buffer, [
-                ("warped_image", "EPI_template"),
+                ("unbiased_template", "EPI_template"),
                 ]),
             (EPI_template_mask, EPI_target_buffer, [
                 ("new_mask", "EPI_mask"),

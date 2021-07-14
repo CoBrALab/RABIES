@@ -6,7 +6,7 @@ from .utils import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf
 from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
-from .registration import init_bold_reg_wf
+from .registration import init_cross_modal_reg_wf
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
@@ -221,7 +221,7 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                                                        function=commonspace_transforms),
                                               name='bold_to_commonspace_transforms')
 
-        bold_reg_wf = init_bold_reg_wf(opts=opts)
+        cross_modal_reg_wf = init_cross_modal_reg_wf(opts=opts)
 
         def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
             # transforms_list,inverses
@@ -240,7 +240,7 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
         bold_native_trans_wf.inputs.inputnode.labels = str(opts.labels)
 
         workflow.connect([
-            (inputnode, bold_reg_wf, [
+            (inputnode, cross_modal_reg_wf, [
                 ('coreg_anat', 'inputnode.anat_ref'),
                 ('coreg_mask', 'inputnode.anat_mask')]),
             (inputnode, bold_native_trans_wf, [
@@ -248,15 +248,15 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                 ('commonspace_to_native_inverse_list', 'inputnode.mask_inverses'),
                 ('bold', 'inputnode.name_source'),
                 ]),
-            (transitionnode, bold_reg_wf, [
+            (transitionnode, cross_modal_reg_wf, [
                 ('corrected_EPI', 'inputnode.ref_bold_brain')]),
-            (bold_reg_wf, outputnode, [
+            (cross_modal_reg_wf, outputnode, [
                 ('outputnode.affine_bold2anat', 'affine_bold2anat'),
                 ('outputnode.warp_bold2anat', 'warp_bold2anat'),
                 ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
                 ('outputnode.output_warped_bold', 'output_warped_bold'),
                 ]),
-            (bold_reg_wf, transforms_prep, [
+            (cross_modal_reg_wf, transforms_prep, [
                 ('outputnode.affine_bold2anat', 'affine_bold2anat'),
                 ('outputnode.warp_bold2anat', 'warp_bold2anat'),
                 ]),
@@ -264,9 +264,9 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                 ('transforms_list', 'inputnode.transforms_list'),
                 ('inverses', 'inputnode.inverses'),
                 ]),
-            (bold_reg_wf, bold_native_trans_wf, [
+            (cross_modal_reg_wf, bold_native_trans_wf, [
                 ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
-            (bold_reg_wf, bold_to_commonspace_transforms, [
+            (cross_modal_reg_wf, bold_to_commonspace_transforms, [
                 ('outputnode.affine_bold2anat', 'affine_bold2anat'),
                 ('outputnode.warp_bold2anat', 'warp_bold2anat'),
                 ]),

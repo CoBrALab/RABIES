@@ -3,7 +3,7 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 
 
-def init_bold_reg_wf(opts, name='bold_reg_wf'):
+def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
