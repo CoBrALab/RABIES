@@ -10,26 +10,11 @@ from nipype.interfaces.base import (
 def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
+        fields=['bold', 'ref_bold', 'movpar_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
+        fields=['cleaned_bold', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
         name='outputnode')
-
-    WM_mask_to_EPI = pe.Node(MaskEPI(), name='WM_mask_EPI')
-    WM_mask_to_EPI.inputs.name_spec = 'WM_mask'
-
-    CSF_mask_to_EPI = pe.Node(MaskEPI(), name='CSF_mask_EPI')
-    CSF_mask_to_EPI.inputs.name_spec = 'CSF_mask'
-
-    vascular_mask_to_EPI = pe.Node(MaskEPI(), name='vascular_mask_EPI')
-    vascular_mask_to_EPI.inputs.name_spec = 'vascular_mask'
-
-    brain_mask_to_EPI = pe.Node(MaskEPI(), name='Brain_mask_EPI')
-    brain_mask_to_EPI.inputs.name_spec = 'brain_mask'
-
-    propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
-    propagate_labels.inputs.name_spec = 'anat_labels'
 
     estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=opts.data_type),
                                  name='estimate_confounds', mem_gb=2.3*opts.scale_min_memory)
@@ -38,48 +23,16 @@ def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
-        (inputnode, WM_mask_to_EPI, [
-            ('WM_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, CSF_mask_to_EPI, [
-            ('CSF_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, vascular_mask_to_EPI, [
-            ('vascular_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, brain_mask_to_EPI, [
-            ('t1_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, propagate_labels, [
-            ('t1_labels', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
         (inputnode, estimate_confounds, [
             ('movpar_file', 'movpar_file'),
+            ('brain_mask', 'brain_mask'),
+            ('WM_mask', 'WM_mask'),
+            ('CSF_mask', 'CSF_mask'),
+            ('vascular_mask', 'vascular_mask'),
             ]),
         (inputnode, estimate_confounds, [
             ('bold', 'bold'),
             ]),
-        (WM_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'WM_mask')]),
-        (WM_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'WM_mask')]),
-        (CSF_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'CSF_mask')]),
-        (CSF_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'CSF_mask')]),
-        (vascular_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'vascular_mask')]),
-        (brain_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'brain_mask')]),
-        (brain_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'brain_mask')]),
-        (propagate_labels, outputnode, [
-            ('EPI_mask', 'EPI_labels')]),
         (estimate_confounds, outputnode, [
             ('confounds_csv', 'confounds_csv'),
             ('FD_csv', 'FD_csv'),
@@ -297,51 +250,3 @@ def extract_mask_trace(bold, mask):
 def extract_labels(atlas):
     import nilearn.regions
     nilearn.regions.connected_label_regions(atlas)
-
-
-class MaskEPIInputSpec(BaseInterfaceInputSpec):
-    mask = File(exists=True, mandatory=True,
-                desc="Mask to transfer to EPI space.")
-    ref_EPI = File(exists=True, mandatory=True,
-                   desc="Motion-realigned and SDC-corrected reference 3D EPI.")
-    name_spec = traits.Str(desc="Specify the name of the mask.")
-    name_source = File(exists=True, mandatory=True,
-                       desc='Reference BOLD file for naming the output.')
-
-
-class MaskEPIOutputSpec(TraitedSpec):
-    EPI_mask = traits.File(desc="The generated EPI mask.")
-
-
-class MaskEPI(BaseInterface):
-
-    input_spec = MaskEPIInputSpec
-    output_spec = MaskEPIOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        import SimpleITK as sitk
-
-        import pathlib  # Better path manipulation
-        filename_split = pathlib.Path(
-            self.inputs.name_source).name.rsplit(".nii")
-
-        if self.inputs.name_spec is None:
-            new_mask_path = os.path.abspath(
-                f'{filename_split[0]}_EPI_mask.nii.gz')
-        else:
-            new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_spec}.nii.gz')
-
-        command = 'antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + \
-            self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        from rabies.preprocess_pkg.utils import run_command
-        rc = run_command(command)
-
-        sitk.WriteImage(sitk.ReadImage(
-            new_mask_path, sitk.sitkInt16), new_mask_path)
-
-        setattr(self, 'EPI_mask', new_mask_path)
-        return runtime
-
-    def _list_outputs(self):
-        return {'EPI_mask': getattr(self, 'EPI_mask')}

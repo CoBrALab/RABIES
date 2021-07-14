@@ -585,7 +585,7 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
     ref_file = File(exists=True, mandatory=True,
                     desc="The reference 3D space to which the EPI will be warped.")
-    transforms = traits.List(desc="List of transforms to apply to every slice")
+    transforms = traits.List(desc="List of transforms to apply to every volume.")
     inverses = traits.List(
         desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(

@@ -53,7 +53,7 @@ sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.
 
 command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --bold_only --detect_dummy \
+    --coreg_script null_nonlin --atlas_reg_script null_nonlin --data_type int16 --bold_only --fast_commonspace --detect_dummy \
     --tpattern seq"
 process = subprocess.run(
     command,
@@ -63,7 +63,7 @@ process = subprocess.run(
 
 command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script null_nonlin --template_reg_script null_nonlin --data_type int16 --HMC_option 0"
+    --coreg_script null_nonlin --atlas_reg_script null_nonlin --data_type int16 --HMC_option 0"
 process = subprocess.run(
     command,
     check=True,

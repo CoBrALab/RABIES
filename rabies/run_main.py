@@ -149,7 +149,7 @@ def get_parser():
                                 Specify EPI to anat coregistration script.
                                 """)
     g_registration.add_argument(
-        '--template_reg_script',
+        '--atlas_reg_script',
         type=str,
         default='SyN',
         help="""Registration script that will be used for registration of the generated dataset
@@ -158,7 +158,7 @@ def get_parser():
                                 help="""
                                 This option will skip the generation of a dataset template from https://github.com/CoBrALab/twolevel_ants_dbm.
                                 Instead each anatomical scan will be individually registered to the
-                                commonspace template using the --template_reg_script.
+                                commonspace template using the --atlas_reg_script.
                                 Note that this option, although faster, is expected to reduce the
                                 quality of commonspace registration.
                                 """)
