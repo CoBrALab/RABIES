@@ -304,10 +304,6 @@ class GenerateTemplate(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        global OPTIONS
-        OPTIONS = [os.environ.get("QBATCH_OPTIONS")] if os.environ.get(
-            "QBATCH_OPTIONS") else []
-
         # convert nipype plugin spec to match QBATCH
         plugin = self.inputs.cluster_type
         if plugin=='MultiProc' or plugin=='Linear':
@@ -316,23 +312,18 @@ class GenerateTemplate(BaseInterface):
         elif plugin=='SGE' or plugin=='SGEGraph':
             cluster_type='sge'
             num_threads = 1
-            OPTIONS.append("'-sync y'")
         elif plugin=='PBS':
             cluster_type='PBS'
             num_threads = 1
-            OPTIONS.append("'-Wblock=true'")
         elif plugin=='SLURM' or plugin=='SLURMGraph':
             cluster_type='slurm'
             num_threads = 1
-            OPTIONS.append("'--wait'")
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
-        qbatch_options='QBATCH_OPTIONS='+','.join(OPTIONS)
-        qbatch_extras=f'{qbatch_options} QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads}'
-        command = f'{qbatch_extras} modelbuild.sh \
+        command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type normmean --gradient-step 0.25 --iterations 3 --starting-target {self.inputs.template_anat} --stages nlin \
-            --output-dir {template_folder} --sharpen-type unsharp --debug {csv_path}'
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {csv_path}'
         rc = run_command(command)
 
 
