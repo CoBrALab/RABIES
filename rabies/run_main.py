@@ -109,6 +109,14 @@ def get_parser():
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the structural image.
                             """)
+    preprocess.add_argument('--anat_autobox', dest='anat_autobox', action='store_true',
+                            help="""
+                            Crops out extra space around the brain on the structural image using AFNI's 3dAutobox https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.
+                            """)
+    preprocess.add_argument('--bold_autobox', dest='bold_autobox', action='store_true',
+                            help="""
+                            Crops out extra space around the brain on the EPI image using AFNI's 3dAutobox https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.
+                            """)
     preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
                             help="""
                             Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.

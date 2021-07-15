@@ -2,14 +2,15 @@ import os
 import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
+from nipype.interfaces.io import DataSink
+from nipype.interfaces.utility import Function
+from nipype.interfaces.afni import Autobox
 from .preprocess_pkg.inho_correction import init_inho_correction_wf
 from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf,GenerateTemplate
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .preprocess_pkg import preprocess_visual_QC
-from nipype.interfaces.io import DataSink
-from nipype.interfaces.utility import Function
 
 
 def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, name='main_wf'):
@@ -154,6 +155,27 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                                 function=convert_to_RAS),
                                        name='bold_convert_to_RAS')
 
+    format_bold_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_bold']),
+                                        name="format_bold_buffer")
+
+    if opts.bold_autobox: # apply AFNI's 3dAutobox
+        bold_autobox = pe.Node(Autobox(padding=1, outputtype='NIFTI_GZ'),
+                                name="bold_autobox")
+        workflow.connect([
+            (bold_convert_to_RAS_node, bold_autobox, [
+                ('RAS_file', 'in_file'),
+                ]),
+            (bold_autobox, format_bold_buffer, [
+                ('out_file', 'formatted_bold'),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (bold_convert_to_RAS_node, format_bold_buffer, [
+                ("RAS_file", "formatted_bold"),
+                ]),
+            ])
+
     # Resample the anatomical template according to the resolution of the provided input data
     from rabies.preprocess_pkg.utils import resample_template
     resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
@@ -218,8 +240,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         (bold_selectfiles, outputnode, [
             ('out_file', 'input_bold'),
             ]),
-        (bold_convert_to_RAS_node, bold_main_wf, [
-            ("RAS_file", "inputnode.bold"),
+        (format_bold_buffer, bold_main_wf, [
+            ("formatted_bold", "inputnode.bold"),
             ]),
         (resample_template_node, template_diagnosis, [
             ("resampled_template", "anat_template"),
@@ -303,6 +325,27 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                                                     function=convert_to_RAS),
                                            name='anat_convert_to_RAS')
 
+        format_anat_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_anat']),
+                                            name="format_anat_buffer")
+
+        if opts.anat_autobox: # apply AFNI's 3dAutobox
+            anat_autobox = pe.Node(Autobox(padding=1, outputtype='NIFTI_GZ'),
+                                    name="anat_autobox")
+            workflow.connect([
+                (anat_convert_to_RAS_node, anat_autobox, [
+                    ('RAS_file', 'in_file'),
+                    ]),
+                (anat_autobox, format_anat_buffer, [
+                    ('out_file', 'formatted_anat'),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (anat_convert_to_RAS_node, format_anat_buffer, [
+                    ("RAS_file", "formatted_anat"),
+                    ]),
+                ])
+
         # setting anat preprocessing nodes
         anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', inho_cor_method=opts.anat_inho_cor_method, name="anat_inho_cor_wf")
 
@@ -317,9 +360,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (anat_selectfiles, anat_convert_to_RAS_node,
              [("out_file", "img_file")]),
-            (anat_convert_to_RAS_node, anat_inho_cor_wf, [
-                ("RAS_file", "inputnode.target_img"),
-                ("RAS_file", "inputnode.name_source"),
+            (format_anat_buffer, anat_inho_cor_wf, [
+                ("formatted_anat", "inputnode.target_img"),
+                ("formatted_anat", "inputnode.name_source"),
                 ]),
             (resample_template_node, anat_inho_cor_wf, [
                 ("resampled_template", "inputnode.anat_ref"),
@@ -360,8 +403,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             anat_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/anat_inho_cor/'
 
             workflow.connect([
-                (anat_convert_to_RAS_node, anat_inho_cor_diagnosis, [
-                    ("RAS_file", "raw_img"),
+                (format_anat_buffer, anat_inho_cor_diagnosis, [
+                    ("formatted_anat", "raw_img"),
                     ]),
                 (anat_selectfiles, anat_inho_cor_diagnosis, [
                     ("out_file", "name_source"),
@@ -378,8 +421,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
 
         workflow.connect([
-            (bold_convert_to_RAS_node, inho_cor_bold_main_wf, [
-                ("RAS_file", "inputnode.bold"),
+            (format_bold_buffer, inho_cor_bold_main_wf, [
+                ("formatted_bold", "inputnode.bold"),
                 ]),
             (EPI_target_buffer, inho_cor_bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -445,8 +488,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ])
 
         workflow.connect([
-            (bold_convert_to_RAS_node, inho_cor_robust_wf, [
-                ("RAS_file", "inputnode.bold"),
+            (format_bold_buffer, inho_cor_robust_wf, [
+                ("formatted_bold", "inputnode.bold"),
                 ]),
             (inho_cor_robust_wf, source_join_robust_cor, [
                 ("transitionnode.corrected_EPI", "file_list"),
