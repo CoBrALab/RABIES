@@ -331,8 +331,8 @@ class GenerateTemplate(BaseInterface):
         qbatch_options='QBATCH_OPTIONS='+','.join(OPTIONS)
         qbatch_extras=f'{qbatch_options} QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads}'
         command = f'{qbatch_extras} modelbuild.sh \
-            --float --average-type mean --gradient-step 0.25 --iterations 3 --starting-target {self.inputs.template_anat} --stages nlin \
-            --output-dir {template_folder} --sharpen-type none --debug {csv_path}'
+            --float --average-type normmean --gradient-step 0.25 --iterations 3 --starting-target {self.inputs.template_anat} --stages nlin \
+            --output-dir {template_folder} --sharpen-type unsharp --debug {csv_path}'
         rc = run_command(command)
 
 
