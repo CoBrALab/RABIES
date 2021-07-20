@@ -10,76 +10,29 @@ from nipype.interfaces.base import (
 def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 't1_mask', 't1_labels', 'WM_mask', 'CSF_mask', 'vascular_mask', 'name_source']),
+        fields=['bold', 'ref_bold', 'movpar_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['cleaned_bold', 'GSR_cleaned_bold', 'brain_mask', 'WM_mask', 'CSF_mask', 'EPI_labels', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
+        fields=['cleaned_bold', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
         name='outputnode')
-
-    WM_mask_to_EPI = pe.Node(MaskEPI(), name='WM_mask_EPI')
-    WM_mask_to_EPI.inputs.name_spec = 'WM_mask'
-
-    CSF_mask_to_EPI = pe.Node(MaskEPI(), name='CSF_mask_EPI')
-    CSF_mask_to_EPI.inputs.name_spec = 'CSF_mask'
-
-    vascular_mask_to_EPI = pe.Node(MaskEPI(), name='vascular_mask_EPI')
-    vascular_mask_to_EPI.inputs.name_spec = 'vascular_mask'
-
-    brain_mask_to_EPI = pe.Node(MaskEPI(), name='Brain_mask_EPI')
-    brain_mask_to_EPI.inputs.name_spec = 'brain_mask'
-
-    propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
-    propagate_labels.inputs.name_spec = 'anat_labels'
 
     estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=opts.data_type),
                                  name='estimate_confounds', mem_gb=2.3*opts.scale_min_memory)
     estimate_confounds.plugin_args = {
-        'qsub_args': '-pe smp {}'.format(str(2*opts.min_proc)), 'overwrite': True}
+        'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
 
     workflow = pe.Workflow(name=name)
     workflow.connect([
-        (inputnode, WM_mask_to_EPI, [
-            ('WM_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, CSF_mask_to_EPI, [
-            ('CSF_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, vascular_mask_to_EPI, [
-            ('vascular_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, brain_mask_to_EPI, [
-            ('t1_mask', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
-        (inputnode, propagate_labels, [
-            ('t1_labels', 'mask'),
-            ('ref_bold', 'ref_EPI'),
-            ('name_source', 'name_source')]),
         (inputnode, estimate_confounds, [
             ('movpar_file', 'movpar_file'),
+            ('brain_mask', 'brain_mask'),
+            ('WM_mask', 'WM_mask'),
+            ('CSF_mask', 'CSF_mask'),
+            ('vascular_mask', 'vascular_mask'),
             ]),
         (inputnode, estimate_confounds, [
             ('bold', 'bold'),
             ]),
-        (WM_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'WM_mask')]),
-        (WM_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'WM_mask')]),
-        (CSF_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'CSF_mask')]),
-        (CSF_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'CSF_mask')]),
-        (vascular_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'vascular_mask')]),
-        (brain_mask_to_EPI, estimate_confounds, [
-            ('EPI_mask', 'brain_mask')]),
-        (brain_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'brain_mask')]),
-        (propagate_labels, outputnode, [
-            ('EPI_mask', 'EPI_labels')]),
         (estimate_confounds, outputnode, [
             ('confounds_csv', 'confounds_csv'),
             ('FD_csv', 'FD_csv'),
@@ -131,19 +84,19 @@ class EstimateConfounds(BaseInterface):
 
         # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         # first the voxelwise positioning map
-        command = 'antsMotionCorrStats -m {} -o {}_pos_file.csv -x {} \
-                    -d {} -s {}_pos_voxelwise.nii.gz'.format(self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_pos_file.csv -x {self.inputs.brain_mask} \
+                    -d {self.inputs.bold} -s {filename_split[0]}_pos_voxelwise.nii.gz'
         rc = run_command(command)
         pos_voxelwise = os.path.abspath(
-            "{}_pos_file.nii.gz".format(filename_split[0]))
+            f"{filename_split[0]}_pos_file.nii.gz")
 
         # then the voxelwise framewise displacement map
-        command = 'antsMotionCorrStats -m {} -o {}_FD_file.csv -x {} \
-                    -d {} -s {}_FD_voxelwise.nii.gz -f 1'.format(self.inputs.movpar_file, filename_split[0], self.inputs.brain_mask, self.inputs.bold, filename_split[0])
+        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_FD_file.csv -x {self.inputs.brain_mask} \
+                    -d {self.inputs.bold} -s {filename_split[0]}_FD_voxelwise.nii.gz -f 1'
         rc = run_command(command)
 
-        FD_csv = os.path.abspath("{}_FD_file.csv".format(filename_split[0]))
-        FD_voxelwise = os.path.abspath("{}_FD_file.nii.gz".format(filename_split[0]))
+        FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
+        FD_voxelwise = os.path.abspath(f"{filename_split[0]}_FD_file.nii.gz")
 
         confounds = []
         csv_columns = []
@@ -199,7 +152,7 @@ def write_confound_csv(confound_array, column_names, filename_template):
     import pandas as pd
     df = pd.DataFrame(confound_array)
     df.columns = column_names
-    csv_path = os.path.abspath("{}_confounds.csv".format(filename_template))
+    csv_path = os.path.abspath(f"{filename_template}_confounds.csv")
     df.to_csv(csv_path)
     return csv_path
 
@@ -297,52 +250,3 @@ def extract_mask_trace(bold, mask):
 def extract_labels(atlas):
     import nilearn.regions
     nilearn.regions.connected_label_regions(atlas)
-
-
-class MaskEPIInputSpec(BaseInterfaceInputSpec):
-    mask = File(exists=True, mandatory=True,
-                desc="Mask to transfer to EPI space.")
-    ref_EPI = File(exists=True, mandatory=True,
-                   desc="Motion-realigned and SDC-corrected reference 3D EPI.")
-    name_spec = traits.Str(desc="Specify the name of the mask.")
-    name_source = File(exists=True, mandatory=True,
-                       desc='Reference BOLD file for naming the output.')
-
-
-class MaskEPIOutputSpec(TraitedSpec):
-    EPI_mask = traits.File(desc="The generated EPI mask.")
-
-
-class MaskEPI(BaseInterface):
-
-    input_spec = MaskEPIInputSpec
-    output_spec = MaskEPIOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        import SimpleITK as sitk
-
-        import pathlib  # Better path manipulation
-        filename_split = pathlib.Path(
-            self.inputs.name_source).name.rsplit(".nii")
-
-        if self.inputs.name_spec is None:
-            new_mask_path = os.path.abspath(
-                '{}_EPI_mask.nii.gz'.format(filename_split[0],))
-        else:
-            new_mask_path = os.path.abspath('{}_{}.nii.gz'.format(
-                filename_split[0], self.inputs.name_spec,))
-
-        command = 'antsApplyTransforms -i ' + self.inputs.mask + ' -r ' + \
-            self.inputs.ref_EPI + ' -o ' + new_mask_path + ' -n GenericLabel'
-        from rabies.preprocess_pkg.utils import run_command
-        rc = run_command(command)
-
-        sitk.WriteImage(sitk.ReadImage(
-            new_mask_path, sitk.sitkInt16), new_mask_path)
-
-        setattr(self, 'EPI_mask', new_mask_path)
-        return runtime
-
-    def _list_outputs(self):
-        return {'EPI_mask': getattr(self, 'EPI_mask')}

@@ -3,10 +3,10 @@ from nipype.interfaces import utility as niu, afni
 
 from .hmc import init_bold_hmc_wf
 from .utils import init_bold_reference_wf
-from .resampling import init_bold_preproc_trans_wf, init_bold_commonspace_trans_wf
+from .resampling import init_bold_preproc_trans_wf
 from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
-from .registration import init_bold_reg_wf
+from .registration import init_cross_modal_reg_wf
 from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
@@ -27,10 +27,10 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
 
         bold
             Input BOLD series NIfTI file
-        anat_ref
-            Preprocessed anatomical image after bias field correction and denoising
-        anat_mask
-            Brain mask inherited from the common space registration
+        coreg_anat
+            Anatomical reference for BOLD alignment
+        coreg_mask
+            Brain mask for anatomical reference
         WM_mask
             WM mask inherited from the common space registration
         CSF_mask
@@ -39,13 +39,13 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
             vascular mask inherited from the common space registration
         labels
             Anatomical labels inherited from the common space registration
-        template_to_common_affine
+        unbiased_to_atlas_affine
             affine transform from the dataset template space to the commonspace space
-        template_to_common_warp
+        unbiased_to_atlas_warp
             non-linear transform from the dataset template space to the commonspace space
-        anat_to_template_affine
+        native_to_unbiased_affine
             affine transform from the subject anatomical to the dataset template space
-        anat_to_template_warp
+        native_to_unbiased_warp
             non-linear transform from the subject anatomical to the dataset template space
         commonspace_ref
             commonspace anatomical template
@@ -119,15 +119,16 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(niu.IdentityInterface(
-                fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'anat_ref', 'anat_mask', 'WM_mask', 'CSF_mask', 'vascular_mask',
-                        'labels', 'template_to_common_affine', 'template_to_common_warp', 'anat_to_template_affine',
-                        'anat_to_template_warp', 'commonspace_ref']),
+                fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
+                        'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
+                        'commonspace_to_native_transform_list','commonspace_to_native_inverse_list',
+                        'commonspace_ref']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
                 fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
                         'output_warped_bold', 'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat',
-                        'resampled_bold', 'resampled_ref_bold', 'EPI_brain_mask', 'EPI_WM_mask', 'EPI_CSF_mask', 'EPI_labels',
+                        'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
                 name='outputnode')
@@ -199,44 +200,119 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
     # HMC on the BOLD
     bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
-    if not opts.bold_only:
-        def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat):
-            # transforms_list,inverses
-            return [template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine, warp_bold2anat, affine_bold2anat], [0, 0, 0, 0, 0, 0]
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp', 'template_to_common_affine', 'anat_to_template_warp', 'anat_to_template_affine', 'warp_bold2anat', 'affine_bold2anat'],
-                                                       output_names=[
-                                                           'transforms_list', 'inverses'],
-                                                       function=commonspace_transforms),
-                                              name='commonspace_transforms_prep')
-    else:
-        def commonspace_transforms(template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine):
-            # transforms_list,inverses
-            return [template_to_common_warp, template_to_common_affine, anat_to_template_warp, anat_to_template_affine], [0, 0, 0, 0]
-        commonspace_transforms_prep = pe.Node(Function(input_names=['template_to_common_warp', 'template_to_common_affine', 'anat_to_template_warp', 'anat_to_template_affine', ],
-                                                       output_names=[
-                                                           'transforms_list', 'inverses'],
-                                                       function=commonspace_transforms),
-                                              name='commonspace_transforms_prep')
-
-    bold_commonspace_trans_wf = init_bold_commonspace_trans_wf(opts=opts)
+    bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.commonspace_resampling, name='bold_commonspace_trans_wf')
+    bold_commonspace_trans_wf.inputs.inputnode.brain_mask = str(opts.brain_mask)
+    bold_commonspace_trans_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
+    bold_commonspace_trans_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
+    bold_commonspace_trans_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
+    bold_commonspace_trans_wf.inputs.inputnode.labels = str(opts.labels)
+    bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
+    bold_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
 
     bold_confs_wf = init_bold_confs_wf(opts=opts, name="bold_confs_wf")
 
+    if not opts.bold_only:
+        def commonspace_transforms(to_commonspace_transform_list,to_commonspace_inverse_list, warp_bold2anat, affine_bold2anat):
+            # transforms_list,inverses
+            return to_commonspace_transform_list+[warp_bold2anat, affine_bold2anat], to_commonspace_inverse_list+[0,0]
+        bold_to_commonspace_transforms = pe.Node(Function(input_names=['to_commonspace_transform_list','to_commonspace_inverse_list', 'warp_bold2anat', 'affine_bold2anat'],
+                                                       output_names=[
+                                                           'to_commonspace_transform_list','to_commonspace_inverse_list'],
+                                                       function=commonspace_transforms),
+                                              name='bold_to_commonspace_transforms')
+
+        cross_modal_reg_wf = init_cross_modal_reg_wf(opts=opts)
+
+        def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
+            # transforms_list,inverses
+            return [warp_bold2anat, affine_bold2anat], [0, 0]
+        transforms_prep = pe.Node(Function(input_names=['warp_bold2anat', 'affine_bold2anat'],
+                                           output_names=[
+                                               'transforms_list', 'inverses'],
+                                           function=SyN_coreg_transforms_prep),
+                                  name='transforms_prep')
+
+        bold_native_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.nativespace_resampling, name='bold_native_trans_wf')
+        bold_native_trans_wf.inputs.inputnode.brain_mask = str(opts.brain_mask)
+        bold_native_trans_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
+        bold_native_trans_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
+        bold_native_trans_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
+        bold_native_trans_wf.inputs.inputnode.labels = str(opts.labels)
+
+        workflow.connect([
+            (inputnode, cross_modal_reg_wf, [
+                ('coreg_anat', 'inputnode.anat_ref'),
+                ('coreg_mask', 'inputnode.anat_mask')]),
+            (inputnode, bold_native_trans_wf, [
+                ('commonspace_to_native_transform_list', 'inputnode.mask_transforms_list'),
+                ('commonspace_to_native_inverse_list', 'inputnode.mask_inverses'),
+                ('bold', 'inputnode.name_source'),
+                ]),
+            (transitionnode, cross_modal_reg_wf, [
+                ('corrected_EPI', 'inputnode.ref_bold_brain')]),
+            (cross_modal_reg_wf, outputnode, [
+                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+                ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+                ('outputnode.output_warped_bold', 'output_warped_bold'),
+                ]),
+            (cross_modal_reg_wf, transforms_prep, [
+                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+                ]),
+            (transforms_prep, bold_native_trans_wf, [
+                ('transforms_list', 'inputnode.transforms_list'),
+                ('inverses', 'inputnode.inverses'),
+                ]),
+            (cross_modal_reg_wf, bold_native_trans_wf, [
+                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
+            (cross_modal_reg_wf, bold_to_commonspace_transforms, [
+                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
+                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
+                ]),
+            (bold_hmc_wf, bold_native_trans_wf, [
+             ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+            (bold_native_trans_wf, bold_confs_wf, [
+                ('outputnode.bold', 'inputnode.bold'),
+                ('outputnode.bold_ref','inputnode.ref_bold'),
+                ('outputnode.brain_mask', 'inputnode.brain_mask'),
+                ('outputnode.WM_mask', 'inputnode.WM_mask'),
+                ('outputnode.CSF_mask', 'inputnode.CSF_mask'),
+                ('outputnode.vascular_mask', 'inputnode.vascular_mask'),
+                ]),
+            (bold_native_trans_wf, outputnode, [
+                ('outputnode.bold', 'native_bold'),
+                ('outputnode.bold_ref','native_bold_ref'),
+                ('outputnode.brain_mask', 'native_brain_mask'),
+                ('outputnode.WM_mask', 'native_WM_mask'),
+                ('outputnode.CSF_mask', 'native_CSF_mask'),
+                ('outputnode.vascular_mask', 'native_vascular_mask'),
+                ('outputnode.labels', 'native_labels'),
+                ]),
+            ])
+
+    else:
+        bold_to_commonspace_transforms = pe.Node(niu.IdentityInterface(fields=['to_commonspace_transform_list','to_commonspace_inverse_list']),
+                                 name="bold_to_commonspace_transforms")
+
+        workflow.connect([
+            (bold_commonspace_trans_wf, bold_confs_wf, [
+                ('outputnode.bold', 'inputnode.bold'),
+                ('outputnode.bold_ref','inputnode.ref_bold'),
+                ('outputnode.brain_mask', 'inputnode.brain_mask'),
+                ('outputnode.WM_mask', 'inputnode.WM_mask'),
+                ('outputnode.CSF_mask', 'inputnode.CSF_mask'),
+                ('outputnode.vascular_mask', 'inputnode.vascular_mask'),
+                ]),
+            ])
+
+
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (inputnode, commonspace_transforms_prep, [
-            ("template_to_common_affine", "template_to_common_affine"),
-            ("template_to_common_warp", "template_to_common_warp"),
-            ("anat_to_template_affine", "anat_to_template_affine"),
-            ("anat_to_template_warp", "anat_to_template_warp"),
+        (inputnode, bold_to_commonspace_transforms, [
+            ('native_to_commonspace_transform_list', 'to_commonspace_transform_list'),
+            ('native_to_commonspace_inverse_list', 'to_commonspace_inverse_list'),
             ]),
-        (inputnode, bold_confs_wf, [('anat_mask', 'inputnode.t1_mask'),
-                                    ('WM_mask', 'inputnode.WM_mask'),
-                                    ('CSF_mask', 'inputnode.CSF_mask'),
-                                    ('vascular_mask', 'inputnode.vascular_mask'),
-                                    ('labels', 'inputnode.t1_labels'),
-                                    ('bold', 'inputnode.name_source'),
-                                    ]),
         (transitionnode, bold_stc_wf, [
             ('bold_file', 'inputnode.bold_file'),
             ]),
@@ -255,18 +331,14 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
             ('outputnode.motcorr_params', 'inputnode.movpar_file'),
             ]),
         (bold_confs_wf, outputnode, [
-            ('outputnode.brain_mask', 'EPI_brain_mask'),
-            ('outputnode.WM_mask', 'EPI_WM_mask'),
-            ('outputnode.CSF_mask', 'EPI_CSF_mask'),
-            ('outputnode.EPI_labels', 'EPI_labels'),
             ('outputnode.confounds_csv', 'confounds_csv'),
             ('outputnode.FD_csv', 'FD_csv'),
             ('outputnode.FD_voxelwise', 'FD_voxelwise'),
             ('outputnode.pos_voxelwise', 'pos_voxelwise'),
             ]),
-        (commonspace_transforms_prep, bold_commonspace_trans_wf, [
-            ('transforms_list', 'inputnode.transforms_list'),
-            ('inverses', 'inputnode.inverses'),
+        (bold_to_commonspace_transforms, bold_commonspace_trans_wf, [
+            ('to_commonspace_transform_list', 'inputnode.transforms_list'),
+            ('to_commonspace_inverse_list', 'inputnode.inverses'),
             ]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [
          ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
@@ -284,68 +356,6 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
             ]),
         ])
 
-    if not opts.bold_only:
-        bold_reg_wf = init_bold_reg_wf(opts=opts)
-
-        def SyN_coreg_transforms_prep(warp_bold2anat, affine_bold2anat):
-            # transforms_list,inverses
-            return [warp_bold2anat, affine_bold2anat], [0, 0]
-        transforms_prep = pe.Node(Function(input_names=['warp_bold2anat', 'affine_bold2anat'],
-                                           output_names=[
-                                               'transforms_list', 'inverses'],
-                                           function=SyN_coreg_transforms_prep),
-                                  name='transforms_prep')
-
-        # Apply transforms in 1 shot
-        bold_bold_trans_wf = init_bold_preproc_trans_wf(opts=opts)
-
-        workflow.connect([
-            (inputnode, bold_reg_wf, [
-                ('anat_ref', 'inputnode.anat_ref'),
-                ('anat_mask', 'inputnode.anat_mask')]),
-            (inputnode, bold_bold_trans_wf, [
-                ('bold', 'inputnode.name_source')]),
-            (transitionnode, bold_reg_wf, [
-                ('corrected_EPI', 'inputnode.ref_bold_brain')]),
-            (bold_reg_wf, outputnode, [
-                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
-                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
-                ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
-                ('outputnode.output_warped_bold', 'output_warped_bold'),
-                ]),
-            (bold_reg_wf, transforms_prep, [
-                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
-                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
-                ]),
-            (transforms_prep, bold_bold_trans_wf, [
-                ('transforms_list', 'inputnode.transforms_list'),
-                ('inverses', 'inputnode.inverses'),
-                ]),
-            (bold_reg_wf, bold_bold_trans_wf, [
-                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
-            (bold_reg_wf, commonspace_transforms_prep, [
-                ('outputnode.affine_bold2anat', 'affine_bold2anat'),
-                ('outputnode.warp_bold2anat', 'warp_bold2anat'),
-                ]),
-            (bold_hmc_wf, bold_bold_trans_wf, [
-             ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
-            (bold_bold_trans_wf, outputnode, [
-                ('outputnode.bold_ref', 'resampled_ref_bold'),
-                ('outputnode.bold', 'resampled_bold'),
-                ]),
-            (bold_bold_trans_wf, bold_confs_wf, [('outputnode.bold', 'inputnode.bold'),
-                                                 ('outputnode.bold_ref',
-                                                  'inputnode.ref_bold'),
-                                                 ]),
-            ])
-    else:
-        workflow.connect([
-            (bold_commonspace_trans_wf, bold_confs_wf, [('outputnode.bold', 'inputnode.bold'),
-                                                        ('outputnode.bold_ref',
-                                                         'inputnode.ref_bold'),
-                                                        ]),
-            ])
-
     if opts.apply_slice_mc:
         workflow.connect([
             (bold_stc_wf, bold_hmc_wf, [
@@ -355,7 +365,7 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
         ])
         if not opts.bold_only:
             workflow.connect([
-                (bold_hmc_wf, bold_bold_trans_wf, [
+                (bold_hmc_wf, bold_native_trans_wf, [
                  ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
             ])
     else:
@@ -367,7 +377,7 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
         ])
         if not opts.bold_only:
             workflow.connect([
-                (bold_stc_wf, bold_bold_trans_wf, [
+                (bold_stc_wf, bold_native_trans_wf, [
                  ('outputnode.stc_file', 'inputnode.bold_file')]),
             ])
 

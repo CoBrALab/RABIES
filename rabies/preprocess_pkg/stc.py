@@ -21,7 +21,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
         slice_timing_correction_node.inputs.tpattern = opts.tpattern
         slice_timing_correction_node.inputs.rabies_data_type = opts.data_type
         slice_timing_correction_node.plugin_args = {
-            'qsub_args': '-pe smp {}'.format(str(3*opts.min_proc)), 'overwrite': True}
+            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
         workflow.connect([
             (inputnode, slice_timing_correction_node, [('bold_file', 'in_file')]),
@@ -90,8 +90,7 @@ def slice_timing_correction(in_file, tr='1.0s', tpattern='alt', rabies_data_type
     image_out = sitk.GetImageFromArray(new_array, isVector=False)
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
-    command = '3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern {} -TR {} STC_temp.nii.gz'.format(
-        tpattern, tr,)
+    command = f'3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern {tpattern} -TR {tr} STC_temp.nii.gz'
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 

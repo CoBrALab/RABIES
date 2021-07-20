@@ -129,7 +129,7 @@ RUN mkdir $RABIES
 
 COPY rabies $RABIES/rabies
 COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
-COPY twolevel_ants_dbm $RABIES/twolevel_ants_dbm
+COPY optimized_antsMultivariateTemplateConstruction $RABIES/optimized_antsMultivariateTemplateConstruction
 COPY scripts $RABIES/scripts
 COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt $RABIES/
 

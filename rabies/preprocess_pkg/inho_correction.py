@@ -90,7 +90,7 @@ class InhoCorrection(BaseInterface):
             log = logging.getLogger('root')
             log.debug('Anat image will be resampled to the template resolution.')
             resampled = resample_image_spacing(target_img, template_dim)
-            target_img = '{}/{}_resampled.nii.gz'.format(cwd, filename_split[0],)
+            target_img = f'{cwd}/{filename_split[0]}_resampled.nii.gz'
             sitk.WriteImage(resampled, target_img)
         else:
             target_img = self.inputs.target_img
@@ -101,14 +101,14 @@ class InhoCorrection(BaseInterface):
             init_denoise=corrected
             resampled_mask=self.inputs.anat_mask
         elif self.inputs.inho_cor_method in ['Rigid','Affine','SyN']:
-            corrected = '{}/{}_inho_cor.nii.gz'.format(cwd, filename_split[0],)
+            corrected = f'{cwd}/{filename_split[0]}_inho_cor.nii.gz'
             if self.inputs.image_type=='EPI':
                 processing_script='EPI-preprocessing.sh'
             elif self.inputs.image_type=='structural':
                 processing_script='structural-preprocessing.sh'
             else:
-                raise ValueError("Image type must be 'EPI' or 'structural', {}".format(self.inputs.image_type))
-            command = '{} {} {} {} {} {}'.format(processing_script, target_img, corrected, self.inputs.anat_ref,self.inputs.anat_mask, self.inputs.inho_cor_method)
+                raise ValueError(f"Image type must be 'EPI' or 'structural', {self.inputs.image_type}")
+            command = f'{processing_script} {target_img} {corrected} {self.inputs.anat_ref} {self.inputs.anat_mask} {self.inputs.inho_cor_method}'
             rc = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'

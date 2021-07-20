@@ -129,5 +129,5 @@ dependencies:
     - num2words==0.5.10
     - patsy==0.5.1
     - pybids==0.13
-    - qbatch==2.2.1
+    - qbatch==2.3
     - sqlalchemy==1.3.24
