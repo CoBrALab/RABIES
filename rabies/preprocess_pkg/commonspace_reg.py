@@ -322,13 +322,13 @@ class GenerateTemplate(BaseInterface):
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type normmean --gradient-step 0.25 --iterations 3 --starting-target {self.inputs.template_anat} --stages nlin \
+            --float --average-type normmean --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,nlin \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {csv_path}'
         rc = run_command(command)
 
 
         unbiased_template = template_folder + \
-            '/nlin/2/average/template_sharpen_shapeupdate.nii.gz'
+            '/nlin/1/average/template_sharpen_shapeupdate.nii.gz'
         # verify that all outputs are present
         if not os.path.isfile(unbiased_template):
             raise ValueError(unbiased_template+" doesn't exists.")
@@ -342,18 +342,18 @@ class GenerateTemplate(BaseInterface):
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            native_to_unbiased_inverse_warp = f'{template_folder}/nlin/2/transforms/{filename_template}_1InverseWarp.nii.gz'
+            native_to_unbiased_inverse_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1InverseWarp.nii.gz'
             if not os.path.isfile(native_to_unbiased_inverse_warp):
                 raise ValueError(
                     native_to_unbiased_inverse_warp+" file doesn't exists.")
-            native_to_unbiased_warp = f'{template_folder}/nlin/2/transforms/{filename_template}_1Warp.nii.gz'
+            native_to_unbiased_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1Warp.nii.gz'
             if not os.path.isfile(native_to_unbiased_warp):
                 raise ValueError(native_to_unbiased_warp+" file doesn't exists.")
-            native_to_unbiased_affine = f'{template_folder}/nlin/2/transforms/{filename_template}_0GenericAffine.mat'
+            native_to_unbiased_affine = f'{template_folder}/nlin/1/transforms/{filename_template}_0GenericAffine.mat'
             if not os.path.isfile(native_to_unbiased_affine):
                 raise ValueError(native_to_unbiased_affine
                                  + " file doesn't exists.")
-            warped_image = f'{template_folder}/nlin/2/resample/{filename_template}.nii.gz'
+            warped_image = f'{template_folder}/nlin/1/resample/{filename_template}.nii.gz'
             if not os.path.isfile(warped_image):
                 raise ValueError(warped_image
                                  + " file doesn't exists.")
