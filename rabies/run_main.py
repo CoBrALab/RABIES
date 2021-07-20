@@ -170,6 +170,11 @@ def get_parser():
                                 Note that this option, although faster, is expected to reduce the
                                 quality of commonspace registration.
                                 """)
+    g_registration.add_argument("--commonspace_masking", dest='commonspace_masking', action='store_true',
+                                help="""
+                                If true, will use masks originating from the inhomogeneity correction step
+                                to orient commonspace alignment.
+                                """)
 
     g_resampling = preprocess.add_argument_group("""
         Options for the resampling of the EPI.

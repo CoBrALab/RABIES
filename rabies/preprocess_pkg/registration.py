@@ -18,8 +18,8 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
         name='outputnode'
     )
 
-    run_reg = pe.Node(Function(input_names=["reg_method", "moving_image", "fixed_image",
-                                            "anat_mask", "rabies_data_type"],
+    run_reg = pe.Node(Function(input_names=["reg_method", "moving_image", "moving_mask", "fixed_image",
+                                            "fixed_mask", "rabies_data_type"],
                                output_names=['affine_bold2anat', 'warp_bold2anat',
                                              'inverse_warp_bold2anat', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
@@ -32,7 +32,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
         (inputnode, run_reg, [
             ('ref_bold_brain', 'moving_image'),
             ('anat_ref', 'fixed_image'),
-            ('anat_mask', 'anat_mask')]),
+            ('anat_mask', 'fixed_mask')]),
         (run_reg, outputnode, [
             ('affine_bold2anat', 'affine_bold2anat'),
             ('warp_bold2anat', 'warp_bold2anat'),
@@ -44,7 +44,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', anat_mask='NULL', rabies_data_type=8):
+def run_antsRegistration(reg_method, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -52,10 +52,12 @@ def run_antsRegistration(reg_method, moving_image='NULL', fixed_image='NULL', an
     from rabies.preprocess_pkg.registration import define_reg_script
     reg_call = define_reg_script(reg_method)
 
+    print(moving_mask)
+
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
-        command = f"{reg_call} --fixed-mask {anat_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
+        command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
-        command = f'{reg_call} {moving_image} {fixed_image} {anat_mask} {filename_split[0]}'
+        command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.preprocess_pkg.utils import run_command
     rc = run_command(command)
 

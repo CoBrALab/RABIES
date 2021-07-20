@@ -13,7 +13,7 @@ from .preprocess_visual_QC import PlotOverlap
 def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, name='commonspace_reg_wf'):
     inputnode_iterable = pe.Node(niu.IdentityInterface(fields=['iter_name']),
                                         name="inputnode_iterable")
-    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'atlas_anat', 'atlas_mask']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask', 'atlas_anat', 'atlas_mask']),
                                         name="inputnode")
     outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
                                                        'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
@@ -22,7 +22,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
-    atlas_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'fixed_image', 'anat_mask', 'rabies_data_type'],
+    atlas_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
                                                   'inverse_warp', 'warped_image'],
                                     function=run_antsRegistration),
@@ -46,7 +46,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
     workflow.connect([
         (inputnode, atlas_reg, [
             ("atlas_anat", "fixed_image"),
-            ("atlas_mask", "anat_mask"),
+            ("atlas_mask", "fixed_mask"),
             ]),
         (atlas_reg, prep_commonspace_transform_node, [
             ("affine", "to_atlas_affine"),
@@ -93,6 +93,12 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
                 ("warped_image", "moving"),
                 ]),
             ])
+        if opts.commonspace_masking:
+            workflow.connect([
+                (inputnode, atlas_reg, [
+                    ("moving_mask", "moving_mask"),
+                    ]),
+                ])
 
     else:
         # setup a node to select the proper files associated with a given input scan for commonspace registration
@@ -102,7 +108,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
                                                    function=select_commonspace_outputs),
                                           name='commonspace_selectfiles')
 
-        generate_template = pe.Node(GenerateTemplate(output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
+        generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
                                               ),
                                       name='generate_template', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
 
@@ -164,6 +170,15 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
                 ("warped_image", "moving"),
                 ]),
             ])
+        if opts.commonspace_masking:
+            workflow.connect([
+                (inputnode, generate_template, [
+                    ("moving_mask", "moving_mask_list"),
+                    ]),
+                (generate_template, atlas_reg, [
+                    ("unbiased_mask", "moving_mask"),
+                    ]),
+                ])
 
     if opts.rabies_step == 'preprocess':
         if opts.fast_commonspace:
@@ -231,6 +246,10 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
 class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
     moving_image_list = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
+    moving_mask_list = traits.List(exists=True,
+                            desc="List of masks accompanying each image. (optional)")
+    masking = traits.Bool(
+        desc="Whether to use the masking option.")
     output_folder = traits.Str(
         exists=True, mandatory=True, desc="Path to output folder.")
     template_anat = File(exists=True, mandatory=True,
@@ -240,7 +259,8 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
 
 class GenerateTemplateOutputSpec(TraitedSpec):
     unbiased_template = File(
-        exists=True, desc="Output template generated from commonspace registration.")
+        exists=True, mandatory=True, desc="Output template generated from commonspace registration.")
+    unbiased_mask = File(desc="Output mask generated along with the template. (optional)")
     affine_list = traits.List(exists=True, mandatory=True,
                               desc="List of affine transforms from anat to template space.")
     warp_list = traits.List(exists=True, mandatory=True,
@@ -272,10 +292,23 @@ class GenerateTemplate(BaseInterface):
         command = f'mkdir -p {template_folder}'
         rc = run_command(command)
 
-        # create a csv file of the input image list
-        csv_path = cwd+'/commonspace_input_files.csv'
         from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.moving_image_list))
+        # create a csv file of the input image list
+        csv_path = cwd+'/commonspace_input_files.csv'
+        df = pd.DataFrame(data=merged)
+        df.to_csv(csv_path, header=False, sep=',', index=False)
+
+        if self.inputs.masking:
+            merged_masks = flatten_list(list(self.inputs.moving_mask_list))
+            mask_csv_path = cwd+'/commonspace_input_masks.csv'
+            df = pd.DataFrame(data=merged_masks)
+            df.to_csv(mask_csv_path, header=False, sep=',', index=False)
+            masks = f'--masks {mask_csv_path}'
+        else:
+            merged_masks = ['NULL']
+            masks=''
+            unbiased_mask='NULL'
 
         if len(merged) == 1:
             import logging
@@ -289,11 +322,13 @@ class GenerateTemplate(BaseInterface):
             identity = sitk.Transform(dimension, sitk.sitkIdentity)
 
             file = merged[0]
+            mask = merged_masks[0]
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
             transform_file = template_folder+filename_template+'_identity.mat'
             sitk.WriteTransform(identity, transform_file)
 
             setattr(self, 'unbiased_template', file)
+            setattr(self, 'unbiased_mask', mask)
             setattr(self, 'affine_list', [transform_file])
             setattr(self, 'warp_list', [transform_file])
             setattr(self, 'inverse_warp_list', [transform_file])
@@ -301,8 +336,6 @@ class GenerateTemplate(BaseInterface):
 
             return runtime
 
-        df = pd.DataFrame(data=merged)
-        df.to_csv(csv_path, header=False, sep=',', index=False)
 
         # convert nipype plugin spec to match QBATCH
         plugin = self.inputs.cluster_type
@@ -323,7 +356,7 @@ class GenerateTemplate(BaseInterface):
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type normmean --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,nlin \
-            --output-dir {template_folder} --sharpen-type unsharp --block --debug {csv_path}'
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
         rc = run_command(command)
 
 
@@ -332,6 +365,13 @@ class GenerateTemplate(BaseInterface):
         # verify that all outputs are present
         if not os.path.isfile(unbiased_template):
             raise ValueError(unbiased_template+" doesn't exists.")
+
+        if self.inputs.masking:
+            unbiased_mask = template_folder + \
+                '/nlin/1/average/mask_shapeupdate.nii.gz'
+            # verify that all outputs are present
+            if not os.path.isfile(unbiased_mask):
+                raise ValueError(unbiased_mask+" doesn't exists.")
 
         affine_list = []
         warp_list = []
@@ -364,6 +404,7 @@ class GenerateTemplate(BaseInterface):
             i += 1
 
         setattr(self, 'unbiased_template', unbiased_template)
+        setattr(self, 'unbiased_mask', unbiased_mask)
         setattr(self, 'affine_list', affine_list)
         setattr(self, 'warp_list', warp_list)
         setattr(self, 'inverse_warp_list', inverse_warp_list)
@@ -373,6 +414,7 @@ class GenerateTemplate(BaseInterface):
 
     def _list_outputs(self):
         return {'unbiased_template': getattr(self, 'unbiased_template'),
+                'unbiased_mask': getattr(self, 'unbiased_mask'),
                 'affine_list': getattr(self, 'affine_list'),
                 'warp_list': getattr(self, 'warp_list'),
                 'inverse_warp_list': getattr(self, 'inverse_warp_list'),
