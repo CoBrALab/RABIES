@@ -285,27 +285,15 @@ def resample_mask(in_file, ref_file):
     return out_file
 
 
-def resample_IC_file(in_file, ref_file):
-    transforms = []
-    inverses = []
+def resample_IC_file(in_file, ref_file, transforms = [], inverses = []):
     # resampling the reference image to the dimension of the EPI
     import SimpleITK as sitk
     import os
-    from rabies.preprocess_pkg.utils import run_command, split_volumes, copyInfo_4DImage
+    from rabies.preprocess_pkg.utils import split_volumes, copyInfo_4DImage, exec_applyTransforms
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(
         in_file).name.rsplit(".nii")
     out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
-
-    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
-    transform_string = ""
-    for transform, inverse in zip(transforms, inverses):
-        if transform == 'NULL':
-            continue
-        elif bool(inverse):
-            transform_string += f"-t [{transform},1] "
-        else:
-            transform_string += f"-t {transform} "
 
     # Splitting bold file into lists of single volumes
     [volumes_list, num_volumes] = split_volumes(
@@ -316,9 +304,7 @@ def resample_IC_file(in_file, ref_file):
         warped_vol_fname = os.path.abspath(
             "deformed_volume" + str(x) + ".nii.gz")
         warped_volumes.append(warped_vol_fname)
-
-        command = f'antsApplyTransforms -i {volumes_list[x]} {transform_string}-n BSpline[5] -r {ref_file} -o {warped_vol_fname}'
-        rc = run_command(command)
+        exec_applyTransforms(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_image=warped_vol_fname, mask=False)
 
     sample_volume = sitk.ReadImage(
         warped_volumes[0])
