@@ -3,4 +3,4 @@
 	url = https://github.com/CoBrALab/minc-toolkit-extras.git
 [submodule "optimized_antsMultivariateTemplateConstruction"]
 	path = optimized_antsMultivariateTemplateConstruction
-	url = https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction.git
+	url = https://github.com/Gab-D-G/optimized_antsMultivariateTemplateConstruction.git

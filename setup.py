@@ -157,6 +157,8 @@ setup(
         'scripts/preprocess_scripts/structural-preprocessing.sh',
         'scripts/preprocess_scripts/EPI-preprocessing.sh',
         'optimized_antsMultivariateTemplateConstruction/modelbuild.sh',
+        'optimized_antsMultivariateTemplateConstruction/modelbuild_averager.py',
+        'optimized_antsMultivariateTemplateConstruction/make-dumb-average.sh',
         'minc-toolkit-extras/ants_generate_iterations.py',
         'minc-toolkit-extras/antsRegistration_affine_SyN.sh',
         ]

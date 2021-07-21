@@ -355,7 +355,7 @@ class GenerateTemplate(BaseInterface):
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type normmean --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,affine,nlin \
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,affine,nlin \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
         rc = run_command(command)
 
