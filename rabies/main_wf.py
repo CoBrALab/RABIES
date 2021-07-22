@@ -8,7 +8,6 @@ from nipype.interfaces.afni import Autobox
 from .preprocess_pkg.inho_correction import init_inho_correction_wf
 from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf,GenerateTemplate
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
-from .preprocess_pkg.registration import run_antsRegistration
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .preprocess_pkg import preprocess_visual_QC
 
@@ -199,11 +198,11 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     if opts.fast_commonspace:
         # if fast commonspace, then the inputs iterables are not merged
-        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list']),
+        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
                                             name="fast_commonreg_buffer")
         merged_join_common_reg = source_join_common_reg
     else:
-        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg')
+        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg', num_inputs=2)
 
     commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_scan=num_scan, name='commonspace_reg_wf')
 
@@ -257,7 +256,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             ("resampled_template", "commonspace_resampled_template"),
             ]),
         (merged_join_common_reg, commonspace_reg_wf, [
-            ("file_list", "inputnode.moving_image"),
+            ("file_list0", "inputnode.moving_image"),
+            ("file_list1", "inputnode.moving_mask"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
             ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
@@ -379,7 +379,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
             (anat_inho_cor_wf, source_join_common_reg, [
-                ("outputnode.corrected", "file_list"),
+                ("outputnode.corrected", "file_list0"),
+                ("outputnode.denoise_mask", "file_list1"),
                 ]),
             (anat_inho_cor_wf, commonspace_reg_wf, [
                 ("outputnode.corrected", "inputnode_iterable.iter_name"),
@@ -436,7 +437,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),
             (inho_cor_bold_main_wf, source_join_common_reg, [
-                ("transitionnode.corrected_EPI", "file_list"),
+                ("transitionnode.corrected_EPI", "file_list0"),
+                ("transitionnode.denoise_mask", "file_list1"),
                 ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
@@ -468,7 +470,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         EPI_template_masking.inputs.fixed_mask = str(opts.brain_mask)
 
         if not opts.bold_only:
-            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['run_split','main_split'], node_prefix='robust_bold_inho_cor')
+            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['run_split','main_split'], node_prefix='robust_bold_inho_cor', num_inputs=2)
 
             workflow.connect([
                 (anat_inho_cor_wf, inho_cor_robust_wf, [
@@ -479,7 +481,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                     ]),
                 ])
         else:
-            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='robust_bold_inho_cor')
+            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='robust_bold_inho_cor', num_inputs=2)
             workflow.connect([
                 (resample_template_node, inho_cor_robust_wf, [
                     ("resampled_template", "inputnode.inho_cor_anat"),
@@ -492,7 +494,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("formatted_bold", "inputnode.bold"),
                 ]),
             (inho_cor_robust_wf, source_join_robust_cor, [
-                ("transitionnode.corrected_EPI", "file_list"),
+                ("transitionnode.corrected_EPI", "file_list0"),
+                ("transitionnode.denoise_mask", "file_list1"),
                 ]),
             (inho_cor_robust_wf, generate_EPI_template_wf, [
                 ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
@@ -501,7 +504,8 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("resampled_template", "inputnode.atlas_anat"),
                 ]),
             (merged_join_robust_cor, generate_EPI_template_wf, [
-                ("file_list", "inputnode.moving_image"),
+                ("file_list0", "inputnode.moving_image"),
+                ("file_list1", "inputnode.moving_mask"),
                 ]),
             (generate_EPI_template_wf, EPI_template_masking, [
                 ("outputnode.unbiased_template", "moving_image"),
@@ -649,22 +653,27 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
     return workflow, confound_regression_wf
 
 
-def join_iterables(workflow, joinsource_list, node_prefix):
+def join_iterables(workflow, joinsource_list, node_prefix, num_inputs=1):
+
+    field_list=[]
+    for j in range(num_inputs):
+        field_list.append(f'file_list{j}')
 
     i=0
     for joinsource in joinsource_list:
-        joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list']),
+        joinnode = pe.JoinNode(niu.IdentityInterface(fields=field_list),
                                             name=f"{node_prefix}_{joinsource}_joinnode",
                                             joinsource=joinsource,
-                                            joinfield=['file_list'])
+                                            joinfield=field_list)
         if i==0:
             source_join = joinnode
         else:
-            workflow.connect([
-                (joinnode_prev, joinnode, [
-                    ("file_list", "file_list"),
-                    ]),
-                ])
+            for field in field_list:
+                workflow.connect([
+                    (joinnode_prev, joinnode, [
+                        (field, field),
+                        ]),
+                    ])
 
         joinnode_prev = joinnode
         i+=1

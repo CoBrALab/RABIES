@@ -12,9 +12,10 @@ set -euo pipefail
 
 
 moving_pre=$1
-fixed_pre=$2
-mask=$3
-filename_template=$4
+movingmask=$2
+fixed_pre=$3
+fixedmask=$4
+filename_template=$5
 moving='scan_autobox.nii.gz'
 fixed='template_autobox.nii.gz'
 

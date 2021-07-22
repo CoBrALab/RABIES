@@ -866,7 +866,7 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
         template_dim = template_image.GetSpacing()
         if np.asarray(template_dim[:3]).min() > low_dim:
             log.info("The template retains its original resolution.")
-            return template_file
+            return template_file, mask_file
     else:
         shape = spacing.split('x')
         spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
