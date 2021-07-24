@@ -449,13 +449,13 @@ def get_parser():
                             ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
                             FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
                             """)
-    g_dual_ICA.add_argument('--prior_bold_idx', type=str,
+    g_dual_ICA.add_argument('--prior_bold_idx', type=int,
                             nargs="*",  # 0 or more values expected => creates a list
                             default=[5, 12, 19],
                             help="""
                             Specify the indices for the priors to fit from --prior_maps.
                             """)
-    g_dual_ICA.add_argument('--prior_confound_idx', type=str,
+    g_dual_ICA.add_argument('--prior_confound_idx', type=int,
                                 nargs="*",  # 0 or more values expected => creates a list
                                 default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
                                          13, 14, 21, 22, 24, 26, 28, 29],
