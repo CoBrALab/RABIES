@@ -52,8 +52,6 @@ def run_antsRegistration(reg_method, moving_image='NULL', moving_mask='NULL', fi
     from rabies.preprocess_pkg.registration import define_reg_script
     reg_call = define_reg_script(reg_method)
 
-    print(moving_mask)
-
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
         command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:

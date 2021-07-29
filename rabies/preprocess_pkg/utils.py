@@ -638,19 +638,23 @@ class slice_applyTransforms(BaseInterface):
             motcorr_params = self.inputs.motcorr_params
         ref_img = os.path.abspath('resampled.nii.gz')
         warped_volumes = []
+
+        orig_transforms = self.inputs.transforms
+        orig_inverses = self.inputs.inverses
         for x in range(0, num_volumes):
             warped_vol_fname = os.path.abspath(
                 "deformed_volume" + str(x) + ".nii.gz")
             warped_volumes.append(warped_vol_fname)
 
-            transforms = self.inputs.transforms
-            inverses = self.inputs.inverses
             if self.inputs.apply_motcorr:
                 command = f'antsMotionCorrStats -m {motcorr_params} -o motcorr_vol{x}.mat -t {x}'
                 rc = run_command(command)
 
-                transforms.append(f'motcorr_vol{x}.mat')
-                inverses.append(0)
+                transforms = orig_transforms+[f'motcorr_vol{x}.mat']
+                inverses = orig_inverses+[0]
+            else:
+                transforms = orig_transforms
+                inverses = orig_inverses
 
             exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, mask=False)
             # change image to specified data type
