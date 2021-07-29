@@ -148,11 +148,10 @@ def get_parser():
 
     g_registration = preprocess.add_argument_group("""
         Options for the registration steps.
-        Built-in options include 'Rigid', 'Affine', 'SyN' (non-linear), and 'multiRAT'.
-        A custom registration script can be provided instead following the template script structure
-        from other registration scripts (see RABIES/scripts/preprocess_scripts/ for template).
+        Make a selection between 'Rigid', 'Affine', 'SyN' (non-linear) registration, or 'NULL' (no registration).
         """)
     g_registration.add_argument("--coreg_script", type=str, default='SyN',
+                                choices=['Rigid', 'Affine', 'SyN', 'NULL'],
                                 help="""
                                 Specify EPI to anat coregistration script.
                                 """)
@@ -160,6 +159,7 @@ def get_parser():
         '--atlas_reg_script',
         type=str,
         default='SyN',
+        choices=['Rigid', 'Affine', 'SyN', 'NULL'],
         help="""Registration script that will be used for registration of the generated dataset
         template to the provided commonspace atlas for masking and labeling.""")
     g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',

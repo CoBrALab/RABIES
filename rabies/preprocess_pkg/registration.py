@@ -88,17 +88,9 @@ def define_reg_script(reg_option):
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine --skip-nonlinear"
     elif reg_option == 'SyN':
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine"
-    elif reg_option == 'multiRAT':
-        reg_call = 'multiRAT_registration.sh'
-    elif reg_option == 'null_nonlin':
+    elif reg_option == 'NULL':
         reg_call = 'null_nonlin.sh'
     else:
-        '''
-        For user-provided antsRegistration command.
-        '''
-        if os.path.isfile(reg_option):
-            reg_call = reg_option
-        else:
-            raise ValueError(
-                'REGISTRATION ERROR: THE REG SCRIPT FILE DOES NOT EXISTS')
+        raise ValueError(
+            'The registration option must be among Rigid,Affine,SyN or NULL.')
     return reg_call
