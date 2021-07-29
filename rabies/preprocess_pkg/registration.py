@@ -8,7 +8,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['ref_bold_brain', 'anat_ref', 'anat_mask']),
+            fields=['ref_bold_brain', 'anat_ref', 'anat_mask', 'moving_mask']),
         name='inputnode'
     )
 
@@ -27,6 +27,13 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
+
+    if opts.coreg_masking:
+        workflow.connect([
+            (inputnode, run_reg, [
+                ('moving_mask', 'moving_mask')]),
+            ])
+
 
     workflow.connect([
         (inputnode, run_reg, [
@@ -57,6 +64,7 @@ def run_antsRegistration(reg_method, moving_image='NULL', moving_mask='NULL', fi
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.preprocess_pkg.utils import run_command
+    print(command)
     rc = run_command(command)
 
     cwd = os.getcwd()

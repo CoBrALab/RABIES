@@ -175,6 +175,11 @@ def get_parser():
                                 If true, will use masks originating from the inhomogeneity correction step
                                 to orient commonspace alignment.
                                 """)
+    g_registration.add_argument("--coreg_masking", dest='coreg_masking', action='store_true',
+                                help="""
+                                If true, will use masks originating from the EPI inhomogeneity correction step
+                                to orient alignment to the target anatomical image.
+                                """)
 
     g_resampling = preprocess.add_argument_group("""
         Options for the resampling of the EPI.

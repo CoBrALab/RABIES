@@ -249,7 +249,9 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                 ('bold', 'inputnode.name_source'),
                 ]),
             (transitionnode, cross_modal_reg_wf, [
-                ('corrected_EPI', 'inputnode.ref_bold_brain')]),
+                ('corrected_EPI', 'inputnode.ref_bold_brain'),
+                ('denoise_mask', 'inputnode.moving_mask'),
+                ]),
             (cross_modal_reg_wf, outputnode, [
                 ('outputnode.affine_bold2anat', 'affine_bold2anat'),
                 ('outputnode.warp_bold2anat', 'warp_bold2anat'),
