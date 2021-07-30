@@ -49,10 +49,11 @@ def get_parser():
         Options include seed-based FC, whole-brain correlation FC matrix, group-ICA, dual regression and dual ICA.
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    g_execution = parser.add_argument_group(
-        "Options for managing the execution of the workflow."
-        "WARNING: CHANGING EXECUTION OPTIONS ON A PREVIOUS EXECUTION RISKS "
-        "RE-STARTING THE PROCESSING OF STEPS PREVIOUSLY RUN.")
+    g_execution = parser.add_argument_group(title='Execution Options', description="""
+        Options for parallel execution of the workflow and memory management.
+        WARNING: CHANGING EXECUTION OPTIONS ON A PREVIOUS EXECUTION RISKS
+        RE-STARTING THE PROCESSING OF STEPS PREVIOUSLY RUN
+        """)
     g_execution.add_argument("-p", "--plugin", default='Linear',
                              choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
                                       'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
@@ -91,26 +92,6 @@ def get_parser():
                             The commonspace registration simultaneously applies distortion
                             correction, this option will produce only commonspace outputs.
                             """)
-    preprocess.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
-                            choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
-                            help="""
-                            Select a registration type for masking during inhomogeneity correction of the EPI.
-                            """)
-    preprocess.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
-                            help="""
-                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
-                            an initial correction step is run to generate a unbiased EPI template from the
-                            dataset, to provide a novel dataset-specific EPI target. This new target is then
-                            used for a final round of correction, instead of structural images. This can help
-                            the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
-                            """)
-    preprocess.add_argument("--anat_inho_cor_method", type=str, default='SyN',
-                            choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
-                            help="""
-                            Select a registration type for masking during inhomogeneity correction of the structural image.
-                            """)
     preprocess.add_argument('--anat_autobox', dest='anat_autobox', action='store_true',
                             help="""
                             Crops out extra space around the brain on the structural image using AFNI's 3dAutobox https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.
@@ -148,22 +129,39 @@ def get_parser():
     preprocess.add_argument("--debug", dest='debug', action='store_true',
                             help="Run in debug mode.")
 
-    g_registration = preprocess.add_argument_group("""
-        Options for the registration steps.
-        Make a selection between 'Rigid', 'Affine', 'SyN' (non-linear) registration, or 'NULL' (no registration).
+    g_registration = preprocess.add_argument_group(title='Registration Options', description="""
+        Customize options for various registration steps. The three in-built registration script options provided
+        consist of a 'Rigid', 'Affine' and 'SyN' (non-linear) registration. Other options also allow alternative
+        workflows to troubleshoot registration failures.
         """)
-    g_registration.add_argument("--coreg_script", type=str, default='SyN',
-                                choices=['Rigid', 'Affine', 'SyN', 'NULL'],
-                                help="""
-                                Specify EPI to anat coregistration script.
-                                """)
+    g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
+                            help="""
+                            Select a registration type for masking during inhomogeneity correction of the EPI.
+                            """)
+    g_registration.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
+                            help="""
+                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
+                            an initial correction step is run to generate a unbiased EPI template from the
+                            dataset, to provide a novel dataset-specific EPI template. This new template is then
+                            used as registration target for a final round of correction, instead of structural images.
+                            This can help the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
+                            """)
+    g_registration.add_argument("--anat_inho_cor_method", type=str, default='SyN',
+                            choices=['Rigid', 'Affine',
+                                     'SyN', 'disable'],
+                            help="""
+                            Select a registration type for masking during inhomogeneity correction of the structural image.
+                            """)
     g_registration.add_argument(
         '--atlas_reg_script',
         type=str,
         default='SyN',
         choices=['Rigid', 'Affine', 'SyN', 'NULL'],
-        help="""Registration script that will be used for registration of the generated dataset
-        template to the provided commonspace atlas for masking and labeling.""")
+        help="""
+        Specify a registration script for alignment of the unbiased dataset template to the atlas.
+        """)
     g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
                                 help="""
                                 This option will skip the generation of a dataset template from https://github.com/CoBrALab/twolevel_ants_dbm.
@@ -177,14 +175,20 @@ def get_parser():
                                 If true, will use masks originating from the inhomogeneity correction step
                                 to orient commonspace alignment.
                                 """)
+    g_registration.add_argument("--coreg_script", type=str, default='SyN',
+                                choices=['Rigid', 'Affine', 'SyN', 'NULL'],
+                                help="""
+                                Specify EPI to anat coregistration script.
+                                """)
     g_registration.add_argument("--coreg_masking", dest='coreg_masking', action='store_true',
                                 help="""
                                 If true, will use masks originating from the EPI inhomogeneity correction step
                                 to orient alignment to the target anatomical image.
                                 """)
 
-    g_resampling = preprocess.add_argument_group("""
-        Options for the resampling of the EPI.
+    g_resampling = preprocess.add_argument_group(title='Resampling Options', description="""
+        The following options allow to customize the voxel dimensions for the preprocessed EPIs or for
+        the anatomical images during registration.
         Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis
         convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).
         The original dimensions are conserved if 'inputs_defined' is specified.
@@ -199,15 +203,15 @@ def get_parser():
                               """)
     g_resampling.add_argument('--anatomical_resampling', type=str, default='inputs_defined',
                               help="""
-                              To optimize the efficiency of registration, the provided anatomical template
-                              is resampled based on the provided input images.
-                              The smallest dimension among the anatomical images (EPI images instead if
-                              --bold_only is True) defines the isotropic resolution for resampling.
-                              Alternatively, resampling dimension can be specified.
+                              Can specify resampling dimensions for the template files to optimize
+                              registration efficiency. By defaults ('inputs_defined'), the resampling
+                              dimension is estimated from the input images. The smallest dimension among
+                              the anatomical images (EPI images instead if --bold_only is True) defines
+                              the isotropic resolution for resampling.
                               """)
 
-    g_stc = preprocess.add_argument_group("""
-        Specify Slice Timing Correction info that is fed to AFNI 3dTshift
+    g_stc = preprocess.add_argument_group(title='STC Options', description="""
+        Specify Slice Timing Correction (STC) info that is fed to AFNI 3dTshift
         (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
         anterior-posterior orientation, assuming slices were acquired in this direction.
         """)
@@ -225,7 +229,7 @@ def get_parser():
                        Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.
                        """)
 
-    g_atlas = preprocess.add_argument_group("""
+    g_atlas = preprocess.add_argument_group(title='Template Files', description="""
         Specify commonspace template and associated mask/label files.
         A mouse atlas is provided as default https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.
         """)
@@ -391,7 +395,7 @@ def get_parser():
                              evaluating the intrinsic corruption of the dataset as well as the effectiveness of the confound
                              correction strategies.""")
 
-    g_fc_matrix = analysis.add_argument_group("""
+    g_fc_matrix = analysis.add_argument_group(title='FC Matrix', description="""
         Options for performing a whole-brain timeseries correlation matrix analysis.
         """)
     g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
@@ -406,7 +410,7 @@ def get_parser():
                              Options are 'parcellated', in which case the atlas labels provided for preprocessing are used
                              as ROIs, or 'voxelwise', in which case all voxel timeseries are cross-correlated.
                              """)
-    g_group_ICA = analysis.add_argument_group("""
+    g_group_ICA = analysis.add_argument_group(title='Group ICA', description="""
         Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.
         Note that confound regression must have been conducted on commonspace outputs.
         """)
@@ -422,7 +426,7 @@ def get_parser():
                              help="""
                              You can specify the number of ICA components to be derived. The default uses an automatic estimation.
                              """)
-    g_DR_ICA = analysis.add_argument_group("""
+    g_DR_ICA = analysis.add_argument_group(title='DR ICA', description="""
         Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC.
         Note that confound regression must have been conducted on commonspace outputs.
         """)
@@ -438,7 +442,7 @@ def get_parser():
                           Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.
                           If none is provided, a group-ICA will be run with the dataset cleaned timeseries.
                           """)
-    g_dual_ICA = analysis.add_argument_group("""
+    g_dual_ICA = analysis.add_argument_group(title='Dual ICA', description="""
         Options for performing a Dual ICA.
         Need to provide the prior maps to fit --prior_maps, and the associated indices for the target components
         in --prior_bold_idx
