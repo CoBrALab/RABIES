@@ -50,7 +50,9 @@ def get_parser():
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     g_execution = parser.add_argument_group(
-        "Options for managing the execution of the workflow.")
+        "Options for managing the execution of the workflow."
+        "WARNING: CHANGING EXECUTION OPTIONS ON A PREVIOUS EXECUTION RISKS "
+        "RE-STARTING THE PROCESSING OF STEPS PREVIOUSLY RUN.")
     g_execution.add_argument("-p", "--plugin", default='Linear',
                              choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
                                       'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
