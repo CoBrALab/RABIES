@@ -30,10 +30,11 @@ def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
 def seed_corr(bold_file, brain_mask, seed):
     import os
     from nilearn.input_data import NiftiMasker
+    from rabies.preprocess_pkg.utils import run_command
 
     resampled = os.path.abspath('resampled.nii.gz')
-    os.system('antsApplyTransforms -i {} -r {} -o {} -n GenericLabel' %
-              (seed, brain_mask, resampled))
+    command=f'antsApplyTransforms -i {seed} -r {brain_mask} -o {resampled} -n GenericLabel'
+    rc = run_command(command)
 
     masker = NiftiMasker(mask_img=nb.load(resampled), standardize=False, verbose=0)
     # extract the voxel timeseries within the mask

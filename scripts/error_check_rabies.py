@@ -93,7 +93,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1"
+command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
 process = subprocess.run(
     command,
     check=True,
