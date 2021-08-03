@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 import SimpleITK as sitk
+from .boilerplate import build_boilerplate
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
@@ -642,6 +643,12 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
     check_resampling_syntax(opts.anatomical_resampling)
+
+    # write boilerplate
+    boilerplate_file = f'{output_folder}/preprocess_boilerplate.txt'
+    methods,ref_string = build_boilerplate(opts)
+    with open(boilerplate_file, "w") as text_file:
+        text_file.write(methods+ref_string)
 
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
