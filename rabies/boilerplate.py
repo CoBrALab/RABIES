@@ -7,7 +7,7 @@ def define_registration(string):
         return 'rigid'
 
 
-def build_boilerplate(opts):
+def preprocess_boilerplate(opts):
     methods=''
     references={}
     i=1
@@ -146,3 +146,145 @@ resampling with a single operation to mitigate interpolation effects from repeat
     for key in references.keys():
         ref_string+=f"[{references[key]}] {key} \n"
     return methods,ref_string
+
+
+def confound_correction_boilerplate(opts):
+    methods=''
+    references={}
+    i=1
+
+    # define references
+    rabies_ref='Desrosiers-Gregoire et al., in preparation.'
+    aroma='Pruim, R. H., Mennes, M., van Rooij, D., Llera, A., Buitelaar, J. K., & Beckmann, C. F. (2015). ICA-AROMA: A robust ICA-based strategy for removing motion artifacts from fMRI data. Neuroimage, 112, 267-277.'
+    nilearn='Abraham, A., Pedregosa, F., Eickenberg, M., Gervais, P., Mueller, A., Kossaifi, J., ... & Varoquaux, G. (2014). Machine learning for neuroimaging with scikit-learn. Frontiers in neuroinformatics, 8, 14.'
+    power2012='Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.'
+    friston24='Friston, K. J., Williams, S., Howard, R., Frackowiak, R. S., & Turner, R. (1996). Movement‐related effects in fMRI time‐series. Magnetic resonance in medicine, 35(3), 346-355.'
+    aCompCor='Muschelli, J., Nebel, M. B., Caffo, B. S., Barber, A. D., Pekar, J. J., & Mostofsky, S. H. (2014). Reduction of motion-related artifacts in resting state fMRI using aCompCor. Neuroimage, 96, 22-35.'
+
+    # Commonspace VS native space
+    if opts.commonspace_analysis:
+        EPI_space=f"EPI timeseries resampled to commonspace"
+    else:
+        EPI_space=f"native space EPI timeseries"
+
+    # citing RABIES
+    references[rabies_ref]=i
+    i+=1
+    methods+=f"  Confound correction was executed using the RABIES software (https://github.com/CoBrALab/RABIES)[{references[rabies_ref]}] on {EPI_space}. "
+
+    # Detrending
+    methods+=f"Voxelwise linear detrending was first applied to remove first-order drifts and the average image. "
+
+    # ICA-AROMA
+    if opts.run_aroma:
+        references[aroma]=i
+        i+=1
+        methods+=f"Motion sources were then automatically removed using a modified version of the ICA-AROMA classifier[{references[aroma]}], \
+where classifier parameters and anatomical masks are instead adapted for rodent images. "
+        if not opts.aroma_dim==0:
+            references[melodic]=i
+            i+=1
+            methods+=f"Specifically {opts.aroma_dim} components were derived for each image independently using MELODIC-ICA algorithm[{melodic}] \
+before classification. "
+
+    # High/lowpass filtering
+    highpass=opts.highpass is not None
+    lowpass=opts.lowpass is not None
+    if highpass or lowpass:
+        references[nilearn]=i
+        i+=1
+        if highpass and lowpass:
+            filter='bandpass'
+            freq=f"{opts.highpass}-{opts.lowpass}"
+        elif highpass:
+            filter='highpass'
+            freq=opts.highpass
+        elif lowpass:
+            filter='lowpass'
+            freq=opts.lowpass
+        methods+=f"Next, {filter} filtering({freq}Hz) was applied(nilearn.signal.clean)[{references[nilearn]}]. "
+
+    # Frame censoring
+    if opts.FD_censoring:
+        references[power2012]=i
+        i+=1
+        methods+=f"Timepoints with prominent motion corruption were censored from the data (scrubbing [{references[power2012]}]). \
+Framewise displacement was measured across time and each frame surpassing {opts.FD_threshold}mm of motion, together with 1 backward and 4 forward frames, were removed. "
+
+    if opts.DVARS_censoring:
+        if not power2012 in references.keys():
+            references[power2012]=i
+            i+=1
+        methods+=f"Frame censoring was conducted using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal. This built-in strategy \
+removes timepoints presenting outlier values in DVARS, which is charateristic of confounds that are not necessarily well accounted for by framewise displacement estimates[{references[rabies_ref]}]. \
+This is conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
+
+    # Confound Regression
+    if len(opts.conf_list)>0:
+        str_list=[]
+        if 'mot_6' in opts.conf_list:
+            str_list.append('the 6 rigid motion parameters')
+        if 'mot_24' in opts.conf_list:
+            references[friston24]=i
+            i+=1
+            str_list.append(f'24 motion parameters (the 6 rigid motion parameters, their temporal derivative, together with all 12 parameters squared[{references[friston24]}])')
+        if 'aCompCor' in opts.conf_list:
+            references[aCompCor]=i
+            i+=1
+            str_list.append(f'the timecourses from principal components explaining 50% of the variance among the voxels from the combined WM and CSF masks (aCompCor)[{references[aCompCor]}]')
+        if 'mean_FD' in opts.conf_list:
+            str_list.append(f'the mean framewise displacement')
+        if 'WM_signal' in opts.conf_list or 'CSF_signal' in opts.conf_list or 'vascular_signal' in opts.conf_list:
+            mask_str='the mean signal from the '
+
+            masks=[]
+            if 'WM_signal' in opts.conf_list:
+                masks.append('WM')
+            if 'CSF_signal' in opts.conf_list:
+                masks.append('CSF')
+            if 'vascular_signal' in opts.conf_list:
+                masks.append('vascular')
+
+            mask_str+=masks[0]
+            for str_ in masks[1:-1]:
+                mask_str+=', '+str_
+            if len(masks)>1:
+                mask_str+=f' and {masks[-1]} masks'
+            else:
+                mask_str+=' mask'
+
+            str_list.append(mask_str)
+
+        if 'global_signal' in opts.conf_list:
+            str_list.append(f'the global signal')
+
+        conf_list_str=str_list[0]
+        for str_ in str_list[1:-1]:
+            conf_list_str+=', '+str_
+        if len(str_list)>1:
+            conf_list_str+=f' and {str_list[-1]}'
+            
+
+        methods+=f"Estimated nuisance timecourses during preprocessing were then used for confound regression. More specifically, using ordinary least square regression, \
+{conf_list_str} were modelled at each voxel and regressed from the data. "
+
+
+    if opts.standardize or opts.smoothing_filter is not None:
+        methods+="Before analysis, "
+    # Standardize
+    if opts.standardize:
+        methods+=f"timeseries were normalized to unit variance and "
+
+    # Spatial smoothing
+    if opts.smoothing_filter is not None:
+        if not nilearn in references.keys():
+            references[nilearn]=i
+            i+=1
+        methods+=f"a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
+
+    methods+='\n'
+    ref_string=''
+    for key in references.keys():
+        ref_string+=f"[{references[key]}] {key} \n"
+    return methods,ref_string
+
