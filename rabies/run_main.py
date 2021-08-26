@@ -512,33 +512,6 @@ def execute_workflow():
     # verify default template installation
     install_DSURQE(log)
 
-    # if --bold_only, the default atlas files change to EPI versions
-    if opts.rabies_step == 'preprocess' and opts.bold_only:
-        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
-            file=f"{rabies_path}/EPI_template.nii.gz"
-            opts.anat_template=file
-            log.info('With --bold_only, default --anat_template changed to '+file)
-        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
-            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
-            opts.brain_mask=file
-            log.info('With --bold_only, default --brain_mask changed to '+file)
-        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
-            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
-            opts.WM_mask=file
-            log.info('With --bold_only, default --WM_mask changed to '+file)
-        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
-            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
-            opts.CSF_mask=file
-            log.info('With --bold_only, default --CSF_mask changed to '+file)
-        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
-            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
-            opts.vascular_mask=file
-            log.info('With --bold_only, default --vascular_mask changed to '+file)
-        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
-            file=f"{rabies_path}/EPI_labels.nii.gz"
-            opts.labels=file
-            log.info('With --bold_only, default --labels changed to '+file)
-
     from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
 
@@ -590,7 +563,35 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     else:
         raise ValueError('Invalid --data_type provided.')
 
+
     # template options
+    # if --bold_only, the default atlas files change to EPI versions
+    if opts.bold_only:
+        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
+            file=f"{rabies_path}/EPI_template.nii.gz"
+            opts.anat_template=file
+            log.info('With --bold_only, default --anat_template changed to '+file)
+        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
+            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
+            opts.brain_mask=file
+            log.info('With --bold_only, default --brain_mask changed to '+file)
+        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
+            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
+            opts.WM_mask=file
+            log.info('With --bold_only, default --WM_mask changed to '+file)
+        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
+            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
+            opts.CSF_mask=file
+            log.info('With --bold_only, default --CSF_mask changed to '+file)
+        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
+            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
+            opts.vascular_mask=file
+            log.info('With --bold_only, default --vascular_mask changed to '+file)
+        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
+            file=f"{rabies_path}/EPI_labels.nii.gz"
+            opts.labels=file
+            log.info('With --bold_only, default --labels changed to '+file)
+
     # make sure we have absolute paths
     opts.anat_template = os.path.abspath(opts.anat_template)
     opts.brain_mask = os.path.abspath(opts.brain_mask)
