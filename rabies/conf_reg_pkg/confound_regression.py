@@ -18,7 +18,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
                            name='regress', mem_gb=1)
     regress_node.inputs.cr_opts = cr_opts
 
-    prep_CR_node = pe.Node(Function(input_names=['bold_file', 'brain_mask_file', 'confounds_file', 'FD_file', 'cr_opts'],
+    prep_CR_node = pe.Node(Function(input_names=['bold_file', 'confounds_file', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],
                                               function=prep_CR),
                                      name='prep_CR', mem_gb=1)
@@ -27,7 +27,6 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
     workflow.connect([
         (inputnode, prep_CR_node, [
             ("bold_file", "bold_file"),
-            ("brain_mask", "brain_mask_file"),
             ("confounds_file", "confounds_file"),
             ("FD_file", "FD_file"),
             ]),

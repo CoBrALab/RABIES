@@ -162,10 +162,10 @@ def confound_correction_boilerplate(opts):
     aCompCor='Muschelli, J., Nebel, M. B., Caffo, B. S., Barber, A. D., Pekar, J. J., & Mostofsky, S. H. (2014). Reduction of motion-related artifacts in resting state fMRI using aCompCor. Neuroimage, 96, 22-35.'
 
     # Commonspace VS native space
-    if opts.commonspace_analysis:
-        EPI_space=f"EPI timeseries resampled to commonspace"
-    else:
+    if opts.nativespace_analysis:
         EPI_space=f"native space EPI timeseries"
+    else:
+        EPI_space=f"EPI timeseries resampled to commonspace"
 
     # citing RABIES
     references[rabies_ref]=i

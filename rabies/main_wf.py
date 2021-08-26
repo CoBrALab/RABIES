@@ -545,7 +545,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
-                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, cr_opts.commonspace_analysis, bold_scan_list, opts)
+                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, not cr_opts.nativespace_analysis, bold_scan_list, opts)
 
     elif opts.rabies_step == 'preprocess':
         # only fill datasinks if the related workflow is running
@@ -613,24 +613,24 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
             ]),
         ])
 
-    if bold_only and not cr_opts.commonspace_analysis:
+    if bold_only and cr_opts.nativespace_analysis:
         raise ValueError(
-            'Must select --commonspace option for running confound regression on outputs from --bold_only.')
+            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
-    if cr_opts.commonspace_analysis:
-        workflow.connect([
-            (outputnode, confound_regression_wf, [
-                ("commonspace_bold", "inputnode.bold_file"),
-                ("commonspace_mask", "inputnode.brain_mask"),
-                ("commonspace_CSF_mask", "inputnode.csf_mask"),
-                ]),
-            ])
-    else:
+    if cr_opts.nativespace_analysis:
         workflow.connect([
             (outputnode, confound_regression_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
                 ("native_CSF_mask", "inputnode.csf_mask"),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (outputnode, confound_regression_wf, [
+                ("commonspace_bold", "inputnode.bold_file"),
+                ("commonspace_mask", "inputnode.brain_mask"),
+                ("commonspace_CSF_mask", "inputnode.csf_mask"),
                 ]),
             ])
 
@@ -825,7 +825,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
 
     if analysis_opts.data_diagnosis:
         if not (commonspace_bold or bold_only):
-            raise ValueError("--commonspace_analysis outputs are currently required for running data_diagnosis")
+            raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
 
         if os.path.basename(opts.anat_template)=='DSURQE_40micron_average.nii.gz':
             DSURQE_regions=True

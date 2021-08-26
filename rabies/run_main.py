@@ -280,9 +280,9 @@ def get_parser():
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
                                      overlaps with previous runs (can be useful if investigating multiple strategies).
                                      """)
-    confound_regression.add_argument('--commonspace_analysis', dest='commonspace_analysis', action='store_false',
+    confound_regression.add_argument('--nativespace_analysis', dest='nativespace_analysis', action='store_true',
                                      help="""
-                                     If should run confound regression on the commonspace bold output.
+                                     Use to specify confound correction and analysis on native space outputs.
                                      """)
     confound_regression.add_argument('--TR', type=str, default='1.0s',
                                      help="""
