@@ -649,6 +649,12 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
                     ("outputnode.aroma_out", "aroma_out"),
                     ]),
                 ])
+        if cr_opts.DVARS_censoring or cr_opts.FD_censoring:
+            workflow.connect([
+                (confound_regression_wf, confound_regression_datasink, [
+                    ("outputnode.frame_mask_file", "frame_censoring_mask"),
+                    ]),
+                ])
 
     return workflow, confound_regression_wf
 
