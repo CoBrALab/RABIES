@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 import SimpleITK as sitk
+from .boilerplate import *
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
@@ -279,9 +280,9 @@ def get_parser():
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
                                      overlaps with previous runs (can be useful if investigating multiple strategies).
                                      """)
-    confound_regression.add_argument('--commonspace_analysis', dest='commonspace_analysis', action='store_false',
+    confound_regression.add_argument('--nativespace_analysis', dest='nativespace_analysis', action='store_true',
                                      help="""
-                                     If should run confound regression on the commonspace bold output.
+                                     Use to specify confound correction and analysis on native space outputs.
                                      """)
     confound_regression.add_argument('--TR', type=str, default='1.0s',
                                      help="""
@@ -511,33 +512,6 @@ def execute_workflow():
     # verify default template installation
     install_DSURQE(log)
 
-    # if --bold_only, the default atlas files change to EPI versions
-    if opts.rabies_step == 'preprocess' and opts.bold_only:
-        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
-            file=f"{rabies_path}/EPI_template.nii.gz"
-            opts.anat_template=file
-            log.info('With --bold_only, default --anat_template changed to '+file)
-        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
-            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
-            opts.brain_mask=file
-            log.info('With --bold_only, default --brain_mask changed to '+file)
-        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
-            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
-            opts.WM_mask=file
-            log.info('With --bold_only, default --WM_mask changed to '+file)
-        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
-            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
-            opts.CSF_mask=file
-            log.info('With --bold_only, default --CSF_mask changed to '+file)
-        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
-            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
-            opts.vascular_mask=file
-            log.info('With --bold_only, default --vascular_mask changed to '+file)
-        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
-            file=f"{rabies_path}/EPI_labels.nii.gz"
-            opts.labels=file
-            log.info('With --bold_only, default --labels changed to '+file)
-
     from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
 
@@ -589,7 +563,35 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     else:
         raise ValueError('Invalid --data_type provided.')
 
+
     # template options
+    # if --bold_only, the default atlas files change to EPI versions
+    if opts.bold_only:
+        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
+            file=f"{rabies_path}/EPI_template.nii.gz"
+            opts.anat_template=file
+            log.info('With --bold_only, default --anat_template changed to '+file)
+        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
+            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
+            opts.brain_mask=file
+            log.info('With --bold_only, default --brain_mask changed to '+file)
+        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
+            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
+            opts.WM_mask=file
+            log.info('With --bold_only, default --WM_mask changed to '+file)
+        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
+            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
+            opts.CSF_mask=file
+            log.info('With --bold_only, default --CSF_mask changed to '+file)
+        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
+            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
+            opts.vascular_mask=file
+            log.info('With --bold_only, default --vascular_mask changed to '+file)
+        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
+            file=f"{rabies_path}/EPI_labels.nii.gz"
+            opts.labels=file
+            log.info('With --bold_only, default --labels changed to '+file)
+
     # make sure we have absolute paths
     opts.anat_template = os.path.abspath(opts.anat_template)
     opts.brain_mask = os.path.abspath(opts.brain_mask)
@@ -642,6 +644,18 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
     check_resampling_syntax(opts.anatomical_resampling)
+
+    # write boilerplate
+    boilerplate_file = f'{output_folder}/boilerplate.txt'
+
+    methods,ref_string = preprocess_boilerplate(opts)
+    txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
+    if cr_opts is not None:
+        methods,ref_string = confound_correction_boilerplate(cr_opts)
+        txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
+
+    with open(boilerplate_file, "w") as text_file:
+        text_file.write(txt_boilerplate)
 
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,

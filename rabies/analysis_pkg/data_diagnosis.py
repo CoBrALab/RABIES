@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import nibabel as nb
-import pickle
 import matplotlib.pyplot as plt
 from rabies.analysis_pkg import analysis_functions, prior_modeling
 from nilearn.plotting import plot_stat_map
@@ -216,10 +215,8 @@ class DatasetDiagnosis(BaseInterface):
 
         label_name = ['temporal_std', 'VE_spatial',
                       'GS_corr', 'DVARS_corr', 'FD_corr']
-        label_name += ['BOLD Dual Regression map {}' %
-                       (i) for i in range(num_DR_maps)]
-        label_name += ['BOLD Dual ICA map {}' %
-                       (i) for i in range(num_prior_maps)]
+        label_name += [f'BOLD Dual Regression map {i}' for i in range(num_DR_maps)]
+        label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
@@ -247,8 +244,7 @@ class DatasetDiagnosis(BaseInterface):
                 sitk_img = sitk.ReadImage('temp_img.nii.gz')
                 plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
                         alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-                ax.set_title('Cross-correlation for {} and {}' %
-                             (x_label, y_label), fontsize=15, color='white')
+                ax.set_title(f'Cross-correlation for {x_label} and {y_label}', fontsize=15, color='white')
         fig.savefig(os.path.abspath('dataset_diagnosis.png'),
                     bbox_inches='tight')
 

@@ -32,6 +32,8 @@ array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
 array_4d += np.random.normal(0, array_4d.mean()
                              / 100, array_4d.shape)  # add gaussian noise
 sitk.WriteImage(resampled, tmppath+'/inputs/sub-token_T1w.nii.gz')
+sitk.WriteImage(resampled, tmppath+'/inputs/sub-token2_T1w.nii.gz')
+sitk.WriteImage(resampled, tmppath+'/inputs/sub-token3_T1w.nii.gz')
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token_bold.nii.gz')
 
@@ -70,16 +72,22 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
-    --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0"
+command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
 process = subprocess.run(
     command,
     check=True,
     shell=True,
     )
 
-command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --commonspace_analysis"
+### Add subjects for the group analysis to run
+sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
+                tmppath+'/inputs/sub-token2_bold.nii.gz')
+sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
+                tmppath+'/inputs/sub-token3_bold.nii.gz')
+
+command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+    --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
+    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --fast_commonspace"
 process = subprocess.run(
     command,
     check=True,

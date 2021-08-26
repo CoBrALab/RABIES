@@ -31,7 +31,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
     if len(seed_list) > 0:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again with --commonspace_analysis.')
+                'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again without --nativespace_analysis.')
         seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_dict', 'seed_name'],
                                               output_names=['corr_map_file'],
                                               function=seed_based_FC),
@@ -96,7 +96,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
     if include_group_ICA:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_analysis.')
+                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
         group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'tr'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
@@ -125,7 +125,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
     if opts.dual_ICA>0 and not opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --commonspace_analysis.')
+                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
         from .analysis_functions import dual_ICA_wrapper
         from .data_diagnosis import resample_IC_file
         resample_IC = pe.Node(Function(input_names=['in_file', 'ref_file'],

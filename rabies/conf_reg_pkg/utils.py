@@ -96,7 +96,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     return mask
 
 
-def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
+def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     import os
     import numpy as np
     import pandas as pd
@@ -238,6 +238,7 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
 def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     import os
     import numpy as np
+    import pandas as pd
     import SimpleITK as sitk
     from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_filtering
     from rabies.analysis_pkg.analysis_functions import closed_form
@@ -268,7 +269,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')
         sitk.WriteImage(empty_img, empty_file)
-        return empty_file,empty_file,None
+        return empty_file,empty_file,empty_file,None
 
     timeseries=data_dict['timeseries']
     FD_trace=data_dict['FD_trace']
@@ -289,7 +290,7 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')
         sitk.WriteImage(empty_img, empty_file)
-        return empty_file,empty_file,None
+        return empty_file,empty_file,empty_file,None
 
     VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
     VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
@@ -299,12 +300,15 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     if cr_opts.standardize:
         timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
+    # save output files
     VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
     timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
     sitk.WriteImage(timeseries_3d, cleaned_path)
     VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
     sitk.WriteImage(VE_spatial_map, VE_file_path)
+    frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
+    pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
     if cr_opts.smoothing_filter is not None:
         import nilearn.image
@@ -313,4 +317,4 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
         timeseries_3d.to_filename(cleaned_path)
 
     data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
-    return cleaned_path, VE_file_path, data_dict
+    return cleaned_path, VE_file_path, frame_mask_file, data_dict
