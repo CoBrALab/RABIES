@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import nibabel as nb
-import pickle
 import matplotlib.pyplot as plt
 from rabies.analysis_pkg import analysis_functions, prior_modeling
 from nilearn.plotting import plot_stat_map

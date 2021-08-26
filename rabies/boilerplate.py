@@ -216,7 +216,7 @@ Framewise displacement was measured across time and each frame surpassing {opts.
             references[power2012]=i
             i+=1
         methods+=f"Frame censoring was conducted using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal. This built-in strategy \
-removes timepoints presenting outlier values in DVARS, which is charateristic of confounds that are not necessarily well accounted for by framewise displacement estimates[{references[rabies_ref]}]. \
+removes timepoints presenting outlier values in DVARS, which is characteristic of confounds that are not necessarily well accounted for by framewise displacement estimates[{references[rabies_ref]}]. \
 This is conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
 
     # Confound Regression
@@ -263,7 +263,7 @@ This is conducted by iteratively removing frames which present outlier DVARS val
             conf_list_str+=', '+str_
         if len(str_list)>1:
             conf_list_str+=f' and {str_list[-1]}'
-            
+
 
         methods+=f"Estimated nuisance timecourses during preprocessing were then used for confound regression. More specifically, using ordinary least square regression, \
 {conf_list_str} were modelled at each voxel and regressed from the data. "
@@ -287,4 +287,3 @@ This is conducted by iteratively removing frames which present outlier DVARS val
     for key in references.keys():
         ref_string+=f"[{references[key]}] {key} \n"
     return methods,ref_string
-

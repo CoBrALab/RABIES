@@ -96,7 +96,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     return mask
 
 
-def prep_CR(bold_file, brain_mask_file, confounds_file, FD_file, cr_opts):
+def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     import os
     import numpy as np
     import pandas as pd
