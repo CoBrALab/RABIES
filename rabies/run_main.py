@@ -650,8 +650,9 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
     methods,ref_string = preprocess_boilerplate(opts)
     txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
-    methods,ref_string = confound_correction_boilerplate(cr_opts)
-    txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
+    if cr_opts is not None:
+        methods,ref_string = confound_correction_boilerplate(cr_opts)
+        txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
 
     with open(boilerplate_file, "w") as text_file:
         text_file.write(txt_boilerplate)
