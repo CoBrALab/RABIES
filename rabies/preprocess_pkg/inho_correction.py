@@ -80,6 +80,8 @@ class InhoCorrection(BaseInterface):
         # resample the anatomical image to the resolution of the provided template
         target_img = sitk.ReadImage(
             self.inputs.target_img, self.inputs.rabies_data_type)
+        if not target_img.GetDimension()==3:
+            raise ValueError(f"Input image {self.inputs.target_img} is not 3-dimensional.")
         anat_dim = target_img.GetSpacing()
 
         template_image = sitk.ReadImage(

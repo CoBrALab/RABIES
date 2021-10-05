@@ -226,6 +226,9 @@ class EstimateReferenceImage(BaseInterface):
 
         in_nii = sitk.ReadImage(self.inputs.in_file,
                                 self.inputs.rabies_data_type)
+        if not in_nii.GetDimension()==4:
+            raise ValueError(f"Input image {self.inputs.in_file} is not 4-dimensional.")
+
         data_slice = sitk.GetArrayFromImage(in_nii)[:50, :, :, :]
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
