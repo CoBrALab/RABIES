@@ -127,15 +127,18 @@ ENV CONDA_EXE='${CONDA_DIR}/bin/conda' \
 ENV RABIES=${HOME}/RABIES
 RUN mkdir $RABIES
 
-COPY rabies $RABIES/rabies
-COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
-COPY optimized_antsMultivariateTemplateConstruction $RABIES/optimized_antsMultivariateTemplateConstruction
-COPY scripts $RABIES/scripts
 COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt $RABIES/
 
 RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && \
   conda activate && \
-  conda env update -f $RABIES/rabies_environment.yml && \
+  conda env update -f $RABIES/rabies_environment.yml
+
+COPY rabies $RABIES/rabies
+COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
+COPY optimized_antsMultivariateTemplateConstruction $RABIES/optimized_antsMultivariateTemplateConstruction
+COPY scripts $RABIES/scripts
+
+RUN . ${HOME}/miniforge/etc/profile.d/conda.sh && \
   conda activate && \
   pip install -e $RABIES && \
   conda clean --all -y
