@@ -11,7 +11,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
-    if not opts.no_STC:
+    if opts.apply_STC:
         slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],

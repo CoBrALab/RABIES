@@ -220,9 +220,9 @@ def get_parser():
                        help="""
                        Specify repetition time (TR) in seconds.
                        """)
-    g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
+    g_stc.add_argument('--apply_STC', dest='apply_STC', action='store_true',
                        help="""
-                       Select this option to ignore the STC step.
+                       Select this option to apply the STC step.
                        """)
     g_stc.add_argument('--tpattern', type=str, default='alt',
                        choices=['alt', 'seq'],
