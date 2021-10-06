@@ -502,6 +502,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             (resample_template_node, generate_EPI_template_wf, [
                 ("resampled_template", "inputnode.atlas_anat"),
+                ("resampled_mask", "inputnode.atlas_mask"),
                 ]),
             (merged_join_robust_cor, generate_EPI_template_wf, [
                 ("file_list0", "inputnode.moving_image"),
