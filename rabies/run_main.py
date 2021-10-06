@@ -216,9 +216,9 @@ def get_parser():
         (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
         anterior-posterior orientation, assuming slices were acquired in this direction.
         """)
-    g_stc.add_argument('--TR', type=str, default='1.0s',
+    g_stc.add_argument('--TR', type=str, default='auto',
                        help="""
-                       Specify repetition time (TR) in seconds.
+                       Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                        """)
     g_stc.add_argument('--apply_STC', dest='apply_STC', action='store_true',
                        help="""
@@ -284,9 +284,9 @@ def get_parser():
                                      help="""
                                      Use to specify confound correction and analysis on native space outputs.
                                      """)
-    confound_regression.add_argument('--TR', type=str, default='1.0s',
+    confound_regression.add_argument('--TR', type=str, default='auto',
                                      help="""
-                                     Specify repetition time (TR) in seconds.
+                                     Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                                      """)
     confound_regression.add_argument('--highpass', type=float, default=None,
                                      help="""
@@ -418,10 +418,6 @@ def get_parser():
     g_group_ICA.add_argument("--group_ICA", dest='group_ICA', action='store_true',
                              help="""
                              Choose this option to conduct group-ICA.
-                             """)
-    g_group_ICA.add_argument('--TR', type=str, default='1.0s',
-                             help="""
-                             Specify repetition time (TR) in seconds.
                              """)
     g_group_ICA.add_argument('--dim', type=int, default=0,
                              help="""

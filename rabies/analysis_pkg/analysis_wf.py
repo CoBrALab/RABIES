@@ -97,11 +97,10 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
-        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'tr'],
+        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
                             name='group_ICA', mem_gb=1)
-        group_ICA.inputs.tr = float(opts.TR.split('s')[0])
         group_ICA.inputs.dim = opts.dim
 
         workflow.connect([

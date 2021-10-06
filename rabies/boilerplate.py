@@ -69,7 +69,7 @@ non-local means denoising[{references[denoising]}]. "
 
 
     # STC
-    if not opts.no_STC:
+    if opts.apply_STC:
         if not afni in references.keys():
             references[afni]=i
             i+=1

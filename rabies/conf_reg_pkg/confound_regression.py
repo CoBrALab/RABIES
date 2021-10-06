@@ -49,7 +49,7 @@ def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
                                           output_names=['cleaned_file', 'aroma_out'],
                                           function=exec_ICA_AROMA),
                                  name='ica_aroma', mem_gb=1)
-        ica_aroma_node.inputs.tr = float(cr_opts.TR.split('s')[0])
+        ica_aroma_node.inputs.tr = cr_opts.TR
         ica_aroma_node.inputs.aroma_dim = cr_opts.aroma_dim
 
         workflow.connect([
