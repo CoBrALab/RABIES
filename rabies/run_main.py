@@ -386,6 +386,31 @@ def get_parser():
                           Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps
                           based on Pearson's r. Each seed must consist of a binary mask representing the ROI in commonspace.
                           """)
+    analysis.add_argument('--prior_maps', action='store', type=Path,
+                            default=f"{rabies_path}/melodic_IC.nii.gz",
+                            help="""
+                            Provide a 4D nifti image with a series of spatial priors representing common sources of
+                            signal (e.g. ICA components from a group-ICA run). This 4D prior map file will be used for 
+                            Dual regression, Dual ICA and --data_diagnosis.
+                            Default: Corresponds to a MELODIC run on a combined group of anesthetized-
+                            ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
+                            FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
+                            """)
+    analysis.add_argument('--prior_bold_idx', type=int,
+                            nargs="*",  # 0 or more values expected => creates a list
+                            default=[5, 12, 19],
+                            help="""
+                            Specify the indices for the priors to fit from --prior_maps. Only selected priors will be fitted 
+                            for Dual ICA, and these priors will correspond to the BOLD components during --data_diagnosis.
+                            """)
+    analysis.add_argument('--prior_confound_idx', type=int,
+                                nargs="*",  # 0 or more values expected => creates a list
+                                default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
+                                         13, 14, 21, 22, 24, 26, 28, 29],
+                                help="""
+                                Specify the indices for the confound components from --prior_maps.
+                                This is pertinent for the --data_diagnosis outputs.
+                                """)
     analysis.add_argument("--data_diagnosis", dest='data_diagnosis', action='store_true',
                              help="""
                              This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al.
@@ -433,12 +458,6 @@ def get_parser():
                           output the spatial maps corresponding to the linear coefficients from the second linear
                           regression. See rabies.analysis_pkg.analysis_functions.dual_regression for the specific code.
                           """)
-    g_DR_ICA.add_argument('--IC_file', action='store', type=Path,
-                          default=None,
-                          help="""
-                          Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.
-                          If none is provided, a group-ICA will be run with the dataset cleaned timeseries.
-                          """)
     g_dual_ICA = analysis.add_argument_group(title='Dual ICA', description="""
         Options for performing a Dual ICA.
         Need to provide the prior maps to fit --prior_maps, and the associated indices for the target components
@@ -448,29 +467,6 @@ def get_parser():
                             help="""
                             Specify how many subject-specific sources to compute using dual ICA.
                             """)
-    g_dual_ICA.add_argument('--prior_maps', action='store', type=Path,
-                            default=f"{rabies_path}/melodic_IC.nii.gz",
-                            help="""
-                            Provide a 4D nifti image with a series of spatial priors representing common sources of
-                            signal (e.g. ICA components from a group-ICA run).
-                            Default: Corresponds to a MELODIC run on a combined group of anesthetized-
-                            ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
-                            FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
-                            """)
-    g_dual_ICA.add_argument('--prior_bold_idx', type=int,
-                            nargs="*",  # 0 or more values expected => creates a list
-                            default=[5, 12, 19],
-                            help="""
-                            Specify the indices for the priors to fit from --prior_maps.
-                            """)
-    g_dual_ICA.add_argument('--prior_confound_idx', type=int,
-                                nargs="*",  # 0 or more values expected => creates a list
-                                default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
-                                         13, 14, 21, 22, 24, 26, 28, 29],
-                                help="""
-                                Specify the indices for the confound components from --prior_maps.
-                                This is pertinent for the --data_diagnosis outputs.
-                                """)
 
     return parser
 
@@ -587,6 +583,11 @@ def preprocess(opts, cr_opts, analysis_opts, log):
             file=f"{rabies_path}/EPI_labels.nii.gz"
             opts.labels=file
             log.info('With --bold_only, default --labels changed to '+file)
+        if analysis_opts is not None:
+            if str(analysis_opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
+                file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+                analysis_opts.prior_maps=file
+                log.info('With --bold_only, default --prior_maps changed to '+file)
 
     # make sure we have absolute paths
     opts.anat_template = os.path.abspath(opts.anat_template)
