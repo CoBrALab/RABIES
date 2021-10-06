@@ -186,6 +186,12 @@ def get_parser():
                                 If true, will use masks originating from the EPI inhomogeneity correction step
                                 to orient alignment to the target anatomical image.
                                 """)
+    g_registration.add_argument("--brain_extraction", dest='brain_extraction', action='store_true',
+                                help="""
+                                If using masking during registration from --commonspace_masking/--coreg_masking, can
+                                specify to extract the brains using the masks prior to registration, which will 
+                                enhance brain edge-matching, but requires good quality masks.
+                                """)
 
     g_resampling = preprocess.add_argument_group(title='Resampling Options', description="""
         The following options allow to customize the voxel dimensions for the preprocessed EPIs or for
@@ -596,6 +602,11 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     opts.CSF_mask = os.path.abspath(opts.CSF_mask)
     opts.vascular_mask = os.path.abspath(opts.vascular_mask)
     opts.labels = os.path.abspath(opts.labels)
+
+    # To use brain extraction, make sure either --commonspace_masking or --coreg_masking is used
+    if opts.brain_extraction:
+        if not (opts.commonspace_masking or opts.coreg_masking):
+            raise ValueError(f"To use --brain_extraction, you must select either --commonspace_masking or --coreg_masking.")
 
     # convert template files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS

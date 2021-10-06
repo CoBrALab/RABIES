@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 from .registration import run_antsRegistration
-from .preprocess_visual_QC import PlotOverlap
+from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
 def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, name='commonspace_reg_wf'):
@@ -22,11 +22,19 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
-    atlas_reg = pe.Node(Function(input_names=['reg_method', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+    atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
                                                   'inverse_warp', 'warped_image'],
                                     function=run_antsRegistration),
                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
+
+    # don't use brain extraction without a moving mask
+    brain_extraction = opts.brain_extraction
+    if brain_extraction:
+        if not opts.commonspace_masking:
+            brain_extraction=False
+
+    atlas_reg.inputs.brain_extraction = brain_extraction
     atlas_reg.inputs.rabies_data_type = opts.data_type
     atlas_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -119,6 +127,19 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
             PlotOverlap(), name='PlotOverlap_Unbiased2Atlas')
         PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
+
+        if opts.brain_extraction and opts.commonspace_masking:
+            template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
+                                            function=template_masking),
+                                    name='template_masking')
+            template_masking_node.inputs.out_dir = output_folder+'/preprocess_QC_report/unbiased_template_masking/'
+
+            workflow.connect([
+                (generate_template, template_masking_node, [
+                    ("unbiased_template", "template"),
+                    ("unbiased_mask", "mask"),
+                    ]),
+                ])
 
         workflow.connect([
             (inputnode, generate_template, [

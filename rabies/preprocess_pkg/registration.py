@@ -18,12 +18,20 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
         name='outputnode'
     )
 
-    run_reg = pe.Node(Function(input_names=["reg_method", "moving_image", "moving_mask", "fixed_image",
+    run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "moving_image", "moving_mask", "fixed_image",
                                             "fixed_mask", "rabies_data_type"],
                                output_names=['affine_bold2anat', 'warp_bold2anat',
                                              'inverse_warp_bold2anat', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
+
+    # don't use brain extraction without a moving mask
+    brain_extraction = opts.brain_extraction
+    if brain_extraction:
+        if not opts.coreg_masking:
+            brain_extraction=False
+
     run_reg.inputs.reg_method = opts.coreg_script
+    run_reg.inputs.brain_extraction = brain_extraction
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -51,7 +59,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
+def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -60,6 +68,8 @@ def run_antsRegistration(reg_method, moving_image='NULL', moving_mask='NULL', fi
     reg_call = define_reg_script(reg_method)
 
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
+        if brain_extraction:
+            reg_call+=" --mask-extract --keep-mask-after-extract"
         command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
