@@ -102,7 +102,7 @@ class InhoCorrection(BaseInterface):
             corrected=target_img
             init_denoise=corrected
             resampled_mask=self.inputs.anat_mask
-        elif self.inputs.inho_cor_method in ['Rigid','Affine','SyN']:
+        elif self.inputs.inho_cor_method in ['Rigid','Affine','SyN', 'no_reg']:
             corrected = f'{cwd}/{filename_split[0]}_inho_cor.nii.gz'
             if self.inputs.image_type=='EPI':
                 processing_script='EPI-preprocessing.sh'

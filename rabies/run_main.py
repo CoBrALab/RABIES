@@ -137,7 +137,7 @@ def get_parser():
         """)
     g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
                             choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
+                                     'SyN', 'no_reg', 'disable'],
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the EPI.
                             """)
@@ -151,7 +151,7 @@ def get_parser():
                             """)
     g_registration.add_argument("--anat_inho_cor_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
+                                     'SyN', 'no_reg', 'disable'],
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the structural image.
                             """)
