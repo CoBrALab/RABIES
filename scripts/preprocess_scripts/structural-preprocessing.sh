@@ -62,8 +62,6 @@ do_correct() {
 
 minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
 
-minc_modify_header $input -sinsert :history=''
-
 #Forceably convert to MINC2, and clamp range to avoid negative numbers, rescale to 0-65535
 mincconvert -2 ${input} ${tmpdir}/originput.mnc
 #Rescale initial data into entirely positive range (fix for completely negative data)
@@ -79,16 +77,8 @@ mincresample  -quiet ${N4_VERBOSE:+-verbose} -like ${tmpdir}/originput.mnc -keep
 mv -f ${tmpdir}/originput.clamp.resample.mnc ${tmpdir}/originput.mnc
 rm -f ${tmpdir}/originput.clamp.mnc
 
-#Reorient to MINC RAS
-#volmash -swap zy ${tmpdir}/originput.mnc ${tmpdir}/mash.mnc
-#volflip -x ${tmpdir}/mash.mnc ${tmpdir}/flip.mnc
-
-#cp -f ${tmpdir}/flip.mnc ${tmpdir}/originput.mnc
-
 #Construct Otsu Mask of entire image
 input=${tmpdir}/originput.mnc
-#volcentre -zero_dircos ${input} ${tmpdir}/centre.mnc
-#mv -f ${tmpdir}/centre.mnc ${input}
 
 ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
 
@@ -133,33 +123,35 @@ minc_anlm --clobber --mt $(nproc) ${tmpdir}/precorrect.mnc ${tmpdir}/denoise.mnc
 n3input=${tmpdir}/denoise.mnc
 
 if [ $reg_option == 'Rigid' ]; then
-  reg_type="--linear-type rigid --skip-nonlinear"
-  antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} $reg_type \
-    ${n3input} ${modelfile} ${tmpdir}/tomodel
-
-  antsApplyTransforms -d 3 -i ${modelmask} -t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] \
-    -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${n3input} --verbose
+  lin_type="--linear-type rigid"
+  nl_skip="--skip-nonlinear"
+  transforms="-t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ]"
 
 elif [ $reg_option == 'Affine' ]; then
-  reg_type="--linear-type affine --skip-nonlinear"
-  antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} $reg_type \
-    ${n3input} ${modelfile} ${tmpdir}/tomodel
-
-  antsApplyTransforms -d 3 -i ${modelmask} -t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] \
-    -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${n3input} --verbose
+  lin_type="--linear-type affine"
+  nl_skip="--skip-nonlinear"
+  transforms="-t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ]"
 
 elif [ $reg_option == 'SyN' ]; then
-  reg_type="--linear-type affine"
-  antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} $reg_type \
-    ${n3input} ${modelfile} ${tmpdir}/tomodel
-
-  antsApplyTransforms -d 3 -i ${modelmask} -t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] -t ${tmpdir}/tomodel1_inverse_NL.xfm \
-    -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${n3input} --verbose
+  lin_type="--linear-type affine"
+  nl_skip=""
+  transforms="-t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] -t ${tmpdir}/tomodel1_inverse_NL.xfm"
 fi
 
 if [ $reg_option == 'no_reg' ]; then
   cp ${tmpdir}/denoise.mnc ${tmpdir}/denoise_correct.mnc
 else
+
+  antsRegistration_affine_SyN.sh --verbose --close $lin_type --skip-nonlinear \
+    ${n3input} ${modelfile} ${tmpdir}/tomodel
+
+  antsRegistration_affine_SyN.sh --clobber --initial-transform ${tmpdir}/tomodel0_GenericAffine.xfm \
+    --verbose --close --fast --fixed-mask ${modelmask} $lin_type $nl_skip \
+    ${n3input} ${modelfile} ${tmpdir}/tomodel
+
+  antsApplyTransforms -d 3 -i ${modelmask} $transforms \
+    -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${n3input} --verbose
+
   iMath 3 ${tmpdir}/newmask.mnc MD ${tmpdir}/newmask.mnc 1 1 ball 1
   ThresholdImage 3 ${n3input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/newmask.mnc
   ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc 2 Inf 1 0
