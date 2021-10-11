@@ -16,6 +16,7 @@ output=$2
 modelfile=$3
 modelmask=$4
 reg_option=$5
+otsu_thresh=$6
 
 # convert inputs to mnc
 nii2mnc ${input} ${tmpdir}/input.mnc
@@ -76,7 +77,7 @@ ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
 
 ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
 ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
-ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc 2 Inf 1 0
+ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
 iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
 ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
 iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1

@@ -17,7 +17,7 @@ def init_inho_correction_wf(opts, image_type, inho_cor_method='Affine', name='in
             fields=['corrected', 'denoise_mask', 'init_denoise']),
         name='outputnode')
 
-    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, rabies_data_type=opts.data_type),
+    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=opts.bold_inho_cor_otsu, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
     workflow.connect([
@@ -49,6 +49,8 @@ class InhoCorrectionInputSpec(BaseInterfaceInputSpec):
         desc="Between 'EPI' or 'structural'.")
     inho_cor_method = traits.Str(
         desc="Option for inhomogeneity correction.")
+    otsu_threshold = traits.Int(
+        desc="")
     rabies_data_type = traits.Int(mandatory=True,
         desc="Integer specifying SimpleITK data type.")
 
@@ -110,7 +112,7 @@ class InhoCorrection(BaseInterface):
                 processing_script='structural-preprocessing.sh'
             else:
                 raise ValueError(f"Image type must be 'EPI' or 'structural', {self.inputs.image_type}")
-            command = f'{processing_script} {target_img} {corrected} {self.inputs.anat_ref} {self.inputs.anat_mask} {self.inputs.inho_cor_method}'
+            command = f'{processing_script} {target_img} {corrected} {self.inputs.anat_ref} {self.inputs.anat_mask} {self.inputs.inho_cor_method} {str(self.inputs.otsu_threshold)}'
             rc = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'

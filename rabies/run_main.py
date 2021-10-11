@@ -141,6 +141,9 @@ def get_parser():
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the EPI.
                             """)
+    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
+                            help="""
+                            """)
     g_registration.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
                             help="""
                             This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
