@@ -385,17 +385,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (anat_inho_cor_wf, commonspace_reg_wf, [
                 ("outputnode.corrected", "inputnode_iterable.iter_name"),
                 ]),
+            (anat_inho_cor_wf, EPI_target_buffer, [
+                ("outputnode.corrected", "EPI_template"),
+                ]),
+            (commonspace_reg_wf, EPI_target_buffer, [
+                ("outputnode.native_mask", 'EPI_mask'),
+                ]),
             ])
-
-        if not opts.robust_bold_inho_cor:
-            workflow.connect([
-                (anat_inho_cor_wf, EPI_target_buffer, [
-                    ("outputnode.corrected", "EPI_template"),
-                    ]),
-                (commonspace_reg_wf, EPI_target_buffer, [
-                    ("outputnode.native_mask", 'EPI_mask'),
-                    ]),
-                ])
 
         if not opts.anat_inho_cor_method=='disable':
             anat_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
@@ -443,83 +439,9 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
                 ]),
-            ])
-
-        if not opts.robust_bold_inho_cor:
-            workflow.connect([
-                (resample_template_node, EPI_target_buffer, [
-                    ("resampled_template", "EPI_template"),
-                    ("resampled_mask", "EPI_mask"),
-                    ]),
-                ])
-
-    if opts.robust_bold_inho_cor:
-        if opts.fast_commonspace:
-            raise ValueError("--fast_commonspace prevents to gain any benefit from --robust_bold_inho_cor")
-
-        inho_cor_robust_wf = init_bold_main_wf(
-            inho_cor_only=True, name='inho_cor_robust_wf', opts=opts)
-
-        generate_EPI_template_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink,
-                                                           num_scan=num_scan, name='generate_EPI_template_wf')
-
-        EPI_template_masking = pe.Node(Function(input_names=['fixed_mask', 'moving_image', 'inverse_warp', 'affine'],
-                                        output_names=['new_mask'],
-                                        function=transform_mask),
-                               name='EPI_template_masking')
-        EPI_template_masking.inputs.fixed_mask = str(opts.brain_mask)
-
-        if not opts.bold_only:
-            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['run_split','main_split'], node_prefix='robust_bold_inho_cor', num_inputs=2)
-
-            workflow.connect([
-                (anat_inho_cor_wf, inho_cor_robust_wf, [
-                    ("outputnode.corrected", "inputnode.inho_cor_anat"),
-                    ]),
-                (commonspace_reg_wf, inho_cor_robust_wf, [
-                    ("outputnode.native_mask", 'inputnode.inho_cor_mask'),
-                    ]),
-                ])
-        else:
-            workflow, source_join_robust_cor, merged_join_robust_cor = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='robust_bold_inho_cor', num_inputs=2)
-            workflow.connect([
-                (resample_template_node, inho_cor_robust_wf, [
-                    ("resampled_template", "inputnode.inho_cor_anat"),
-                    ("resampled_mask", "inputnode.inho_cor_mask"),
-                    ]),
-                ])
-
-        workflow.connect([
-            (format_bold_buffer, inho_cor_robust_wf, [
-                ("formatted_bold", "inputnode.bold"),
-                ]),
-            (inho_cor_robust_wf, source_join_robust_cor, [
-                ("transitionnode.corrected_EPI", "file_list0"),
-                ("transitionnode.denoise_mask", "file_list1"),
-                ]),
-            (inho_cor_robust_wf, generate_EPI_template_wf, [
-                ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
-                ]),
-            (resample_template_node, generate_EPI_template_wf, [
-                ("resampled_template", "inputnode.atlas_anat"),
-                ("resampled_mask", "inputnode.atlas_mask"),
-                ]),
-            (merged_join_robust_cor, generate_EPI_template_wf, [
-                ("file_list0", "inputnode.moving_image"),
-                ("file_list1", "inputnode.moving_mask"),
-                ]),
-            (generate_EPI_template_wf, EPI_template_masking, [
-                ("outputnode.unbiased_template", "moving_image"),
-                ]),
-            (generate_EPI_template_wf, EPI_template_masking, [
-                ("outputnode.to_atlas_affine", "affine"),
-                ("outputnode.to_atlas_inverse_warp", "inverse_warp"),
-                ]),
-            (generate_EPI_template_wf, EPI_target_buffer, [
-                ("outputnode.unbiased_template", "EPI_template"),
-                ]),
-            (EPI_template_masking, EPI_target_buffer, [
-                ("new_mask", "EPI_mask"),
+            (resample_template_node, EPI_target_buffer, [
+                ("resampled_template", "EPI_template"),
+                ("resampled_mask", "EPI_mask"),
                 ]),
             ])
 
