@@ -276,6 +276,13 @@ def get_parser():
                                      help="""
                                      path to drop confound regression output datasink.
                                      """)
+    confound_regression.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
+                                     help="""
+                                     Choose this option to read directly from preprocessing outputs found in the datasinks
+                                     instead of executing an integrated workflow which includes previously run steps.
+                                     Using this option, it is assumed that outputs in the datasink folders haven't been modified,
+                                     and that preprocessing was properly completed.
+                                     """)
     confound_regression.add_argument('--output_name', type=str, default='confound_regression_wf',
                                      help="""
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
@@ -523,6 +530,7 @@ def execute_workflow():
         workflow = analysis(opts, log)
     else:
         parser.print_help()
+    workflow.base_dir = output_folder
 
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
@@ -654,6 +662,10 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     methods,ref_string = preprocess_boilerplate(opts)
     txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
     if cr_opts is not None:
+        if opts.bold_only and cr_opts.nativespace_analysis:
+            raise ValueError(
+                'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
+
         methods,ref_string = confound_correction_boilerplate(cr_opts)
         txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
 
@@ -663,8 +675,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     from rabies.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder,
                             opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
-
-    workflow.base_dir = output_folder
 
     # setting workflow options for debug mode
     if opts.debug:
@@ -687,12 +697,22 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
 def confound_regression(opts, analysis_opts, log):
 
-    cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
-    with open(cli_file, 'rb') as handle:
-        preprocess_opts = pickle.load(handle)
+    if opts.read_datasink:
+        boilerplate_file = f'{opts.output_dir}/boilerplate_confound_regression.txt'
+        methods,ref_string = confound_correction_boilerplate(opts)
+        txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
+        with open(boilerplate_file, "w") as text_file:
+            text_file.write(txt_boilerplate)
 
-    workflow = preprocess(preprocess_opts, opts,
-                          analysis_opts, log)
+        from rabies.main_extras import detached_confound_regression_wf
+        workflow = detached_confound_regression_wf(opts)
+    else:
+        cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
+        with open(cli_file, 'rb') as handle:
+            preprocess_opts = pickle.load(handle)
+
+        workflow = preprocess(preprocess_opts, opts,
+                            analysis_opts, log)
 
     return workflow
 
