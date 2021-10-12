@@ -144,14 +144,6 @@ def get_parser():
     g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
                             help="""
                             """)
-    g_registration.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
-                            help="""
-                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
-                            an initial correction step is run to generate a unbiased EPI template from the
-                            dataset, to provide a novel dataset-specific EPI template. This new template is then
-                            used as registration target for a final round of correction, instead of structural images.
-                            This can help the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
-                            """)
     g_registration.add_argument("--anat_inho_cor_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
                                      'SyN', 'no_reg', 'disable'],
