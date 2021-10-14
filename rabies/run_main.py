@@ -36,7 +36,7 @@ def get_parser():
         registration to a commonspace atlas and associated masks, evaluation of confounding timecourses, and includes various
         execution options (see --help).
         """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    confound_regression = subparsers.add_parser("confound_regression",
+    confound_correction = subparsers.add_parser("confound_correction",
                                                 help="""
         Flexible options for confound regression are available to apply directly on preprocessing outputs from RABIES.
         After linear detrending, only selected options are applied sequentially in following the order: 1) ICA-AROMA,
@@ -268,64 +268,64 @@ def get_parser():
                          Atlas file with anatomical labels.
                          """)
 
-    confound_regression.add_argument('preprocess_out', action='store', type=Path,
+    confound_correction.add_argument('preprocess_out', action='store', type=Path,
                                      help="""
                                      path to RABIES preprocessing output directory with the datasinks.
                                      """)
-    confound_regression.add_argument('output_dir', action='store', type=Path,
+    confound_correction.add_argument('output_dir', action='store', type=Path,
                                      help="""
                                      path to drop confound regression output datasink.
                                      """)
-    confound_regression.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
+    confound_correction.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
                                      help="""
                                      Choose this option to read directly from preprocessing outputs found in the datasinks
                                      instead of executing an integrated workflow which includes previously run steps.
                                      Using this option, it is assumed that outputs in the datasink folders haven't been modified,
                                      and that preprocessing was properly completed.
                                      """)
-    confound_regression.add_argument('--output_name', type=str, default='confound_regression_wf',
+    confound_correction.add_argument('--output_name', type=str, default='confound_correction_wf',
                                      help="""
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
                                      overlaps with previous runs (can be useful if investigating multiple strategies).
                                      """)
-    confound_regression.add_argument('--nativespace_analysis', dest='nativespace_analysis', action='store_true',
+    confound_correction.add_argument('--nativespace_analysis', dest='nativespace_analysis', action='store_true',
                                      help="""
                                      Use to specify confound correction and analysis on native space outputs.
                                      """)
-    confound_regression.add_argument('--TR', type=str, default='auto',
+    confound_correction.add_argument('--TR', type=str, default='auto',
                                      help="""
                                      Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                                      """)
-    confound_regression.add_argument('--highpass', type=float, default=None,
+    confound_correction.add_argument('--highpass', type=float, default=None,
                                      help="""
                                      Specify highpass filter frequency.
                                      """)
-    confound_regression.add_argument('--lowpass', type=float, default=None,
+    confound_correction.add_argument('--lowpass', type=float, default=None,
                                      help="""
                                      Specify lowpass filter frequency.
                                      """)
-    confound_regression.add_argument('--smoothing_filter', type=float, default=None,
+    confound_correction.add_argument('--smoothing_filter', type=float, default=None,
                                      help="""
                                      Specify spatial smoothing filter size in mm.
                                      Uses nilearn's function https://nilearn.github.io/modules/generated/nilearn.image.smooth_img.html
                                      """)
-    confound_regression.add_argument('--run_aroma', dest='run_aroma', action='store_true', default=False,
+    confound_correction.add_argument('--run_aroma', dest='run_aroma', action='store_true', default=False,
                                      help="""
                                      Whether to run ICA-AROMA or not. The classifier implemented within RABIES
                                      is a slightly modified version from the original (Pruim et al. 2015),
                                      with parameters and masks adapted for rodent images.
                                      """)
-    confound_regression.add_argument('--aroma_dim', type=int, default=0,
+    confound_correction.add_argument('--aroma_dim', type=int, default=0,
                                      help="""
                                      Can specify a fixed number of dimension for the MELODIC run before ICA-AROMA.
                                      """)
-    confound_regression.add_argument('--conf_list', type=str,
+    confound_correction.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
                                      choices=["WM_signal", "CSF_signal", "vascular_signal",
                                               "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
                                      help="""
-                                     List of nuisance regressors that will be applied on voxel timeseries.
+                                     List of nuisance regressors that will be applied on voxel timeseries, i.e., confound regression.
                                      WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain masks.
                                      mot_6: 6 rigid HMC parameters.
                                      mot_24: mot_6 + their temporal derivative, and all 12 parameters squared (Friston et al. 1996).
@@ -334,39 +334,39 @@ def get_parser():
                                      the variance, as in Muschelli et al. 2014.
                                      mean_FD: the mean framewise displacement timecourse
                                      """)
-    confound_regression.add_argument('--FD_censoring', dest='FD_censoring', action='store_true', default=False,
+    confound_correction.add_argument('--FD_censoring', dest='FD_censoring', action='store_true', default=False,
                                      help="""
                                      Whether to remove timepoints that exceed a framewise displacement threshold.
                                      The frames that exceed the given threshold together with 1 back
                                      and 4 forward frames will be masked out (based on Power et al. 2012).
                                      """)
-    confound_regression.add_argument('--FD_threshold', type=float, default=0.05,
+    confound_correction.add_argument('--FD_threshold', type=float, default=0.05,
                                      help="""
                                      Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain
                                      mask) to select corrupted volumes.
                                      """)
-    confound_regression.add_argument('--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
+    confound_correction.add_argument('--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
                                      help="""
                                      Whether to remove timepoints that present outlier values on the DVARS metric (temporal derivative
                                      of global signal).
                                      This will censor out timepoints until a distribution of DVARS values is obtained without outliers
                                      values above or below 2.5 standard deviations.
                                      """)
-    confound_regression.add_argument('--minimum_timepoint', type=int,default=3,
+    confound_correction.add_argument('--minimum_timepoint', type=int,default=3,
                                      help="""
                                      Can select a threshold number of timepoint to remain after censoring, and return empty files for
                                      scans that don't pass threshold.
                                      """)
-    confound_regression.add_argument('--standardize', dest='standardize', action='store_true',default=False,
+    confound_correction.add_argument('--standardize', dest='standardize', action='store_true',default=False,
                                      help="""
                                      Whether to standardize timeseries to unit variance.
                                      """)
-    confound_regression.add_argument('--timeseries_interval', type=str, default='all',
+    confound_correction.add_argument('--timeseries_interval', type=str, default='all',
                                      help="""
                                      Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.
                                      """)
 
-    analysis.add_argument('confound_regression_out', action='store', type=Path,
+    analysis.add_argument('confound_correction_out', action='store', type=Path,
                           help="""
                           path to RABIES confound regression output directory with the datasink.
                           """)
@@ -531,8 +531,8 @@ def execute_workflow():
 
     if opts.rabies_step == 'preprocess':
         workflow = preprocess(opts, None, None, log)
-    elif opts.rabies_step == 'confound_regression':
-        workflow = confound_regression(opts, None, log)
+    elif opts.rabies_step == 'confound_correction':
+        workflow = confound_correction(opts, None, log)
     elif opts.rabies_step == 'analysis':
         workflow = analysis(opts, log)
     else:
@@ -698,20 +698,20 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     return workflow
 
 
-def confound_regression(opts, analysis_opts, log):
+def confound_correction(opts, analysis_opts, log):
     cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
     if opts.read_datasink:
-        boilerplate_file = f'{opts.output_dir}/boilerplate_confound_regression.txt'
+        boilerplate_file = f'{opts.output_dir}/boilerplate_confound_correction.txt'
         methods,ref_string = confound_correction_boilerplate(opts)
         txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
         with open(boilerplate_file, "w") as text_file:
             text_file.write(txt_boilerplate)
 
-        from rabies.main_extras import detached_confound_regression_wf
-        workflow = detached_confound_regression_wf(preprocess_opts, opts, analysis_opts)
+        from rabies.main_extras import detached_confound_correction_wf
+        workflow = detached_confound_correction_wf(preprocess_opts, opts, analysis_opts)
     else:
         workflow = preprocess(preprocess_opts, opts,
                             analysis_opts, log)
@@ -721,11 +721,11 @@ def confound_regression(opts, analysis_opts, log):
 
 def analysis(opts, log):
 
-    cli_file = f'{opts.confound_regression_out}/rabies_confound_regression.pkl'
+    cli_file = f'{opts.confound_correction_out}/rabies_confound_correction.pkl'
     with open(cli_file, 'rb') as handle:
-        confound_regression_opts = pickle.load(handle)
+        confound_correction_opts = pickle.load(handle)
 
-    workflow = confound_regression(confound_regression_opts, opts, log)
+    workflow = confound_correction(confound_correction_opts, opts, log)
 
     return workflow
 

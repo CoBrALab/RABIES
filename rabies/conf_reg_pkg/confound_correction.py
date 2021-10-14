@@ -4,7 +4,7 @@ from nipype.interfaces import utility as niu
 from nipype import Function
 from .utils import regress, prep_CR, exec_ICA_AROMA
 
-def init_confound_regression_wf(cr_opts, name="confound_regression_wf"):
+def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[

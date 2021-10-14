@@ -6,7 +6,7 @@ from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 
 
-def detached_confound_regression_wf(preprocess_opts, cr_opts, analysis_opts):
+def detached_confound_correction_wf(preprocess_opts, cr_opts, analysis_opts):
 
     workflow = pe.Workflow(name=cr_opts.output_name)
 
@@ -35,24 +35,24 @@ def detached_confound_regression_wf(preprocess_opts, cr_opts, analysis_opts):
             ]),
         ])
 
-    workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
+    workflow, confound_correction_wf = integrate_confound_correction(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
 
     # Integrate analysis
     if analysis_opts is not None:
         workflow = integrate_analysis(
-            workflow, outputnode, confound_regression_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
+            workflow, outputnode, confound_correction_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
 
     return workflow
 
 
-def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
+def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
     cr_output = os.path.abspath(str(cr_opts.output_dir))
 
-    from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
-    confound_regression_wf = init_confound_regression_wf(cr_opts=cr_opts, name=cr_opts.output_name)
+    from rabies.conf_reg_pkg.confound_correction import init_confound_correction_wf
+    confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts, name=cr_opts.output_name)
 
     workflow.connect([
-        (outputnode, confound_regression_wf, [
+        (outputnode, confound_correction_wf, [
             ("confounds_csv", "inputnode.confounds_file"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
             ]),
@@ -64,7 +64,7 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
 
     if cr_opts.nativespace_analysis:
         workflow.connect([
-            (outputnode, confound_regression_wf, [
+            (outputnode, confound_correction_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
                 ("native_CSF_mask", "inputnode.csf_mask"),
@@ -72,39 +72,39 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
             ])
     else:
         workflow.connect([
-            (outputnode, confound_regression_wf, [
+            (outputnode, confound_correction_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
                 ("commonspace_CSF_mask", "inputnode.csf_mask"),
                 ]),
             ])
 
-    if cr_opts.rabies_step == 'confound_regression':
-        confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
+    if cr_opts.rabies_step == 'confound_correction':
+        confound_correction_datasink = pe.Node(DataSink(base_directory=cr_output,
                                                         container=cr_opts.output_name+"_datasink"),
                                                name=cr_opts.output_name+"_datasink")
         workflow.connect([
-            (confound_regression_wf, confound_regression_datasink, [
+            (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.cleaned_path", "cleaned_timeseries"),
                 ]),
             ])
         if cr_opts.run_aroma:
             workflow.connect([
-                (confound_regression_wf, confound_regression_datasink, [
+                (confound_correction_wf, confound_correction_datasink, [
                     ("outputnode.aroma_out", "aroma_out"),
                     ]),
                 ])
         if cr_opts.DVARS_censoring or cr_opts.FD_censoring:
             workflow.connect([
-                (confound_regression_wf, confound_regression_datasink, [
+                (confound_correction_wf, confound_correction_datasink, [
                     ("outputnode.frame_mask_file", "frame_censoring_mask"),
                     ]),
                 ])
 
-    return workflow, confound_regression_wf
+    return workflow, confound_correction_wf
 
 
-def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, opts):
+def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, opts):
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
     from rabies.analysis_pkg.analysis_wf import init_analysis_wf
@@ -159,7 +159,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
         (outputnode, prep_dict_node, [
             ("input_bold", "name_source"),
             ]),
-        (confound_regression_wf, prep_dict_node, [
+        (confound_correction_wf, prep_dict_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
             ("outputnode.VE_file", "VE_file"),
@@ -306,7 +306,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
     return workflow
 
 
-def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, bold_scan_list):
+def integrate_data_diagnosis(workflow, outputnode, confound_correction_wf, data_diagnosis_opts, bold_only, commonspace_bold, bold_scan_list):
 
     data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
 
@@ -357,7 +357,7 @@ def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_
             ("commonspace_resampled_template", "preprocess_anat_template"),
             ("input_bold", "name_source"),
             ]),
-        (confound_regression_wf, prep_dict_node, [
+        (confound_correction_wf, prep_dict_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
             ("outputnode.VE_file", "VE_file"),
