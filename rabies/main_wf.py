@@ -505,6 +505,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ("commonspace_labels", "commonspace_labels"),
                 ("tSNR_filename", "tSNR_map_preprocess"),
                 ("std_filename", "std_map_preprocess"),
+                ("commonspace_resampled_template", "commonspace_resampled_template"),
                 ]),
             ])
 

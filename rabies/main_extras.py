@@ -6,13 +6,13 @@ from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 
 
-def detached_confound_regression_wf(opts):
+def detached_confound_regression_wf(preprocess_opts, cr_opts, analysis_opts):
 
-    workflow = pe.Workflow(name=opts.output_name)
+    workflow = pe.Workflow(name=cr_opts.output_name)
 
-    preproc_output = os.path.abspath(str(opts.preprocess_out))
+    preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
-    split_dict, split_name, target_list = read_datasinks(preproc_output, nativespace=opts.nativespace_analysis)
+    split_dict, split_name, target_list, bold_scan_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
     # setting up iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
@@ -25,7 +25,7 @@ def detached_confound_regression_wf(opts):
     outputnode = pe.Node(Function(input_names=['split_dict', 'split_name', 'target_list'],
                                            output_names=target_list,
                                        function=read_dict),
-                              name=opts.output_name+'_preproc_outputnode')
+                              name=cr_opts.output_name+'_outputnode')
     outputnode.inputs.split_dict = split_dict
     outputnode.inputs.target_list = target_list
 
@@ -35,11 +35,17 @@ def detached_confound_regression_wf(opts):
             ]),
         ])
 
-    workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, opts)
+    workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
+
+    # Integrate analysis
+    if analysis_opts is not None:
+        workflow = integrate_analysis(
+            workflow, outputnode, confound_regression_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
 
     return workflow
 
-def integrate_confound_regression(workflow, outputnode, cr_opts):
+
+def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
     cr_output = os.path.abspath(str(cr_opts.output_dir))
 
     from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
@@ -51,6 +57,10 @@ def integrate_confound_regression(workflow, outputnode, cr_opts):
             ("FD_csv", "inputnode.FD_file"),
             ]),
         ])
+
+    if bold_only and cr_opts.nativespace_analysis:
+        raise ValueError(
+            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.nativespace_analysis:
         workflow.connect([
@@ -512,16 +522,17 @@ def find_iterable(file_list, scan_split_name):
     raise ValueError(f"No matching file was found for {scan_split_name}")
 
 
-def read_datasinks(preproc_output, nativespace=False):
+def read_preproc_datasinks(preproc_output, nativespace=False):
     import pathlib
 
     split_dict = {}
-    file_list = get_files_from_tree(f'{preproc_output}/bold_datasink/input_bold')
+    bold_scan_list = get_files_from_tree(f'{preproc_output}/bold_datasink/input_bold')
     split_name = []
-    for f in file_list:
+    for f in bold_scan_list:
         name = pathlib.Path(f).name.rsplit(".nii")[0]
         split_name.append(name)
         split_dict[name]={}
+        split_dict[name]['commonspace_resampled_template']=f'{preproc_output}/bold_datasink/commonspace_resampled_template/resampled_template.nii.gz'
 
     directory_list = [['bold_datasink','input_bold'],
         ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],
@@ -533,7 +544,7 @@ def read_datasinks(preproc_output, nativespace=False):
             ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_labels']]
         
 
-    target_list=[]
+    target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
 
         if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
@@ -547,7 +558,7 @@ def read_datasinks(preproc_output, nativespace=False):
                     split_dict[split][target]=f
                     break
 
-    return split_dict, split_name, target_list
+    return split_dict, split_name, target_list, bold_scan_list
 
 
 def get_files_from_tree(startpath):

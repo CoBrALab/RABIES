@@ -662,10 +662,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     methods,ref_string = preprocess_boilerplate(opts)
     txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
     if cr_opts is not None:
-        if opts.bold_only and cr_opts.nativespace_analysis:
-            raise ValueError(
-                'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
-
         methods,ref_string = confound_correction_boilerplate(cr_opts)
         txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
 
@@ -696,6 +692,9 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
 
 def confound_regression(opts, analysis_opts, log):
+    cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
+    with open(cli_file, 'rb') as handle:
+        preprocess_opts = pickle.load(handle)
 
     if opts.read_datasink:
         boilerplate_file = f'{opts.output_dir}/boilerplate_confound_regression.txt'
@@ -705,12 +704,8 @@ def confound_regression(opts, analysis_opts, log):
             text_file.write(txt_boilerplate)
 
         from rabies.main_extras import detached_confound_regression_wf
-        workflow = detached_confound_regression_wf(opts)
+        workflow = detached_confound_regression_wf(preprocess_opts, opts, analysis_opts)
     else:
-        cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
-        with open(cli_file, 'rb') as handle:
-            preprocess_opts = pickle.load(handle)
-
         workflow = preprocess(preprocess_opts, opts,
                             analysis_opts, log)
 

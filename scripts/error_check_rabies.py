@@ -94,7 +94,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
+command = f"rabies confound_regression --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
 process = subprocess.run(
     command,
     check=True,
@@ -102,6 +102,13 @@ process = subprocess.run(
     )
 
 command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
+process = subprocess.run(
+    command,
+    check=True,
+    shell=True,
+    )
+
+command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs"
 process = subprocess.run(
     command,
     check=True,
