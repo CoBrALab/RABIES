@@ -137,21 +137,16 @@ def get_parser():
         """)
     g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
                             choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
+                                     'SyN', 'no_reg', 'disable'],
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the EPI.
                             """)
-    g_registration.add_argument("--robust_bold_inho_cor", dest='robust_bold_inho_cor', action='store_true',
+    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
                             help="""
-                            This option will conduct an iterative scheme for inhomogeneity correction of the EPIs, where
-                            an initial correction step is run to generate a unbiased EPI template from the
-                            dataset, to provide a novel dataset-specific EPI template. This new template is then
-                            used as registration target for a final round of correction, instead of structural images.
-                            This can help the inhomogeneity correction of EPIs with bad anatomical contrasts and high distortions.
                             """)
     g_registration.add_argument("--anat_inho_cor_method", type=str, default='SyN',
                             choices=['Rigid', 'Affine',
-                                     'SyN', 'disable'],
+                                     'SyN', 'no_reg', 'disable'],
                             help="""
                             Select a registration type for masking during inhomogeneity correction of the structural image.
                             """)
@@ -186,6 +181,12 @@ def get_parser():
                                 If true, will use masks originating from the EPI inhomogeneity correction step
                                 to orient alignment to the target anatomical image.
                                 """)
+    g_registration.add_argument("--brain_extraction", dest='brain_extraction', action='store_true',
+                                help="""
+                                If using masking during registration from --commonspace_masking/--coreg_masking, can
+                                specify to extract the brains using the masks prior to registration, which will 
+                                enhance brain edge-matching, but requires good quality masks.
+                                """)
 
     g_resampling = preprocess.add_argument_group(title='Resampling Options', description="""
         The following options allow to customize the voxel dimensions for the preprocessed EPIs or for
@@ -216,13 +217,13 @@ def get_parser():
         (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
         anterior-posterior orientation, assuming slices were acquired in this direction.
         """)
-    g_stc.add_argument('--TR', type=str, default='1.0s',
+    g_stc.add_argument('--TR', type=str, default='auto',
                        help="""
-                       Specify repetition time (TR) in seconds.
+                       Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                        """)
-    g_stc.add_argument('--no_STC', dest='no_STC', action='store_true',
+    g_stc.add_argument('--apply_STC', dest='apply_STC', action='store_true',
                        help="""
-                       Select this option to ignore the STC step.
+                       Select this option to apply the STC step.
                        """)
     g_stc.add_argument('--tpattern', type=str, default='alt',
                        choices=['alt', 'seq'],
@@ -275,6 +276,13 @@ def get_parser():
                                      help="""
                                      path to drop confound regression output datasink.
                                      """)
+    confound_regression.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
+                                     help="""
+                                     Choose this option to read directly from preprocessing outputs found in the datasinks
+                                     instead of executing an integrated workflow which includes previously run steps.
+                                     Using this option, it is assumed that outputs in the datasink folders haven't been modified,
+                                     and that preprocessing was properly completed.
+                                     """)
     confound_regression.add_argument('--output_name', type=str, default='confound_regression_wf',
                                      help="""
                                      Creates a new output folder to store the workflow of this CR run, to avoid potential
@@ -284,9 +292,9 @@ def get_parser():
                                      help="""
                                      Use to specify confound correction and analysis on native space outputs.
                                      """)
-    confound_regression.add_argument('--TR', type=str, default='1.0s',
+    confound_regression.add_argument('--TR', type=str, default='auto',
                                      help="""
-                                     Specify repetition time (TR) in seconds.
+                                     Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                                      """)
     confound_regression.add_argument('--highpass', type=float, default=None,
                                      help="""
@@ -386,6 +394,31 @@ def get_parser():
                           Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps
                           based on Pearson's r. Each seed must consist of a binary mask representing the ROI in commonspace.
                           """)
+    analysis.add_argument('--prior_maps', action='store', type=Path,
+                            default=f"{rabies_path}/melodic_IC.nii.gz",
+                            help="""
+                            Provide a 4D nifti image with a series of spatial priors representing common sources of
+                            signal (e.g. ICA components from a group-ICA run). This 4D prior map file will be used for 
+                            Dual regression, Dual ICA and --data_diagnosis.
+                            Default: Corresponds to a MELODIC run on a combined group of anesthetized-
+                            ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
+                            FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
+                            """)
+    analysis.add_argument('--prior_bold_idx', type=int,
+                            nargs="*",  # 0 or more values expected => creates a list
+                            default=[5, 12, 19],
+                            help="""
+                            Specify the indices for the priors to fit from --prior_maps. Only selected priors will be fitted 
+                            for Dual ICA, and these priors will correspond to the BOLD components during --data_diagnosis.
+                            """)
+    analysis.add_argument('--prior_confound_idx', type=int,
+                                nargs="*",  # 0 or more values expected => creates a list
+                                default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
+                                         13, 14, 21, 22, 24, 26, 28, 29],
+                                help="""
+                                Specify the indices for the confound components from --prior_maps.
+                                This is pertinent for the --data_diagnosis outputs.
+                                """)
     analysis.add_argument("--data_diagnosis", dest='data_diagnosis', action='store_true',
                              help="""
                              This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al.
@@ -419,10 +452,6 @@ def get_parser():
                              help="""
                              Choose this option to conduct group-ICA.
                              """)
-    g_group_ICA.add_argument('--TR', type=str, default='1.0s',
-                             help="""
-                             Specify repetition time (TR) in seconds.
-                             """)
     g_group_ICA.add_argument('--dim', type=int, default=0,
                              help="""
                              You can specify the number of ICA components to be derived. The default uses an automatic estimation.
@@ -437,12 +466,6 @@ def get_parser():
                           output the spatial maps corresponding to the linear coefficients from the second linear
                           regression. See rabies.analysis_pkg.analysis_functions.dual_regression for the specific code.
                           """)
-    g_DR_ICA.add_argument('--IC_file', action='store', type=Path,
-                          default=None,
-                          help="""
-                          Option to provide a melodic_IC.nii.gz file with the ICA components from a previous group-ICA run.
-                          If none is provided, a group-ICA will be run with the dataset cleaned timeseries.
-                          """)
     g_dual_ICA = analysis.add_argument_group(title='Dual ICA', description="""
         Options for performing a Dual ICA.
         Need to provide the prior maps to fit --prior_maps, and the associated indices for the target components
@@ -452,29 +475,6 @@ def get_parser():
                             help="""
                             Specify how many subject-specific sources to compute using dual ICA.
                             """)
-    g_dual_ICA.add_argument('--prior_maps', action='store', type=Path,
-                            default=f"{rabies_path}/melodic_IC.nii.gz",
-                            help="""
-                            Provide a 4D nifti image with a series of spatial priors representing common sources of
-                            signal (e.g. ICA components from a group-ICA run).
-                            Default: Corresponds to a MELODIC run on a combined group of anesthetized-
-                            ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
-                            FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
-                            """)
-    g_dual_ICA.add_argument('--prior_bold_idx', type=int,
-                            nargs="*",  # 0 or more values expected => creates a list
-                            default=[5, 12, 19],
-                            help="""
-                            Specify the indices for the priors to fit from --prior_maps.
-                            """)
-    g_dual_ICA.add_argument('--prior_confound_idx', type=int,
-                                nargs="*",  # 0 or more values expected => creates a list
-                                default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
-                                         13, 14, 21, 22, 24, 26, 28, 29],
-                                help="""
-                                Specify the indices for the confound components from --prior_maps.
-                                This is pertinent for the --data_diagnosis outputs.
-                                """)
 
     return parser
 
@@ -493,9 +493,16 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-
     # managing log info
     cli_file = f'{output_folder}/rabies_{opts.rabies_step}.pkl'
+    if os.path.isfile(cli_file):
+        raise ValueError(f"""
+            A previous run was indicated by the presence of {cli_file}.
+            This can lead to inconsistencies between previous outputs and the log files.
+            To prevent this, you are required to manually remove {cli_file}, and we 
+            recommend also removing previous datasinks from the {opts.rabies_step} RABIES step.
+            """)
+
     with open(cli_file, 'wb') as handle:
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -530,6 +537,7 @@ def execute_workflow():
         workflow = analysis(opts, log)
     else:
         parser.print_help()
+    workflow.base_dir = output_folder
 
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
@@ -591,6 +599,11 @@ def preprocess(opts, cr_opts, analysis_opts, log):
             file=f"{rabies_path}/EPI_labels.nii.gz"
             opts.labels=file
             log.info('With --bold_only, default --labels changed to '+file)
+        if analysis_opts is not None:
+            if str(analysis_opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
+                file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+                analysis_opts.prior_maps=file
+                log.info('With --bold_only, default --prior_maps changed to '+file)
 
     # make sure we have absolute paths
     opts.anat_template = os.path.abspath(opts.anat_template)
@@ -599,6 +612,11 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     opts.CSF_mask = os.path.abspath(opts.CSF_mask)
     opts.vascular_mask = os.path.abspath(opts.vascular_mask)
     opts.labels = os.path.abspath(opts.labels)
+
+    # To use brain extraction, make sure either --commonspace_masking or --coreg_masking is used
+    if opts.brain_extraction:
+        if not (opts.commonspace_masking or opts.coreg_masking):
+            raise ValueError(f"To use --brain_extraction, you must select either --commonspace_masking or --coreg_masking.")
 
     # convert template files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS
@@ -661,8 +679,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     workflow = init_main_wf(data_dir_path, output_folder,
                             opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
 
-    workflow.base_dir = output_folder
-
     # setting workflow options for debug mode
     if opts.debug:
         log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
@@ -683,13 +699,22 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
 
 def confound_regression(opts, analysis_opts, log):
-
     cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
-    workflow = preprocess(preprocess_opts, opts,
-                          analysis_opts, log)
+    if opts.read_datasink:
+        boilerplate_file = f'{opts.output_dir}/boilerplate_confound_regression.txt'
+        methods,ref_string = confound_correction_boilerplate(opts)
+        txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
+        with open(boilerplate_file, "w") as text_file:
+            text_file.write(txt_boilerplate)
+
+        from rabies.main_extras import detached_confound_regression_wf
+        workflow = detached_confound_regression_wf(preprocess_opts, opts, analysis_opts)
+    else:
+        workflow = preprocess(preprocess_opts, opts,
+                            analysis_opts, log)
 
     return workflow
 

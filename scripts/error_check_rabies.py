@@ -63,9 +63,10 @@ process = subprocess.run(
     shell=True,
     )
 
+os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
 command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --robust_bold_inho_cor --commonspace_masking --coreg_masking"
+    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --commonspace_masking --coreg_masking --brain_extraction"
 process = subprocess.run(
     command,
     check=True,
@@ -85,6 +86,7 @@ sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token3_bold.nii.gz')
 
+os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
 command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --fast_commonspace"
@@ -94,7 +96,8 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
+os.remove(f'{tmppath}/outputs/rabies_confound_regression.pkl')
+command = f"rabies confound_regression --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
 process = subprocess.run(
     command,
     check=True,
@@ -108,6 +111,15 @@ process = subprocess.run(
     shell=True,
     )
 
+os.remove(f'{tmppath}/outputs/rabies_confound_regression.pkl')
+command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs"
+process = subprocess.run(
+    command,
+    check=True,
+    shell=True,
+    )
+
+os.remove(f'{tmppath}/outputs/rabies_analysis.pkl')
 command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --dual_ICA 1 --data_diagnosis --DR_ICA"
 process = subprocess.run(
     command,

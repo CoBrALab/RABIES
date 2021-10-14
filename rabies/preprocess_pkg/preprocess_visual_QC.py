@@ -240,6 +240,31 @@ def template_info(anat_template, opts, out_dir):
     fig.savefig(out_dir+'/template_files.png', bbox_inches='tight')
 
 
+def template_masking(template, mask, out_dir):
+    import os
+    import SimpleITK as sitk
+    # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+    sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
+    from nilearn import plotting
+    import matplotlib.pyplot as plt
+    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    scaled = otsu_scaling(template)
+
+    fig,axes = plt.subplots(nrows=3, ncols=1, figsize=(4,2*2))
+
+    # plot brain mask
+    sitk_mask = sitk.ReadImage(
+        mask, sitk.sitkFloat32)
+    # resample mask to match template
+    sitk_mask = sitk.Resample(sitk_mask, scaled)
+    plot_3d(axes[:],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+    plot_3d(axes[:],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
+    plt.tight_layout()
+    fig.savefig(out_dir+'/template_masking.png', bbox_inches='tight')
+
 def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_source, out_dir):
     import os
     import pathlib

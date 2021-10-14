@@ -79,16 +79,8 @@ mincresample  -quiet ${N4_VERBOSE:+-verbose} -like ${tmpdir}/originput.mnc -keep
 mv -f ${tmpdir}/originput.clamp.resample.mnc ${tmpdir}/originput.mnc
 rm -f ${tmpdir}/originput.clamp.mnc
 
-#Reorient to MINC RAS
-#volmash -swap zy ${tmpdir}/originput.mnc ${tmpdir}/mash.mnc
-#volflip -x ${tmpdir}/mash.mnc ${tmpdir}/flip.mnc
-
-#cp -f ${tmpdir}/flip.mnc ${tmpdir}/originput.mnc
-
 #Construct Otsu Mask of entire image
 input=${tmpdir}/originput.mnc
-#volcentre -zero_dircos ${input} ${tmpdir}/centre.mnc
-#mv -f ${tmpdir}/centre.mnc ${input}
 
 ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
 
@@ -157,27 +149,31 @@ elif [ $reg_option == 'SyN' ]; then
     -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${n3input} --verbose
 fi
 
+if [ $reg_option == 'no_reg' ]; then
+  cp ${tmpdir}/denoise.mnc ${tmpdir}/denoise_correct.mnc
+else
+  iMath 3 ${tmpdir}/newmask.mnc MD ${tmpdir}/newmask.mnc 1 1 ball 1
+  ThresholdImage 3 ${n3input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/newmask.mnc
+  ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc 2 Inf 1 0
+  ImageMath 3 ${tmpdir}/weight.mnc m ${tmpdir}/newmask.mnc ${tmpdir}/weight.mnc
+  iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+  ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+  iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
+  mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
+  mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
 
-iMath 3 ${tmpdir}/newmask.mnc MD ${tmpdir}/newmask.mnc 1 1 ball 1
-ThresholdImage 3 ${n3input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/newmask.mnc
-ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc 2 Inf 1 0
-ImageMath 3 ${tmpdir}/weight.mnc m ${tmpdir}/newmask.mnc ${tmpdir}/weight.mnc
-iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
-ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
-iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
-mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
-mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
+  do_correct
 
-do_correct
+  for file in ${tmpdir}/*imp; do
+    echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
+  done | parallel
 
-for file in ${tmpdir}/*imp; do
-  echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
-done | parallel
+  mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/field_final.mnc
+  mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/field_final.mnc ${tmpdir}/correct.mnc
 
-mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/field_final.mnc
-mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/field_final.mnc ${tmpdir}/correct.mnc
+  minc_anlm --mt $(nproc) ${tmpdir}/correct.mnc ${tmpdir}/denoise_correct.mnc
 
-minc_anlm --mt $(nproc) ${tmpdir}/correct.mnc ${tmpdir}/denoise_correct.mnc
+fi
 
 ExtractRegionFromImageByMask 3 ${tmpdir}/denoise_correct.mnc ${tmpdir}/recrop.mnc ${tmpdir}/weight.mnc 1 10
 mv -f ${tmpdir}/recrop.mnc ${tmpdir}/denoise_correct.mnc

@@ -59,6 +59,13 @@ def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
     aroma_out = os.getcwd()+'/aroma_out'
     cleaned_file = aroma_out+f'/{filename_split[0]}_aroma.nii.gz'
 
+    if tr=='auto':
+        import SimpleITK as sitk
+        img = sitk.ReadImage(os.path.abspath(inFile))
+        tr = float(img.GetSpacing()[3])
+    else:
+        tr = float(tr)
+
     run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
         brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True)
     os.rename(aroma_out+'/denoised_func_data_nonaggr.nii.gz', cleaned_file)
@@ -255,14 +262,19 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file, sitk.sitkFloat32))
     volume_indices = brain_mask.astype(bool)
 
-    data_array = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))
+    data_img = sitk.ReadImage(bold_file, sitk.sitkFloat32)
+    data_array = sitk.GetArrayFromImage(data_img)
     num_volumes = data_array.shape[0]
     timeseries = np.zeros([num_volumes, volume_indices.sum()])
     for i in range(num_volumes):
         timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
     timeseries = timeseries[time_range,:]
 
-    TR = float(cr_opts.TR.split('s')[0])
+    if cr_opts.TR=='auto':
+        TR = float(data_img.GetSpacing()[3])
+    else:
+        TR = float(cr_opts.TR)
+
     data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
     if data_dict is None:

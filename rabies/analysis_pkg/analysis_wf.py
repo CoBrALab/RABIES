@@ -82,26 +82,19 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ]),
             ])
 
-        if opts.IC_file is None:
-            import logging
-            log = logging.getLogger('root')
-            log.info(
-                'Group-ICA will be run on the processed dataset since no previous group-ICA file was provided.')
-            include_group_ICA = True
-        elif not os.path.isfile(str(opts.IC_file)):
-            raise ValueError("--IC_file doesn't exists.")
+        if not os.path.isfile(str(opts.prior_maps)):
+            raise ValueError("--prior_maps doesn't exists.")
         else:
-            DR_ICA.inputs.IC_file = os.path.abspath(opts.IC_file)
+            DR_ICA.inputs.IC_file = os.path.abspath(opts.prior_maps)
 
     if include_group_ICA:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
-        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'tr'],
+        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
                             name='group_ICA', mem_gb=1)
-        group_ICA.inputs.tr = float(opts.TR.split('s')[0])
         group_ICA.inputs.dim = opts.dim
 
         workflow.connect([
@@ -114,13 +107,6 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ("out_dir", "group_ICA_dir"),
                 ]),
             ])
-
-        if (opts.IC_file is None) and opts.DR_ICA:
-            workflow.connect([
-                (group_ICA, DR_ICA, [
-                    ("IC_file", "IC_file"),
-                    ]),
-                ])
 
     if opts.dual_ICA>0 and not opts.data_diagnosis:
         if not commonspace_cr:

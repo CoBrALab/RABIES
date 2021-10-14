@@ -11,7 +11,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
-    if not opts.no_STC:
+    if opts.apply_STC:
         slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],
@@ -36,7 +36,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     return workflow
 
 
-def slice_timing_correction(in_file, tr='1.0s', tpattern='alt', rabies_data_type=8):
+def slice_timing_correction(in_file, tr='auto', tpattern='alt', rabies_data_type=8):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation
@@ -78,6 +78,11 @@ def slice_timing_correction(in_file, tr='1.0s', tpattern='alt', rabies_data_type
         raise ValueError('Invalid --tpattern provided.')
 
     img = sitk.ReadImage(in_file, rabies_data_type)
+
+    if tr=='auto':
+        tr = str(img.GetSpacing()[3])+'s'
+    else:
+        tr = str(tr)+'s'
 
     # get image data
     img_array = sitk.GetArrayFromImage(img)
