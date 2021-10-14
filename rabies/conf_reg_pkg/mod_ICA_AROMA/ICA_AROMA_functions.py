@@ -200,7 +200,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR):
                                 '--ICs=' + melIC,
                                 '--mix=' + melICmix,
                                 '--outdir=' + melDir,
-                                '--Ostats --mmthresh=0.5']))
+                                '--Ostats --mmthresh=0.5 --seed=1']))
 
     else:
         # If a melodic directory was specified, display that it did not contain all files needed for ICA-AROMA (or that the directory does not exist at all)
@@ -216,7 +216,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR):
                             '--outdir=' + melDir,
                             '--mask=' + mask,
                             '--dim=' + str(dim),
-                            '--Ostats --nobet --mmthresh=0.5 --report',
+                            '--Ostats --nobet --mmthresh=0.5 --report --seed=1',
                             '--tr=' + str(TR)]))
 
     # Get number of components
