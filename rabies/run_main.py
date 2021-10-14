@@ -710,7 +710,7 @@ def confound_correction(opts, analysis_opts, log):
         with open(boilerplate_file, "w") as text_file:
             text_file.write(txt_boilerplate)
 
-        from rabies.main_extras import detached_confound_correction_wf
+        from rabies.main_post import detached_confound_correction_wf
         workflow = detached_confound_correction_wf(preprocess_opts, opts, analysis_opts)
     else:
         workflow = preprocess(preprocess_opts, opts,
