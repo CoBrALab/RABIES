@@ -10,7 +10,7 @@ from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf,GenerateTemp
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .preprocess_pkg import preprocess_visual_QC
-from .main_extras import integrate_confound_regression,integrate_analysis,integrate_data_diagnosis
+from .main_post import integrate_confound_regression,integrate_analysis,integrate_data_diagnosis
 
 def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, name='main_wf'):
     '''
