@@ -99,6 +99,11 @@ ENV PATH=${MINC_TOOLKIT}/bin:${MINC_TOOLKIT}/pipeline:${PATH} \
   VOLUME_CACHE_THRESHOLD=-1 \
   MANPATH=${MINC_TOOLKIT}/man${MANPATH:+:$MANPATH}
 
+# add a patch to nu_estimate_np_and_em
+COPY patch/nu_estimate_np_and_em.diff nu_estimate_np_and_em.diff
+RUN apt-get update -y && apt-get install -y --no-install-recommends patch
+RUN (cd / && sudo patch -p0) < nu_estimate_np_and_em.diff && rm nu_estimate_np_and_em.diff
+
 #Enable ANTs
 ENV PATH=/opt/quarantine/ANTs/bin${PATH:+:$PATH} \
   ANTSPATH=/opt/quarantine/ANTs/bin

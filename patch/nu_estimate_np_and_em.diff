@@ -1,0 +1,1518 @@
+--- /opt/minc/1.9.18/bin/nu_estimate_np_and_em	2020-10-03 12:45:08.000000000 +0000
++++ nu_estimate_np_and_em	2021-10-14 14:16:12.977674163 +0000
+@@ -1,7 +1,7 @@
+ #! /usr/bin/env perl
+ #---------------------------------------------------------------------------
+ #@COPYRIGHT :
+-#             Copyright 1996, John G. Sled, 
++#             Copyright 1996, John G. Sled,
+ #             McConnell Brain Imaging Centre,
+ #             Montreal Neurological Institute, McGill University.
+ #             Permission to use, copy, modify, and distribute this
+@@ -11,7 +11,7 @@
+ #             make no representations about the suitability of this
+ #             software for any purpose.  It is provided "as is" without
+ #             express or implied warranty.
+-#---------------------------------------------------------------------------- 
++#----------------------------------------------------------------------------
+ #$RCSfile: nu_estimate_np_and_em.in,v $
+ #$Revision: 1.7 $
+ #$Author: claude $
+@@ -20,16 +20,16 @@
+ #---------------------------------------------------------------------------
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : NUestimate_np_and_em
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: iteratively estimates intensity non-uniformity artifacts
+ #@              in MRI volumes
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
+-#@CREATED    : January 15, 1996      J.G.Sled  
+-#@MODIFIED   : 
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
++#@CREATED    : January 15, 1996      J.G.Sled
++#@MODIFIED   :
+ #  $Id: nu_estimate_np_and_em.in,v 1.7 2009-07-29 15:07:44 claude Exp $
+ #-----------------------------------------------------------------------------
+ use warnings "all";
+@@ -51,7 +51,7 @@
+ &Initialize;
+ 
+ if($debug_flag) {
+-   # create record file 
++   # create record file
+    open(RECORD, ">$record_file");
+    print RECORD "Record file for NUestimate_np_and_em\n\n";
+    print RECORD "Invoked as: $Invocation\n";
+@@ -60,7 +60,7 @@
+ &verbose("\n# Start of NU estimation algorithm");
+ 
+ # create resampled volumes in working space if necessary
+-($input_volume_wks, $user_mask_volume_wks) 
++($input_volume_wks, $user_mask_volume_wks)
+    = &WorkspaceSampling($input_volume, $user_mask_volume);
+ 
+ &log_transform($input_volume_wks, $log_volume);
+@@ -70,14 +70,14 @@
+ 
+ # combine user supplied mask and various threshold masks
+ &CreateMask($user_mask_volume_wks, $input_volume_wks,
+-            $log_volume, $mask_volume);  
++            $log_volume, $mask_volume);
+ 
+ if($distance > 0 &&           # if filtering enabled
+-   ( $smoothing_type eq 'fir' || $islands_threshold > 0))  
++   ( $smoothing_type eq 'fir' || $islands_threshold > 0))
+ {
+     &verbose("# create normalization volume");
+     &CreateNormalization($mask_volume, $norm_volume);
+-    
++
+     ($islands_threshold > 0) &&  # remove islands from mask
+        &RemoveIslands($norm_volume, $islands_threshold, $mask_volume);
+ }
+@@ -107,8 +107,8 @@
+ 
+    &verbose("# compute residual volume from classification of"
+             ." corrected volume");
+-   $real_flag && &exp_transform($corrected, $working); 
+-   (!$real_flag) && Spawn(['cp', $corrected, $working]); 
++   $real_flag && &exp_transform($corrected, $working);
++   (!$real_flag) && Spawn(['cp', $corrected, $working]);
+    if($sharpen_flag) {
+       &sharpen_estimate($working,$mask_volume,$estimate_volume,$iter);
+    }
+@@ -119,7 +119,7 @@
+ 
+    if($distance > 0)
+    {
+-      if((defined $scale_factor) || $differential_flag) 
++      if((defined $scale_factor) || $differential_flag)
+       {
+          # estimate the difference in field
+          Spawn(['mincmath', '-sub', $corrected, $estimate_volume, $working]);
+@@ -134,14 +134,14 @@
+          }
+          &verbose("# filtering differential field volume");
+          if($smoothing_type eq 'b_spline' || $smoothing_type eq 'tp_spline') {
+-            &spline_smooth_volume($estimate_volume, $mask_volume, 
++            &spline_smooth_volume($estimate_volume, $mask_volume,
+                                  $distance, $working );
+          } else {
+             &filter_volume($estimate_volume, $norm_volume,
+                            $distance, $working);
+          }
+          &verbose("# computing total field");
+-         Spawn(['mincmath', '-add', $working, $residue_volume, 
++         Spawn(['mincmath', '-add', $working, $residue_volume,
+                  $estimate_volume]);
+          Spawn(['mv', $estimate_volume, $residue_volume]);
+       }
+@@ -151,12 +151,12 @@
+          # note old residue is saved for checking stopping condition
+          Spawn(['mv', $residue_volume, $estimate_volume]);
+ 
+-         $save_fields_flag && &exp_transform($working, 
++         $save_fields_flag && &exp_transform($working,
+                           "$output_directory/${basename}_est$iter.mnc");
+ 
+          &verbose("# filter residue volume");
+          if($smoothing_type eq 'b_spline' || $smoothing_type eq 'tp_spline') {
+-            &spline_smooth_volume($working, $mask_volume, 
++            &spline_smooth_volume($working, $mask_volume,
+                                  $distance, $residue_volume );
+          }
+          else {
+@@ -164,7 +164,7 @@
+          }
+          if (@stopping_threshold) {  # use ratio for stopping condition
+             Spawn(['mincmath', '-sub', '-zero', $estimate_volume,
+-                     $residue_volume, $working]); 
++                     $residue_volume, $working]);
+                  }
+       }
+       # check stopping condition
+@@ -177,7 +177,7 @@
+          ($field_difference < $stopping_threshold[0]) &&
+             ($iterations = $iter);  # stop the iterations
+          for($stage = 1; $stage <= $#iteration_stages; $stage++) {
+-            if($iter >= $iteration_stages[$stage-1] && 
++            if($iter >= $iteration_stages[$stage-1] &&
+                $field_difference < $stopping_threshold[$stage]) {
+                   ($iterations = $iter);  # stop the iterations
+                }
+@@ -189,8 +189,8 @@
+       Spawn(['mincmath', '-sub', $log_volume, $estimate_volume,
+               $residue_volume]);
+    }
+-	
+-   $save_fields_flag && &exp_transform($residue_volume, 
++
++   $save_fields_flag && &exp_transform($residue_volume,
+                           "$output_directory/${basename}_field$iter.mnc");
+ 
+ }  # end of main loop
+@@ -199,7 +199,7 @@
+ &exp_transform($residue_volume, $working);
+ ($normalize_field) and &normalize_field_volume($working, $mask_volume);
+ 
+-&compact_spline_volume($working, $mask_volume, $distance, 
++&compact_spline_volume($working, $mask_volume, $distance,
+                        $output_mapping );
+ # change history in imp file
+ &substitute_imp_history($output_mapping, localtime(time) . ">>> $Invocation");
+@@ -209,8 +209,8 @@
+    close(RECORD);
+ }
+ 
+-print "Number of iterations: $iter \n" . ((@stopping_threshold)? 
+-   "CV of field change: $field_difference\n"  : "\n"); 
++print "Number of iterations: $iter \n" . ((@stopping_threshold)?
++   "CV of field change: $field_difference\n"  : "\n");
+ &verbose("# NU estimation complete.");
+ 
+ #  End of Main Program
+@@ -222,21 +222,21 @@
+ #@NAME       : &CreateNormalization
+ #@INPUT      : $_[0]  name of mask
+ #              $_[1]  name for output normalization volume
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: create normalization volume for blurring within the given mask
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : $distance
+ #@CALLS      : mincmath, mincblur
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+-sub CreateNormalization 
+-{    
++sub CreateNormalization
++{
+     (-r $_[0]) || die("CreateNormalization. Can't read file: $_[0]\n");
+     Spawn(['mincblur', '-fwhm', $distance, $_[0], $_[1]]);
+-    Spawn(['mincmath', qw(-clamp -const2 0 1), $_[1]."_blur.mnc", 
+-            "$_[1].temp"]);  
++    Spawn(['mincmath', qw(-clamp -const2 0 1), $_[1]."_blur.mnc",
++            "$_[1].temp"]);
+     Spawn(['mincmath', '-zero', '-mult', "$_[1].temp", $_[0], $_[1]]);
+     Spawn(['rm', '-f', "$_[1].temp", $_[1]."_blur.mnc"]);
+ }
+@@ -244,14 +244,14 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &CreateTissueModel
+ #@INPUT      : $input_volume, $log_volume
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: get tissue model supplied by user or estimated from data
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : $mean_file, $real_flag
+ #@CALLS      : class_statistics
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub CreateTissueModel
+ {
+@@ -268,9 +268,9 @@
+       if($real_flag) {
+          &verbose("# compute class statistics from real volume using"
+                   ." tag file");
+-         Spawn(['class_statistics', @tag_option, $input_volume, 
++         Spawn(['class_statistics', @tag_option, $input_volume,
+                 $tissue_stats]);
+-      } 
++      }
+       else {
+          &verbose("# compute class statistics from log volume using tag file");
+          Spawn(['class_statistics', @tag_option, $log_volume, $tissue_stats]);
+@@ -283,16 +283,16 @@
+ #@INPUT      : $_[0]   user supplied mask volume
+ #              $_[1]   source volume real
+ #              $_[2]   source volume log
+-#@OUTPUT     : $_[3]   name for new mask 
++#@OUTPUT     : $_[3]   name for new mask
+ #@RETURNS    :
+ #@DESCRIPTION: create mask that is intersection of various masks:
+-#                    user supplied mask, background threshold, 
++#                    user supplied mask, background threshold,
+ #                    tissue model probability thresholds
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : $background_threshold, $mean_file, $real_flag
+ #@CALLS      : mincmath, estimate
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub CreateMask
+ {
+@@ -307,14 +307,14 @@
+               qw(-attvalue yspace:spacetype -attvalue zspace:spacetype),
+               $input_volume], err_action => 'ignore', stdout => \$output);
+          @spacetype = split('\n', $output);
+-        (@spacetype == 3) && ($spacetype[0] =~ /talairach/i) 
++        (@spacetype == 3) && ($spacetype[0] =~ /talairach/i)
+              && ($spacetype[1] =~ /talairach/i) &&
+             ($spacetype[2] =~ /talairach/i) && ($talairach_flag = 1);
+-         $talairach_flag && &verbose("# input volume is in Talairach space"); 
++         $talairach_flag && &verbose("# input volume is in Talairach space");
+       }
+ 
+-      if($bimodalT_flag || 
+-         ($auto_mask_flag && !($talairach_flag && (-r $average_brain_mask)))) 
++      if($bimodalT_flag ||
++         ($auto_mask_flag && !($talairach_flag && (-r $average_brain_mask))))
+       {
+          # Obtain BG threshold
+          @VolumeStatsCmd = (qw(volume_stats -quiet -biModalT), $input_volume);
+@@ -327,8 +327,8 @@
+    }
+    # use threshold to eliminate background from mask
+    &verbose("# thresholding background");
+-   Spawn(['mincmath', '-short', '-zero', '-gt', '-const', 
+-          $background_threshold, $input_volume, $bkg_volume]); 
++   Spawn(['mincmath', '-short', '-zero', '-gt', '-const',
++          $background_threshold, $input_volume, $bkg_volume]);
+ 
+    if($reduce_flag && !$sharpen_flag) {
+       &verbose("# threshold using class statistics to get reduced mask");
+@@ -359,7 +359,7 @@
+       Spawn(['rm', $bkg_volume]);
+    }
+    elsif($auto_mask_flag && $talairach_flag && (-r $average_brain_mask)) {
+-      my($my_mask); 
++      my($my_mask);
+       &verbose("# using average brain mask to remove background");
+       ($my_mask = &CheckSampling($average_brain_mask, $bkg_volume, 1)) ||
+          die("Failed to shrink average brain mask.\n");
+@@ -375,7 +375,7 @@
+ 
+    # Check that mask volume is not empty
+    my $max;
+-   Spawn(['volume_stats', '-quiet', '-max', $mask_volume],
++   Spawn(['mincstats', '-quiet', '-max', $mask_volume],
+          stdout => \$max);
+    die("Error: Composite mask volume is empty.  Check for one of the"
+        ." following:\n 1) the user supplied mask is empty (all zeros)\n"
+@@ -392,18 +392,18 @@
+ #@INPUT      : $_[0]  name of volume
+ #              $_[1]  name of unreduced mask
+ #              $_[2]  name of tissue statistics file
+-#              $_[3]  name of new mask (can be same as $_[1]) 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#              $_[3]  name of new mask (can be same as $_[1])
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: reduces the size of the mask by clipping off tails of gaussian
+ #                distributions in tissue model
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : @variance_option, @reduce_option, @probability_option
+ #@CALLS      : estimate
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+-sub reduce_mask 
++sub reduce_mask
+ {
+     (-r $_[0]) || die("reduce_mask. Can't read file: $_[0]\n");
+     Spawn(['estimate', '-mean', $_[2], @variance_option, @reduce_option,
+@@ -416,15 +416,15 @@
+ #@INPUT      : $_[0]  name of normalization volume
+ #              $_[1]  threshold (as fraction of maximum)
+ #              $_[2]  name of mask volume
+-#@OUTPUT     : 
+-#@RETURNS    : 
+-#@DESCRIPTION: remove isolated voxels from the mask and normalization volume 
++#@OUTPUT     :
++#@RETURNS    :
++#@DESCRIPTION: remove isolated voxels from the mask and normalization volume
+ #               by thresholding the normalization volume
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : uses $_[0].temp and $_[2].temp as temporary files
+ #@CALLS      : mincmath, volume_minmax, apply_mask
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub RemoveIslands
+ {
+@@ -444,14 +444,14 @@
+ #@INPUT      : $_[0]  name of mask volume
+ #              $_[1]  name of volume to mask
+ #              $_[2]  output volume (can be same as $_[1]
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: apply mask to given volume (set background to zero)
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : uses $_[0].temp as temporary file
+ #@CALLS      : mincmath
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub apply_mask
+ {
+@@ -464,16 +464,16 @@
+ #@INPUT      : $_[0]  name of current estimate
+ #              $_[1]  mask of region to process
+ #              $_[2]  name of new estimate
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: estimate new intensities for volume by classifying it first
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : @probability_option, @variance_option, $tissue_stats
+ #@CALLS      : estimate
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+-sub classify_estimate 
++sub classify_estimate
+ {
+     (-r $_[0]) || die("make_estimate. Can't read file: $_[0]\n");
+     Spawn(['estimate', '-mask', $_[1], @variance_option,
+@@ -485,17 +485,17 @@
+ #@INPUT      : $_[0]  name of current estimate
+ #              $_[1]  mask of region to process
+ #              $_[2]  name of new estimate
+-#              $_[3]  current iteration number 
++#              $_[3]  current iteration number
+ #                           (used for saving intermediate results)
+ #
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: estimate new intensities for volume by classifying it first
+ #@METHOD     :  uses $_[2].temp as temporary file
+ #@GLOBALS    : @sharpen_options, @blur_option, $basename, $output_directory
+ #@CALLS      : sharpen_volume, estimate
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub sharpen_estimate
+ {
+@@ -503,16 +503,16 @@
+    @sharpen_option = ('-bins', $sharpen_bins, '-fwhm', $sharpen_options[0],
+       '-noise', $sharpen_options[1]);
+    @parzen_option = ($parzen_flag) ? ('-parzen') : ();
+-   
++
+    ($save_histogram_flag) &&
+       ($histogram = "$output_directory/$basename" . "_hist$_[3].txt");
+-   @save_option = ($save_histogram_flag) ? 
++   @save_option = ($save_histogram_flag) ?
+       ('-save_histogram', $histogram) : ();
+-   
++
+    (-r $_[0]) || die("sharpen_volume. Can't read file: $_[0]\n");
+    Spawn(['sharpen_volume', @parzen_option, @blur_option, @sharpen_option,
+           @save_option, $_[1], $_[0], "$_[2].temp"]);
+-   
++
+    if($debug_flag && $save_histogram_flag) {
+       open(SHARP, $histogram);
+       HISTOGRAM: while(<SHARP>) {
+@@ -532,14 +532,14 @@
+ #              $_[1]  normalization volume
+ #              $_[2]  filter full width at half maximum
+ #              $_[3]  name of result (can be same as $_[0])
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: blur volume on region
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : uses $blur_volume as temporary file
+ #@CALLS      : mincmath, mincblur
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub filter_volume
+ {
+@@ -554,26 +554,26 @@
+ #              $_[1]  mask volume
+ #              $_[2]  basis function distance
+ #              $_[3]  name of result
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: fit splines to region
+-#@METHOD     : 
+-#@GLOBALS    : 
++#@METHOD     :
++#@GLOBALS    :
+ #@CALLS      : SplineSmooth
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub spline_smooth_volume
+ {
+    my ($volume, $mask, $distance, $result) = @_;
+- 
++
+    if($smoothing_type eq 'b_spline') {
+       Spawn(['spline_smooth', '-full_support', '-distance', $distance,
+               '-b_spline', '-lambda', $spline_lambda, '-subsample',
+               $spline_subsample, '-mask', $mask, $volume, $result]);
+    } elsif($smoothing_type eq 'tp_spline') {
+-      Spawn(['spline_smooth', '-distance', $distance, '-tp_spline', 
+-              '-lambda', $spline_lambda, '-subsample', $spline_subsample, 
++      Spawn(['spline_smooth', '-distance', $distance, '-tp_spline',
++              '-lambda', $spline_lambda, '-subsample', $spline_subsample,
+               '-mask', $mask, $volume, $result]);
+    }
+ }
+@@ -582,14 +582,14 @@
+ #@NAME       : &normalize_field_volume
+ #@INPUT      : $_[0]  name of volume to normalize
+ #              $_[1]  name of mask volume
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: normalize volume to have mean 1.0 within mask
+-#@METHOD     :  
+-#@GLOBALS    : 
++#@METHOD     :
++#@GLOBALS    :
+ #@CALLS      : mincmath, volume_stats
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub normalize_field_volume
+ {
+@@ -598,7 +598,7 @@
+    (-r $_[0]) || die("&normalize_field_volume. Can't read file: $_[0]\n");
+    (-r $_[1]) || die("&normalize_field_volume. Can't read file: $_[1]\n");
+ 
+-   Spawn(['volume_stats', '-quiet', '-mean', '-mask', $mask, $volume],
++   Spawn(['mincstats', '-mask_binvalue', '1', '-quiet', '-mean', '-mask', $mask, $volume],
+          stdout => \$mean);
+    if(chomp($mean) != 0) {
+      Spawn("mincmath -div -const $mean $volume $norm_field_volume");
+@@ -615,14 +615,14 @@
+ #              $_[1]  name of mask volume
+ #              $_[2]  basis function distance
+ #              $_[3]  name of result
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: fit splines to region and produce compact representation
+ #@METHOD     :  default is b_spline smoothing
+ #@GLOBALS    : $smoothing_type
+ #@CALLS      : SplineSmooth
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub compact_spline_volume
+ {
+@@ -633,7 +633,7 @@
+              $spline_lambda, '-subsample', $spline_subsample, '-novolume', '-mask',
+              $mask, $volume, '-compact', $result]);
+    }
+-   else {  
++   else {
+       Spawn(['spline_smooth', '-full_support', '-distance', $distance,
+              '-b_spline', '-lambda', $spline_lambda, '-subsample', $spline_subsample,
+              '-novolume', '-mask', $mask, $volume, '-compact', $result]);
+@@ -644,14 +644,14 @@
+ #@NAME       : &log_transform
+ #@INPUT      : $_[0]  input volume
+ #              $_[1]  output volume (can be same as $_[0]
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: Warning: values near zero may eat the dynamic range of volume
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : uses $_[1].temp as temporary file
+ #@CALLS      : mincmath
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub log_transform
+ {
+@@ -667,14 +667,14 @@
+ #@NAME       : &exp_transform
+ #@INPUT      : $_[0]  input volume
+ #              $_[1]  output volume (can be same as input)
+-#@OUTPUT     : 
++#@OUTPUT     :
+ #@RETURNS    : 1
+-#@DESCRIPTION: 
+-#@METHOD     : 
++#@DESCRIPTION:
++#@METHOD     :
+ #@GLOBALS    : uses $_[0].temp as temporary file
+ #@CALLS      : mincmath
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub exp_transform
+ {
+@@ -687,23 +687,23 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &field_CV
+ #@INPUT      : $_[0]  input volume
+-#              $_[1]  mask 
+-#@OUTPUT     : 
++#              $_[1]  mask
++#@OUTPUT     :
+ #@RETURNS    : CV value
+-#@DESCRIPTION:  Computes coefficient of variation (well, not quite) 
+-#                 of intensity over given volume 
+-#@METHOD     : 
+-#@GLOBALS    : 
++#@DESCRIPTION:  Computes coefficient of variation (well, not quite)
++#                 of intensity over given volume
++#@METHOD     :
++#@GLOBALS    :
+ #@CALLS      : volumeStats
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub field_CV
+ {
+    my ($result, $mean, $stddev);
+ 
+    (-r $_[0]) || die("field_CV. Can't read file: $_[0]\n");
+-   Spawn(['volume_stats', '-quiet', '-stddev', '-mean',
++   Spawn(['mincstats', '-mask_binvalue', '1', '-quiet', '-stddev', '-mean',
+                               '-mask', $_[1], $_[0]], stdout => \$result);
+    ($mean, $stddev) = split("\n",$result);
+    ($stddev =~ /NAN/i) && die("function: field_CV()\n"
+@@ -714,15 +714,15 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &CreateHistory
+ #@INPUT      : $_[0]  name source volume
+-#              $_[1]  name of output volume to get history 
+-#@OUTPUT     : 
+-#@RETURNS    : 
+-#@DESCRIPTION: 
+-#@METHOD     : 
+-#@GLOBALS    : 
++#              $_[1]  name of output volume to get history
++#@OUTPUT     :
++#@RETURNS    :
++#@DESCRIPTION:
++#@METHOD     :
++#@GLOBALS    :
+ #@CALLS      : get_history, put_history
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub CreateHistory
+ {
+@@ -735,15 +735,15 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &substitute_imp_history
+ #@INPUT      : $_[0]  name of imp volume
+-#              $_[1]  new history 
+-#@OUTPUT     : 
+-#@RETURNS    : 
+-#@DESCRIPTION: 
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#              $_[1]  new history
++#@OUTPUT     :
++#@RETURNS    :
++#@DESCRIPTION:
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub substitute_imp_history
+ {
+@@ -772,14 +772,14 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &WorkspaceSampling
+ #@INPUT      : $input_volume, $mask_volume
+-#@OUTPUT     : 
++#@OUTPUT     :
+ #@RETURNS    : list of (new) names of resampled volumes
+-#@DESCRIPTION: Resample volumes into 'work'ing space if necessary 
+-#@METHOD     : 
++#@DESCRIPTION: Resample volumes into 'work'ing space if necessary
++#@METHOD     :
+ #@GLOBALS    : Standard ($Execute, ...)
+ #@CALLS      : CheckSampling
+ #@CREATED    : 96/05/29 J.G.Sled
+-#@MODIFIED   : 
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub WorkspaceSampling
+ {
+@@ -788,21 +788,21 @@
+ 
+    if($workspace_flag)
+    {
+-      if($shrink_workspace != 1.0) {  
+-         ($input_volume = &ShrinkVolume($input_volume, $shrink_workspace)) || 
+-               die("Failed to shrink input volume.\n"); 
++      if($shrink_workspace != 1.0) {
++         ($input_volume = &ShrinkVolume($input_volume, $shrink_workspace)) ||
++               die("Failed to shrink input volume.\n");
+          # use shrunk volume as a model
+          if(defined $mask_volume) {
+             ($mask_volume = &CheckSampling($mask_volume, $input_volume, 1)) ||
+-               die("Failed to shrink mask volume.\n"); 
++               die("Failed to shrink mask volume.\n");
+          }
+       }
+       else {  # user specified workspace
+          $input_volume = &CheckSampling($input_volume, $workspace, 0, 1) ||
+-            die("Failed to shrink input volume.\n"); 
++            die("Failed to shrink input volume.\n");
+          if($mask_volume ne '') {
+             $mask_volume = &CheckSampling($mask_volume, $workspace, 1) ||
+-               die("Failed to shrink mask volume.\n"); 
++               die("Failed to shrink mask volume.\n");
+          }
+       }
+       ($input_volume, $mask_volume);
+@@ -818,18 +818,18 @@
+ #@INPUT      : $file, $model, $isLabelVolume, $useNearestNeighbour
+ #@OUTPUT     : none
+ #@RETURNS    : $file
+-#@DESCRIPTION: Checks whether the sampling space of $file matches that of 
++#@DESCRIPTION: Checks whether the sampling space of $file matches that of
+ #              $model, and resamples $file if necessary (not allowing for
+ #              transformations).
+ #              when $isLabelVolume is true, resample_labels is used rather than
+ #              mincresample.
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : Standard ($Execute, ...)
+ #@CALLS      : mincresample  resample_labels
+ #@CREATED    : 96/03/19, Alex Zijdenbos
+ #@MODIFIED   : 96/05/29 J.G.Sled
+ #-----------------------------------------------------------------------------
+-sub CheckSampling 
++sub CheckSampling
+ {
+    my($file, $model, $isLabelVolume, $useNearestNeighbour) = @_;
+    my ($resample_type);
+@@ -837,12 +837,12 @@
+    # Get file params
+    my(@fileStart, @fileStep, @fileLength, @fileDircos);
+    &volume_params($file, \@fileStart, \@fileStep, \@fileLength, \@fileDircos);
+-   
++
+    # Get model params
+    my(@modelStart, @modelStep, @modelLength, @modelDircos);
+    volume_params($model, \@modelStart, \@modelStep,
+                   \@modelLength, \@modelDircos);
+-   
++
+    my ($cosine_tolerance) = 1e-5;
+    if (!&comp_num_lists_tol(\@fileDircos, \@modelDircos, $cosine_tolerance)) {
+       print "Direction cosines of $file and $model do not match\n";
+@@ -854,20 +854,20 @@
+        !&comp_num_lists(\@fileStep, \@modelStep) ||
+        !&comp_num_lists(\@fileLength, \@modelLength)) {
+       &verbose("Resampling $file like $model\n");
+-      
++
+       my($resampledFile) = &UniqueMincFile(replace_dir($TmpDir, $file));
+-      
++
+       if (defined($isLabelVolume) && $isLabelVolume) {
+          Spawn(['resample_labels', '-resample', "-like $model",
+                 $file, "$resampledFile.temp"]);
+-         # this to work around a bug in resample labels, remove as soon as 
++         # this to work around a bug in resample labels, remove as soon as
+          #  possible
+          Spawn(['mincresample', '-like', $model, "$resampledFile.temp",
+                  $resampledFile]);
+          Spawn(['rm', "$resampledFile.temp"]);
+       }
+       else {
+-         # pick resampling type 
++         # pick resampling type
+          $resample_type = ($useNearestNeighbour) ? '-nearest_neighbour' :
+             '-trilinear';
+          Spawn(['mincresample', $resample_type, '-like', $model,
+@@ -875,7 +875,7 @@
+       }
+       $file = $resampledFile;
+    }
+-   
++
+    $file;
+ }
+ 
+@@ -883,23 +883,23 @@
+ #@NAME       : comp_num_lists
+ #@INPUT      : $a1 - reference to first list
+ #              $a2 - reference to second list
+-#@OUTPUT     : 
++#@OUTPUT     :
+ #@RETURNS    : 0 if any mismatch between the two lists (i.e. they are of
+ #                different length, or any corresponding elements aren't
+ #                equal in the numeric sense)
+ #              1 if the two lists are numerically identical
+-#@DESCRIPTION: 
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
++#@DESCRIPTION:
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
+ #@CREATED    : 96/02/12 GPW (direct copyof comp_arrays in autocrop)
+-#@MODIFIED   : 
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub comp_num_lists
+ {
+    die "comp_num_lists: wrong number of arguments" unless (@_ == 2);
+    local ($a1, $a2) = @_;
+-   
++
+    return 0 unless (@$a1 == @$a2);
+    for $i (0 .. $#$a1)
+    {
+@@ -913,25 +913,25 @@
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &comp_num_lists_tol
+ #@INPUT      : list1, list2, tolerance
+-#@OUTPUT     : 
++#@OUTPUT     :
+ #@RETURNS    : 1 if lists are same within given tolerance
+ #              0 otherwise
+-#@DESCRIPTION: 
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
++#@DESCRIPTION:
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
+ #@CREATED    : June 3, 1996
+-#@MODIFIED   : 
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub comp_num_lists_tol
+ {
+    die "comp_num_lists_tol: wrong number of arguments\n" unless (@_ == 3);
+    local ($a1, $a2, $tol) = @_;
+-   
++
+    return 0 unless (@$a1 == @$a2);
+    for $i (0 .. $#$a1)
+    {
+-      return 0 
++      return 0
+          unless (abs($a1->[$i]-$a2->[$i]) < $tol);
+    }
+    return 1;
+@@ -943,13 +943,13 @@
+ #@OUTPUT     : resampledFile
+ #@RETURNS    : name of shrunk volume or ''
+ #@DESCRIPTION: reduce sampling in finest sampling direction by given factor
+-#              reduce other sampling directions only if reduced sampling is 
++#              reduce other sampling directions only if reduced sampling is
+ #               less.  Uses nearest neighbour resampling.
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : Standard ($Execute, ...)
+-#@CALLS      : mincresample  
++#@CALLS      : mincresample
+ #@CREATED    : 96/05/29 J.G.Sled
+-#@MODIFIED   : 
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub ShrinkVolume
+ {
+@@ -957,13 +957,13 @@
+    my (@step, @length, $i, $newstep);
+ 
+    &volume_params($volume, undef, \@step, \@length, undef);
+-   
++
+    # find smallest step size
+-   $newstep = (abs($step[0]) < abs($step[1])) ? $step[0] : $step[1]; 
++   $newstep = (abs($step[0]) < abs($step[1])) ? $step[0] : $step[1];
+    $newstep = (abs($step[2]) < abs($newstep)) ? $step[2] : $newstep;
+ 
+    $newstep = abs($newstep * $factor);
+-  
++
+    for($i = 0; $i < 3; $i++) {
+       if(abs($step[$i]) < $newstep) {
+          $step[$i] = $step[$i] * $factor;
+@@ -978,13 +978,13 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &UniqueMincFile
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: make sure give filenames are unique by adding _ characters
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
+ #@CREATED    : 96/03/19, Alex Zijdenbos
+ #@MODIFIED   : 96/05/29 J.G.Sled
+ #-----------------------------------------------------------------------------
+@@ -1007,15 +1007,15 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &print_info
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
+-#@DESCRIPTION: 
+-#@METHOD     : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
++#@DESCRIPTION:
++#@METHOD     :
+ #@GLOBALS    : almost all of them
+ #@CALLS      :
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub print_info
+ {
+@@ -1034,7 +1034,7 @@
+       (@variance_override) &&
+          print RECORD "Tissue variances overridden with values:"
+             ." @variance_override\n";
+-      if((not @probability_maps) || 
++      if((not @probability_maps) ||
+          ($probability_maps[0] =~ /default/)) {
+          print RECORD "Using default tissue probability maps. \n";
+       }
+@@ -1083,7 +1083,7 @@
+    if($smoothing_type eq 'b_spline') {
+       print RECORD "\nSpatial filtering done by B spline approximation with"
+      ." $distance"."mm\n between basis functions (lambda = $spline_lambda).\n";
+-      ($spline_subsample > 1) && 
++      ($spline_subsample > 1) &&
+          print RECORD "Subsampling during fitting step by factor of"
+             ." $spline_subsample\n";
+    }
+@@ -1091,7 +1091,7 @@
+       print RECORD "\nSpatial filtering done by thin plate spline"
+          ." approximation with $distance"
+             ."mm\n between basis functions (lambda = $spline_lambda).\n";
+-      ($spline_subsample > 1) && 
++      ($spline_subsample > 1) &&
+          print RECORD "Subsampling during fitting step by factor of"
+             ." $spline_subsample\n";
+    }
+@@ -1109,15 +1109,15 @@
+ #@RETURNS    : References to the two option tables:
+ #                @pref_args
+ #                @protocol_args
+-#@DESCRIPTION: Defines the tables of command line (and config file) 
++#@DESCRIPTION: Defines the tables of command line (and config file)
+ #              options that we pass to ParseArgs.
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : makes references to many globals (almost all of 'em in fact)
+ #              even though most of them won't have been defined when
+ #              this is called
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub SetupArgTables
+ {
+@@ -1131,11 +1131,11 @@
+ 
+    # Preferences -- these shouldn't affect the results
+ 
+-   @pref_args = 
++   @pref_args =
+       (["General Options", "section"],
+-       ["-verbose|-quiet", "boolean", 0, \$Verbose, 
++       ["-verbose|-quiet", "boolean", 0, \$Verbose,
+ 	"be noisy [default; opposite is -quiet]" ],
+-       ["-execute|-noexecute", "boolean", 0, \$Execute, 
++       ["-execute|-noexecute", "boolean", 0, \$Execute,
+ 	"actually execute planned commands [default]"],
+        ["-clobber|-noclobber", "boolean", 0, \$Clobber,
+ 	"overwrite output files [default: -noclobber]"],
+@@ -1152,16 +1152,16 @@
+        ["-version", "call", undef, \&print_version,
+         "print version and quit"]);
+ 
+-   # Protocol (data-specific) options 
++   # Protocol (data-specific) options
+ 
+-   @protocol_args = 
++   @protocol_args =
+       (["General Options","section"],
+        ["-distance", "float", 1, \$distance,
+ 	"characteristic distance over which field varies in mm",
+         "<value>" ],
+        ["-fwhm", "float", 1, \$distance,
+ 	"same as -distance option (this terminology is obsolete)", "<value>"],
+-       ["-fir", "const", 'fir', \$smoothing_type, 
++       ["-fir", "const", 'fir', \$smoothing_type,
+         "use truncated finite impulse response filter for smoothing"],
+        ["-b_spline", "call", undef, \&optional_float_callback,
+         "Use tensor B splines for smoothing instead of filter " .
+@@ -1183,15 +1183,15 @@
+         ." brain mask if the subject is in talairach space or by choosing"
+         ." a threshold by histogram analysis"
+         ." (this option is be overridden by the -mask and -bimodalT options)"],
+-       ["-islands", "float", 1, \$islands_threshold, 
++       ["-islands", "float", 1, \$islands_threshold,
+         "remove isolated voxels from mask at given threshold"
+-        ." [0,1]   (this will depend on filter size, but try 0.1 - 0.2)", 
++        ." [0,1]   (this will depend on filter size, but try 0.1 - 0.2)",
+         "<threshold>"],
+        ["-iterations", "call", undef, \&multiple_int_callback,
+ 	"<number> number of classification / field estimation cycles"],
+        ["-stop", "call", undef, \&multiple_float_callback,
+         "CV of change in field estimate below which"
+-        ." iteration stops (suggest 0.01 to 0.0001)", "<threshold>" ], 
++        ." iteration stops (suggest 0.01 to 0.0001)", "<threshold>" ],
+        ["-shrink", "float", 1, \$shrink_workspace,
+         "specify a smaller workspace; the"
+         ." sampling in each dimension is reduced to that of the finest"
+@@ -1209,19 +1209,19 @@
+        ["-variance", "call", undef, \&multiple_float_callback,
+ 	"override variance(s) for tissue statistics", "<v1 v2 ...>"],
+        ["-probability", "call", undef, \&probability_callback,
+-	"use probability maps (default unless -sharpen option is given)", 
++	"use probability maps (default unless -sharpen option is given)",
+         "<none | default | map1.mnc map2.mnc ... >"],
+        ["-real|-log", "boolean", 0, \$real_flag,
+ 	"do classification in real or log domain (default -log)"],
+-       
+-       ["Non-parametric Specific Options","section"],       
++
++       ["Non-parametric Specific Options","section"],
+        ["-sharpen", "float", 2, \@sharpen_options,
+         "use non-parametric correction method", "<fwhm> <noise>"],
+        ["-nodeblur|-deblur", "boolean", undef, \$nodeblur_flag,
+         "skip deblurring step in sharpening method"],
+        ["-parzen|-noparzen", "boolean", undef, \$parzen_flag,
+         "use Parzen window for non-parametric distribution estimation"
+-        ." (default -noparzen)"], 
++        ." (default -noparzen)"],
+        ["-bins", "integer", 1, \$sharpen_bins,
+         "specify number of bins for histograms", "<number>"],
+        ["-save_histograms", "boolean", undef, \$save_histograms_flag,
+@@ -1239,7 +1239,7 @@
+         "process differential fields"],
+        ["-save_fields", "boolean", 0, \$save_fields_flag,
+         "save field estimate after each iteration"],
+-       ["-workspace", "string", 1, \$workspace, 
++       ["-workspace", "string", 1, \$workspace,
+         "space template (MINC file) to derive field in. "
+         ." If the argument does not exist, the space of the source volumes"
+         ." will be used."],
+@@ -1251,16 +1251,16 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &multiple_float_callback
+-#@INPUT      : 
+-#@OUTPUT     : 
++#@INPUT      :
++#@OUTPUT     :
+ #@RETURNS    : null on failure
+-#@DESCRIPTION: Callback function for ParseArgs that takes one or more 
++#@DESCRIPTION: Callback function for ParseArgs that takes one or more
+ #               floats from the command line
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : @variance_override, @reduce_threshold
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub multiple_float_callback
+ {
+@@ -1270,7 +1270,7 @@
+    while(@$args[0] =~ /^[+-]?([1-9]\d*(\.\d*)?|0?\.\d+)([Ee][+-]?\d+)?$/) {
+       push(@floats, shift(@$args));
+    }
+-   
++
+    ($opt =~ /^-variance$/i) && (@variance_override = @floats);
+    ($opt =~ /^-reduce$/i) && (@reduce_threshold = @floats);
+    ($opt =~ /^-stop$/i) && (@stopping_threshold = @floats);
+@@ -1285,16 +1285,16 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &multiple_int_callback
+-#@INPUT      : 
+-#@OUTPUT     : 
++#@INPUT      :
++#@OUTPUT     :
+ #@RETURNS    : null on failure
+-#@DESCRIPTION: Callback function for ParseArgs that takes one or more 
++#@DESCRIPTION: Callback function for ParseArgs that takes one or more
+ #               ints from the command line
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : @variance_override, @reduce_threshold
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub multiple_int_callback
+ {
+@@ -1304,7 +1304,7 @@
+    while(@$args[0] =~ /^[+-]?[1-9]\d*$/) {
+       push(@floats, shift(@$args));
+    }
+-   
++
+    ($opt =~ /^-iterations$/i) && (@iteration_stages = @floats);
+    if($#floats < 0) {
+       print "Not enough arguments of integer type for option $opt\n";
+@@ -1317,21 +1317,21 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &optional_float_callback
+-#@INPUT      : 
+-#@OUTPUT     : 
++#@INPUT      :
++#@OUTPUT     :
+ #@RETURNS    : 1
+ #@DESCRIPTION: Callback function for ParseArgs that takes an optional
+ #               float from the command line
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : $smoothing_type
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub optional_float_callback
+ {
+    my ($opt, $args) = @_;
+-   
++
+    ($opt =~ /^-b_spline$/i) && ($smoothing_type = 'b_spline');
+    ($opt =~ /^-tp_spline$/i) && ($smoothing_type = 'tp_spline');
+ 
+@@ -1346,16 +1346,16 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &probability_callback
+-#@INPUT      : 
+-#@OUTPUT     : 
++#@INPUT      :
++#@OUTPUT     :
+ #@RETURNS    : null on failure
+-#@DESCRIPTION: Callback function for ParseArgs that takes none, default, or 
++#@DESCRIPTION: Callback function for ParseArgs that takes none, default, or
+ #               one or more minc volumes from the command line
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : @probability_maps
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub probability_callback
+ {
+@@ -1388,11 +1388,11 @@
+ #@DESCRIPTION: Sets the $Help and $Usage globals, and registers them
+ #              with ParseArgs so that user gets useful error and help
+ #              messages.
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : $Help, $Usage
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub SetHelp
+ {
+@@ -1407,7 +1407,7 @@
+ 
+    $Help = <<HELP;
+ 
+-$ProgramName is a script that iteratively estimates intensity 
++$ProgramName is a script that iteratively estimates intensity
+    non-uniformity in an MRI volume
+ 
+ HELP
+@@ -1417,31 +1417,31 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &ValidateArgs
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: Checks global variables for inconsistencies caused by bad
+ #               combinations of arguments
+-#@METHOD     : 
+-#@GLOBALS    : NUcorrect specific: many 
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@METHOD     :
++#@GLOBALS    : NUcorrect specific: many
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub ValidateArgs
+ {
+    if($sharpen_flag) {
+-      ( @probability_option) && 
++      ( @probability_option) &&
+          die("-probability option not compatible with -sharpen\n");
+-      (defined $mean_file) && 
++      (defined $mean_file) &&
+          die("-mean option not compatible with -sharpen\n");
+-      (defined $tag_file) && 
++      (defined $tag_file) &&
+          die("-tag option not compatible with -sharpen\n");
+-      ( @variance_override) && 
++      ( @variance_override) &&
+          die("-variance option not compatible with -sharpen\n");
+       ( @reduce_flag) &&
+          die("-reduce option not compatible with -sharpen\n");
+-      ($sharpen_options[0] > 0 && $sharpen_options[1] > 0) || 
++      ($sharpen_options[0] > 0 && $sharpen_options[1] > 0) ||
+         die("Invalid sharpen parameters: $sharpen_options[0]".
+                " $sharpen_options[1]\n");
+    }
+@@ -1463,7 +1463,7 @@
+       die("Subsampling factor for splines should be positive.\n");
+    (defined $workspace && $shrink_workspace != 1.0) &&
+       die("-workspace and -shrink options are not compatible\n");
+-   ( @stopping_threshold && 
++   ( @stopping_threshold &&
+     ($#stopping_threshold != $#iteration_stages)) &&
+       die("Number of arguments to -iterations and -stop must match\n");
+ 
+@@ -1480,7 +1480,7 @@
+       die("Cannot read mask volume: $user_mask_volume\n");
+    (defined $initial_volume && !(-r $initial_volume)) &&
+       die("Cannot read initial field volume: $initial_volume\n");
+-   (-r $average_brain_mask) || 
++   (-r $average_brain_mask) ||
+       (print "Warning: Cannot read average brain mask: $average_brain_mask\n");
+ 
+    check_output_dirs($TmpDir,$output_directory);
+@@ -1488,21 +1488,21 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &CreateFilenames
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: generate names for all intermediate files
+-#@METHOD     : 
+-#@GLOBALS    : many filenames 
+-#@CALLS      : 
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@METHOD     :
++#@GLOBALS    : many filenames
++#@CALLS      :
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub CreateFilenames
+ {
+-   ($output_directory, $basename) = split_path($output_mapping, 
++   ($output_directory, $basename) = split_path($output_mapping,
+         'last', [qw(gz z Z)]);
+-    
++
+    $log_volume = "$TmpDir$basename" ."_log.mnc";
+    $tissue_stats = "$TmpDir$basename" . ".means";
+    $mask_volume = "$TmpDir$basename" . "_mask.mnc";
+@@ -1520,50 +1520,50 @@
+ 
+ # ------------------------------ MNI Header ----------------------------------
+ #@NAME       : &Initialize
+-#@INPUT      : 
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@INPUT      :
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: Sets global variables, parses command line.  Dies on
+ #              any error.
+-#@METHOD     : 
++#@METHOD     :
+ #@GLOBALS    : preferences: $Verbose, $Execute, $Clobber, $Debug, $KeepTmp
+-#              NUcorrect specific: many 
++#              NUcorrect specific: many
+ #@CALLS      : &SetSpawnOptions
+ #              &SetupArgTables
+ #              &ParseArgs::Parse
+-#@CREATED    : 
+-#@MODIFIED   : 
++#@CREATED    :
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+ sub Initialize
+ {
+    my ($pref_tbl, $protocol_tbl, $reducedARGV);
+ 
+-   # Set defaults for the global variables.  These can be overridden by 
++   # Set defaults for the global variables.  These can be overridden by
+    # the command line.
+    $Verbose      = 0;
+ 
+    &SetHelp;
+    $Invocation = "$0 @ARGV";
+- 
++
+    # NUcorrect specific parameters
+    $distance = 200;            # major smoothing parameter
+-   $spline_lambda = "1.0e-7";  # minor smoothing parameter for splines      
++   $spline_lambda = "1.0e-7";  # minor smoothing parameter for splines
+    $spline_subsample = 1;
+    $iterations = 5;
+    $background_threshold = 1;
+    $islands_threshold = 0;
+    $shrink_workspace = 1.0;  # no change
+    $sharpen_bins = 200;
+-  
++
+    # change from MNI::Datadir (no-portable) to FindBin
+    # $default_model_data = MNI::DataDir::dir('N3');  # find where model data is kept
+    $default_model_data = "$FindBin::Bin/../share/N3";
+ 
+    @default_probability_maps =
+-      ("$default_model_data/TPM/prob_map_rfc_csf.mnc", 
+-       "$default_model_data/TPM/prob_map_rfc_gry.mnc", 
++      ("$default_model_data/TPM/prob_map_rfc_csf.mnc",
++       "$default_model_data/TPM/prob_map_rfc_gry.mnc",
+        "$default_model_data/TPM/prob_map_rfc_wht.mnc");
+-   $average_brain_mask = 
++   $average_brain_mask =
+       "$default_model_data/icbm_avg_152_t1_tal_nlin_symmetric_VI_mask.mnc";
+       ### "$default_model_data/average_305_mask_1mm.mnc.gz";    ### old
+ 
+@@ -1606,8 +1606,8 @@
+                        ."\\.mnc\\.Z|\\.mnc\\.z)\$", "minc volume");
+    GetOptions([@$pref_tbl, @$protocol_tbl], \@ARGV, \@reducedARGV)
+          || exit 1;
+-   if (@reducedARGV != 2) 
+-   { 
++   if (@reducedARGV != 2)
++   {
+       print STDERR "Leftover args: @reducedARGV\n" if @reducedARGV;
+       print STDERR $Usage;
+       die "Incorrect number of arguments\n";
+@@ -1615,17 +1615,17 @@
+    ($input_volume, $output_mapping) = @reducedARGV;
+ 
+    # expand some arguments
+-   ( @iteration_stages) && 
++   ( @iteration_stages) &&
+       ($iterations = $iteration_stages[$#iteration_stages]);
+    ( @sharpen_options) && ($sharpen_flag = 1);
+    (defined $workspace || $shrink_workspace != 1.0) && ($workspace_flag = 1);
+-   @variance_option  = ( @variance_override) ? 
++   @variance_option  = ( @variance_override) ?
+       ('-variance', @variance_override) : ();
+-   @reduce_option = ( @reduce_threshold) ? 
++   @reduce_option = ( @reduce_threshold) ?
+       ('-reduce', @reduce_threshold) : ();
+     if( @probability_maps) {
+       if($probability_maps[0] =~ /^default$/i) {
+-         @probability_option = ('-probability', 
++         @probability_option = ('-probability',
+             join(',', @default_probability_maps));
+       }
+       else {
+@@ -1635,15 +1635,15 @@
+    else {
+       @probability_maps = @default_probability_maps;
+       @probability_option = ();
+-   } 
++   }
+    @blur_option = ($nodeblur_flag) ? ("-blur") : ();
+    &CreateFilenames;
+ 
+    if( $smoothing_type eq 'fir' || $islands_threshold > 0 ) {
+      $need_mincblur = 1;
+    }
+-   
+-   # check that we are using the np method as progs for em method 
++
++   # check that we are using the np method as progs for em method
+    # are not longer included in the N3 distribution - Andrew 6/10/2008
+    if(defined($mean_file) || defined($tag_file)){
+       die("The EM method is no longer supported, please desist from using -mean and -tag..\n\n");
+@@ -1652,18 +1652,18 @@
+    if(!$sharpen_flag){
+       die("Please use a '-sharpen 100 0.01' option or equivalent as the EM method is no longer supported..\n\n");
+       }
+-   
++
+    # validate argument combinations and check filenames
+    &ValidateArgs;
+ 
+    # Set global variables for calling various programs
+    MNI::Spawn::SetOptions (strict  => 2);
+    my @local_programs = ($sharpen_flag) ?
+-      ('spline_smooth', 'volume_stats',
++      ('spline_smooth', 'volume_stats', 'mincstats',
+        'sharpen_volume',   'mincinfo', 'mincmath',
+        'mincresample',     'resample_labels') :
+       ('class_statistics', 'estimate', 'spline_smooth', 'volume_stats',
+-       'mincinfo',       'mincmath', 
++       'mincinfo',       'mincmath',
+        'mincresample', 'resample_labels');
+    ($need_mincblur) && push(@local_programs, 'mincblur');
+ 
+@@ -1671,11 +1671,11 @@
+    RegisterPrograms([(@local_programs, qw(rm cp mv))]);
+ 
+    $verbose_option = ($Verbose) ? '-verbose' : '-quiet';
+- 
+-   (!$sharpen_flag) && AddDefaultArgs('estimate', [$verbose_option]); 
+-   ($sharpen_flag) && AddDefaultArgs('sharpen_volume', 
++
++   (!$sharpen_flag) && AddDefaultArgs('estimate', [$verbose_option]);
++   ($sharpen_flag) && AddDefaultArgs('sharpen_volume',
+                                      ['-clobber', $verbose_option]);
+-   $need_mincblur && 
++   $need_mincblur &&
+      AddDefaultArgs('mincblur', ['-clobber', '-no_apodize', $verbose_option]);
+    AddDefaultArgs(['spline_smooth', 'mincresample', 'resample_labels',
+                    'mincmath'], ['-clobber', $verbose_option]);
+@@ -1689,7 +1689,7 @@
+       print SCRIPT "$Invocation\n";
+       close(SCRIPT);
+ 
+-      system("chmod +x $script"); 
++      system("chmod +x $script");
+    }
+ 
+    &verbose("\nUncorrected volume (input): $input_volume");
+@@ -1698,22 +1698,20 @@
+ 
+ 
+ # ------------------------------ MNI Header ----------------------------------
+-#@NAME       : &verbose 
++#@NAME       : &verbose
+ #@INPUT      : $str - message to print
+-#@OUTPUT     : 
+-#@RETURNS    : 
++#@OUTPUT     :
++#@RETURNS    :
+ #@DESCRIPTION: prints message, as long as global $Verbose flag is true
+-#@METHOD     : 
+-#@GLOBALS    : 
+-#@CALLS      : 
++#@METHOD     :
++#@GLOBALS    :
++#@CALLS      :
+ #@CREATED    : Louis Collins
+-#@MODIFIED   : 
++#@MODIFIED   :
+ #-----------------------------------------------------------------------------
+-sub verbose 
+-{ 
++sub verbose
++{
+    local($str) = @_;
+-   
++
+    print "$str\n" if $Verbose;
+ }
+-
+-
