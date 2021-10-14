@@ -493,9 +493,16 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-
     # managing log info
     cli_file = f'{output_folder}/rabies_{opts.rabies_step}.pkl'
+    if os.path.isfile(cli_file):
+        raise ValueError(f"""
+            A previous run was indicated by the presence of {cli_file}.
+            This can lead to inconsistencies between previous outputs and the log files.
+            To prevent this, you are required to manually remove {cli_file}, and we 
+            recommend also removing previous datasinks from the {opts.rabies_step} RABIES step.
+            """)
+
     with open(cli_file, 'wb') as handle:
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
