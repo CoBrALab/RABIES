@@ -113,11 +113,6 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
         from .analysis_functions import dual_ICA_wrapper
-        from .data_diagnosis import resample_IC_file
-        resample_IC = pe.Node(Function(input_names=['in_file', 'ref_file'],
-                                     output_names=['out_file'],
-                                     function=resample_IC_file),
-                            name='resample_IC', mem_gb=1)
 
         dual_ICA_node = pe.Node(dual_ICA_wrapper(),
                             name='dual_ICA_node', mem_gb=1)

@@ -1,6 +1,6 @@
 import numpy as np
 import nibabel as nb
-
+from .analysis_math import vcorrcoef,closed_form
 
 def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
     import os
@@ -55,15 +55,6 @@ def seed_corr(bold_file, brain_mask, seed):
     corrs = vcorrcoef(sub_timeseries, seed_timeseries)
     corrs[np.isnan(corrs)] = 0
     return corrs
-
-
-def vcorrcoef(X, y):  # return a correlation between each row of X with y
-    Xm = np.reshape(np.mean(X, axis=1), (X.shape[0], 1))
-    ym = np.mean(y)
-    r_num = np.sum((X-Xm)*(y-ym), axis=1)
-    r_den = np.sqrt(np.sum((X-Xm)**2, axis=1)*np.sum((y-ym)**2))
-    r = r_num/r_den
-    return r
 
 
 def get_CAPs(data, volumes, n_clusters):
@@ -305,21 +296,6 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
     recover_3D_multiple(mask_file,DR['C']).to_filename(DR_maps_filename)
     return DR_maps_filename, dual_regression_timecourse_csv
-
-
-'''
-LINEAR REGRESSION --- CLOSED-FORM SOLUTION
-'''
-
-
-def closed_form(X, Y, intercept=False):  # functions that computes the Least Squares Estimates
-    if intercept:
-        X = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1)
-    return np.linalg.inv(X.transpose().dot(X)).dot(X.transpose()).dot(Y)
-
-
-def mse(X, Y, w):  # function that computes the Mean Square Error (MSE)
-    return np.mean((Y-np.matmul(X, w))**2)
 
 
 def dual_regression(all_IC_vectors, timeseries):
