@@ -188,50 +188,61 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
+            ("outputnode.DR_nii_file", "dual_regression_nii"),
+            ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
+            ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+            ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
             ]),
         ])
 
     if analysis_opts.data_diagnosis:
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, name="diagnosis_wf")
+        def prep_analysis_dict(dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
+            return {'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+                                            output_names=[
+                                                'analysis_dict'],
+                                        function=prep_analysis_dict),
+                                name=analysis_opts.output_name+'_prep_analysis_dict')
+
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, name=analysis_opts.output_name+"diagnosis_wf")
 
         workflow.connect([
+            (analysis_wf, prep_analysis_dict_node, [
+                ("outputnode.DR_nii_file", "dual_regression_nii"),
+                ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
+                ]),
             (joinnode_main, diagnosis_wf, [
                 ("file_list", "inputnode.mask_dict_list"),
                 ]),
             (find_iterable_node, diagnosis_wf, [
                 ("file", "inputnode.file_dict"),
                 ]),
-            ])
-
-        workflow.connect([
+            (prep_analysis_dict_node, diagnosis_wf, [
+                ("analysis_dict", "inputnode.analysis_dict"),
+                ]),
             (diagnosis_wf, analysis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
                 ("outputnode.VE_file", "VE_file"),
                 ("outputnode.figure_dataset_diagnosis", "figure_dataset_diagnosis"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
-                ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
-                ("outputnode.dual_regression_nii", "dual_regression_nii"),
-                ("outputnode.dual_ICA_nii", "dual_ICA_nii"),
-                ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
                 ]),
             ])
-
-    else:
-        workflow.connect([
-            (analysis_wf, analysis_datasink, [
-                ("outputnode.DR_nii_file", "dual_regression_nii"),
-                ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-                ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
-                ]),
-            ])
-
+        if opts.dual_ICA>0:
+            workflow.connect([
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+                    ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+                    ]),
+                ])
+        else:
+            prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
+            prep_analysis_dict_node.inputs.dual_ICA_filename = None
 
     return workflow
 

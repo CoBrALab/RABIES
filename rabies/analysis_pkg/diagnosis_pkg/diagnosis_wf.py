@@ -11,11 +11,10 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['mask_dict_list', 'file_dict']), name='inputnode')
+        fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 'VE_file',
-                                                       'figure_dataset_diagnosis', 'temporal_info_csv', 'dual_regression_timecourse_csv', 
-                                                       'temporal_std_nii', 'GS_corr_nii', 'DVARS_corr_nii', 'FD_corr_nii', 'dual_regression_nii',
-                                                       'dual_ICA_nii', 'dual_ICA_timecourse_csv']), name='outputnode')
+                                                       'figure_dataset_diagnosis', 'temporal_info_csv', 'temporal_std_nii', 'GS_corr_nii',
+                                                       'temporal_std_nii', 'GS_corr_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
     if not (commonspace_bold or opts.bold_only):
         raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
@@ -62,6 +61,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
             ]),
         (inputnode, ScanDiagnosis_node, [
             ("file_dict", "file_dict"),
+            ("analysis_dict", "analysis_dict"),
             ]),
         (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
             ("spatial_info", "spatial_info_list"),

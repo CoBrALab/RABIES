@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import nibabel as nb
+import pandas as pd
 import matplotlib.pyplot as plt
 from rabies.analysis_pkg import analysis_functions, prior_modeling
 import SimpleITK as sitk
@@ -104,7 +105,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
+def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
     temporal_info = {}
     spatial_info = {}
 
@@ -142,13 +143,16 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
         all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
 
     '''Temporal Features'''
-    DR = analysis_functions.dual_regression(all_IC_vectors, timeseries)
-    temporal_info['DR_all'] = DR['W']
-    spatial_info['DR_BOLD'] = DR['C'][prior_bold_idx]
-    spatial_info['DR_all'] = DR['C']
+    DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
+    DR_array = np.asarray(nb.load(analysis_dict['dual_regression_nii']).dataobj)
+    DR_C = np.zeros([DR_array.shape[3], volume_indices.sum()])
+    for i in range(DR_array.shape[3]):
+        DR_C[i, :] = (DR_array[:, :, :, i])[volume_indices]
 
-    signal_trace = np.abs(DR['W'][:, prior_bold_idx]).mean(axis=1)
-    noise_trace = np.abs(DR['W'][:, prior_confound_idx]).mean(axis=1)
+    temporal_info['DR_all'] = DR_W
+
+    signal_trace = np.abs(DR_W[:, prior_bold_idx]).mean(axis=1)
+    noise_trace = np.abs(DR_W[:, prior_confound_idx]).mean(axis=1)
     temporal_info['signal_trace'] = signal_trace
     temporal_info['noise_trace'] = noise_trace
 
@@ -173,9 +177,15 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, prior_bold_idx, 
 
     prior_fit_out = {'C': [], 'W': []}
     if dual_ICA > 0:
-        num_comp = dual_ICA
-        prior_fit_out = prior_modeling.dual_ICA_fit(
-            timeseries, num_comp, all_IC_vectors, prior_bold_idx)
+        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['dual_ICA_timecourse_csv'], header=None))
+        C_array = np.asarray(nb.load(analysis_dict['dual_ICA_filename']).dataobj)
+        C = np.zeros([C_array.shape[3], volume_indices.sum()])
+        for i in range(C_array.shape[3]):
+            C[i, :] = (C_array[:, :, :, i])[volume_indices]
+        prior_fit_out['C'] = C
+
+    spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
+    spatial_info['DR_all'] = DR_C
 
     spatial_info['dual_ICA_maps'] = prior_fit_out['C']
     temporal_info['dual_ICA_time'] = prior_fit_out['W']
@@ -362,7 +372,6 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax4.set_xlim([0, len(y)-1])
 
     # plot the motion timecourses
-    import pandas as pd
     confounds_csv = CR_data_dict['confounds_csv']
     time_range = CR_data_dict['time_range']
     frame_mask = CR_data_dict['frame_mask']

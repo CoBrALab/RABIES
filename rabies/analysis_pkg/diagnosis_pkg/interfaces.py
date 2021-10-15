@@ -81,6 +81,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="A dictionary regrouping the all required accompanying files.")
     mask_file_dict = traits.Dict(
         desc="A dictionary regrouping the all required accompanying files.")
+    analysis_dict = traits.Dict(
+        desc="A dictionary regrouping relevant outputs from analysis.")
     prior_bold_idx = traits.List(
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
@@ -127,7 +129,7 @@ class ScanDiagnosis(BaseInterface):
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
+            bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)

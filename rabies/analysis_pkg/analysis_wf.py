@@ -61,7 +61,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
 
     include_group_ICA = opts.group_ICA
 
-    if opts.DR_ICA and not opts.data_diagnosis:
+    if opts.DR_ICA or opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_analysis.')
@@ -108,7 +108,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ]),
             ])
 
-    if opts.dual_ICA>0 and not opts.data_diagnosis:
+    if opts.dual_ICA>0:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
