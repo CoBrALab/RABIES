@@ -131,7 +131,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                                        function=read_dict),
                               name=analysis_opts.output_name+'_read_dict')
 
-    workflow,find_iterable_node, joinnode_main,analysis_split = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix=analysis_opts.output_name)
+    workflow,find_iterable_node, joinnode_main,analysis_split,scan_split_name = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix=analysis_opts.output_name)
 
     analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
                                          name=analysis_opts.output_name+'_split_joinnode',
@@ -205,7 +205,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                                         function=prep_analysis_dict),
                                 name=analysis_opts.output_name+'_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, name=analysis_opts.output_name+"diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, scan_split_name, name=analysis_opts.output_name+"diagnosis_wf")
 
         workflow.connect([
             (analysis_wf, prep_analysis_dict_node, [
@@ -225,7 +225,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
                 ("outputnode.VE_file", "VE_file"),
-                ("outputnode.figure_dataset_diagnosis", "figure_dataset_diagnosis"),
+                ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
@@ -233,7 +233,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),
             ])
-        if opts.dual_ICA>0:
+        if analysis_opts.dual_ICA>0:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
@@ -298,7 +298,7 @@ def transit_iterables(workflow, prep_dict_node, scan_list, bold_only, bold_scan_
                 ]),
             ])
 
-    return workflow,find_iterable_node, joinnode_main,analysis_split
+    return workflow,find_iterable_node, joinnode_main,analysis_split, scan_split_name
 
 def get_iterable_scan_list(scan_list, bold_scan_list):
     # prep the subset of scans on which the analysis will be run

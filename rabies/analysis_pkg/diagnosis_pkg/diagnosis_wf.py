@@ -7,13 +7,13 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMask
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, scan_split_name, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 'VE_file',
-                                                       'figure_dataset_diagnosis', 'temporal_info_csv', 'temporal_std_nii', 'GS_corr_nii',
+                                                       'dataset_diagnosis', 'temporal_info_csv', 'temporal_std_nii', 'GS_corr_nii',
                                                        'temporal_std_nii', 'GS_corr_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
     if not (commonspace_bold or opts.bold_only):
@@ -31,9 +31,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),
         name=analysis_opts.output_name+'_PrepMasks')
-
-    DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-        name=analysis_opts.output_name+'_DatasetDiagnosis')
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                             output_names=[
@@ -66,12 +63,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
         (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
             ("spatial_info", "spatial_info_list"),
             ]),
-        (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
-            ("spatial_info_list", "spatial_info_list"),
-            ]),
-        (PrepMasks_node, DatasetDiagnosis_node, [
-            ("mask_file_dict", "mask_file_dict"),
-            ]),
         (inputnode, temporal_external_formating_node, [
             ("file_dict", "file_dict"),
             ]),
@@ -92,9 +83,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
             ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
             ("VE_file", "VE_file"),
             ]),
-        (DatasetDiagnosis_node, outputnode, [
-            ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
-            ]),
         (temporal_external_formating_node, outputnode, [
             ("temporal_info_csv", "temporal_info_csv"),
             ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
@@ -108,14 +96,26 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, nam
             ]),
         ])
 
-    if analysis_opts.dual_ICA>0:
+    if not len(scan_split_name)<3:
+        DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
+            name=analysis_opts.output_name+'_DatasetDiagnosis')
+
         workflow.connect([
-            (spatial_external_formating_node, outputnode, [
-                ("dual_ICA_filename", "dual_ICA_nii"),
+            (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
+                ("spatial_info_list", "spatial_info_list"),
                 ]),
-            (temporal_external_formating_node, outputnode, [
-                ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+            (PrepMasks_node, DatasetDiagnosis_node, [
+                ("mask_file_dict", "mask_file_dict"),
+                ]),
+            (DatasetDiagnosis_node, outputnode, [
+                ("dataset_diagnosis", "dataset_diagnosis"),
                 ]),
             ])
+    else:
+        import logging
+        log = logging.getLogger('root')
+        log.warning(
+            "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
+
 
     return workflow

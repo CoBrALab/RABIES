@@ -1,11 +1,7 @@
 import os
 import numpy as np
-import nibabel as nb
-import matplotlib.pyplot as plt
-from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
-from rabies.analysis_pkg.analysis_math import elementwise_corrcoef
 
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
@@ -166,7 +162,7 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
-    figure_dataset_diagnosis = File(
+    dataset_diagnosis = traits.Str(
         exists=True, desc="Output figure from the dataset diagnosis")
 
 
@@ -182,78 +178,54 @@ class DatasetDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         from rabies.preprocess_pkg.utils import flatten_list
-        import nilearn.plotting
+        from rabies.preprocess_pkg.preprocess_visual_QC import otsu_scaling
+        from .analysis_QC import spatial_crosscorrelations, analysis_QC
+
         merged = flatten_list(list(self.inputs.spatial_info_list))
         if len(merged) < 3:
-            import logging
-            log = logging.getLogger('root')
-            log.warning(
+            raise ValueError(
                 "Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
-            fig, axes = plt.subplots()
-            fig.savefig(os.path.abspath(
-                'empty_dataset_diagnosis.png'), bbox_inches='tight')
 
-            setattr(self, 'figure_dataset_diagnosis',
-                    os.path.abspath('empty_dataset_diagnosis.png'))
-            return runtime
-
-        dict_keys = ['temporal_std', 'VE_spatial', 'GS_corr',
-                     'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps']
-
-        voxelwise_list = []
-        for spatial_info in merged:
-            sub_list = [spatial_info[key] for key in dict_keys]
-            voxelwise_sub = np.array(sub_list[:5])
-            if len(sub_list[6]) > 0:
-                voxelwise_sub = np.concatenate(
-                    (voxelwise_sub, np.array(sub_list[5]), np.array(sub_list[6])), axis=0)
-            else:
-                voxelwise_sub = np.concatenate(
-                    (voxelwise_sub, np.array(sub_list[5])), axis=0)
-            voxelwise_list.append(voxelwise_sub)
-            num_DR_maps = len(sub_list[5])
-            num_prior_maps = len(sub_list[6])
-        voxelwise_array = np.array(voxelwise_list)
-
-        label_name = ['temporal_std', 'VE_spatial',
-                      'GS_corr', 'DVARS_corr', 'FD_corr']
-        label_name += [f'BOLD Dual Regression map {i}' for i in range(num_DR_maps)]
-        label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
+        out_dir = os.path.abspath('dataset_diagnosis')
+        os.makedirs(out_dir, exist_ok=True)
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
-        from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
         scaled = otsu_scaling(template_file)
 
-        ncols = 5
-        fig, axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols, figsize=(
-            12*ncols, 2*voxelwise_array.shape[1]))
-        for i, x_label in zip(range(voxelwise_array.shape[1]), label_name):
-            for j, y_label in zip(range(ncols), label_name[:ncols]):
-                ax = axes[i, j]
-                if i <= j:
-                    ax.axis('off')
-                    continue
+        fig_path = f'{out_dir}/spatial_crosscorrelations.png'
+        spatial_crosscorrelations(merged, scaled, mask_file, fig_path)
 
-                X = voxelwise_array[:, i, :]
-                Y = voxelwise_array[:, j, :]
-                corr = elementwise_corrcoef(X, Y)
+        std_maps=[]
+        VE_maps=[]
+        DR_maps_list=[]
+        dual_ICA_maps_list=[]
+        for spatial_info in merged:
+            std_maps.append(spatial_info['temporal_std'])
+            VE_maps.append(spatial_info['VE_spatial'])
+            DR_maps_list.append(spatial_info['DR_BOLD'])
+            dual_ICA_maps_list.append(spatial_info['dual_ICA_maps'])
+        std_maps=np.array(std_maps)
+        VE_maps=np.array(VE_maps)
+        DR_maps_list=np.array(DR_maps_list)
+        dual_ICA_maps_list=np.array(dual_ICA_maps_list)
+        
+        prior_maps = spatial_info['prior_maps']
+        num_priors = prior_maps.shape[0]
+        for i in range(num_priors):
+            FC_maps = DR_maps_list[:,i,:]
+            fig_path = f'{out_dir}/DR{i}_QC_maps.png'
+            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, template_file, fig_path)
+        if dual_ICA_maps_list.shape[1]>0:
+            for i in range(num_priors):
+                FC_maps = dual_ICA_maps_list[:,i,:]
+                fig_path = f'{out_dir}/dual_ICA_{i}_QC_maps.png'
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, template_file, fig_path)
 
-                plot_3d([ax], scaled, fig, vmin=0, vmax=1, cmap='gray',
-                        alpha=1, cbar=False, num_slices=6, planes=('coronal'))
-                analysis_functions.recover_3D(
-                    mask_file, corr).to_filename('temp_img.nii.gz')
-                sitk_img = sitk.ReadImage('temp_img.nii.gz')
-                plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
-                        alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-                ax.set_title(f'Cross-correlation for {x_label} and {y_label}', fontsize=15, color='white')
-        fig.savefig(os.path.abspath('dataset_diagnosis.png'),
-                    bbox_inches='tight')
-
-        setattr(self, 'figure_dataset_diagnosis',
-                os.path.abspath('dataset_diagnosis.png'))
+        setattr(self, 'dataset_diagnosis',
+                out_dir)
         return runtime
 
     def _list_outputs(self):
-        return {'figure_dataset_diagnosis': getattr(self, 'figure_dataset_diagnosis')}
+        return {'dataset_diagnosis': getattr(self, 'dataset_diagnosis')}
 

@@ -137,11 +137,6 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, p
     for i in range(data_array.shape[3]):
         timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
 
-    all_IC_array = np.asarray(nb.load(mask_file_dict['prior_maps']).dataobj)
-    all_IC_vectors = np.zeros([all_IC_array.shape[3], volume_indices.sum()])
-    for i in range(all_IC_array.shape[3]):
-        all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
-
     '''Temporal Features'''
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = np.asarray(nb.load(analysis_dict['dual_regression_nii']).dataobj)
@@ -184,6 +179,12 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, p
             C[i, :] = (C_array[:, :, :, i])[volume_indices]
         prior_fit_out['C'] = C
 
+    all_IC_array = np.asarray(nb.load(mask_file_dict['prior_maps']).dataobj)
+    all_IC_vectors = np.zeros([all_IC_array.shape[3], volume_indices.sum()])
+    for i in range(all_IC_array.shape[3]):
+        all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
+
+    spatial_info['prior_maps'] = all_IC_vectors[prior_bold_idx]
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 

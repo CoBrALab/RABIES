@@ -1,3 +1,4 @@
+import os
 import SimpleITK as sitk
 import pandas as pd
 import numpy as np
@@ -12,9 +13,7 @@ import tempfile
 import shutil
 
 
-def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, template_file):
-    if len(FC_maps)<8:
-        raise ValueError(f'Dataset has less than 8 scans.')
+def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, template_file, fig_path):
 
     scaled = otsu_scaling(template_file)
         
@@ -28,10 +27,9 @@ def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, templa
 
     fig,axes = plt.subplots(nrows=5, ncols=1,figsize=(12,2*5))
     plot_relationships(fig,axes, mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=percentile, threshold_spec=threshold_spec)
-    fig_path = f'{path}/DR_correlation_maps.png'
     fig.savefig(fig_path, bbox_inches='tight')
 
-    return fig_path, dataset_stats, maps
+    return dataset_stats
 
     
 def get_maps(prior, prior_list, std_list, VE_list, mask_file, smoothing=False):
@@ -198,3 +196,54 @@ def otsu_mask(img, num_histograms=1):
     shutil.rmtree(tmppath)
     return mask
 
+
+def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
+
+    dict_keys = ['temporal_std', 'VE_spatial', 'GS_corr',
+                    'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps']
+
+    voxelwise_list = []
+    for spatial_info in merged:
+        sub_list = [spatial_info[key] for key in dict_keys]
+        voxelwise_sub = np.array(sub_list[:5])
+        if len(sub_list[6]) > 0:
+            voxelwise_sub = np.concatenate(
+                (voxelwise_sub, np.array(sub_list[5]), np.array(sub_list[6])), axis=0)
+        else:
+            voxelwise_sub = np.concatenate(
+                (voxelwise_sub, np.array(sub_list[5])), axis=0)
+        voxelwise_list.append(voxelwise_sub)
+        num_prior_maps = len(sub_list[5])
+    voxelwise_array = np.array(voxelwise_list)
+
+
+    label_name = ['temporal_std', 'VE_spatial',
+                    'GS_corr', 'DVARS_corr', 'FD_corr']
+    label_name += [f'BOLD Dual Regression map {i}' for i in range(num_prior_maps)]
+    label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
+
+    ncols = 5
+    fig, axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols, figsize=(
+        12*ncols, 2*voxelwise_array.shape[1]))
+    for i, x_label in zip(range(voxelwise_array.shape[1]), label_name):
+        for j, y_label in zip(range(ncols), label_name[:ncols]):
+            ax = axes[i, j]
+            if i <= j:
+                ax.axis('off')
+                continue
+
+            X = voxelwise_array[:, i, :]
+            Y = voxelwise_array[:, j, :]
+            corr = elementwise_spearman(X, Y)
+
+            plot_3d([ax], scaled, fig, vmin=0, vmax=1, cmap='gray',
+                    alpha=1, cbar=False, num_slices=6, planes=('coronal'))
+            recover_3D(
+                mask_file, corr).to_filename('temp_img.nii.gz')
+            sitk_img = sitk.ReadImage('temp_img.nii.gz')
+            plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
+                    alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
+            ax.set_title(f'Cross-correlation for {x_label} and {y_label}', fontsize=15, color='white')
+
+    fig.savefig(fig_path,
+                bbox_inches='tight')
