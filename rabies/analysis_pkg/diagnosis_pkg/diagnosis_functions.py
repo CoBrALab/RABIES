@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from rabies.analysis_pkg import analysis_functions, prior_modeling
 import SimpleITK as sitk
 import nilearn.plotting
+from .analysis_QC import masked_plot
 
 def resample_mask(in_file, ref_file):
     transforms = []
@@ -448,13 +449,19 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     scaled = otsu_scaling(template_file)
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
+    temporal_std = spatial_info['temporal_std']
     analysis_functions.recover_3D(
-        mask_file, spatial_info['temporal_std']).to_filename('temp_img.nii.gz')
+        mask_file, temporal_std).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1,
+    
+    # select vmax at 95th percentile value
+    vector = temporal_std.flatten()
+    vector.sort()
+    vmax = vector[int(len(vector)*0.95)]
+    plot_3d(axes, sitk_img, fig2, vmin=0, vmax=vmax,
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for ax in axes:
-        ax.set_title('Temporal STD', fontsize=30, color='white')
+        ax.set_title('Temporal s.d.', fontsize=30, color='white')
 
     axes = axes2[1, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
@@ -502,13 +509,12 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
 
     for i in range(dr_maps.shape[0]):
         axes = axes2[i+5, :]
-        plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
-                cmap='gray', alpha=1, cbar=False, num_slices=6)
+
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
         sitk_img = sitk.ReadImage('temp_img.nii.gz')
-        plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
-                alpha=1, cbar=True, threshold=0.1, num_slices=6)
+        masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.01, vmax=None)
+
         for ax in axes:
             ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
 

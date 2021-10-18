@@ -104,35 +104,35 @@ def plot_relationships(fig,axes, mask_file, scaled, prior, average, network_var,
     recover_3D(mask_file,prior).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[0]
-    masked_plot(fig,[ax], img, scaled, hist=False, vmax=None, percentile=percentile, threshold_spec=threshold_spec[0])
+    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[0])
     ax.set_title('Prior network', fontsize=25, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,average).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[1]
-    masked_plot(fig,[ax], img, scaled, hist=False, vmax=None, percentile=percentile, threshold_spec=threshold_spec[1])
+    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[1])
     ax.set_title('Dataset average', fontsize=25, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,network_var).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[2]
-    masked_plot(fig,[ax], img, scaled, hist=False, vmax=None, percentile=percentile, threshold_spec=threshold_spec[2])
+    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[2])
     ax.set_title('Dataset MAD', fontsize=25, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,corr_map_std).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[3]
-    masked_plot(fig,[ax], img, scaled, hist=False, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[3])
+    masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[3])
     ax.set_title('Temporal s.d. effect', fontsize=25, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,corr_map_VE).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[4]
-    masked_plot(fig,[ax], img, scaled, hist=False, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[4])
+    masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[4])
     ax.set_title('CR R^2 effect', fontsize=25, color='white')
     plt.tight_layout()
 
@@ -154,7 +154,7 @@ def masking(img, method='otsu', percentile=None, threshold_spec=[4,2]):
     return mask
 
 
-def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, hist=True, vmax=None, threshold_spec=[4,2]):
+def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, vmax=None, threshold_spec=[4,2]):
     mask=masking(img, method=method, percentile=percentile, threshold_spec=threshold_spec)
     
     masked=sitk.GetImageFromArray(sitk.GetArrayFromImage(img)*mask)
@@ -164,18 +164,15 @@ def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, hist=T
     if vmax is None:
         vmax=data.max()
 
-    
-    ax=axes[0]
-    plot_3d([ax],scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6, planes=('coronal'))
+    if not (type(axes) is np.ndarray or type(axes) is list):
+        axes=[axes]
+        planes = ('coronal')
+    else:
+        planes = ('sagittal', 'coronal', 'horizontal')
+    plot_3d(axes,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6, planes=planes)
     # resample to match template
     sitk_img = sitk.Resample(masked, scaled)
-    plot_3d([ax],sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=('coronal'))
-    
-    if hist:
-        ax=axes[1]
-        ax.hist(np.abs(data).flatten(), density=True, bins=100)
-        ax.set_ylim([0,1])
-        ax.axvline(np.abs(data[mask]).min(), color='r')
+    plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
 
 
 def otsu_mask(img, num_histograms=1):
