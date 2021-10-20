@@ -3,7 +3,7 @@ import numpy as np
 import nibabel as nb
 import pandas as pd
 import matplotlib.pyplot as plt
-from rabies.analysis_pkg import analysis_functions, prior_modeling
+from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
 from .analysis_QC import masked_plot
@@ -328,21 +328,27 @@ def grayplot(timeseries_file, mask_file_dict, fig, ax):
 
 def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_data_dict, regional_grayplot=False):
     template_file = mask_file_dict['template_file']
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    fig, axCenter = plt.subplots(figsize=(6, 18))
-    fig.subplots_adjust(.2, .1, .8, .95)
+    
+    fig = plt.figure(figsize=(6, 18))
+    #fig.suptitle(name, fontsize=30, color='white')
+    
+    ax0 = fig.add_subplot(3,1,1)
+    ax1 = fig.add_subplot(12,1,5)
+    ax1_ = fig.add_subplot(12,1,6)
+    ax2 = fig.add_subplot(6,1,4)
+    ax3 = fig.add_subplot(6,1,5)
+    ax4 = fig.add_subplot(6,1,6)
 
-    divider = make_axes_locatable(axCenter)
-    ax1 = divider.append_axes('bottom', size='25%', pad=0.5)
-    ax1_ = divider.append_axes('bottom', size='25%', pad=0.1)
-    ax2 = divider.append_axes('bottom', size='50%', pad=0.5)
-    ax3 = divider.append_axes('bottom', size='50%', pad=0.5)
-    ax4 = divider.append_axes('bottom', size='50%', pad=0.5)
-
+    # disable function
+    regional_grayplot=False
     if regional_grayplot:
+        
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        divider = make_axes_locatable(ax0)
+        
         im, slice_alt, region_mask_label = grayplot_regional(
-            bold_file, mask_file_dict, fig, axCenter)
-        axCenter.yaxis.labelpad = 40
+            bold_file, mask_file_dict, fig, ax0)
+        ax0.yaxis.labelpad = 40
         ax_slice = divider.append_axes('left', size='5%', pad=0.0)
         ax_label = divider.append_axes('left', size='5%', pad=0.0)
 
@@ -354,19 +360,19 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         ax_label.axis('off')
 
     else:
-        im = grayplot(bold_file, mask_file_dict, fig, axCenter)
+        im = grayplot(bold_file, mask_file_dict, fig, ax0)
 
-    axCenter.set_ylabel('Voxels', fontsize=20)
-    axCenter.spines['right'].set_visible(False)
-    axCenter.spines['top'].set_visible(False)
-    axCenter.spines['bottom'].set_visible(False)
-    axCenter.spines['left'].set_visible(False)
-    axCenter.axes.get_yaxis().set_ticks([])
-    plt.setp(axCenter.get_xticklabels(), visible=False)
+    ax0.set_ylabel('Voxels', fontsize=20)
+    ax0.spines['right'].set_visible(False)
+    ax0.spines['top'].set_visible(False)
+    ax0.spines['bottom'].set_visible(False)
+    ax0.spines['left'].set_visible(False)
+    ax0.axes.get_yaxis().set_ticks([])
+    plt.setp(ax1.get_xticklabels(), visible=False)
 
     y = temporal_info['FD_trace'].to_numpy()
     x = range(len(y))
-    axCenter.set_xlim([0, len(y)-1])
+    ax0.set_xlim([0, len(y)-1])
     ax1.set_xlim([0, len(y)-1])
     ax1_.set_xlim([0, len(y)-1])
     ax2.set_xlim([0, len(y)-1])
@@ -383,7 +389,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])
     ax1.plot(x,df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
-               loc='center left', bbox_to_anchor=(1, 0.5))
+               loc='center left', bbox_to_anchor=(1.15, 0.5))
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
@@ -392,47 +398,53 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1_.plot(x,df['rot2'].to_numpy()[time_range][frame_mask])
     ax1_.plot(x,df['rot3'].to_numpy()[time_range][frame_mask])
     ax1_.legend(['rotation 1', 'rotation 2', 'rotation 3'],
-                loc='center left', bbox_to_anchor=(1, 0.5))
+                loc='center left', bbox_to_anchor=(1.15, 0.5))
     plt.setp(ax1_.get_xticklabels(), visible=False)
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
     y = temporal_info['FD_trace'].to_numpy()
     ax2.plot(x,y, 'r')
+    ax2.set_ylabel('FD in mm', fontsize=15)
     DVARS = temporal_info['DVARS']
     DVARS[0] = None
+    ax2_ = ax2.twinx()
     y2 = DVARS
-    # scale to match FD range
-    y2-=y2[1:].mean()
-    y2/=y2[1:].std()
-    y2*=y.std()
-    y2+=y.mean()
-    ax2.plot(x,y2, 'b')
-    ax2.legend(['Framewise Displacement (FD)', 'DVARS (scaled to match FD)'], loc='upper right')
-    ax2.set_ylabel('FD in mm', fontsize=15)
+    ax2_.plot(x,y2, 'b')
+    ax2_.set_ylabel('DVARS', fontsize=15)
     ax2.spines['right'].set_visible(False)
     ax2.spines['top'].set_visible(False)
-    ax2.set_ylim([0.0, 0.1])
+    ax2_.spines['top'].set_visible(False)
     plt.setp(ax2.get_xticklabels(), visible=False)
+    plt.setp(ax2_.get_xticklabels(), visible=False)
+    ax2.legend(['Framewise \nDisplacement (FD)'
+                ], loc='center left', bbox_to_anchor=(1.15, 0.6))
+    ax2_.legend(['DVARS'
+                ], loc='center left', bbox_to_anchor=(1.15, 0.4))
 
     ax3.plot(x,temporal_info['edge_trace'])
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
-    ax3.plot(x,temporal_info['VE_temporal'])
-    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask',
-               'CR R^2'], loc='center left', bbox_to_anchor=(1, 0.5))
-    ax3.spines['right'].set_visible(False)
-    ax3.spines['top'].set_visible(False)
-    ax3.set_ylim([0.0, 1.5])
-    plt.setp(ax3.get_xticklabels(), visible=False)
+    ax3.set_ylabel('Mask L2-norm', fontsize=15)
+    ax3_ = ax3.twinx()
+    ax3_.plot(x,temporal_info['VE_temporal'], 'r')
+    ax3_.set_ylabel('CR R^2', fontsize=15)
+    ax3_.spines['right'].set_visible(False)
+    ax3_.spines['top'].set_visible(False)
+    plt.setp(ax3_.get_xticklabels(), visible=False)
+    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask'
+                ], loc='center left', bbox_to_anchor=(1.15, 0.7))
+    ax3_.legend(['CR R^2'
+                ], loc='center left', bbox_to_anchor=(1.15, 0.3))
+    ax3_.set_ylim([0,1])
 
     y = temporal_info['signal_trace']
     ax4.plot(x,y)
     ax4.plot(x,temporal_info['noise_trace'])
-    ax4.legend(['BOLD components', 'Confound components'], loc='upper right')
+    ax4.legend(['BOLD components', 'Confound components'
+                ], loc='center left', bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
-    ax4.set_ylim([0.0, 4.0])
     ax4.set_xlabel('Timepoint', fontsize=15)
 
     dr_maps = spatial_info['DR_BOLD']
@@ -513,7 +525,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
         sitk_img = sitk.ReadImage('temp_img.nii.gz')
-        masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.01, vmax=None)
+        masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.015, vmax=None)
 
         for ax in axes:
             ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
