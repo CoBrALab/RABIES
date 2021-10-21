@@ -133,15 +133,10 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
-def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
+def temporal_censoring(timeseries, data_dict,
         FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
     FD_trace=data_dict['FD_trace']
     confounds_array=data_dict['confounds_array']
-
-    # apply highpass/lowpass filtering
-    import nilearn.signal
-    timeseries = nilearn.signal.clean(timeseries, detrend=False, standardize=False, low_pass=lowpass,
-                                      high_pass=highpass, confounds=None, t_r=TR)
 
     # compute the DVARS before denoising
     derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
@@ -175,11 +170,6 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
     confounds_array=confounds_array[frame_mask,:]
     FD_trace=FD_trace[frame_mask]
     DVARS=DVARS[frame_mask]
-
-    # apply simple detrending, after censoring
-    from scipy.signal import detrend
-    timeseries = detrend(timeseries,axis=0)
-    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
 
     data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
     return data_dict
@@ -243,11 +233,42 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
 
 
 def regress(bold_file, data_dict, brain_mask_file, cr_opts):
+    
+    '''
+    Apply a flexible confound regression algorithm in line with recommendations from
+    human litterature. 
+    
+    #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
+    #2 - Detrend timeseries and confound regressors
+    #3 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
+         for both the timeseries and confound regressors prior to filtering.
+    #4 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
+         to the temporal filter.
+    #5 - Apply bandpass filtering on the timeseries (with filled missing values), and 
+         apply again the temporal mask onto output timeseries.
+    #6 - Apply confound regression using the corrected regressors, while applying the 
+         temporal masks to both the regressors and timeseries to remove simulated data
+         points.
+    #7 - Standardize timeseries
+    #8 - Apply spatial smoothing.
+    
+    References:
+        
+        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). 
+        Spurious but systematic correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
+        
+        Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). 
+        Methods to detect, characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
+        
+        Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). 
+        Modular preprocessing pipelines can reintroduce artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
+    '''
+    
     import os
     import numpy as np
     import pandas as pd
     import SimpleITK as sitk
-    from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_filtering
+    from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     FD_trace=data_dict['FD_trace']
@@ -275,19 +296,67 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     else:
         TR = float(cr_opts.TR)
 
-    data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
+    '''
+    #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
+    '''
+    data_dict = temporal_censoring(timeseries, data_dict,
             cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
+
     if data_dict is None:
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
         empty_file = os.path.abspath('empty.nii.gz')
         sitk.WriteImage(empty_img, empty_file)
         return empty_file,empty_file,empty_file,None
-
+    
     timeseries=data_dict['timeseries']
     FD_trace=data_dict['FD_trace']
     DVARS=data_dict['DVARS']
     frame_mask=data_dict['frame_mask']
     confounds_array=data_dict['confounds_array']
+
+    '''
+    #2 - Detrend timeseries and confound regressors
+    '''
+    # apply simple detrending, after censoring
+    from scipy.signal import detrend
+    timeseries = detrend(timeseries,axis=0)
+    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too
+
+
+    if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
+        '''
+        #3 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
+             for both the timeseries and confound regressors prior to filtering.
+        '''
+        timeseries_filled = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+        confounds_filled = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+
+        from nilearn.signal import butterworth
+
+        '''
+        #4 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
+             to the temporal filter.
+        '''
+        confounds_filtered = butterworth(confounds_filled, sampling_rate=1. / TR,
+                                low_pass=cr_opts.lowpass, high_pass=cr_opts.highpass)
+
+        '''
+        #5 - Apply bandpass filtering on the timeseries (with filled missing values), and 
+             apply again the temporal mask onto output timeseries.
+        '''
+
+        timeseries_filtered = butterworth(timeseries_filled, sampling_rate=1. / TR,
+                                low_pass=cr_opts.lowpass, high_pass=cr_opts.highpass)
+
+        # re-apply the masks to take out simulated data points    
+        timeseries = timeseries_filtered[frame_mask]
+        confounds_array = confounds_filtered[frame_mask]
+    
+    '''
+    #6 - Apply confound regression using the corrected regressors, while applying the 
+         temporal masks to both the regressors and timeseries to remove simulated data
+         points.
+    '''
 
     # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
     X=confounds_array
@@ -308,7 +377,12 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
     if len(cr_opts.conf_list) > 0:
+        # if confound regression is applied
         timeseries = res
+
+    '''
+    #7 - Standardize timeseries
+    '''
     if cr_opts.standardize:
         timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
@@ -323,6 +397,9 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
     pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
     if cr_opts.smoothing_filter is not None:
+        '''
+        #8 - Apply spatial smoothing.
+        '''
         import nilearn.image
         import nibabel as nb
         timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
@@ -330,3 +407,86 @@ def regress(bold_file, data_dict, brain_mask_file, cr_opts):
 
     data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
     return cleaned_path, VE_file_path, frame_mask_file, data_dict
+
+
+def lombscargle_mathias(t, x, w):
+
+    '''
+    Implementation of Lomb-Scargle periodogram as described in Mathias et al. 2004, 
+    and applied in Power et al. 2014
+    
+    Mathias, A., Grond, F., Guardans, R., Seese, D., Canela, M., & Diebner, H. H. (2004). 
+    Algorithms for spectral analysis of irregularly sampled time series. Journal of Statistical Software, 11(1), 1-27.
+    
+    Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). 
+    Methods to detect, characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
+    
+    '''
+
+    if (w == 0).sum()>0:
+        raise ZeroDivisionError()
+
+    # Check input sizes
+    if t.shape[0] != x.shape[0]:
+        raise ValueError("Input arrays do not have the same size.")
+
+    # Create empty array for output periodogram
+    cw = np.empty((len(w)))
+    sw = np.empty((len(w)))
+    theta = np.empty((len(w)))
+
+    w_t = w[:,np.newaxis].dot(t[np.newaxis,:])
+    theta = (1/(2*w))*np.arctan( \
+        np.sin(2*w_t).sum(axis=1)/ \
+        np.cos(2*w_t).sum(axis=1))
+
+        
+    wt = (t[:,np.newaxis]-theta[np.newaxis,:])*w
+    c=np.cos(wt)
+    s=np.sin(wt)
+    
+    cw = x.T.dot(c)/(c**2).sum(axis=0)
+    sw = x.T.dot(s)/(s**2).sum(axis=0)
+    
+    return cw,sw,theta
+
+def lombscargle_mathias_simulate(t, w, cw, sw,theta):
+    # recover simulated timeseries for a given time vector t
+
+    wt = (t[:,np.newaxis]-theta[np.newaxis,:])*w
+    c=np.cos(wt)
+    s=np.sin(wt)
+    
+    y = c.dot(cw.T)+s.dot(sw.T)
+    return y
+
+
+
+def lombscargle_fill(x,time_step,time_mask):
+    num_timepoints=len(time_mask)
+    time=np.linspace(time_step,num_timepoints*time_step,num_timepoints)
+
+    low_freq = 0.005
+    high_freq = 1
+    freqs=np.linspace(low_freq,high_freq,1000)
+    w = freqs*2*np.pi
+
+    t = time[time_mask]
+    cw,sw,theta = lombscargle_mathias(t, x, w)
+    
+    # simulate over entire time
+    t=time
+    y = lombscargle_mathias_simulate(t, w, cw, sw,theta)
+    
+    # standardize according to masked data poaxis=0ints    
+    y -= y[time_mask].mean(axis=0)
+    y /= y[time_mask].std(axis=0)
+    
+    # re-scale according to original mean/std
+    y *= x.std(axis=0)
+    y += x.mean(axis=0)
+    
+    y_fill = np.zeros(y.shape)
+    y_fill[time_mask,:] = x
+    y_fill[time_mask==0,:] = y[(time_mask==0)]
+    return y_fill
