@@ -1,10 +1,6 @@
 import os
 import numpy as np
 import SimpleITK as sitk
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
 
 
 def tree_list(dirName):

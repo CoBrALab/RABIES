@@ -283,6 +283,10 @@ class Regress(BaseInterface):
         if cr_opts.standardize:
             timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
 
+        # voxels that have a NaN value are set to 0
+        nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+        timeseries[:,nan_voxels] = 0
+
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
         timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
