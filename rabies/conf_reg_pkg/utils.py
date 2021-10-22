@@ -113,8 +113,11 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
+    # save specifically the 6 rigid parameters for AROMA
+    confounds_6rigid_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
+
     if len(cr_opts.conf_list)==0:
-        confounds_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
+        confounds_array = confounds_6rigid_array
     else:
         confounds_array = select_confound_timecourses(cr_opts.conf_list,confounds_file,FD_file)
 
@@ -125,12 +128,13 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
         lowcut = int(cr_opts.timeseries_interval.split(',')[0])
         highcut = int(cr_opts.timeseries_interval.split(',')[1])
         confounds_array = confounds_array[lowcut:highcut, :]
+        confounds_6rigid_array = confounds_6rigid_array[lowcut:highcut, :]
         FD_trace = FD_trace[lowcut:highcut]
         time_range = range(lowcut,highcut)
     else:
         time_range = range(sitk.ReadImage(bold_file).GetSize()[3])
 
-    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_csv':confounds_file, 'time_range':time_range}
+    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
 def temporal_censoring(timeseries, data_dict,

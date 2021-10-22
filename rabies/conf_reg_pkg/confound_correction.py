@@ -2,7 +2,7 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
-from .utils import prep_CR, exec_ICA_AROMA
+from .utils import prep_CR
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
@@ -32,7 +32,9 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("FD_file", "FD_file"),
             ]),
         (inputnode, regress_node, [
+            ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
+            ("csf_mask", "CSF_mask_file"),
             ]),
         (prep_CR_node, regress_node, [
             ("data_dict", "data_dict"),
@@ -42,37 +44,10 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("VE_file_path", "VE_file"),
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
+            ("aroma_out", "aroma_out"),
             ]),
         ])
 
-    if cr_opts.run_aroma:
-        ica_aroma_node = pe.Node(Function(input_names=['inFile', 'mc_file', 'brain_mask', 'csf_mask', 'tr', 'aroma_dim'],
-                                          output_names=['cleaned_file', 'aroma_out'],
-                                          function=exec_ICA_AROMA),
-                                 name='ica_aroma', mem_gb=1)
-        ica_aroma_node.inputs.tr = cr_opts.TR
-        ica_aroma_node.inputs.aroma_dim = cr_opts.aroma_dim
-
-        workflow.connect([
-            (inputnode, ica_aroma_node, [
-                ("bold_file", "inFile"),
-                ("brain_mask", "brain_mask"),
-                ("confounds_file", "mc_file"),
-                ("csf_mask", "csf_mask"),
-                ]),
-            (ica_aroma_node, regress_node, [
-                ("cleaned_file", "bold_file"),
-                ]),
-            (ica_aroma_node, outputnode, [
-                ("aroma_out", "aroma_out"),
-                ]),
-            ])
-    else:
-        workflow.connect([
-            (inputnode, regress_node, [
-                ("bold_file", "bold_file"),
-                ]),
-            ])
 
     return workflow
 
@@ -84,6 +59,8 @@ class RegressInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Dictionary with extra inputs.")
     brain_mask_file = File(exists=True, mandatory=True,
                       desc="Brain mask.")
+    CSF_mask_file = File(exists=True, mandatory=True,
+                      desc="CSF mask.")
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")
 
@@ -96,6 +73,8 @@ class RegressOutputSpec(TraitedSpec):
                       desc="Frame mask from temporal censoring.")
     data_dict = traits.Any(
         desc="A dictionary with key outputs.")
+    aroma_out = traits.Any(
+        desc="Output directory from ICA-AROMA.")
 
 class Regress(BaseInterface):
     '''
@@ -104,17 +83,18 @@ class Regress(BaseInterface):
     
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     #2 - Detrend timeseries and confound regressors
-    #3 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
+    #3 - Apply ICA-AROMA.
+    #4 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
          for both the timeseries and confound regressors prior to filtering.
-    #4 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
+    #5 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
          to the temporal filter.
-    #5 - Apply bandpass filtering on the timeseries (with filled missing values), and 
+    #6 - Apply bandpass filtering on the timeseries (with filled missing values), and 
          apply again the temporal mask onto output timeseries.
-    #6 - Apply confound regression using the corrected regressors, while applying the 
+    #7 - Apply confound regression using the corrected regressors, while applying the 
          temporal masks to both the regressors and timeseries to remove simulated data
          points.
-    #7 - Standardize timeseries
-    #8 - Apply spatial smoothing.
+    #8 - Standardize timeseries
+    #9 - Apply spatial smoothing.
     
     References:
         
@@ -140,11 +120,12 @@ class Regress(BaseInterface):
         import nibabel as nb
         from nilearn.signal import butterworth
         from scipy.signal import detrend
-        from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill
+        from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         bold_file = self.inputs.bold_file
         brain_mask_file = self.inputs.brain_mask_file
+        CSF_mask_file = self.inputs.CSF_mask_file
         data_dict = self.inputs.data_dict
         cr_opts = self.inputs.cr_opts
 
@@ -152,6 +133,7 @@ class Regress(BaseInterface):
         confounds_array=data_dict['confounds_array']
         confounds_file=data_dict['confounds_csv']
         time_range=data_dict['time_range']
+        confounds_6rigid_array=data_dict['confounds_6rigid_array']
 
         cr_out = os.getcwd()
         import pathlib  # Better path manipulation
@@ -188,6 +170,7 @@ class Regress(BaseInterface):
             setattr(self, 'VE_file_path', empty_file)
             setattr(self, 'frame_mask_file', empty_file)
             setattr(self, 'data_dict', None)
+            setattr(self, 'aroma_out', None)
 
             return runtime
         
@@ -205,23 +188,51 @@ class Regress(BaseInterface):
         confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too
 
 
+        '''
+        #3 - Apply ICA-AROMA.
+        '''
+        if cr_opts.run_aroma:
+            # write intermediary output files for timeseries and 6 rigid body parameters
+            timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
+            inFile = f'{cr_out}/{filename_split[0]}_aroma_input.nii.gz'
+            sitk.WriteImage(timeseries_3d, inFile)
+
+            confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
+            confounds_6rigid_array = detrend(confounds_6rigid_array,axis=0) # apply detrending to the confounds too
+            df = pd.DataFrame(confounds_6rigid_array)
+            df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
+            mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
+            df.to_csv(mc_file)
+
+            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.aroma_dim)
+            setattr(self, 'aroma_out', aroma_out)
+
+            data_img = sitk.ReadImage(cleaned_file, sitk.sitkFloat32)
+            data_array = sitk.GetArrayFromImage(data_img)
+            num_volumes = data_array.shape[0]
+            timeseries = np.zeros([num_volumes, volume_indices.sum()])
+            for i in range(num_volumes):
+                timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+        else:
+            setattr(self, 'aroma_out', None)
+
         if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
             '''
-            #3 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
+            #4 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
                 for both the timeseries and confound regressors prior to filtering.
             '''
             timeseries_filled = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
             confounds_filled = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
 
             '''
-            #4 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
+            #5 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
                 to the temporal filter.
             '''
             confounds_filtered = butterworth(confounds_filled, sampling_rate=1. / TR,
                                     low_pass=cr_opts.lowpass, high_pass=cr_opts.highpass)
 
             '''
-            #5 - Apply bandpass filtering on the timeseries (with filled missing values), and 
+            #6 - Apply bandpass filtering on the timeseries (with filled missing values), and 
                 apply again the temporal mask onto output timeseries.
             '''
 
@@ -233,7 +244,7 @@ class Regress(BaseInterface):
             confounds_array = confounds_filtered[frame_mask]
         
         '''
-        #6 - Apply confound regression using the corrected regressors, while applying the 
+        #7 - Apply confound regression using the corrected regressors, while applying the 
             temporal masks to both the regressors and timeseries to remove simulated data
             points.
         '''
@@ -267,7 +278,7 @@ class Regress(BaseInterface):
             timeseries = res
 
         '''
-        #7 - Standardize timeseries
+        #8 - Standardize timeseries
         '''
         if cr_opts.standardize:
             timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
@@ -284,7 +295,7 @@ class Regress(BaseInterface):
 
         if cr_opts.smoothing_filter is not None:
             '''
-            #8 - Apply spatial smoothing.
+            #9 - Apply spatial smoothing.
             '''
             timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
             timeseries_3d.to_filename(cleaned_path)
@@ -303,4 +314,5 @@ class Regress(BaseInterface):
                 'VE_file_path': getattr(self, 'VE_file_path'),
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
+                'aroma_out': getattr(self, 'aroma_out'),
                 }
