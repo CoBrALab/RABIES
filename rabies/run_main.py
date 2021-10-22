@@ -304,6 +304,13 @@ def get_parser():
                                      help="""
                                      Specify lowpass filter frequency.
                                      """)
+    confound_correction.add_argument('--edge_cutoff', type=float, default=30,
+                                     help="""
+                                     Specify number of seconds to cut at beginning and end of acquisition if applying 
+                                     a frequency filter.
+                                     Applying frequency filters generate edge effects at begining and end of the sequence. 
+                                     We recommend to cut those timepoints (around 30sec at both end for 0.01Hz highpass.).
+                                     """)
     confound_correction.add_argument('--smoothing_filter', type=float, default=None,
                                      help="""
                                      Specify spatial smoothing filter size in mm.

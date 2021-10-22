@@ -239,6 +239,13 @@ class Regress(BaseInterface):
             timeseries_filtered = butterworth(timeseries_filled, TR=TR,
                                     high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
+            # correct for edge effects of the filters
+            num_cut = int(cr_opts.edge_cutoff/TR)
+            if len(frame_mask)<2*num_cut:
+                raise ValueError(f"The timeseries are too short to remove {cr_opts.edge_cutoff}sec of data at each edge.")
+
+            frame_mask[:num_cut]=0
+            frame_mask[-num_cut:]=0
 
             # re-apply the masks to take out simulated data points    
             timeseries = timeseries_filtered[frame_mask]
