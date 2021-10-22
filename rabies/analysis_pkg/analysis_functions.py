@@ -200,7 +200,7 @@ ICA
 '''
 
 
-def run_group_ICA(bold_file_list, mask_file, dim):
+def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
     import os
     import pandas as pd
 
@@ -213,7 +213,7 @@ def run_group_ICA(bold_file_list, mask_file, dim):
 
     from rabies.preprocess_pkg.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
-    command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed=1'
+    command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)}'
     rc = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file

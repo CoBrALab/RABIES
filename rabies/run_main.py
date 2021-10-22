@@ -319,6 +319,10 @@ def get_parser():
                                      help="""
                                      Can specify a fixed number of dimension for the MELODIC run before ICA-AROMA.
                                      """)
+    confound_correction.add_argument('--aroma_random_seed', type=int, default=1,
+                             help="""
+                             For reproducibility, can manually set a random seed for MELODIC.
+                             """)
     confound_correction.add_argument('--conf_list', type=str,
                                      nargs="*",  # 0 or more values expected => creates a list
                                      default=[],
@@ -455,6 +459,10 @@ def get_parser():
     g_group_ICA.add_argument('--dim', type=int, default=0,
                              help="""
                              You can specify the number of ICA components to be derived. The default uses an automatic estimation.
+                             """)
+    g_group_ICA.add_argument('--melodic_random_seed', type=int, default=1,
+                             help="""
+                             For reproducibility, can manually set a random seed for MELODIC.
                              """)
     g_DR_ICA = analysis.add_argument_group(title='DR ICA', description="""
         Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC.

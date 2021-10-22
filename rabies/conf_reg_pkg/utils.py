@@ -46,7 +46,7 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
     return bold_file, brain_mask_file, confounds_file, csf_mask, FD_file
 
 
-def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
+def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_seed=1):
     import os
     from rabies.conf_reg_pkg.utils import csv2par
     from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
@@ -63,7 +63,7 @@ def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
         tr = float(tr)
 
     run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
-        brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True)
+        brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True, random_seed=random_seed)
     os.rename(aroma_out+'/denoised_func_data_nonaggr.nii.gz', cleaned_file)
     return cleaned_file, aroma_out
 

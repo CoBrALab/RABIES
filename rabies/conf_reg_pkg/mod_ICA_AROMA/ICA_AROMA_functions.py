@@ -12,7 +12,7 @@ from past.utils import old_div
 import numpy as np
 
 ###RABIES modification
-def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melDir="",dim=0,overwrite=False):
+def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melDir="",dim=0,overwrite=False, random_seed=1):
     ###additional function for the execution of ICA_AROMA within RABIES
     import os
     import subprocess
@@ -102,7 +102,7 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
     #---------------------------------------- Run ICA-AROMA ----------------------------------------#
 
     print('Step 1) MELODIC')
-    aromafunc.runICA(fslDir, inFile, outDir, melDir, mask, dim, TR)
+    aromafunc.runICA(fslDir, inFile, outDir, melDir, mask, dim, TR, random_seed=random_seed)
     melIC = os.path.join(outDir, 'melodic_IC_thr.nii.gz')
 
     print('Step 2) Automatic classification of the components')
@@ -144,7 +144,7 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
 ###end of RABIES modification
 
 
-def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR):
+def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
     """ This function runs MELODIC and merges the mixture modeled thresholded ICs into a single 4D nifti file
 
     Parameters
@@ -200,7 +200,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR):
                                 '--ICs=' + melIC,
                                 '--mix=' + melICmix,
                                 '--outdir=' + melDir,
-                                '--Ostats --mmthresh=0.5 --seed=1']))
+                                '--Ostats --mmthresh=0.5 --seed='+str(random_seed)]))
 
     else:
         # If a melodic directory was specified, display that it did not contain all files needed for ICA-AROMA (or that the directory does not exist at all)
@@ -216,7 +216,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR):
                             '--outdir=' + melDir,
                             '--mask=' + mask,
                             '--dim=' + str(dim),
-                            '--Ostats --nobet --mmthresh=0.5 --report --seed=1',
+                            '--Ostats --nobet --mmthresh=0.5 --report --seed='+str(random_seed),
                             '--tr=' + str(TR)]))
 
     # Get number of components

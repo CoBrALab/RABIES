@@ -123,6 +123,18 @@ class Regress(BaseInterface):
         from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA
         from rabies.analysis_pkg.analysis_functions import closed_form
 
+        ### set null returns in case the workflow is interrupted
+        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
+        empty_file = os.path.abspath('empty.nii.gz')
+        sitk.WriteImage(empty_img, empty_file)
+
+        setattr(self, 'cleaned_path', empty_file)
+        setattr(self, 'VE_file_path', empty_file)
+        setattr(self, 'frame_mask_file', empty_file)
+        setattr(self, 'data_dict', empty_file)
+        setattr(self, 'aroma_out', empty_file)
+        ###
+
         bold_file = self.inputs.bold_file
         brain_mask_file = self.inputs.brain_mask_file
         CSF_mask_file = self.inputs.CSF_mask_file
@@ -162,16 +174,6 @@ class Regress(BaseInterface):
                 cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
 
         if data_dict is None:
-            empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-            empty_file = os.path.abspath('empty.nii.gz')
-            sitk.WriteImage(empty_img, empty_file)
-
-            setattr(self, 'cleaned_path', empty_file)
-            setattr(self, 'VE_file_path', empty_file)
-            setattr(self, 'frame_mask_file', empty_file)
-            setattr(self, 'data_dict', None)
-            setattr(self, 'aroma_out', None)
-
             return runtime
         
         timeseries=data_dict['timeseries']
@@ -204,7 +206,7 @@ class Regress(BaseInterface):
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
             df.to_csv(mc_file)
 
-            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.aroma_dim)
+            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.aroma_dim, random_seed=cr_opts.aroma_random_seed)
             setattr(self, 'aroma_out', aroma_out)
 
             data_img = sitk.ReadImage(cleaned_file, sitk.sitkFloat32)
@@ -213,8 +215,6 @@ class Regress(BaseInterface):
             timeseries = np.zeros([num_volumes, volume_indices.sum()])
             for i in range(num_volumes):
                 timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
-        else:
-            setattr(self, 'aroma_out', None)
 
         if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
             '''
@@ -261,11 +261,6 @@ class Regress(BaseInterface):
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
             empty_file = os.path.abspath('empty.nii.gz')
             sitk.WriteImage(empty_img, empty_file)
-
-            setattr(self, 'cleaned_path', empty_file)
-            setattr(self, 'VE_file_path', empty_file)
-            setattr(self, 'frame_mask_file', empty_file)
-            setattr(self, 'data_dict', None)
 
             return runtime
 
