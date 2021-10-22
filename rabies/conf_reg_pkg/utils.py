@@ -100,14 +100,9 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
 
 
 def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
-    import os
-    import numpy as np
     import pandas as pd
     import SimpleITK as sitk
     from rabies.conf_reg_pkg.utils import select_confound_timecourses
-
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     # save specifically the 6 rigid parameters for AROMA
     confounds_6rigid_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
@@ -273,6 +268,7 @@ def lombscargle_mathias(t, x, w):
     
     return cw,sw,theta
 
+
 def lombscargle_mathias_simulate(t, w, cw, sw,theta):
     # recover simulated timeseries for a given time vector t
 
@@ -282,7 +278,6 @@ def lombscargle_mathias_simulate(t, w, cw, sw,theta):
     
     y = c.dot(cw.T)+s.dot(sw.T)
     return y
-
 
 
 def lombscargle_fill(x,time_step,time_mask):
@@ -313,3 +308,25 @@ def lombscargle_fill(x,time_step,time_mask):
     y_fill[time_mask,:] = x
     y_fill[time_mask==0,:] = y[(time_mask==0)]
     return y_fill
+
+
+def butterworth(signals, TR, high_pass, low_pass):
+    from scipy import signal
+    
+    critical_freq = []
+    if high_pass is not None:
+        btype = 'high'
+        critical_freq.append(high_pass)
+    
+    if low_pass is not None:
+        btype = 'low'
+        critical_freq.append(low_pass)
+    
+    if len(critical_freq) == 2:
+        btype = 'band'
+    else:
+        critical_freq = critical_freq[0]
+    
+    order=3
+    sos = signal.butter(order, critical_freq, fs=1/TR, btype=btype, output='sos')
+    return signal.sosfiltfilt(sos, signals, axis=0)

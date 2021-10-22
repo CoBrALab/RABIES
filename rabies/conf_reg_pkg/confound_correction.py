@@ -120,7 +120,7 @@ class Regress(BaseInterface):
         import nibabel as nb
         from nilearn.signal import butterworth
         from scipy.signal import detrend
-        from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA
+        from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -228,16 +228,17 @@ class Regress(BaseInterface):
             #5 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
                 to the temporal filter.
             '''
-            confounds_filtered = butterworth(confounds_filled, sampling_rate=1. / TR,
-                                    low_pass=cr_opts.lowpass, high_pass=cr_opts.highpass)
+            confounds_filtered = butterworth(confounds_filled, TR=TR,
+                                    high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
             '''
             #6 - Apply bandpass filtering on the timeseries (with filled missing values), and 
                 apply again the temporal mask onto output timeseries.
             '''
 
-            timeseries_filtered = butterworth(timeseries_filled, sampling_rate=1. / TR,
-                                    low_pass=cr_opts.lowpass, high_pass=cr_opts.highpass)
+            timeseries_filtered = butterworth(timeseries_filled, TR=TR,
+                                    high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
+
 
             # re-apply the masks to take out simulated data points    
             timeseries = timeseries_filtered[frame_mask]
