@@ -88,14 +88,14 @@ def csv2par(in_confounds):
 def gen_FD_mask(FD_trace, scrubbing_threshold):
     '''
     Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
-    and 4 forward frames will be masked out from the data (as in Power et al. 2012)
+    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
     '''
     import numpy as np
     cutoff = np.asarray(FD_trace) >= scrubbing_threshold
     mask = np.ones(len(FD_trace)).astype(bool)
     for i in range(len(mask)):
         if cutoff[i]:
-            mask[i-1:i+4] = 0
+            mask[i-1:i+2] = 0
     return mask
 
 
