@@ -170,17 +170,13 @@ class Regress(BaseInterface):
         '''
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
-        data_dict = temporal_censoring(timeseries, data_dict,
+        censoring_out = temporal_censoring(timeseries, FD_trace, confounds_array,
                 cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
 
-        if data_dict is None:
+        if censoring_out is None:
             return runtime
-        
-        timeseries=data_dict['timeseries']
-        FD_trace=data_dict['FD_trace']
-        DVARS=data_dict['DVARS']
-        frame_mask=data_dict['frame_mask']
-        confounds_array=data_dict['confounds_array']
+        else:
+            timeseries, FD_trace, DVARS, frame_mask, confounds_array = censoring_out
 
         '''
         #2 - Detrend timeseries and confound regressors
@@ -247,9 +243,11 @@ class Regress(BaseInterface):
             frame_mask[:num_cut]=0
             frame_mask[-num_cut:]=0
 
-            # re-apply the masks to take out simulated data points    
+            # re-apply the masks to take out simulated data points, and take off the edges
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
+            DVARS = DVARS[num_cut:-num_cut]
+            FD_trace = FD_trace[num_cut:-num_cut]
         
         '''
         #7 - Apply confound regression using the corrected regressors, while applying the 
@@ -265,7 +263,7 @@ class Regress(BaseInterface):
         except:
             import logging
             log = logging.getLogger('root')
-            log.debug("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            log.info("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
             empty_file = os.path.abspath('empty.nii.gz')
             sitk.WriteImage(empty_img, empty_file)

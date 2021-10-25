@@ -128,10 +128,8 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
-def temporal_censoring(timeseries, data_dict,
+def temporal_censoring(timeseries, FD_trace, confounds_array,
         FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
-    FD_trace=data_dict['FD_trace']
-    confounds_array=data_dict['confounds_array']
 
     # compute the DVARS before denoising
     derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
@@ -166,8 +164,7 @@ def temporal_censoring(timeseries, data_dict,
     FD_trace=FD_trace[frame_mask]
     DVARS=DVARS[frame_mask]
 
-    data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
-    return data_dict
+    return timeseries, FD_trace, DVARS, frame_mask, confounds_array
 
 
 def recover_3D(mask_file, vector_map):
