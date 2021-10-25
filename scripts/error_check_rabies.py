@@ -73,7 +73,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
+command = f"rabies confound_correction {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
 process = subprocess.run(
     command,
     check=True,
@@ -96,8 +96,8 @@ process = subprocess.run(
     shell=True,
     )
 
-os.remove(f'{tmppath}/outputs/rabies_confound_regression.pkl')
-command = f"rabies confound_regression --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
+os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
+command = f"rabies confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
 process = subprocess.run(
     command,
     check=True,
@@ -111,8 +111,8 @@ process = subprocess.run(
     shell=True,
     )
 
-os.remove(f'{tmppath}/outputs/rabies_confound_regression.pkl')
-command = f"rabies confound_regression {tmppath}/outputs {tmppath}/outputs"
+os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
+command = f"rabies confound_correction {tmppath}/outputs {tmppath}/outputs"
 process = subprocess.run(
     command,
     check=True,

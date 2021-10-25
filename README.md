@@ -588,16 +588,16 @@ rabies -p MultiProc preprocess test_dataset/ preprocess_outputs/ --TR 1.0s --no_
 First, this will run the minimal preprocessing step on the test dataset and store outputs into preprocess_outputs/ folder. The option -p MultiProc specifies to run the pipeline in parallel according to available local threads.
 <br/>
 
-**confound_regression**
+**confound_correction**
 ```sh
-rabies -p MultiProc confound_regression preprocess_outputs/ confound_regression_outputs/ --TR 1.0s --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+rabies -p MultiProc confound_correction preprocess_outputs/ confound_correction_outputs/ --TR 1.0s --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
 ```
-Next, to conduct the modeling and regression of confounding sources, the confound_regression step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
+Next, to conduct the modeling and regression of confounding sources, the confound_correction step can be run with custom options for denoising. In this case, we apply a highpass filtering at 0.01Hz, together with the voxelwise regression of the 6 rigid realignment parameters and the mean WM,CSF and vascular signal which are derived from masks provided along with the anatomical template. Finally, a smoothing filter 0.3mm is applied. We are running this on the commonspace outputs from preprocess (--commonspace_bold), since we will run analysis in commonspace in the next step.
 <br/>
 
 **analysis**
 ```sh
-rabies -p MultiProc analysis confound_regression_outputs analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+rabies -p MultiProc analysis confound_correction_outputs analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
 ```
 Finally, RABIES has a few standard analysis options provided, which are specified in the Analysis documentation. In this example, we are going to run group independent component analysis (--group_ICA), using FSL's MELODIC function, followed by a dual regression (--DR_ICA) to back propagate the group components onto individual subjects.
 
@@ -627,12 +627,12 @@ singularity run -B $PWD/test_dataset:/test_dataset:ro \
 ```
 <br/>
 
-**confound_regression**
+**confound_correction**
 ```sh
 singularity run -B $PWD/test_dataset:/test_dataset:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
--B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc confound_regression /preprocess_outputs/ /confound_regression_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
+-B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
+/path_to_singularity_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --TR 1.0s --highpass 0.01 --commonspace_bold --smoothing_filter 0.3 --conf_list WM_signal CSF_signal vascular_signal mot_6
 ```
 Note here that the path to the dataset is still linked to the container with -B, even though it is not explicitely part of the inputs in the confound regression call. This is necessary since the paths used in the preprocess steps are still accessed in the background, and there will be an error if the paths are not kept consistent across processing steps.
 <br/>
@@ -641,9 +641,9 @@ Note here that the path to the dataset is still linked to the container with -B,
 ```sh
 singularity run -B $PWD/test_dataset:/test_dataset:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
--B $PWD/confound_regression_outputs:/confound_regression_outputs/ \
+-B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
 -B $PWD/analysis_outputs:/analysis_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_regression_outputs /analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
+/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_correction_outputs /analysis_outputs/ --TR 1.0s --group_ICA --DR_ICA
 ```
 <br/>
 
@@ -733,8 +733,8 @@ The following image presents an example of the overlap for the EPI2Anat registra
 <details><summary><b>Click to expand</b></summary>
 <p>
 
-Important outputs from confound regression will be found in the confound_regression_datasink present in the provided output folder:
-- **confound_regression_datasink**: Includes outputs specific to the anatomical preprocessing workflow
+Important outputs from confound regression will be found in the confound_correction_datasink present in the provided output folder:
+- **confound_correction_datasink**: Includes outputs specific to the anatomical preprocessing workflow
     - cleaned_timeseries: Resulting timeseries after the application of confound regression
     - VE_file: .pkl file which contains a dictionary vectors, where each vector corresponds to the voxelwise the variance explained (VE) from each regressor in the regression model
     - aroma_out: if --run_aroma is selected, the outputs from running ICA-AROMA will be saved, which includes the MELODIC ICA outputs and the component classification results

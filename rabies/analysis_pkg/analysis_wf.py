@@ -61,7 +61,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
 
     include_group_ICA = opts.group_ICA
 
-    if opts.DR_ICA and not opts.data_diagnosis:
+    if opts.DR_ICA or opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_analysis.')
@@ -91,11 +91,12 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
-        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim'],
+        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
                             name='group_ICA', mem_gb=1)
         group_ICA.inputs.dim = opts.dim
+        group_ICA.inputs.random_seed = opts.melodic_random_seed
 
         workflow.connect([
             (group_inputnode, group_ICA, [
@@ -108,16 +109,11 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ]),
             ])
 
-    if opts.dual_ICA>0 and not opts.data_diagnosis:
+    if opts.dual_ICA>0:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
         from .analysis_functions import dual_ICA_wrapper
-        from .data_diagnosis import resample_IC_file
-        resample_IC = pe.Node(Function(input_names=['in_file', 'ref_file'],
-                                     output_names=['out_file'],
-                                     function=resample_IC_file),
-                            name='resample_IC', mem_gb=1)
 
         dual_ICA_node = pe.Node(dual_ICA_wrapper(),
                             name='dual_ICA_node', mem_gb=1)

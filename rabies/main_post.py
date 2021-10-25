@@ -4,11 +4,13 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
+from rabies.analysis_pkg.diagnosis_pkg.diagnosis_wf import init_diagnosis_wf
+from rabies.analysis_pkg.analysis_wf import init_analysis_wf
 
 
-def detached_confound_regression_wf(preprocess_opts, cr_opts, analysis_opts):
+def detached_confound_correction_wf(preprocess_opts, cr_opts, analysis_opts):
 
-    workflow = pe.Workflow(name=cr_opts.output_name)
+    workflow = pe.Workflow(name=cr_opts.output_name+'_main_post_wf')
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
@@ -35,24 +37,24 @@ def detached_confound_regression_wf(preprocess_opts, cr_opts, analysis_opts):
             ]),
         ])
 
-    workflow, confound_regression_wf = integrate_confound_regression(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
+    workflow, confound_correction_wf = integrate_confound_correction(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
 
     # Integrate analysis
     if analysis_opts is not None:
         workflow = integrate_analysis(
-            workflow, outputnode, confound_regression_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
+            workflow, outputnode, confound_correction_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
 
     return workflow
 
 
-def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
+def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
     cr_output = os.path.abspath(str(cr_opts.output_dir))
 
-    from rabies.conf_reg_pkg.confound_regression import init_confound_regression_wf
-    confound_regression_wf = init_confound_regression_wf(cr_opts=cr_opts, name=cr_opts.output_name)
+    from rabies.conf_reg_pkg.confound_correction import init_confound_correction_wf
+    confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts, name=cr_opts.output_name)
 
     workflow.connect([
-        (outputnode, confound_regression_wf, [
+        (outputnode, confound_correction_wf, [
             ("confounds_csv", "inputnode.confounds_file"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
             ]),
@@ -64,7 +66,7 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
 
     if cr_opts.nativespace_analysis:
         workflow.connect([
-            (outputnode, confound_regression_wf, [
+            (outputnode, confound_correction_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
                 ("native_CSF_mask", "inputnode.csf_mask"),
@@ -72,42 +74,41 @@ def integrate_confound_regression(workflow, outputnode, cr_opts, bold_only):
             ])
     else:
         workflow.connect([
-            (outputnode, confound_regression_wf, [
+            (outputnode, confound_correction_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
                 ("commonspace_CSF_mask", "inputnode.csf_mask"),
                 ]),
             ])
 
-    if cr_opts.rabies_step == 'confound_regression':
-        confound_regression_datasink = pe.Node(DataSink(base_directory=cr_output,
+    if cr_opts.rabies_step == 'confound_correction':
+        confound_correction_datasink = pe.Node(DataSink(base_directory=cr_output,
                                                         container=cr_opts.output_name+"_datasink"),
                                                name=cr_opts.output_name+"_datasink")
         workflow.connect([
-            (confound_regression_wf, confound_regression_datasink, [
+            (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.cleaned_path", "cleaned_timeseries"),
                 ]),
             ])
         if cr_opts.run_aroma:
             workflow.connect([
-                (confound_regression_wf, confound_regression_datasink, [
+                (confound_correction_wf, confound_correction_datasink, [
                     ("outputnode.aroma_out", "aroma_out"),
                     ]),
                 ])
         if cr_opts.DVARS_censoring or cr_opts.FD_censoring:
             workflow.connect([
-                (confound_regression_wf, confound_regression_datasink, [
+                (confound_correction_wf, confound_correction_datasink, [
                     ("outputnode.frame_mask_file", "frame_censoring_mask"),
                     ]),
                 ])
 
-    return workflow, confound_regression_wf
+    return workflow, confound_correction_wf
 
 
-def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, opts):
+def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, opts):
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
-    from rabies.analysis_pkg.analysis_wf import init_analysis_wf
     analysis_wf = init_analysis_wf(
         opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list, name=analysis_opts.output_name)
 
@@ -130,7 +131,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
                                        function=read_dict),
                               name=analysis_opts.output_name+'_read_dict')
 
-    workflow,find_iterable_node, joinnode_main,analysis_split = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix=analysis_opts.output_name)
+    workflow,find_iterable_node, joinnode_main,analysis_split,scan_split_name = transit_iterables(workflow, prep_dict_node, analysis_opts.scan_list, bold_only, bold_scan_list, node_prefix=analysis_opts.output_name)
 
     analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
                                          name=analysis_opts.output_name+'_split_joinnode',
@@ -159,7 +160,7 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
         (outputnode, prep_dict_node, [
             ("input_bold", "name_source"),
             ]),
-        (confound_regression_wf, prep_dict_node, [
+        (confound_correction_wf, prep_dict_node, [
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
             ("outputnode.VE_file", "VE_file"),
@@ -187,249 +188,64 @@ def integrate_analysis(workflow, outputnode, confound_regression_wf, analysis_op
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
+            ("outputnode.DR_nii_file", "dual_regression_nii"),
+            ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
+            ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+            ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
             ]),
         ])
 
     if analysis_opts.data_diagnosis:
-        if not (commonspace_bold or bold_only):
-            raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
 
-        if os.path.basename(opts.anat_template)=='DSURQE_40micron_average.nii.gz':
-            DSURQE_regions=True
-        else:
-            DSURQE_regions=False
+        def prep_analysis_dict(dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
+            return {'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+                                            output_names=[
+                                                'analysis_dict'],
+                                        function=prep_analysis_dict),
+                                name=analysis_opts.output_name+'_prep_analysis_dict')
 
-        from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, temporal_external_formating, spatial_external_formating
-        ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
-            prior_confound_idx=analysis_opts.prior_confound_idx,
-                dual_ICA = analysis_opts.dual_ICA, DSURQE_regions=DSURQE_regions),
-            name=analysis_opts.output_name+'_ScanDiagnosis')
-
-        PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),
-            name=analysis_opts.output_name+'_PrepMasks')
-
-        DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-            name=analysis_opts.output_name+'_DatasetDiagnosis')
-
-        temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
-                                               output_names=[
-                                                   'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv'],
-                                           function=temporal_external_formating),
-                                  name=analysis_opts.output_name+'_temporal_external_formating')
-
-        spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
-                                               output_names=[
-                                                   'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
-                                           function=spatial_external_formating),
-                                  name=analysis_opts.output_name+'_spatial_external_formating')
-
-        data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
-                                             name=analysis_opts.output_name+'_diagnosis_split_joinnode',
-                                             joinsource=analysis_split.name,
-                                             joinfield=['spatial_info_list'])
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, scan_split_name, name=analysis_opts.output_name+"diagnosis_wf")
 
         workflow.connect([
-            (joinnode_main, PrepMasks_node, [
-                ("file_list", "mask_dict_list"),
-                ]),
-            (PrepMasks_node, ScanDiagnosis_node, [
-                ("mask_file_dict", "mask_file_dict"),
-                ]),
-            (find_iterable_node, ScanDiagnosis_node, [
-                ("file", "file_dict"),
-                ]),
-            (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
-                ("spatial_info", "spatial_info_list"),
-                ]),
-            (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
-                ("spatial_info_list", "spatial_info_list"),
-                ]),
-            (PrepMasks_node, DatasetDiagnosis_node, [
-                ("mask_file_dict", "mask_file_dict"),
-                ]),
-            (find_iterable_node, temporal_external_formating_node, [
-                ("file", "file_dict"),
-                ]),
-            (ScanDiagnosis_node, temporal_external_formating_node, [
-                ("temporal_info", "temporal_info"),
-                ]),
-            (find_iterable_node, spatial_external_formating_node, [
-                ("file", "file_dict"),
-                ]),
-            (ScanDiagnosis_node, spatial_external_formating_node, [
-                ("spatial_info", "spatial_info"),
-                ]),
-            ])
-
-        workflow.connect([
-            (ScanDiagnosis_node, analysis_datasink, [
-                ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
-                ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("VE_file", "VE_file"),
-                ]),
-            (DatasetDiagnosis_node, analysis_datasink, [
-                ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
-                ]),
-            (temporal_external_formating_node, analysis_datasink, [
-                ("temporal_info_csv", "temporal_info_csv"),
-                ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-                ]),
-            (spatial_external_formating_node, analysis_datasink, [
-                ("std_filename", "temporal_std_nii"),
-                ("GS_corr_filename", "GS_corr_nii"),
-                ("DVARS_corr_filename", "DVARS_corr_nii"),
-                ("FD_corr_filename", "FD_corr_nii"),
-                ("DR_maps_filename", "dual_regression_nii"),
-                ]),
-            ])
-
-        if analysis_opts.dual_ICA>0:
-            workflow.connect([
-                (spatial_external_formating_node, analysis_datasink, [
-                    ("dual_ICA_filename", "dual_ICA_nii"),
-                    ]),
-                (temporal_external_formating_node, analysis_datasink, [
-                    ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                    ]),
-                ])
-    else:
-        workflow.connect([
-            (analysis_wf, analysis_datasink, [
+            (analysis_wf, prep_analysis_dict_node, [
                 ("outputnode.DR_nii_file", "dual_regression_nii"),
                 ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-                ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+                ]),
+            (joinnode_main, diagnosis_wf, [
+                ("file_list", "inputnode.mask_dict_list"),
+                ]),
+            (find_iterable_node, diagnosis_wf, [
+                ("file", "inputnode.file_dict"),
+                ]),
+            (prep_analysis_dict_node, diagnosis_wf, [
+                ("analysis_dict", "inputnode.analysis_dict"),
+                ]),
+            (diagnosis_wf, analysis_datasink, [
+                ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
+                ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
+                ("outputnode.VE_file", "VE_file"),
+                ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
+                ("outputnode.temporal_info_csv", "temporal_info_csv"),
+                ("outputnode.temporal_std_nii", "temporal_std_nii"),
+                ("outputnode.GS_corr_nii", "GS_corr_nii"),
+                ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
+                ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),
             ])
-
+        if analysis_opts.dual_ICA>0:
+            workflow.connect([
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
+                    ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+                    ]),
+                ])
+        else:
+            prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
+            prep_analysis_dict_node.inputs.dual_ICA_filename = None
 
     return workflow
 
-
-def integrate_data_diagnosis(workflow, outputnode, confound_regression_wf, data_diagnosis_opts, bold_only, commonspace_bold, bold_scan_list):
-
-    data_diagnosis_output = os.path.abspath(str(data_diagnosis_opts.output_dir))
-
-    from rabies.analysis_pkg.data_diagnosis import ScanDiagnosis, PrepMasks, DatasetDiagnosis, temporal_external_formating, spatial_external_formating
-    ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=data_diagnosis_opts.prior_bold_idx,
-        prior_confound_idx=data_diagnosis_opts.prior_confound_idx,
-            dual_ICA = data_diagnosis_opts.dual_ICA, DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
-        name=data_diagnosis_opts.output_name+'_ScanDiagnosis')
-
-    PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(data_diagnosis_opts.prior_maps)), DSURQE_regions=data_diagnosis_opts.DSURQE_regions),
-        name=data_diagnosis_opts.output_name+'_PrepMasks')
-
-    DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-        name=data_diagnosis_opts.output_name+'_DatasetDiagnosis')
-
-    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
-                                           output_names=[
-                                               'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv'],
-                                       function=temporal_external_formating),
-                              name=data_diagnosis_opts.output_name+'_temporal_external_formating')
-
-    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
-                                           output_names=[
-                                               'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
-                                       function=spatial_external_formating),
-                              name=data_diagnosis_opts.output_name+'_spatial_external_formating')
-
-    def prep_dict(bold_file, CR_data_dict, VE_file, brain_mask_file, WM_mask_file, CSF_mask_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'brain_mask_file':brain_mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'brain_mask_file', 'WM_mask_file', 'CSF_mask_file', 'preprocess_anat_template', 'name_source'],
-                                           output_names=[
-                                               'prep_dict'],
-                                       function=prep_dict),
-                              name=data_diagnosis_opts.output_name+'_prep_dict')
-
-    workflow, find_iterable_node, joinnode_main, analysis_split = transit_iterables(workflow, prep_dict_node, data_diagnosis_opts.scan_list, bold_only, bold_scan_list, node_prefix=data_diagnosis_opts.output_name)
-
-    data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
-                                         name=data_diagnosis_opts.output_name+'_split_joinnode',
-                                         joinsource=analysis_split.name,
-                                         joinfield=['spatial_info_list'])
-
-    workflow.connect([
-        (outputnode, prep_dict_node, [
-            ("commonspace_mask", "brain_mask_file"),
-            ("commonspace_WM_mask", "WM_mask_file"),
-            ("commonspace_CSF_mask", "CSF_mask_file"),
-            ("commonspace_resampled_template", "preprocess_anat_template"),
-            ("input_bold", "name_source"),
-            ]),
-        (confound_regression_wf, prep_dict_node, [
-            ("outputnode.cleaned_path", "bold_file"),
-            ("outputnode.CR_data_dict", "CR_data_dict"),
-            ("outputnode.VE_file", "VE_file"),
-            ]),
-        (joinnode_main, PrepMasks_node, [
-            ("file_list", "mask_dict_list"),
-            ]),
-        (PrepMasks_node, ScanDiagnosis_node, [
-            ("mask_file_dict", "mask_file_dict"),
-            ]),
-        (find_iterable_node, ScanDiagnosis_node, [
-            ("file", "file_dict"),
-            ]),
-        (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
-            ("spatial_info", "spatial_info_list"),
-            ]),
-        (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
-            ("spatial_info_list", "spatial_info_list"),
-            ]),
-        (PrepMasks_node, DatasetDiagnosis_node, [
-            ("mask_file_dict", "mask_file_dict"),
-            ]),
-        (find_iterable_node, temporal_external_formating_node, [
-            ("file", "file_dict"),
-            ]),
-        (ScanDiagnosis_node, temporal_external_formating_node, [
-            ("temporal_info", "temporal_info"),
-            ]),
-        (find_iterable_node, spatial_external_formating_node, [
-            ("file", "file_dict"),
-            ]),
-        (ScanDiagnosis_node, spatial_external_formating_node, [
-            ("spatial_info", "spatial_info"),
-            ]),
-        ])
-
-    data_diagnosis_datasink = pe.Node(DataSink(base_directory=data_diagnosis_output,
-                                     container=data_diagnosis_opts.output_name+"_datasink"),
-                            name=data_diagnosis_opts.output_name+"_datasink")
-    workflow.connect([
-        (ScanDiagnosis_node, data_diagnosis_datasink, [
-            ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
-            ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-            ("VE_file", "VE_file"),
-            ]),
-        (DatasetDiagnosis_node, data_diagnosis_datasink, [
-            ("figure_dataset_diagnosis", "figure_dataset_diagnosis"),
-            ]),
-        (temporal_external_formating_node, data_diagnosis_datasink, [
-            ("temporal_info_csv", "temporal_info_csv"),
-            ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ]),
-        (spatial_external_formating_node, data_diagnosis_datasink, [
-            ("std_filename", "temporal_std_nii"),
-            ("GS_corr_filename", "GS_corr_nii"),
-            ("DVARS_corr_filename", "DVARS_corr_nii"),
-            ("FD_corr_filename", "FD_corr_nii"),
-            ("DR_maps_filename", "dual_regression_nii"),
-            ]),
-        ])
-
-    if data_diagnosis_opts.dual_ICA>0:
-        workflow.connect([
-            (spatial_external_formating_node, data_diagnosis_datasink, [
-                ("dual_ICA_filename", "dual_ICA_nii"),
-                ]),
-            (temporal_external_formating_node, data_diagnosis_datasink, [
-                ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                ]),
-            ])
-
-    return workflow
 
 def transit_iterables(workflow, prep_dict_node, scan_list, bold_only, bold_scan_list, node_prefix=''):
     # this function adds nodes to the workflow which first joins the iterables from preprocessing
@@ -482,7 +298,7 @@ def transit_iterables(workflow, prep_dict_node, scan_list, bold_only, bold_scan_
                 ]),
             ])
 
-    return workflow,find_iterable_node, joinnode_main,analysis_split
+    return workflow,find_iterable_node, joinnode_main,analysis_split, scan_split_name
 
 def get_iterable_scan_list(scan_list, bold_scan_list):
     # prep the subset of scans on which the analysis will be run

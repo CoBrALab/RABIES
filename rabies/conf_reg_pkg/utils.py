@@ -1,10 +1,6 @@
 import os
 import numpy as np
 import SimpleITK as sitk
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
 
 
 def tree_list(dirName):
@@ -50,7 +46,7 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
     return bold_file, brain_mask_file, confounds_file, csf_mask, FD_file
 
 
-def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
+def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_seed=1):
     import os
     from rabies.conf_reg_pkg.utils import csv2par
     from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
@@ -67,7 +63,7 @@ def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim):
         tr = float(tr)
 
     run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
-        brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True)
+        brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True, random_seed=random_seed)
     os.rename(aroma_out+'/denoised_func_data_nonaggr.nii.gz', cleaned_file)
     return cleaned_file, aroma_out
 
@@ -92,29 +88,27 @@ def csv2par(in_confounds):
 def gen_FD_mask(FD_trace, scrubbing_threshold):
     '''
     Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
-    and 4 forward frames will be masked out from the data (as in Power et al. 2012)
+    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
     '''
     import numpy as np
     cutoff = np.asarray(FD_trace) >= scrubbing_threshold
     mask = np.ones(len(FD_trace)).astype(bool)
     for i in range(len(mask)):
         if cutoff[i]:
-            mask[i-1:i+4] = 0
+            mask[i-1:i+2] = 0
     return mask
 
 
 def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
-    import os
-    import numpy as np
     import pandas as pd
     import SimpleITK as sitk
     from rabies.conf_reg_pkg.utils import select_confound_timecourses
 
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    # save specifically the 6 rigid parameters for AROMA
+    confounds_6rigid_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
 
     if len(cr_opts.conf_list)==0:
-        confounds_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
+        confounds_array = confounds_6rigid_array
     else:
         confounds_array = select_confound_timecourses(cr_opts.conf_list,confounds_file,FD_file)
 
@@ -125,23 +119,17 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
         lowcut = int(cr_opts.timeseries_interval.split(',')[0])
         highcut = int(cr_opts.timeseries_interval.split(',')[1])
         confounds_array = confounds_array[lowcut:highcut, :]
+        confounds_6rigid_array = confounds_6rigid_array[lowcut:highcut, :]
         FD_trace = FD_trace[lowcut:highcut]
         time_range = range(lowcut,highcut)
     else:
         time_range = range(sitk.ReadImage(bold_file).GetSize()[3])
 
-    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_csv':confounds_file, 'time_range':time_range}
+    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
-def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
+def temporal_censoring(timeseries, FD_trace, 
         FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
-    FD_trace=data_dict['FD_trace']
-    confounds_array=data_dict['confounds_array']
-
-    # apply highpass/lowpass filtering
-    import nilearn.signal
-    timeseries = nilearn.signal.clean(timeseries, detrend=False, standardize=False, low_pass=lowpass,
-                                      high_pass=highpass, confounds=None, t_r=TR)
 
     # compute the DVARS before denoising
     derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
@@ -170,19 +158,9 @@ def temporal_filtering(timeseries, data_dict, TR, lowpass, highpass,
         import logging
         log = logging.getLogger('root')
         log.info(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        return None
-    timeseries=timeseries[frame_mask,:]
-    confounds_array=confounds_array[frame_mask,:]
-    FD_trace=FD_trace[frame_mask]
-    DVARS=DVARS[frame_mask]
+        return None,None,None
 
-    # apply simple detrending, after censoring
-    from scipy.signal import detrend
-    timeseries = detrend(timeseries,axis=0)
-    confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too, like in nilearn's function
-
-    data_dict = {'timeseries':timeseries,'FD_trace':FD_trace, 'DVARS':DVARS, 'frame_mask':frame_mask, 'confounds_array':confounds_array}
-    return data_dict
+    return frame_mask,FD_trace,DVARS
 
 
 def recover_3D(mask_file, vector_map):
@@ -242,91 +220,106 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
     return np.asarray(confounds[conf_keys])
 
 
-def regress(bold_file, data_dict, brain_mask_file, cr_opts):
-    import os
-    import numpy as np
-    import pandas as pd
-    import SimpleITK as sitk
-    from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_filtering
-    from rabies.analysis_pkg.analysis_functions import closed_form
+def lombscargle_mathias(t, x, w):
 
-    FD_trace=data_dict['FD_trace']
-    confounds_array=data_dict['confounds_array']
-    confounds_file=data_dict['confounds_csv']
-    time_range=data_dict['time_range']
+    '''
+    Implementation of Lomb-Scargle periodogram as described in Mathias et al. 2004, 
+    and applied in Power et al. 2014
+    
+    Mathias, A., Grond, F., Guardans, R., Seese, D., Canela, M., & Diebner, H. H. (2004). 
+    Algorithms for spectral analysis of irregularly sampled time series. Journal of Statistical Software, 11(1), 1-27.
+    
+    Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). 
+    Methods to detect, characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
+    
+    '''
 
-    cr_out = os.getcwd()
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    if (w == 0).sum()>0:
+        raise ZeroDivisionError()
 
-    brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file, sitk.sitkFloat32))
-    volume_indices = brain_mask.astype(bool)
+    # Check input sizes
+    if t.shape[0] != x.shape[0]:
+        raise ValueError("Input arrays do not have the same size.")
 
-    data_img = sitk.ReadImage(bold_file, sitk.sitkFloat32)
-    data_array = sitk.GetArrayFromImage(data_img)
-    num_volumes = data_array.shape[0]
-    timeseries = np.zeros([num_volumes, volume_indices.sum()])
-    for i in range(num_volumes):
-        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
-    timeseries = timeseries[time_range,:]
+    # Create empty array for output periodogram
+    cw = np.empty((len(w)))
+    sw = np.empty((len(w)))
+    theta = np.empty((len(w)))
 
-    if cr_opts.TR=='auto':
-        TR = float(data_img.GetSpacing()[3])
+    w_t = w[:,np.newaxis].dot(t[np.newaxis,:])
+    theta = (1/(2*w))*np.arctan( \
+        np.sin(2*w_t).sum(axis=1)/ \
+        np.cos(2*w_t).sum(axis=1))
+
+        
+    wt = (t[:,np.newaxis]-theta[np.newaxis,:])*w
+    c=np.cos(wt)
+    s=np.sin(wt)
+    
+    cw = x.T.dot(c)/(c**2).sum(axis=0)
+    sw = x.T.dot(s)/(s**2).sum(axis=0)
+    
+    return cw,sw,theta
+
+
+def lombscargle_mathias_simulate(t, w, cw, sw,theta):
+    # recover simulated timeseries for a given time vector t
+
+    wt = (t[:,np.newaxis]-theta[np.newaxis,:])*w
+    c=np.cos(wt)
+    s=np.sin(wt)
+    
+    y = c.dot(cw.T)+s.dot(sw.T)
+    return y
+
+
+def lombscargle_fill(x,time_step,time_mask):
+    num_timepoints=len(time_mask)
+    time=np.linspace(time_step,num_timepoints*time_step,num_timepoints)
+
+    low_freq = 0.005
+    high_freq = 1
+    freqs=np.linspace(low_freq,high_freq,1000)
+    w = freqs*2*np.pi
+
+    t = time[time_mask]
+    cw,sw,theta = lombscargle_mathias(t, x, w)
+    
+    # simulate over entire time
+    t=time
+    y = lombscargle_mathias_simulate(t, w, cw, sw,theta)
+    
+    # standardize according to masked data poaxis=0ints    
+    y -= y[time_mask].mean(axis=0)
+    y /= y[time_mask].std(axis=0)
+    
+    # re-scale according to original mean/std
+    y *= x.std(axis=0)
+    y += x.mean(axis=0)
+    
+    y_fill = np.zeros(y.shape)
+    y_fill[time_mask,:] = x
+    y_fill[time_mask==0,:] = y[(time_mask==0)]
+    return y_fill
+
+
+def butterworth(signals, TR, high_pass, low_pass):
+    from scipy import signal
+    
+    critical_freq = []
+    if high_pass is not None:
+        btype = 'high'
+        critical_freq.append(high_pass)
+    
+    if low_pass is not None:
+        btype = 'low'
+        critical_freq.append(low_pass)
+    
+    if len(critical_freq) == 2:
+        btype = 'band'
     else:
-        TR = float(cr_opts.TR)
-
-    data_dict = temporal_filtering(timeseries, data_dict, TR, cr_opts.lowpass, cr_opts.highpass,
-            cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
-    if data_dict is None:
-        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-        empty_file = os.path.abspath('empty.nii.gz')
-        sitk.WriteImage(empty_img, empty_file)
-        return empty_file,empty_file,empty_file,None
-
-    timeseries=data_dict['timeseries']
-    FD_trace=data_dict['FD_trace']
-    DVARS=data_dict['DVARS']
-    frame_mask=data_dict['frame_mask']
-    confounds_array=data_dict['confounds_array']
-
-    # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
-    X=confounds_array
-    Y=timeseries
-    try:
-        res = Y-X.dot(closed_form(X,Y))
-    except:
-        import logging
-        log = logging.getLogger('root')
-        log.debug("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        import SimpleITK as sitk
-        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-        empty_file = os.path.abspath('empty.nii.gz')
-        sitk.WriteImage(empty_img, empty_file)
-        return empty_file,empty_file,empty_file,None
-
-    VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
-    VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
-
-    if len(cr_opts.conf_list) > 0:
-        timeseries = res
-    if cr_opts.standardize:
-        timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
-
-    # save output files
-    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
-    timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
-    cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
-    sitk.WriteImage(timeseries_3d, cleaned_path)
-    VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
-    sitk.WriteImage(VE_spatial_map, VE_file_path)
-    frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
-    pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
-
-    if cr_opts.smoothing_filter is not None:
-        import nilearn.image
-        import nibabel as nb
-        timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
-        timeseries_3d.to_filename(cleaned_path)
-
-    data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
-    return cleaned_path, VE_file_path, frame_mask_file, data_dict
+        critical_freq = critical_freq[0]
+    
+    order=3
+    sos = signal.butter(order, critical_freq, fs=1/TR, btype=btype, output='sos')
+    return signal.sosfiltfilt(sos, signals, axis=0)

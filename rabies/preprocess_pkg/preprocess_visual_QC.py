@@ -101,6 +101,8 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
     for i in range(1,num_slices):
         slice_fractions.append(slice_0+(i*slice_spacing))
 
+    cbar_list = []
+    
     ax_number=0
     if 'sagittal' in planes:
         ax=axes[ax_number]
@@ -113,7 +115,7 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
         pos = ax.imshow(slices, extent=[0,physical_dimensions[1]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
-            fig.colorbar(pos, ax=ax)
+            cbar_list.append(fig.colorbar(pos, ax=ax))
 
     if 'coronal' in planes:
         ax=axes[ax_number]
@@ -126,7 +128,7 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
         pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
-            fig.colorbar(pos, ax=ax)
+            cbar_list.append(fig.colorbar(pos, ax=ax))
 
     if 'horizontal' in planes:
         ax=axes[ax_number]
@@ -139,7 +141,8 @@ def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, th
         pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[1]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
         ax.axis('off')
         if cbar:
-            fig.colorbar(pos, ax=ax)
+            cbar_list.append(fig.colorbar(pos, ax=ax))
+    return cbar_list
 
 def plot_reg(image1,image2, name_source, out_dir):
     import os

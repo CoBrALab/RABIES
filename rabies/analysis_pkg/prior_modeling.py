@@ -1,6 +1,6 @@
 from sklearn.utils import check_random_state
 import numpy as np
-from rabies.analysis_pkg.analysis_functions import closed_form
+from rabies.analysis_pkg.analysis_math import closed_form
 
 # functions that computes the Least Squares Estimates
 

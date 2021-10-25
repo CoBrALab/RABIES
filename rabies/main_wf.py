@@ -6,11 +6,11 @@ from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 from nipype.interfaces.afni import Autobox
 from .preprocess_pkg.inho_correction import init_inho_correction_wf
-from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf,GenerateTemplate
+from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf
 from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .preprocess_pkg import preprocess_visual_QC
-from .main_post import integrate_confound_regression,integrate_analysis,integrate_data_diagnosis
+from .main_post import integrate_confound_correction,integrate_analysis
 
 def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, name='main_wf'):
     '''
@@ -25,7 +25,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
         opts
             parser options for preprocess
         cr_opts
-            parser options for confound_regression
+            parser options for confound_correction
         analysis_opts
             parser options for analysis
 
@@ -462,13 +462,13 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # Integrate confound regression
     if cr_opts is not None:
-        workflow, confound_regression_wf = integrate_confound_regression(
+        workflow, confound_correction_wf = integrate_confound_correction(
             workflow, outputnode, cr_opts, bold_only=opts.bold_only)
 
         # Integrate analysis
         if analysis_opts is not None:
             workflow = integrate_analysis(
-                workflow, outputnode, confound_regression_wf, analysis_opts, opts.bold_only, not cr_opts.nativespace_analysis, bold_scan_list, opts)
+                workflow, outputnode, confound_correction_wf, analysis_opts, opts.bold_only, not cr_opts.nativespace_analysis, bold_scan_list, opts)
 
     elif opts.rabies_step == 'preprocess':
         # only fill datasinks if the related workflow is running
