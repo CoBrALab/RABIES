@@ -170,13 +170,14 @@ class Regress(BaseInterface):
         '''
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
-        censoring_out = temporal_censoring(timeseries, FD_trace, confounds_array,
+        frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
                 cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
 
-        if censoring_out is None:
+        if frame_mask is None:
             return runtime
-        else:
-            timeseries, FD_trace, DVARS, frame_mask, confounds_array = censoring_out
+
+        timeseries = timeseries[frame_mask]
+        confounds_array = confounds_array[frame_mask]
 
         '''
         #2 - Detrend timeseries and confound regressors
@@ -184,7 +185,6 @@ class Regress(BaseInterface):
         # apply simple detrending, after censoring
         timeseries = detrend(timeseries,axis=0)
         confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too
-
 
         '''
         #3 - Apply ICA-AROMA.
@@ -246,8 +246,6 @@ class Regress(BaseInterface):
             # re-apply the masks to take out simulated data points, and take off the edges
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
-            DVARS = DVARS[num_cut:-num_cut]
-            FD_trace = FD_trace[num_cut:-num_cut]
         
         '''
         #7 - Apply confound regression using the corrected regressors, while applying the 
@@ -305,6 +303,9 @@ class Regress(BaseInterface):
             timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
             timeseries_3d.to_filename(cleaned_path)
 
+        # apply the frame mask to FD trace/DVARS
+        DVARS = DVARS[frame_mask]
+        FD_trace = FD_trace[frame_mask]
         data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
 
         setattr(self, 'cleaned_path', cleaned_path)

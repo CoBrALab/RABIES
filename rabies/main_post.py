@@ -10,7 +10,7 @@ from rabies.analysis_pkg.analysis_wf import init_analysis_wf
 
 def detached_confound_correction_wf(preprocess_opts, cr_opts, analysis_opts):
 
-    workflow = pe.Workflow(name=cr_opts.output_name)
+    workflow = pe.Workflow(name=cr_opts.output_name+'_main_post_wf')
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 

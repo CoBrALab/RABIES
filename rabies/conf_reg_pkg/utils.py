@@ -128,7 +128,7 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'confounds_csv':confounds_file, 'time_range':time_range}
     return data_dict
 
-def temporal_censoring(timeseries, FD_trace, confounds_array,
+def temporal_censoring(timeseries, FD_trace, 
         FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
 
     # compute the DVARS before denoising
@@ -158,13 +158,9 @@ def temporal_censoring(timeseries, FD_trace, confounds_array,
         import logging
         log = logging.getLogger('root')
         log.info(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        return None
-    timeseries=timeseries[frame_mask,:]
-    confounds_array=confounds_array[frame_mask,:]
-    FD_trace=FD_trace[frame_mask]
-    DVARS=DVARS[frame_mask]
+        return None,None,None
 
-    return timeseries, FD_trace, DVARS, frame_mask, confounds_array
+    return frame_mask,FD_trace,DVARS
 
 
 def recover_3D(mask_file, vector_map):
