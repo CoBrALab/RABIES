@@ -446,6 +446,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
     ax4.set_xlabel('Timepoint', fontsize=15)
+    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=15)
 
     dr_maps = spatial_info['DR_BOLD']
     mask_file = mask_file_dict['brain_mask']
@@ -465,13 +466,16 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     analysis_functions.recover_3D(
         mask_file, temporal_std).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    
+
     # select vmax at 95th percentile value
     vector = temporal_std.flatten()
     vector.sort()
     vmax = vector[int(len(vector)*0.95)]
-    plot_3d(axes, sitk_img, fig2, vmin=0, vmax=vmax,
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=vmax,
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 35
+        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
     for ax in axes:
         ax.set_title('Temporal s.d.', fontsize=30, color='white')
 
@@ -481,8 +485,11 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     analysis_functions.recover_3D(
         mask_file, spatial_info['VE_spatial']).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1, cmap='inferno',
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1, cmap='inferno',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label('CR R^2', fontsize=15, rotation=270, color='white')
     for ax in axes:
         ax.set_title('CR R^2', fontsize=30, color='white')
 
@@ -492,8 +499,11 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     analysis_functions.recover_3D(
         mask_file, spatial_info['GS_corr']).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
     for ax in axes:
         ax.set_title('Global Signal Correlation', fontsize=30, color='white')
 
@@ -503,8 +513,11 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     analysis_functions.recover_3D(
         mask_file, spatial_info['DVARS_corr']).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
@@ -514,8 +527,11 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     analysis_functions.recover_3D(
         mask_file, spatial_info['FD_corr']).to_filename('temp_img.nii.gz')
     sitk_img = sitk.ReadImage('temp_img.nii.gz')
-    plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
     for ax in axes:
         ax.set_title('FD Correlation', fontsize=30, color='white')
 
@@ -525,8 +541,11 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
         sitk_img = sitk.ReadImage('temp_img.nii.gz')
-        masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.015, vmax=None)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.015, vmax=None)
 
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label("Beta \nCoefficient", fontsize=15, rotation=270, color='white')
         for ax in axes:
             ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
 

@@ -12,7 +12,6 @@ from rabies.analysis_pkg.analysis_functions import recover_3D
 import tempfile
 import shutil
 
-
 def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, template_file, fig_path):
 
     scaled = otsu_scaling(template_file)
@@ -25,8 +24,7 @@ def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, templa
     prior, average, network_var, corr_map_std, corr_map_VE = maps
     dataset_stats=eval_relationships(maps, mask_file, percentile=percentile, threshold_spec=threshold_spec)
 
-    fig,axes = plt.subplots(nrows=5, ncols=1,figsize=(12,2*5))
-    plot_relationships(fig,axes, mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=percentile, threshold_spec=threshold_spec)
+    fig = plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=percentile, threshold_spec=threshold_spec)
     fig.savefig(fig_path, bbox_inches='tight')
 
     return dataset_stats
@@ -96,46 +94,64 @@ def eval_relationships(maps, mask_file, percentile=None, threshold_spec=[[4,2],[
             'Avg.: Temporal s.d. effect': std_avg_corr,
             'Avg.: CR R^2 effect': VE_avg_corr,
             } 
-    
 
-def plot_relationships(fig,axes, mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=None, threshold_spec=[[4,2],[4,2],[4,2],[4,2],[4,2]]):
+
+def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=None, threshold_spec=[[4,2],[4,2],[4,2],[4,2],[4,2]]):
+
+    fig,axes = plt.subplots(nrows=5, ncols=1,figsize=(12,2*5))
     
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,prior).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[0]
-    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[0])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[0])
     ax.set_title('Prior network', fontsize=25, color='white')
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Prior measure", fontsize=12, rotation=270, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,average).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[1]
-    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[1])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[1])
     ax.set_title('Dataset average', fontsize=25, color='white')
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Mean", fontsize=12, rotation=270, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,network_var).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[2]
-    masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[2])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[2])
     ax.set_title('Dataset MAD', fontsize=25, color='white')
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Median Absolute \nDeviation", fontsize=12, rotation=270, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,corr_map_std).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[3]
-    masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[3])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[3])
     ax.set_title('Temporal s.d. effect', fontsize=25, color='white')
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
 
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,corr_map_VE).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[4]
-    masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[4])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[4])
     ax.set_title('CR R^2 effect', fontsize=25, color='white')
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 20
+        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
     plt.tight_layout()
 
+    return fig
 
 def masking(img, method='otsu', percentile=None, threshold_spec=[4,2]):
     if method=='otsu':
@@ -172,7 +188,8 @@ def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, vmax=N
     plot_3d(axes,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6, planes=planes)
     # resample to match template
     sitk_img = sitk.Resample(masked, scaled)
-    plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
+    cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
+    return cbar_list
 
 
 def otsu_mask(img, num_histograms=1):
@@ -237,9 +254,12 @@ def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
             recover_3D(
                 mask_file, corr).to_filename('temp_img.nii.gz')
             sitk_img = sitk.ReadImage('temp_img.nii.gz')
-            plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
+            cbar_list = plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
                     alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-            ax.set_title(f'Cross-correlation for {x_label} and {y_label}', fontsize=15, color='white')
+            ax.set_title(f'Cross-correlation for \n{x_label} and {y_label}', fontsize=20, color='white')
+            for cbar in cbar_list:
+                cbar.ax.get_yaxis().labelpad = 20
+                cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
 
     fig.savefig(fig_path,
                 bbox_inches='tight')

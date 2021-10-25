@@ -253,6 +253,10 @@ class Regress(BaseInterface):
             points.
         '''
 
+        # voxels that have a NaN value are set to 0
+        nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+        timeseries[:,nan_voxels] = 0
+
         # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
         X=confounds_array
         Y=timeseries
@@ -281,10 +285,6 @@ class Regress(BaseInterface):
         '''
         if cr_opts.standardize:
             timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
-
-        # voxels that have a NaN value are set to 0
-        nan_voxels = np.isnan(timeseries).sum(axis=0)>1
-        timeseries[:,nan_voxels] = 0
 
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
