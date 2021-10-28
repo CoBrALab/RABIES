@@ -17,7 +17,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                          'cleaned_path', 'aroma_out', 'VE_file', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
 
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
-                           name='regress', mem_gb=1)
+                           name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
     prep_CR_node = pe.Node(Function(input_names=['bold_file', 'confounds_file', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],

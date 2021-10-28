@@ -35,7 +35,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_dict', 'seed_name'],
                                               output_names=['corr_map_file'],
                                               function=seed_based_FC),
-                                     name='seed_based_FC', mem_gb=1)
+                                     name='seed_based_FC', mem_gb=1*opts.scale_min_memory)
         seed_dict = {}
         name_list = []
         for file in seed_list:
@@ -69,7 +69,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         DR_ICA = pe.Node(Function(input_names=['bold_file', 'mask_file', 'IC_file'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
                                   function=run_DR_ICA),
-                         name='DR_ICA', mem_gb=1)
+                         name='DR_ICA', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
             (subject_inputnode, DR_ICA, [
@@ -94,7 +94,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
-                            name='group_ICA', mem_gb=1)
+                            name='group_ICA', mem_gb=1*opts.scale_min_memory)
         group_ICA.inputs.dim = opts.dim
         group_ICA.inputs.random_seed = opts.melodic_random_seed
 
@@ -116,7 +116,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         from .analysis_functions import dual_ICA_wrapper
 
         dual_ICA_node = pe.Node(dual_ICA_wrapper(),
-                            name='dual_ICA_node', mem_gb=1)
+                            name='dual_ICA_node', mem_gb=1*opts.scale_min_memory)
         dual_ICA_node.inputs.num_comp = opts.dual_ICA
         dual_ICA_node.inputs.prior_bold_idx = opts.prior_bold_idx
         dual_ICA_node.inputs.prior_maps = opts.prior_maps
@@ -137,7 +137,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'atlas', 'roi_type'],
                                      output_names=['data_file', 'figname'],
                                      function=run_FC_matrix),
-                            name='FC_matrix', mem_gb=1)
+                            name='FC_matrix', mem_gb=1*opts.scale_min_memory)
         FC_matrix.inputs.roi_type = opts.ROI_type
 
         workflow.connect([
