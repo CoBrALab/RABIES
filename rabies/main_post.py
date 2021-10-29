@@ -116,9 +116,9 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                                          container=analysis_opts.output_name+"_datasink"),
                                 name=analysis_opts.output_name+"_datasink")
 
-    def prep_dict(bold_file, CR_data_dict, VE_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
+    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
+        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
+    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
@@ -164,6 +164,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
             ("outputnode.VE_file", "VE_file"),
+            ("outputnode.STD_file", "STD_file"),
             ]),
         (find_iterable_node, read_dict_node, [
             ("file", "prep_dict"),
@@ -224,9 +225,9 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             (diagnosis_wf, analysis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("outputnode.VE_file", "VE_file"),
                 ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
+                ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
@@ -348,7 +349,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False):
     else:
         raise ValueError(f"Multiple files were found in {preproc_output}/bold_datasink/commonspace_resampled_template/"
                         "but there should only be one template file.")
-                        
+
     split_dict = {}
     bold_scan_list = get_files_from_tree(f'{preproc_output}/bold_datasink/input_bold')
     split_name = []

@@ -12,8 +12,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 'VE_file',
-                                                       'dataset_diagnosis', 'temporal_info_csv', 'temporal_std_nii', 'GS_corr_nii',
+    outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
+                                                       'dataset_diagnosis', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii',
                                                        'temporal_std_nii', 'GS_corr_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
     if not (commonspace_bold or opts.bold_only):
@@ -40,7 +40,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                             output_names=[
-                                                'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
+                                                'VE_filename', 'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
                                         function=spatial_external_formating),
                                 name=analysis_opts.output_name+'_spatial_external_formating')
 
@@ -81,13 +81,13 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
         (ScanDiagnosis_node, outputnode, [
             ("figure_temporal_diagnosis", "figure_temporal_diagnosis"),
             ("figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-            ("VE_file", "VE_file"),
             ]),
         (temporal_external_formating_node, outputnode, [
             ("temporal_info_csv", "temporal_info_csv"),
             ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
             ]),
         (spatial_external_formating_node, outputnode, [
+            ("VE_filename", "spatial_VE_nii"),
             ("std_filename", "temporal_std_nii"),
             ("GS_corr_filename", "GS_corr_nii"),
             ("DVARS_corr_filename", "DVARS_corr_nii"),

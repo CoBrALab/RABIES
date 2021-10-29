@@ -99,8 +99,6 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
         desc="A dictionary regrouping the temporal features.")
     spatial_info = traits.Dict(
         desc="A dictionary regrouping the spatial features.")
-    VE_file = File(exists=True, mandatory=True,
-                   desc="Output the VE file for the datasink.")
 
 
 class ScanDiagnosis(BaseInterface):
@@ -122,11 +120,12 @@ class ScanDiagnosis(BaseInterface):
         bold_file = self.inputs.file_dict['bold_file']
         CR_data_dict = self.inputs.file_dict['CR_data_dict']
         VE_file = self.inputs.file_dict['VE_file']
+        STD_file = self.inputs.file_dict['STD_file']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
+            bold_file, CR_data_dict, VE_file, STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)
@@ -143,7 +142,6 @@ class ScanDiagnosis(BaseInterface):
                 figure_path+'_spatial_diagnosis.png')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
-        setattr(self, 'VE_file', VE_file)
 
         return runtime
 
@@ -151,8 +149,7 @@ class ScanDiagnosis(BaseInterface):
         return {'figure_temporal_diagnosis': getattr(self, 'figure_temporal_diagnosis'),
                 'figure_spatial_diagnosis': getattr(self, 'figure_spatial_diagnosis'),
                 'temporal_info': getattr(self, 'temporal_info'),
-                'spatial_info': getattr(self, 'spatial_info'),
-                'VE_file': getattr(self, 'VE_file'), }
+                'spatial_info': getattr(self, 'spatial_info'), }
 
 
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
