@@ -340,7 +340,15 @@ def find_iterable(file_list, scan_split_name):
 
 def read_preproc_datasinks(preproc_output, nativespace=False):
     import pathlib
+    import glob
 
+    template_file = glob.glob(f'{preproc_output}/bold_datasink/commonspace_resampled_template/*')
+    if len(template_file)==1:
+        template_file = template_file[0]
+    else:
+        raise ValueError(f"Multiple files were found in {preproc_output}/bold_datasink/commonspace_resampled_template/"
+                        "but there should only be one template file.")
+                        
     split_dict = {}
     bold_scan_list = get_files_from_tree(f'{preproc_output}/bold_datasink/input_bold')
     split_name = []
@@ -348,7 +356,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False):
         name = pathlib.Path(f).name.rsplit(".nii")[0]
         split_name.append(name)
         split_dict[name]={}
-        split_dict[name]['commonspace_resampled_template']=f'{preproc_output}/bold_datasink/commonspace_resampled_template/resampled_template.nii.gz'
+        split_dict[name]['commonspace_resampled_template']=template_file
 
     directory_list = [['bold_datasink','input_bold'],
         ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],
