@@ -171,10 +171,7 @@ class Regress(BaseInterface):
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
         frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
-                cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
-
-        if frame_mask is None:
-            return runtime
+                cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring)
 
         timeseries = timeseries[frame_mask]
         confounds_array = confounds_array[frame_mask]
@@ -247,6 +244,12 @@ class Regress(BaseInterface):
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
         
+        if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+            import logging
+            log = logging.getLogger('root')
+            log.info(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            return runtime
+
         '''
         #7 - Apply confound regression using the corrected regressors, while applying the 
             temporal masks to both the regressors and timeseries to remove simulated data

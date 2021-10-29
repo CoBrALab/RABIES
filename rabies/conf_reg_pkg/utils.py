@@ -129,7 +129,7 @@ def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     return data_dict
 
 def temporal_censoring(timeseries, FD_trace, 
-        FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
+        FD_censoring, FD_threshold, DVARS_censoring):
 
     # compute the DVARS before denoising
     derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
@@ -154,11 +154,6 @@ def temporal_censoring(timeseries, FD_trace,
             mask2=np.abs(norm)<2.5
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
-    if frame_mask.sum()<int(minimum_timepoint):
-        import logging
-        log = logging.getLogger('root')
-        log.info(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        return None,None,None
 
     return frame_mask,FD_trace,DVARS
 
