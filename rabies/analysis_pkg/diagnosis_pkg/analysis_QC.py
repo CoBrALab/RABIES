@@ -1,4 +1,3 @@
-import os
 import SimpleITK as sitk
 import pandas as pd
 import numpy as np
@@ -10,7 +9,6 @@ from rabies.analysis_pkg.analysis_math import elementwise_spearman, dice_coeffic
 from rabies.analysis_pkg.analysis_functions import recover_3D
 
 import tempfile
-import shutil
 
 def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path):
 

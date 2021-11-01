@@ -7,7 +7,7 @@ from nipype import Function
 from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
 
 
-def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf"):
+def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
@@ -15,7 +15,8 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
-                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'sub_token', 'group_token',
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'joined_corr_map_file', 
+                                                       'sub_token', 'group_token',
                                                        'dual_ICA_timecourse_csv', 'dual_ICA_filename']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
@@ -28,7 +29,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
             ]),
         ])
 
-    if len(seed_list) > 0:
+    if len(opts.seed_list) > 0:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again without --nativespace_analysis.')
@@ -38,7 +39,7 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                                      name='seed_based_FC', mem_gb=1*opts.scale_min_memory)
         seed_dict = {}
         name_list = []
-        for file in seed_list:
+        for file in opts.seed_list:
             file = os.path.abspath(file)
             if not os.path.isfile(file):
                 raise ValueError(
@@ -49,6 +50,13 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
         seed_based_FC_node.iterables = ('seed_name', name_list)
         seed_based_FC_node.inputs.seed_dict = seed_dict
 
+        # create a joinnode to provide also combined seed maps
+        seed_FC_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['joined_corr_map_file']),
+                                                name='seed_FC_joinnode',
+                                                joinsource='seed_based_FC',
+                                                joinfield=['joined_corr_map_file'])
+
+
         workflow.connect([
             (subject_inputnode, seed_based_FC_node, [
                 ("bold_file", "bold_file"),
@@ -56,6 +64,12 @@ def init_analysis_wf(opts, commonspace_cr=False, seed_list=[], name="analysis_wf
                 ]),
             (seed_based_FC_node, outputnode, [
                 ("corr_map_file", "corr_map_file"),
+                ]),
+            (seed_based_FC_node, seed_FC_joinnode, [
+                ("corr_map_file", "joined_corr_map_file"),
+                ]),
+            (seed_FC_joinnode, outputnode, [
+                ("joined_corr_map_file", "joined_corr_map_file"),
                 ]),
             ])
 

@@ -405,6 +405,13 @@ def get_parser():
                           Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps
                           based on Pearson's r. Each seed must consist of a binary mask representing the ROI in commonspace.
                           """)
+    analysis.add_argument('--seed_prior_list', type=str,
+                          nargs="*",  # 0 or more values expected => creates a list
+                          default=[],
+                          help="""
+                          For analysis QC of seed-based FC, prior network maps are required for each seed-FC provided in --seed_list.
+                          Provide the list of prior files in matching order of the --seed_list inputs to match corresponding seed maps.
+                          """)
     analysis.add_argument('--prior_maps', action='store', type=Path,
                             default=f"{rabies_path}/melodic_IC.nii.gz",
                             help="""

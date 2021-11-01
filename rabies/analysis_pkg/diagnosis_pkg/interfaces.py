@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+import nibabel as nb
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
 
@@ -155,10 +156,14 @@ class ScanDiagnosis(BaseInterface):
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
     spatial_info_list = traits.List(
         exists=True, mandatory=True, desc="A dictionary regrouping the spatial features.")
+    analysis_dict_list = traits.List(
+        exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
     file_dict_list = traits.List(
         exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
     mask_file_dict = traits.Dict(
         exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
+    seed_prior_maps = traits.List(
+        exists=True, desc="A list of expected network map associated to each seed-FC.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -182,6 +187,7 @@ class DatasetDiagnosis(BaseInterface):
         from .analysis_QC import spatial_crosscorrelations, analysis_QC
 
         merged_spatial_info = flatten_list(list(self.inputs.spatial_info_list))
+        merged_analysis_dict = flatten_list(list(self.inputs.analysis_dict_list))
         merged_file_dict = flatten_list(list(self.inputs.file_dict_list))
         if len(merged_spatial_info) < 3:
             raise ValueError(
@@ -192,6 +198,9 @@ class DatasetDiagnosis(BaseInterface):
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
+        brain_mask = np.asarray(nb.load(mask_file).dataobj)
+        volume_indices = brain_mask.astype(bool)
+
         scaled = otsu_scaling(template_file)
 
         fig_path = f'{out_dir}/spatial_crosscorrelations.png'
@@ -200,14 +209,22 @@ class DatasetDiagnosis(BaseInterface):
         std_maps=[]
         VE_maps=[]
         DR_maps_list=[]
+        seed_maps_list=[]
         dual_ICA_maps_list=[]
         tdof_list=[]
-        for spatial_info,file_dict in zip(merged_spatial_info, merged_file_dict):
+        for spatial_info,analysis_dict,file_dict in zip(merged_spatial_info, merged_analysis_dict, merged_file_dict):
             std_maps.append(spatial_info['temporal_std'])
             VE_maps.append(spatial_info['VE_spatial'])
             DR_maps_list.append(spatial_info['DR_BOLD'])
             dual_ICA_maps_list.append(spatial_info['dual_ICA_maps'])
             tdof_list.append(file_dict['CR_data_dict']['tDOF'])
+
+            seed_list=[]
+            for seed_map in analysis_dict['seed_map_files']:
+                seed_list.append(np.asarray(
+                    nb.load(seed_map).dataobj)[volume_indices])
+            seed_maps_list.append(seed_list)
+
         std_maps=np.array(std_maps)
         VE_maps=np.array(VE_maps)
         DR_maps_list=np.array(DR_maps_list)
@@ -227,6 +244,29 @@ class DatasetDiagnosis(BaseInterface):
                 fig_path = f'{out_dir}/dual_ICA{i}_QC_maps.png'
                 dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/dual_ICA{i}_QC_stats.csv', index=None)
+
+
+        # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
+        if len(self.inputs.seed_prior_maps)>0:
+            import tempfile
+            tmppath = tempfile.mkdtemp()
+            prior_maps=[]
+            for prior_map in self.inputs.seed_prior_maps:
+                # resample to match the subject
+                sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
+                sitk.WriteImage(sitk_img,f'{tmppath}/temp_img.nii.gz')
+                prior_maps.append(np.asarray(
+                    nb.load(f'{tmppath}/temp_img.nii.gz').dataobj)[volume_indices])
+
+            prior_maps = np.array(prior_maps)
+            num_priors = prior_maps.shape[0]
+            seed_maps_list=np.array(seed_maps_list)
+            for i in range(num_priors):
+                FC_maps = seed_maps_list[:,i,:]
+                fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
+                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+
 
         setattr(self, 'dataset_diagnosis',
                 out_dir)

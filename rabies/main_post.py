@@ -110,7 +110,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list, name=analysis_opts.output_name)
+        opts=analysis_opts, commonspace_cr=commonspace_bold, name=analysis_opts.output_name)
 
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container=analysis_opts.output_name+"_datasink"),
@@ -196,9 +196,9 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
-            return {'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
+            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -242,6 +242,15 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
         else:
             prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
             prep_analysis_dict_node.inputs.dual_ICA_filename = None
+
+        if len(analysis_opts.seed_list) > 0:
+            workflow.connect([
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.joined_corr_map_file", "seed_map_files"),
+                    ]),
+                ])
+        else:
+            prep_analysis_dict_node.inputs.seed_map_files = []
 
     return workflow
 
