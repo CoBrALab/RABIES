@@ -321,7 +321,17 @@ class Regress(BaseInterface):
         # apply the frame mask to FD trace/DVARS
         DVARS = DVARS[frame_mask]
         FD_trace = FD_trace[frame_mask]
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
+
+        # calculate temporal degrees of freedom left after confound correction
+        num_timepoints = frame_mask.sum()
+        if cr_opts.run_aroma:
+            aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
+        else:
+            aroma_rm = 0
+        num_regressors = confounds_array.shape[1]
+        tDOF = num_timepoints - (aroma_rm+num_regressors)
+
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'tDOF':tDOF}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)
