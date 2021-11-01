@@ -44,10 +44,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
                                         function=spatial_external_formating),
                                 name=analysis_opts.output_name+'_spatial_external_formating')
 
-    data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list']),
-                                            name=analysis_opts.output_name+'_diagnosis_split_joinnode',
-                                            joinsource=analysis_split.name,
-                                            joinfield=['spatial_info_list'])
 
     workflow.connect([
         (inputnode, PrepMasks_node, [
@@ -59,9 +55,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
         (inputnode, ScanDiagnosis_node, [
             ("file_dict", "file_dict"),
             ("analysis_dict", "analysis_dict"),
-            ]),
-        (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
-            ("spatial_info", "spatial_info_list"),
             ]),
         (inputnode, temporal_external_formating_node, [
             ("file_dict", "file_dict"),
@@ -97,12 +90,25 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
         ])
 
     if not len(scan_split_name)<3:
+
+        data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list', 'file_dict_list']),
+                                                name=analysis_opts.output_name+'_diagnosis_split_joinnode',
+                                                joinsource=analysis_split.name,
+                                                joinfield=['spatial_info_list', 'file_dict_list'])
+
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
             name=analysis_opts.output_name+'_DatasetDiagnosis')
 
         workflow.connect([
+            (inputnode, data_diagnosis_split_joinnode, [
+                ("file_dict", "file_dict_list"),
+                ]),
+            (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
+                ("spatial_info", "spatial_info_list"),
+                ]),
             (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
                 ("spatial_info_list", "spatial_info_list"),
+                ("file_dict_list", "file_dict_list"),
                 ]),
             (PrepMasks_node, DatasetDiagnosis_node, [
                 ("mask_file_dict", "mask_file_dict"),

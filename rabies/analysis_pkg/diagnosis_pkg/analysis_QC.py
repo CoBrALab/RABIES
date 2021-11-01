@@ -12,28 +12,25 @@ from rabies.analysis_pkg.analysis_functions import recover_3D
 import tempfile
 import shutil
 
-def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, template_file, fig_path):
+def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path):
 
     scaled = otsu_scaling(template_file)
         
     percentile=0.01
     smoothing=True
-    threshold_spec=[[4,2],[4,2],[4,3],[4,3],[4,3]]
     
-    maps = get_maps(consensus_network, FC_maps, std_maps, VE_maps, mask_file, smoothing)
-    prior, average, network_var, corr_map_std, corr_map_VE = maps
-    dataset_stats=eval_relationships(maps, mask_file, percentile=percentile, threshold_spec=threshold_spec)
+    maps = get_maps(consensus_network, FC_maps, std_maps, VE_maps, tdof_list, mask_file, smoothing)
+    dataset_stats=eval_relationships(maps, mask_file, percentile=percentile)
 
-    fig = plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=percentile, threshold_spec=threshold_spec)
+    fig = plot_relationships(mask_file, scaled, maps, percentile=percentile)
     fig.savefig(fig_path, bbox_inches='tight')
 
     return dataset_stats
 
     
-def get_maps(prior, prior_list, std_list, VE_list, mask_file, smoothing=False):
-    
+def get_maps(prior, prior_list, std_list, VE_list, tdof_list, mask_file, smoothing=False):
     volume_indices=np.asarray(nb.load(mask_file).dataobj).astype(bool)    
-    
+
     Y=np.array(prior_list)
     average=Y.mean(axis=0)
     
@@ -47,17 +44,28 @@ def get_maps(prior, prior_list, std_list, VE_list, mask_file, smoothing=False):
     X=np.array(VE_list)
     corr_map_VE = elementwise_spearman(X,Y)
     
+    # tdof effect; if there's no variability don't compute
+    if np.array(tdof_list).std()==0:
+        corr_map_tdof=None
+    else:
+        tdof = np.array(tdof_list).reshape(-1,1)
+        corr_map_tdof = elementwise_spearman(tdof,Y)
+    
     if smoothing:
         prior = np.array(nilearn.image.smooth_img(recover_3D(mask_file,prior), 0.3).dataobj)[volume_indices]
         average = np.array(nilearn.image.smooth_img(recover_3D(mask_file,average), 0.3).dataobj)[volume_indices]
         corr_map_std = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_std), 0.3).dataobj)[volume_indices]
         corr_map_VE = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_VE), 0.3).dataobj)[volume_indices]
+        if np.array(tdof_list).std()==0:
+            corr_map_tdof=None
+        else:
+            corr_map_tdof = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_tdof), 0.3).dataobj)[volume_indices]
     
-    return prior, average, network_var, corr_map_std, corr_map_VE
+    return prior, average, network_var, corr_map_std, corr_map_VE, corr_map_tdof
     
 
-def eval_relationships(maps, mask_file, percentile=None, threshold_spec=[[4,2],[4,2],[4,2],[4,2],[4,2]]):
-    prior, average, network_var, corr_map_std, corr_map_VE = maps
+def eval_relationships(maps, mask_file, percentile=0.01):
+    prior, average, network_var, corr_map_std, corr_map_VE, corr_map_tdof = maps
 
     # 1) the correlation between the prior and the fitted average
     #prior_cor = np.corrcoef(prior,average)[0,1]
@@ -71,10 +79,14 @@ def eval_relationships(maps, mask_file, percentile=None, threshold_spec=[[4,2],[
  
     tmppath = tempfile.mkdtemp()
     map_masks=[]
-    for map,spec in zip(maps, threshold_spec):
+    for map in maps:
+        if map is None:
+            map_masks.append(None)
+            tdof_avg_corr=None
+            continue
         recover_3D(mask_file,map).to_filename(f'{tmppath}/temp_img.nii.gz')
         img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
-        mask=masking(img, method='percent', percentile=percentile, threshold_spec=spec)
+        mask=percent_masking(img, percentile=percentile)
         map_masks.append(mask)
         
         # get also estimates of effect sizes for power estimation
@@ -83,28 +95,38 @@ def eval_relationships(maps, mask_file, percentile=None, threshold_spec=[[4,2],[
             std_avg_corr = sitk.GetArrayFromImage(img)[map_masks[0]].mean()
         if map is corr_map_VE:
             VE_avg_corr = sitk.GetArrayFromImage(img)[map_masks[0]].mean()
+        if map is corr_map_tdof:
+            tdof_avg_corr = sitk.GetArrayFromImage(img)[map_masks[0]].mean()
             
-    prior_mask, average_mask, std_mask, corr_map_std_mask, corr_map_VE_mask = map_masks
+    prior_mask, average_mask, std_mask, corr_map_std_mask, corr_map_VE_mask, tdof_mask = map_masks
 
+    if tdof_mask is None:
+        tdof_spec=None
+    else:
+        tdof_spec = dice_coefficient(prior_mask,tdof_mask)    
 
     return {'Overlap: Prior - Dataset avg.': dice_coefficient(prior_mask,average_mask), 
+            'Overlap: Prior - Dataset MAD': dice_coefficient(prior_mask,std_mask),
             'Overlap: Prior - Temporal s.d. effect': dice_coefficient(prior_mask,corr_map_std_mask), 
             'Overlap: Prior - CR R^2 effect': dice_coefficient(prior_mask,corr_map_VE_mask),
-            'Overlap: Prior - Dataset MAD': dice_coefficient(prior_mask,std_mask),
+            'Overlap: Prior - tDOF effect': tdof_spec,
             'Avg.: Temporal s.d. effect': std_avg_corr,
             'Avg.: CR R^2 effect': VE_avg_corr,
+            'Avg.: tDOF effect': tdof_avg_corr,
             } 
 
 
-def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_std, corr_map_VE, percentile=None, threshold_spec=[[4,2],[4,2],[4,2],[4,2],[4,2]]):
+def plot_relationships(mask_file, scaled, maps, percentile=0.01):
 
-    fig,axes = plt.subplots(nrows=5, ncols=1,figsize=(12,2*5))
+    prior, average, network_var, corr_map_std, corr_map_VE, corr_map_tdof = maps
+
+    fig,axes = plt.subplots(nrows=6, ncols=1,figsize=(12,2*6))
     
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,prior).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[0]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[0])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
     ax.set_title('Prior network', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -114,7 +136,7 @@ def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_
     recover_3D(mask_file,average).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[1]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[1])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
     ax.set_title('Dataset average', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -124,7 +146,7 @@ def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_
     recover_3D(mask_file,network_var).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[2]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile, threshold_spec=threshold_spec[2])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
     ax.set_title('Dataset MAD', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -134,7 +156,7 @@ def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_
     recover_3D(mask_file,corr_map_std).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[3]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[3])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
     ax.set_title('Temporal s.d. effect', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -144,34 +166,43 @@ def plot_relationships(mask_file, scaled, prior, average, network_var, corr_map_
     recover_3D(mask_file,corr_map_VE).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[4]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile, threshold_spec=threshold_spec[4])
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
     ax.set_title('CR R^2 effect', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
         cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+
+    ax=axes[5]
+    if corr_map_tdof is None:
+        ax.axis('off')
+    else:
+        tmppath = tempfile.mkdtemp()
+        recover_3D(mask_file,corr_map_tdof).to_filename(f'{tmppath}/temp_img.nii.gz')
+        img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+        cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
+        ax.set_title('tDOF correlation', fontsize=25, color='white')
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 20
+            cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+
     plt.tight_layout()
 
     return fig
 
-def masking(img, method='otsu', percentile=None, threshold_spec=[4,2]):
-    if method=='otsu':
-        mask=(otsu_mask(img, num_histograms=threshold_spec[0])>threshold_spec[1])
-    elif method=='percent':
-        if percentile is None:
-            raise
-        array=sitk.GetArrayFromImage(img)
-        flat=array.flatten()
-        flat.sort()
-        idx=int((1-percentile)*len(flat))
-        threshold = flat[idx]
-        mask=array>=threshold
-    else:
-        raise
+def percent_masking(img, percentile):
+
+    array=sitk.GetArrayFromImage(img)
+    flat=array.flatten()
+    flat.sort()
+    idx=int((1-percentile)*len(flat))
+    threshold = flat[idx]
+    mask=array>=threshold
+
     return mask
 
 
-def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, vmax=None, threshold_spec=[4,2]):
-    mask=masking(img, method=method, percentile=percentile, threshold_spec=threshold_spec)
+def masked_plot(fig,axes, img, scaled, percentile=0.01, vmax=None):
+    mask=percent_masking(img, percentile=percentile)
     
     masked=sitk.GetImageFromArray(sitk.GetArrayFromImage(img)*mask)
     masked.CopyInformation(img)
@@ -190,24 +221,6 @@ def masked_plot(fig,axes, img, scaled, method='percent', percentile=None, vmax=N
     sitk_img = sitk.Resample(masked, scaled)
     cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
     return cbar_list
-
-
-def otsu_mask(img, num_histograms=1):
-    tmppath = tempfile.mkdtemp()
-    # we count both positive and negative values
-    array=sitk.GetArrayFromImage(img)
-    abs_array = np.abs(array)
-    abs_img = sitk.GetImageFromArray(abs_array)
-    abs_img.CopyInformation(img)
-    sitk.WriteImage(abs_img, f'{tmppath}/temp_img.nii.gz')
-
-    from rabies.preprocess_pkg.utils import run_command
-    command = f'ThresholdImage 3 {tmppath}/temp_img.nii.gz {tmppath}/otsu_weight.nii.gz Otsu {num_histograms}'
-    rc = run_command(command)
-    
-    mask=sitk.GetArrayFromImage(sitk.ReadImage(f'{tmppath}/otsu_weight.nii.gz'))
-    shutil.rmtree(tmppath)
-    return mask
 
 
 def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):

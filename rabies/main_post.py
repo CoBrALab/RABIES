@@ -175,8 +175,6 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             ]),
         (read_dict_node, analysis_split_joinnode, [
             ("mask_file", "mask_file"),
-            ]),
-        (read_dict_node, analysis_split_joinnode, [
             ("bold_file", "file_list"),
             ]),
         (read_dict_node, analysis_wf, [

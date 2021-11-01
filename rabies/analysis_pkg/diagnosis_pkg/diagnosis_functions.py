@@ -544,7 +544,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
         sitk_img = sitk.ReadImage('temp_img.nii.gz')
-        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.015, vmax=None)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35
