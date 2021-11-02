@@ -110,15 +110,15 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold, seed_list=analysis_opts.seed_list, name=analysis_opts.output_name)
+        opts=analysis_opts, commonspace_cr=commonspace_bold, name=analysis_opts.output_name)
 
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container=analysis_opts.output_name+"_datasink"),
                                 name=analysis_opts.output_name+"_datasink")
 
-    def prep_dict(bold_file, CR_data_dict, VE_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
+    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
+        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
+    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
@@ -164,6 +164,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             ("outputnode.cleaned_path", "bold_file"),
             ("outputnode.CR_data_dict", "CR_data_dict"),
             ("outputnode.VE_file", "VE_file"),
+            ("outputnode.STD_file", "STD_file"),
             ]),
         (find_iterable_node, read_dict_node, [
             ("file", "prep_dict"),
@@ -174,8 +175,6 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             ]),
         (read_dict_node, analysis_split_joinnode, [
             ("mask_file", "mask_file"),
-            ]),
-        (read_dict_node, analysis_split_joinnode, [
             ("bold_file", "file_list"),
             ]),
         (read_dict_node, analysis_wf, [
@@ -197,9 +196,9 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
-            return {'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
+            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -224,9 +223,9 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
             (diagnosis_wf, analysis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("outputnode.VE_file", "VE_file"),
                 ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
+                ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
@@ -243,6 +242,15 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
         else:
             prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
             prep_analysis_dict_node.inputs.dual_ICA_filename = None
+
+        if len(analysis_opts.seed_list) > 0:
+            workflow.connect([
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.joined_corr_map_file", "seed_map_files"),
+                    ]),
+                ])
+        else:
+            prep_analysis_dict_node.inputs.seed_map_files = []
 
     return workflow
 
@@ -340,6 +348,14 @@ def find_iterable(file_list, scan_split_name):
 
 def read_preproc_datasinks(preproc_output, nativespace=False):
     import pathlib
+    import glob
+
+    template_file = glob.glob(f'{preproc_output}/bold_datasink/commonspace_resampled_template/*')
+    if len(template_file)==1:
+        template_file = template_file[0]
+    else:
+        raise ValueError(f"Multiple files were found in {preproc_output}/bold_datasink/commonspace_resampled_template/"
+                        "but there should only be one template file.")
 
     split_dict = {}
     bold_scan_list = get_files_from_tree(f'{preproc_output}/bold_datasink/input_bold')
@@ -348,7 +364,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False):
         name = pathlib.Path(f).name.rsplit(".nii")[0]
         split_name.append(name)
         split_dict[name]={}
-        split_dict[name]['commonspace_resampled_template']=f'{preproc_output}/bold_datasink/commonspace_resampled_template/resampled_template.nii.gz'
+        split_dict[name]['commonspace_resampled_template']=template_file
 
     directory_list = [['bold_datasink','input_bold'],
         ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],

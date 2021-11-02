@@ -14,10 +14,10 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     inputnode = pe.Node(niu.IdentityInterface(fields=[
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'VE_file', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
+                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
 
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
-                           name='regress', mem_gb=1)
+                           name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
     prep_CR_node = pe.Node(Function(input_names=['bold_file', 'confounds_file', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],
@@ -42,6 +42,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
         (regress_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
             ("VE_file_path", "VE_file"),
+            ("STD_file_path", "STD_file"),
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
@@ -69,6 +70,8 @@ class RegressOutputSpec(TraitedSpec):
                       desc="Cleaned timeseries.")
     VE_file_path = File(exists=True, mandatory=True,
                       desc="Variance explained map from confound regression.")
+    STD_file_path = File(exists=True, mandatory=True,
+                      desc="Temporal standard deviation map after confound correction, prior to standardization.")
     frame_mask_file = File(exists=True, mandatory=True,
                       desc="Frame mask from temporal censoring.")
     data_dict = traits.Any(
@@ -130,6 +133,7 @@ class Regress(BaseInterface):
 
         setattr(self, 'cleaned_path', empty_file)
         setattr(self, 'VE_file_path', empty_file)
+        setattr(self, 'STD_file_path', empty_file)
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
@@ -172,7 +176,6 @@ class Regress(BaseInterface):
         '''
         frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
                 cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
-
         if frame_mask is None:
             return runtime
 
@@ -247,6 +250,12 @@ class Regress(BaseInterface):
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
         
+        if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+            import logging
+            log = logging.getLogger('root')
+            log.info(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            return runtime
+
         '''
         #7 - Apply confound regression using the corrected regressors, while applying the 
             temporal masks to both the regressors and timeseries to remove simulated data
@@ -280,19 +289,25 @@ class Regress(BaseInterface):
             # if confound regression is applied
             timeseries = res
 
+        # save the temporal STD map prior to standardization and smoothing
+        temporal_std = timeseries.std(axis=0)
+
         '''
         #8 - Standardize timeseries
         '''
         if cr_opts.standardize:
-            timeseries = (timeseries-timeseries.mean(axis=0))/timeseries.std(axis=0)
+            timeseries = (timeseries-timeseries.mean(axis=0))/temporal_std
 
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
+        STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
         timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
         cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
         sitk.WriteImage(timeseries_3d, cleaned_path)
         VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
         sitk.WriteImage(VE_spatial_map, VE_file_path)
+        STD_file_path = cr_out+'/'+filename_split[0]+'_STD_map.nii.gz'
+        sitk.WriteImage(STD_spatial_map, STD_file_path)
         frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
         pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
@@ -306,10 +321,21 @@ class Regress(BaseInterface):
         # apply the frame mask to FD trace/DVARS
         DVARS = DVARS[frame_mask]
         FD_trace = FD_trace[frame_mask]
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file}
+
+        # calculate temporal degrees of freedom left after confound correction
+        num_timepoints = frame_mask.sum()
+        if cr_opts.run_aroma:
+            aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
+        else:
+            aroma_rm = 0
+        num_regressors = confounds_array.shape[1]
+        tDOF = num_timepoints - (aroma_rm+num_regressors)
+
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'tDOF':tDOF}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)
+        setattr(self, 'STD_file_path', STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
 
@@ -318,6 +344,7 @@ class Regress(BaseInterface):
     def _list_outputs(self):
         return {'cleaned_path': getattr(self, 'cleaned_path'),
                 'VE_file_path': getattr(self, 'VE_file_path'),
+                'STD_file_path': getattr(self, 'STD_file_path'),
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),

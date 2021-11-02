@@ -106,7 +106,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
+def process_data(bold_file, data_dict, VE_file, STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
     temporal_info = {}
     spatial_info = {}
 
@@ -130,8 +130,6 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, p
     CSF_idx = CSF_mask[volume_indices]
     not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
 
-    spatial_info['VE_spatial'] = np.asarray(
-        nb.load(VE_file).dataobj)[volume_indices]
 
     data_array = np.asarray(nb.load(bold_file).dataobj)
     timeseries = np.zeros([data_array.shape[3], volume_indices.sum()])
@@ -165,7 +163,6 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, p
     temporal_info['not_edge_trace'] = not_edge_trace
 
     '''Spatial Features'''
-    temporal_std = timeseries.std(axis=0)
     global_signal = timeseries.mean(axis=1)
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
     DVARS_corr = analysis_functions.vcorrcoef(timeseries.T[:, 1:], DVARS[1:])
@@ -192,7 +189,10 @@ def process_data(bold_file, data_dict, VE_file, mask_file_dict, analysis_dict, p
     spatial_info['dual_ICA_maps'] = prior_fit_out['C']
     temporal_info['dual_ICA_time'] = prior_fit_out['W']
 
-    spatial_info['temporal_std'] = temporal_std
+    spatial_info['VE_spatial'] = np.asarray(
+        nb.load(VE_file).dataobj)[volume_indices]
+    spatial_info['temporal_std'] = np.asarray(
+        nb.load(STD_file).dataobj)[volume_indices]
     spatial_info['GS_corr'] = GS_corr
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
@@ -236,7 +236,10 @@ def spatial_external_formating(spatial_info, file_dict):
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
 
-    # calculate STD and tSNR map on preprocessed timeseries
+    VE_filename = os.path.abspath(filename_split[0]+'_VE.nii.gz')
+    analysis_functions.recover_3D(
+        mask_file, spatial_info['VE_spatial']).to_filename(VE_filename)
+
     std_filename = os.path.abspath(filename_split[0]+'_tSTD.nii.gz')
     analysis_functions.recover_3D(
         mask_file, spatial_info['temporal_std']).to_filename(std_filename)
@@ -267,7 +270,7 @@ def spatial_external_formating(spatial_info, file_dict):
     else:
         dual_ICA_filename = None
 
-    return std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
+    return VE_filename, std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
 
 
 '''
@@ -541,7 +544,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
         sitk_img = sitk.ReadImage('temp_img.nii.gz')
-        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, method='percent', percentile=0.015, vmax=None)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35

@@ -2,72 +2,6 @@ import numpy as np
 import nibabel as nb
 from .analysis_math import vcorrcoef,closed_form
 
-def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
-    import os
-    import nibabel as nb
-    import numpy as np
-    import pathlib
-    from rabies.analysis_pkg.analysis_functions import seed_corr
-
-    seed_file = seed_dict[seed_name]
-
-    mask_array = np.asarray(nb.load(brain_mask).dataobj)
-    mask_vector = mask_array.reshape(-1)
-    mask_indices = (mask_vector==True)
-    mask_vector = mask_vector.astype(float)
-
-    mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed_file)
-    corr_map = mask_vector.reshape(mask_array.shape)
-
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
-    corr_map_file = os.path.abspath(
-        filename_split+'_'+seed_name+'_corr_map.nii.gz')
-    nb.Nifti1Image(corr_map, nb.load(brain_mask).affine, nb.load(
-        brain_mask).header).to_filename(corr_map_file)
-    return corr_map_file
-
-
-def seed_corr(bold_file, brain_mask, seed):
-    import os
-    from nilearn.input_data import NiftiMasker
-    from rabies.preprocess_pkg.utils import run_command
-
-    resampled = os.path.abspath('resampled.nii.gz')
-    command=f'antsApplyTransforms -i {seed} -r {brain_mask} -o {resampled} -n GenericLabel'
-    rc = run_command(command)
-
-    masker = NiftiMasker(mask_img=nb.load(resampled), standardize=False, verbose=0)
-    # extract the voxel timeseries within the mask
-    voxel_seed_timeseries = masker.fit_transform(bold_file)
-    # take the mean ROI timeseries
-    seed_timeseries = np.mean(voxel_seed_timeseries, axis=1)
-
-    mask_array = np.asarray(nb.load(brain_mask).dataobj)
-    mask_vector = mask_array.reshape(-1)
-    mask_indices = (mask_vector==True)
-
-    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
-    sub_timeseries = np.zeros([mask_indices.sum(), timeseries_array.shape[3]])
-    for t in range(timeseries_array.shape[3]):
-        sub_timeseries[:, t] = (
-            timeseries_array[:, :, :, t].reshape(-1))[mask_indices]
-
-    corrs = vcorrcoef(sub_timeseries, seed_timeseries)
-    corrs[np.isnan(corrs)] = 0
-    return corrs
-
-
-def get_CAPs(data, volumes, n_clusters):
-    from sklearn.cluster import KMeans
-    kmeans = KMeans(n_clusters=n_clusters, n_init=10, max_iter=300)
-    kmeans.fit(data)
-    cluster_labels = kmeans.labels_
-    CAPs = []
-    for cluster in range(n_clusters):
-        timepoints = (cluster_labels == cluster)
-        CAPs.append(volumes[timepoints, :].mean(axis=0))
-    return CAPs, cluster_labels
-
 
 def recover_3D(mask_file, vector_map):
     brain_mask = np.asarray(nb.load(mask_file).dataobj)
@@ -94,18 +28,61 @@ def recover_3D_multiple(mask_file, vector_maps):
         mask_file).affine, nb.load(mask_file).header)
     return volume_img
 
+'''
+seed-based FC
+'''
 
-def threshold_maps(vector_maps, fraction):
-    # vector_maps of shape map_numxvoxels
-    num_voxels = int(vector_maps.shape[1]*fraction)
-    thresholded_maps = np.zeros(vector_maps.shape)
-    binary_maps = np.zeros(vector_maps.shape)
-    for i in range(vector_maps.shape[0]):
-        vector_map = vector_maps[i, :]
-        idx = vector_map.argsort()[-num_voxels:]
-        thresholded_maps[i, idx] = vector_map[idx]
-        binary_maps[i, idx] = 1
-    return [thresholded_maps, binary_maps.astype(bool)]
+def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
+    import os
+    import nibabel as nb
+    import numpy as np
+    import pathlib
+    from rabies.analysis_pkg.analysis_functions import seed_corr
+
+    seed_file = seed_dict[seed_name]
+
+    mask_array = np.asarray(nb.load(brain_mask).dataobj)
+    mask_vector = mask_array.reshape(-1)
+    mask_indices = (mask_vector==True)
+    mask_vector = mask_vector.astype(float)
+
+    mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed_file)
+    corr_map = mask_vector.reshape(mask_array.shape)
+
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
+    corr_map_file = os.path.abspath(
+        filename_split+'_'+seed_name+'_corr_map.nii.gz')
+    nb.Nifti1Image(corr_map, nb.load(brain_mask).affine, nb.load(
+        brain_mask).header).to_filename(corr_map_file)
+    return corr_map_file
+
+
+def seed_corr(bold_file, mask_file, seed):
+    import os
+    from rabies.preprocess_pkg.utils import run_command
+    
+    brain_mask = np.asarray(nb.load(mask_file).dataobj)
+    volume_indices = brain_mask.astype(bool)
+
+    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
+    sub_timeseries = np.zeros(
+        [timeseries_array.shape[3], volume_indices.sum()])
+    for t in range(timeseries_array.shape[3]):
+        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
+    
+        
+    resampled = os.path.abspath('resampled.nii.gz')
+    command=f'antsApplyTransforms -i {seed} -r {mask_file} -o {resampled} -n GenericLabel'
+    rc = run_command(command)
+
+    roi_mask = np.asarray(nb.load(resampled).dataobj)[volume_indices].astype(bool)
+
+    # extract the voxel timeseries within the mask, and take the mean ROI timeseries
+    seed_timeseries = sub_timeseries[:,roi_mask].mean(axis=1)
+
+    corrs = vcorrcoef(sub_timeseries.T, seed_timeseries)
+    corrs[np.isnan(corrs)] = 0
+    return corrs
 
 
 '''
@@ -120,11 +97,22 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
 
-    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, voxelwise_FC_matrix, plot_matrix
+    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
+    
+    brain_mask = np.asarray(nb.load(mask_file).dataobj)
+    volume_indices = brain_mask.astype(bool)
+
+    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
+    sub_timeseries = np.zeros(
+        [timeseries_array.shape[3], volume_indices.sum()])
+    for t in range(timeseries_array.shape[3]):
+        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
+    
+    
     if roi_type == 'parcellated':
-        corr_matrix = parcellated_FC_matrix(bold_file, atlas)
+        corr_matrix = parcellated_FC_matrix(sub_timeseries, volume_indices, atlas)
     elif roi_type == 'voxelwise':
-        corr_matrix = voxelwise_FC_matrix(bold_file, mask_file)
+        corr_matrix = np.corrcoef(sub_timeseries.T)
     else:
         raise ValueError(
             f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
@@ -136,44 +124,18 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
     return data_file, figname
 
 
-def voxelwise_FC_matrix(bold_file, mask_file):
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
-    volume_indices = brain_mask.astype(bool)
+def parcellated_FC_matrix(sub_timeseries, volume_indices, atlas):
 
-    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
-    sub_timeseries = np.zeros(
-        [timeseries_array.shape[3], volume_indices.sum()])
-    for t in range(timeseries_array.shape[3]):
-        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
-
-    corr_matrix = np.corrcoef(sub_timeseries.T)
-    return corr_matrix
-
-
-def extract_timeseries(bold_file, atlas):
-    from nilearn.input_data import NiftiMasker
-    atlas_img = nb.load(atlas)
-    atlas_data = np.asarray(atlas_img.dataobj)
+    atlas_data = np.asarray(nb.load(atlas).dataobj)[volume_indices]
     max_int = atlas_data.max()
-
+    
     timeseries_dict = {}
     for i in range(1, max_int+1):
         if np.max(i == atlas_data):  # taking a ROI only if it has labeled voxels
-            roi_mask = np.asarray(atlas_data == i, dtype=int)
-            roi_mask_nb = nb.Nifti1Image(roi_mask, nb.load(
-                atlas).affine, nb.load(atlas).header)
-            masker = NiftiMasker(mask_img=roi_mask_nb,
-                                 standardize=False, verbose=0)
-            # extract the voxel timeseries within the mask
-            voxel_timeseries = masker.fit_transform(bold_file)
-            # take the mean ROI timeseries
-            roi_timeseries = np.mean(voxel_timeseries, axis=1)
-            timeseries_dict[str(i)] = roi_timeseries
-    return timeseries_dict
-
-
-def parcellated_FC_matrix(bold_file, atlas):
-    timeseries_dict = extract_timeseries(bold_file, atlas)
+            roi_mask = np.asarray(atlas_data == i, dtype=bool)
+            # extract the voxel timeseries within the mask, and take the mean ROI timeseries
+            timeseries_dict[str(i)] = sub_timeseries[:,roi_mask].mean(axis=1)
+    
     roi_labels = timeseries_dict.keys()
     sub_timeseries = []
     for roi in roi_labels:

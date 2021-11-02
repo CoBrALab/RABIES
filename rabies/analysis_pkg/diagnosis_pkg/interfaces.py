@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+import nibabel as nb
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
 
@@ -99,8 +100,6 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
         desc="A dictionary regrouping the temporal features.")
     spatial_info = traits.Dict(
         desc="A dictionary regrouping the spatial features.")
-    VE_file = File(exists=True, mandatory=True,
-                   desc="Output the VE file for the datasink.")
 
 
 class ScanDiagnosis(BaseInterface):
@@ -122,11 +121,12 @@ class ScanDiagnosis(BaseInterface):
         bold_file = self.inputs.file_dict['bold_file']
         CR_data_dict = self.inputs.file_dict['CR_data_dict']
         VE_file = self.inputs.file_dict['VE_file']
+        STD_file = self.inputs.file_dict['STD_file']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
+            bold_file, CR_data_dict, VE_file, STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)
@@ -143,7 +143,6 @@ class ScanDiagnosis(BaseInterface):
                 figure_path+'_spatial_diagnosis.png')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
-        setattr(self, 'VE_file', VE_file)
 
         return runtime
 
@@ -151,15 +150,20 @@ class ScanDiagnosis(BaseInterface):
         return {'figure_temporal_diagnosis': getattr(self, 'figure_temporal_diagnosis'),
                 'figure_spatial_diagnosis': getattr(self, 'figure_spatial_diagnosis'),
                 'temporal_info': getattr(self, 'temporal_info'),
-                'spatial_info': getattr(self, 'spatial_info'),
-                'VE_file': getattr(self, 'VE_file'), }
+                'spatial_info': getattr(self, 'spatial_info'), }
 
 
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
     spatial_info_list = traits.List(
         exists=True, mandatory=True, desc="A dictionary regrouping the spatial features.")
+    analysis_dict_list = traits.List(
+        exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
+    file_dict_list = traits.List(
+        exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
     mask_file_dict = traits.Dict(
         exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
+    seed_prior_maps = traits.List(
+        exists=True, desc="A list of expected network map associated to each seed-FC.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -182,8 +186,10 @@ class DatasetDiagnosis(BaseInterface):
         from rabies.preprocess_pkg.preprocess_visual_QC import otsu_scaling
         from .analysis_QC import spatial_crosscorrelations, analysis_QC
 
-        merged = flatten_list(list(self.inputs.spatial_info_list))
-        if len(merged) < 3:
+        merged_spatial_info = flatten_list(list(self.inputs.spatial_info_list))
+        merged_analysis_dict = flatten_list(list(self.inputs.analysis_dict_list))
+        merged_file_dict = flatten_list(list(self.inputs.file_dict_list))
+        if len(merged_spatial_info) < 3:
             raise ValueError(
                 "Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
 
@@ -192,39 +198,75 @@ class DatasetDiagnosis(BaseInterface):
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
+        brain_mask = np.asarray(nb.load(mask_file).dataobj)
+        volume_indices = brain_mask.astype(bool)
+
         scaled = otsu_scaling(template_file)
 
         fig_path = f'{out_dir}/spatial_crosscorrelations.png'
-        spatial_crosscorrelations(merged, scaled, mask_file, fig_path)
+        spatial_crosscorrelations(merged_spatial_info, scaled, mask_file, fig_path)
 
         std_maps=[]
         VE_maps=[]
         DR_maps_list=[]
+        seed_maps_list=[]
         dual_ICA_maps_list=[]
-        for spatial_info in merged:
+        tdof_list=[]
+        for spatial_info,analysis_dict,file_dict in zip(merged_spatial_info, merged_analysis_dict, merged_file_dict):
             std_maps.append(spatial_info['temporal_std'])
             VE_maps.append(spatial_info['VE_spatial'])
             DR_maps_list.append(spatial_info['DR_BOLD'])
             dual_ICA_maps_list.append(spatial_info['dual_ICA_maps'])
+            tdof_list.append(file_dict['CR_data_dict']['tDOF'])
+
+            seed_list=[]
+            for seed_map in analysis_dict['seed_map_files']:
+                seed_list.append(np.asarray(
+                    nb.load(seed_map).dataobj)[volume_indices])
+            seed_maps_list.append(seed_list)
+
         std_maps=np.array(std_maps)
         VE_maps=np.array(VE_maps)
         DR_maps_list=np.array(DR_maps_list)
         dual_ICA_maps_list=np.array(dual_ICA_maps_list)
-        
+
         prior_maps = spatial_info['prior_maps']
         num_priors = prior_maps.shape[0]
         for i in range(num_priors):
             FC_maps = DR_maps_list[:,i,:]
             fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, template_file, fig_path)
+            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
             pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
         if dual_ICA_maps_list.shape[1]>0:
             for i in range(num_priors):
                 FC_maps = dual_ICA_maps_list[:,i,:]
                 fig_path = f'{out_dir}/dual_ICA{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, template_file, fig_path)
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/dual_ICA{i}_QC_stats.csv', index=None)
+
+
+        # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
+        if len(self.inputs.seed_prior_maps)>0:
+            import tempfile
+            tmppath = tempfile.mkdtemp()
+            prior_maps=[]
+            for prior_map in self.inputs.seed_prior_maps:
+                # resample to match the subject
+                sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
+                sitk.WriteImage(sitk_img,f'{tmppath}/temp_img.nii.gz')
+                prior_maps.append(np.asarray(
+                    nb.load(f'{tmppath}/temp_img.nii.gz').dataobj)[volume_indices])
+
+            prior_maps = np.array(prior_maps)
+            num_priors = prior_maps.shape[0]
+            seed_maps_list=np.array(seed_maps_list)
+            for i in range(num_priors):
+                FC_maps = seed_maps_list[:,i,:]
+                fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
+                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+
 
         setattr(self, 'dataset_diagnosis',
                 out_dir)
