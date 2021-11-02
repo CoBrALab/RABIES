@@ -33,7 +33,7 @@ class PrepMasks(BaseInterface):
     output_spec = PrepMasksOutputSpec
 
     def _run_interface(self, runtime):
-        from rabies.preprocess_pkg.utils import flatten_list
+        from rabies.preprocess_pkg.utils import flatten_list,resample_image_spacing
         merged = flatten_list(list(self.inputs.mask_dict_list))
         mask_dict = merged[0]  # all mask files are assumed to be identical
         brain_mask_file = mask_dict['mask_file']
@@ -41,7 +41,6 @@ class PrepMasks(BaseInterface):
         CSF_mask_file = mask_dict['CSF_mask_file']
 
         # resample the template to the EPI dimensions
-        from rabies.preprocess_pkg.utils import resample_image_spacing
         resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(
             brain_mask_file).GetSpacing(), resampling_interpolation='BSpline')
         template_file = os.path.abspath('display_template.nii.gz')
@@ -60,7 +59,8 @@ class PrepMasks(BaseInterface):
             right_hem_mask_file = ''
             left_hem_mask_file = ''
 
-        prior_maps = diagnosis_functions.resample_IC_file(self.inputs.prior_maps, brain_mask_file)
+        from rabies.analysis_pkg.analysis_functions import resample_IC_file
+        prior_maps = resample_IC_file(self.inputs.prior_maps, brain_mask_file)
 
         edge_mask_file = os.path.abspath('edge_mask.nii.gz')
         diagnosis_functions.compute_edge_mask(brain_mask_file, edge_mask_file, num_edge_voxels=1)

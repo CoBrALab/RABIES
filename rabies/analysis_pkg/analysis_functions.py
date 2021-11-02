@@ -28,6 +28,52 @@ def recover_3D_multiple(mask_file, vector_maps):
         mask_file).affine, nb.load(mask_file).header)
     return volume_img
 
+
+def resample_IC_file(in_file, ref_file, transforms = [], inverses = []):
+    # resampling the reference image to the dimension of the EPI
+    import SimpleITK as sitk
+    import os
+    from rabies.preprocess_pkg.utils import split_volumes, copyInfo_4DImage, exec_applyTransforms
+    import pathlib  # Better path manipulation
+    filename_split = pathlib.Path(
+        in_file).name.rsplit(".nii")
+    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
+
+    # Splitting bold file into lists of single volumes
+    [volumes_list, num_volumes] = split_volumes(
+        in_file, "bold_", sitk.sitkFloat32)
+
+    warped_volumes = []
+    for x in range(0, num_volumes):
+        warped_vol_fname = os.path.abspath(
+            "deformed_volume" + str(x) + ".nii.gz")
+        warped_volumes.append(warped_vol_fname)
+        exec_applyTransforms(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_image=warped_vol_fname, mask=False)
+
+    sample_volume = sitk.ReadImage(
+        warped_volumes[0])
+    shape = sitk.GetArrayFromImage(sample_volume).shape
+    combined = np.zeros((num_volumes, shape[0], shape[1], shape[2]))
+
+    i = 0
+    for file in warped_volumes:
+        combined[i, :, :, :] = sitk.GetArrayFromImage(
+            sitk.ReadImage(file))[:, :, :]
+        i = i+1
+    if (i != num_volumes):
+        raise ValueError("Error occured with Merge.")
+
+    combined_image = sitk.GetImageFromArray(combined, isVector=False)
+
+    # set metadata and affine for the newly constructed 4D image
+    header_source = sitk.ReadImage(
+        in_file)
+    combined_image = copyInfo_4DImage(
+        combined_image, sample_volume, header_source)
+    sitk.WriteImage(combined_image, out_file)
+    return out_file
+
+
 '''
 seed-based FC
 '''
@@ -93,6 +139,8 @@ FC matrix
 def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
     import os
     import pandas as pd
+    import numpy as np
+    import nibabel as nb
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
@@ -317,7 +365,6 @@ class dual_ICA_wrapper(BaseInterface):
         filename_split = pathlib.Path(
             self.inputs.bold_file).name.rsplit(".nii")
 
-        from rabies.analysis_pkg.data_diagnosis import resample_IC_file
         resampled_priors = resample_IC_file(self.inputs.prior_maps, self.inputs.mask_file)
 
 
