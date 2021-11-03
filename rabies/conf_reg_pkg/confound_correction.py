@@ -270,7 +270,8 @@ class Regress(BaseInterface):
         X=confounds_array
         Y=timeseries
         try:
-            res = Y-X.dot(closed_form(X,Y))
+            predicted = X.dot(closed_form(X,Y))
+            res = Y-predicted
         except:
             import logging
             log = logging.getLogger('root')
@@ -331,7 +332,11 @@ class Regress(BaseInterface):
         num_regressors = confounds_array.shape[1]
         tDOF = num_timepoints - (aroma_rm+num_regressors)
 
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'tDOF':tDOF}
+        # include features from the predicted timeseries in advance to save memory
+        predicted_std = predicted.std(axis=0)
+        predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
+
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'predicted_std':predicted_std, 'tDOF':tDOF}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)

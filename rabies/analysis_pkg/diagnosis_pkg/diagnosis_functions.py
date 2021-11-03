@@ -116,6 +116,7 @@ def process_data(bold_file, data_dict, VE_file, STD_file, mask_file_dict, analys
     temporal_info['CSF_trace'] = CSF_trace
     temporal_info['edge_trace'] = edge_trace
     temporal_info['not_edge_trace'] = not_edge_trace
+    temporal_info['predicted_time'] = data_dict['predicted_time']
 
     '''Spatial Features'''
     global_signal = timeseries.mean(axis=1)
@@ -144,6 +145,7 @@ def process_data(bold_file, data_dict, VE_file, STD_file, mask_file_dict, analys
     spatial_info['dual_ICA_maps'] = prior_fit_out['C']
     temporal_info['dual_ICA_time'] = prior_fit_out['W']
 
+    spatial_info['predicted_std'] = data_dict['predicted_std']
     spatial_info['VE_spatial'] = np.asarray(
         nb.load(VE_file).dataobj)[volume_indices]
     spatial_info['temporal_std'] = np.asarray(
@@ -199,6 +201,10 @@ def spatial_external_formating(spatial_info, file_dict):
     analysis_functions.recover_3D(
         mask_file, spatial_info['temporal_std']).to_filename(std_filename)
 
+    predicted_std_filename = os.path.abspath(filename_split[0]+'_predicted_std.nii.gz')
+    analysis_functions.recover_3D(
+        mask_file, spatial_info['predicted_std']).to_filename(predicted_std_filename)
+
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
     analysis_functions.recover_3D(
         mask_file, spatial_info['GS_corr']).to_filename(GS_corr_filename)
@@ -225,7 +231,7 @@ def spatial_external_formating(spatial_info, file_dict):
     else:
         dual_ICA_filename = None
 
-    return VE_filename, std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
+    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
 
 
 '''
@@ -383,6 +389,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax3.plot(x,temporal_info['edge_trace'])
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
+    ax3.plot(x,temporal_info['predicted_time'])
     ax3.set_ylabel('Mask L2-norm', fontsize=15)
     ax3_ = ax3.twinx()
     ax3_.plot(x,temporal_info['VE_temporal'], 'r')
@@ -390,7 +397,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
-    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask'
+    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', 'CR prediction'
                 ], loc='center left', bbox_to_anchor=(1.15, 0.7))
     ax3_.legend(['CR R^2'
                 ], loc='center left', bbox_to_anchor=(1.15, 0.3))
@@ -409,7 +416,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     dr_maps = spatial_info['DR_BOLD']
     mask_file = mask_file_dict['brain_mask']
 
-    nrows = 5+dr_maps.shape[0]
+    nrows = 6+dr_maps.shape[0]
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -437,7 +444,30 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('Temporal s.d.', fontsize=30, color='white')
 
+
     axes = axes2[1, :]
+    scaled = otsu_scaling(template_file)
+    plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
+            cmap='gray', alpha=1, cbar=False, num_slices=6)
+    predicted_std = spatial_info['predicted_std']
+    analysis_functions.recover_3D(
+        mask_file, predicted_std).to_filename('temp_img.nii.gz')
+    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+
+    # select vmax at 95th percentile value
+    vector = predicted_std.flatten()
+    vector.sort()
+    vmax = vector[int(len(vector)*0.95)]
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=vmax,
+            cmap='inferno', alpha=1, cbar=True, num_slices=6)
+    for cbar in cbar_list:
+        cbar.ax.get_yaxis().labelpad = 35
+        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
+    for ax in axes:
+        ax.set_title('CR Prediction', fontsize=30, color='white')
+
+
+    axes = axes2[2, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(
@@ -451,7 +481,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('CR R^2', fontsize=30, color='white')
 
-    axes = axes2[2, :]
+    axes = axes2[3, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(
@@ -465,7 +495,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('Global Signal Correlation', fontsize=30, color='white')
 
-    axes = axes2[3, :]
+    axes = axes2[4, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(
@@ -479,7 +509,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
-    axes = axes2[4, :]
+    axes = axes2[5, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     analysis_functions.recover_3D(
@@ -494,7 +524,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         ax.set_title('FD Correlation', fontsize=30, color='white')
 
     for i in range(dr_maps.shape[0]):
-        axes = axes2[i+5, :]
+        axes = axes2[i+6, :]
 
         analysis_functions.recover_3D(
             mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')

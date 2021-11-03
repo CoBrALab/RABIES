@@ -40,7 +40,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                             output_names=[
-                                                'VE_filename', 'std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
+                                                'VE_filename', 'std_filename', 'predicted_std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
                                         function=spatial_external_formating),
                                 name=analysis_opts.output_name+'_spatial_external_formating')
 
@@ -82,6 +82,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
         (spatial_external_formating_node, outputnode, [
             ("VE_filename", "spatial_VE_nii"),
             ("std_filename", "temporal_std_nii"),
+            ("predicted_std_filename", "CR_prediction_std_nii"),
             ("GS_corr_filename", "GS_corr_nii"),
             ("DVARS_corr_filename", "DVARS_corr_nii"),
             ("FD_corr_filename", "FD_corr_nii"),

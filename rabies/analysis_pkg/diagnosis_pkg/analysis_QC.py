@@ -223,30 +223,30 @@ def masked_plot(fig,axes, img, scaled, percentile=0.01, vmax=None):
 
 def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
 
-    dict_keys = ['temporal_std', 'VE_spatial', 'GS_corr',
+    dict_keys = ['temporal_std', 'predicted_std', 'VE_spatial', 'GS_corr',
                     'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps']
 
     voxelwise_list = []
     for spatial_info in merged:
         sub_list = [spatial_info[key] for key in dict_keys]
-        voxelwise_sub = np.array(sub_list[:5])
-        if len(sub_list[6]) > 0:
+        voxelwise_sub = np.array(sub_list[:6])
+        if len(sub_list[7]) > 0:
             voxelwise_sub = np.concatenate(
-                (voxelwise_sub, np.array(sub_list[5]), np.array(sub_list[6])), axis=0)
+                (voxelwise_sub, np.array(sub_list[6]), np.array(sub_list[7])), axis=0)
         else:
             voxelwise_sub = np.concatenate(
-                (voxelwise_sub, np.array(sub_list[5])), axis=0)
+                (voxelwise_sub, np.array(sub_list[6])), axis=0)
         voxelwise_list.append(voxelwise_sub)
-        num_prior_maps = len(sub_list[5])
+        num_prior_maps = len(sub_list[6])
     voxelwise_array = np.array(voxelwise_list)
 
 
-    label_name = ['Temporal s.d.', 'CR R^2',
+    label_name = ['Temporal s.d.', 'CR Prediction', 'CR R^2',
                     'GS corr', 'DVARS corr', 'FD corr']
     label_name += [f'BOLD Dual Regression map {i}' for i in range(num_prior_maps)]
     label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
 
-    ncols = 5
+    ncols = 6
     fig, axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols, figsize=(
         12*ncols, 2*voxelwise_array.shape[1]))
     for i, x_label in zip(range(voxelwise_array.shape[1]), label_name):
