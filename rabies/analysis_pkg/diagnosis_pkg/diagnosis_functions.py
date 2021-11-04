@@ -393,7 +393,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax3.plot(x,temporal_info['predicted_time'])
     ax3.set_ylabel('Mask L2-norm', fontsize=15)
     ax3_ = ax3.twinx()
-    ax3_.plot(x,temporal_info['VE_temporal'], 'r')
+    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
     ax3_.set_ylabel('CR R^2', fontsize=15)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
