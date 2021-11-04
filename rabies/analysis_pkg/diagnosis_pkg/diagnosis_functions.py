@@ -61,7 +61,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
+def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
     temporal_info = {}
     spatial_info = {}
 
@@ -145,11 +145,12 @@ def process_data(bold_file, data_dict, VE_file, STD_file, mask_file_dict, analys
     spatial_info['dual_ICA_maps'] = prior_fit_out['C']
     temporal_info['dual_ICA_time'] = prior_fit_out['W']
 
-    spatial_info['predicted_std'] = data_dict['predicted_std']
     spatial_info['VE_spatial'] = np.asarray(
         nb.load(VE_file).dataobj)[volume_indices]
     spatial_info['temporal_std'] = np.asarray(
         nb.load(STD_file).dataobj)[volume_indices]
+    spatial_info['predicted_std'] = np.asarray(
+        nb.load(CR_STD_file).dataobj)[volume_indices]
     spatial_info['GS_corr'] = GS_corr
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
