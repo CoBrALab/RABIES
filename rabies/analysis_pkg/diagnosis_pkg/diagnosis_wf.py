@@ -120,14 +120,20 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
 
+        # calculate the number of scans combined in diagnosis
+        num_scan = len(scan_split_name)
+        if opts.local_threads < num_scan:
+            num_scan = opts.local_threads
 
         data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['scan_data_list']),
                                                 name=analysis_opts.output_name+'_diagnosis_split_joinnode',
                                                 joinsource=analysis_split.name,
-                                                joinfield=['scan_data_list'])
+                                                joinfield=['scan_data_list'],
+                                                n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-            name=analysis_opts.output_name+'_DatasetDiagnosis')
+            name=analysis_opts.output_name+'_DatasetDiagnosis',
+            n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
 
         workflow.connect([
