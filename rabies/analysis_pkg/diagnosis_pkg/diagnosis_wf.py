@@ -92,27 +92,60 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
 
     if not len(scan_split_name)<3:
 
-        data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['spatial_info_list', 'analysis_dict_list', 'file_dict_list']),
+        def prep_scan_data(spatial_info, analysis_dict, file_dict, mask_file_dict):
+            scan_data={}
+
+            dict_keys = ['temporal_std', 'predicted_std', 'VE_spatial', 'GS_corr',
+                            'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps', 'prior_maps' ]
+            for key in dict_keys:
+                scan_data[key] = spatial_info[key]
+
+            scan_data['tDOF'] = file_dict['CR_data_dict']['tDOF']
+
+            import numpy as np
+            import nibabel as nb
+            mask_file = mask_file_dict['brain_mask']
+            brain_mask = np.asarray(nb.load(mask_file).dataobj)
+            volume_indices = brain_mask.astype(bool)
+
+            seed_list=[]
+            for seed_map in analysis_dict['seed_map_files']:
+                seed_list.append(np.asarray(
+                    nb.load(seed_map).dataobj)[volume_indices])
+            scan_data['seed_list'] = seed_list
+            return scan_data
+
+        prep_scan_data_node = pe.Node(Function(input_names=['spatial_info', 'analysis_dict', 'file_dict', 'mask_file_dict'],
+                                            output_names=['scan_data'],
+                                        function=prep_scan_data),
+                                name='prep_scan_data_node')
+
+
+        data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['scan_data_list']),
                                                 name=analysis_opts.output_name+'_diagnosis_split_joinnode',
                                                 joinsource=analysis_split.name,
-                                                joinfield=['spatial_info_list', 'analysis_dict_list', 'file_dict_list'])
+                                                joinfield=['scan_data_list'])
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
             name=analysis_opts.output_name+'_DatasetDiagnosis')
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
 
         workflow.connect([
-            (inputnode, data_diagnosis_split_joinnode, [
-                ("file_dict", "file_dict_list"),
-                ("analysis_dict", "analysis_dict_list"),
+            (inputnode, prep_scan_data_node, [
+                ("file_dict", "file_dict"),
+                ("analysis_dict", "analysis_dict"),
                 ]),
-            (ScanDiagnosis_node, data_diagnosis_split_joinnode, [
-                ("spatial_info", "spatial_info_list"),
+            (ScanDiagnosis_node, prep_scan_data_node, [
+                ("spatial_info", "spatial_info"),
+                ]),
+            (PrepMasks_node, prep_scan_data_node, [
+                ("mask_file_dict", "mask_file_dict"),
+                ]),
+            (prep_scan_data_node, data_diagnosis_split_joinnode, [
+                ("scan_data", "scan_data_list"),
                 ]),
             (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
-                ("spatial_info_list", "spatial_info_list"),
-                ("file_dict_list", "file_dict_list"),
-                ("analysis_dict_list", "analysis_dict_list"),
+                ("scan_data_list", "scan_data_list"),
                 ]),
             (PrepMasks_node, DatasetDiagnosis_node, [
                 ("mask_file_dict", "mask_file_dict"),

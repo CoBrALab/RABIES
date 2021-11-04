@@ -227,8 +227,8 @@ def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
                     'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps']
 
     voxelwise_list = []
-    for spatial_info in merged:
-        sub_list = [spatial_info[key] for key in dict_keys]
+    for scan_data in merged:
+        sub_list = [scan_data[key] for key in dict_keys]
         voxelwise_sub = np.array(sub_list[:6])
         if len(sub_list[7]) > 0:
             voxelwise_sub = np.concatenate(
