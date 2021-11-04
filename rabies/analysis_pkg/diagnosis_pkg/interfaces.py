@@ -202,6 +202,7 @@ class DatasetDiagnosis(BaseInterface):
         spatial_crosscorrelations(merged, scaled, mask_file, fig_path)
 
         std_maps=[]
+        CR_std_maps=[]
         VE_maps=[]
         DR_maps_list=[]
         seed_maps_list=[]
@@ -209,6 +210,7 @@ class DatasetDiagnosis(BaseInterface):
         tdof_list=[]
         for scan_data in merged:
             std_maps.append(scan_data['temporal_std'])
+            CR_std_maps.append(scan_data['predicted_std'])
             VE_maps.append(scan_data['VE_spatial'])
             DR_maps_list.append(scan_data['DR_BOLD'])
             dual_ICA_maps_list.append(scan_data['dual_ICA_maps'])
@@ -216,6 +218,7 @@ class DatasetDiagnosis(BaseInterface):
             seed_maps_list.append(scan_data['seed_list'])
 
         std_maps=np.array(std_maps)
+        CR_std_maps=np.array(CR_std_maps)
         VE_maps=np.array(VE_maps)
         DR_maps_list=np.array(DR_maps_list)
         dual_ICA_maps_list=np.array(dual_ICA_maps_list)
@@ -225,14 +228,14 @@ class DatasetDiagnosis(BaseInterface):
         for i in range(num_priors):
             FC_maps = DR_maps_list[:,i,:]
             fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
+            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path)
             pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
         if dual_ICA_maps_list.shape[1]>0:
             for i in range(num_priors):
                 FC_maps = dual_ICA_maps_list[:,i,:]
                 fig_path = f'{out_dir}/dual_ICA{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/dual_ICA{i}_QC_stats.csv', index=None)
 
 
@@ -254,7 +257,7 @@ class DatasetDiagnosis(BaseInterface):
             for i in range(num_priors):
                 FC_maps = seed_maps_list[:,i,:]
                 fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, VE_maps, tdof_list, template_file, fig_path)
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
 
 
