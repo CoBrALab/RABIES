@@ -190,8 +190,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
 
     # calculate the number of scans that will be registered
     num_scan = len(scan_list)
-    if opts.local_threads < num_scan:
-        num_scan = opts.local_threads
+    num_procs = min(opts.local_threads, num_scan)
 
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
@@ -204,7 +203,7 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
     else:
         workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg', num_inputs=2)
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_scan=num_scan, name='commonspace_reg_wf')
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, name='commonspace_reg_wf')
 
     bold_main_wf = init_bold_main_wf(opts=opts)
 
