@@ -106,7 +106,7 @@ def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
     return workflow, confound_correction_wf
 
 
-def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, opts):
+def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, preprocess_opts):
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
 
     analysis_wf = init_analysis_wf(
@@ -205,7 +205,7 @@ def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_op
                                         function=prep_analysis_dict),
                                 name=analysis_opts.output_name+'_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, scan_split_name, name=analysis_opts.output_name+"diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis_split, scan_split_name, name=analysis_opts.output_name+"diagnosis_wf")
 
         workflow.connect([
             (analysis_wf, prep_analysis_dict_node, [

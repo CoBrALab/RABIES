@@ -10,7 +10,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, name='commonspace_reg_wf'):
     inputnode_iterable = pe.Node(niu.IdentityInterface(fields=['iter_name']),
                                         name="inputnode_iterable")
     inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask', 'atlas_anat', 'atlas_mask']),
@@ -118,7 +118,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_scan, 
 
         generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
                                               ),
-                                      name='generate_template', n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
+                                      name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Native2Unbiased')

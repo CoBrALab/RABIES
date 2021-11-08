@@ -7,7 +7,7 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMask
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, scan_split_name, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis_split, scan_split_name, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
@@ -16,10 +16,10 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
                                                        'dataset_diagnosis', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii',
                                                        'temporal_std_nii', 'GS_corr_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
-    if not (commonspace_bold or opts.bold_only):
+    if not (commonspace_bold or preprocess_opts.bold_only):
         raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
 
-    if os.path.basename(opts.anat_template)=='DSURQE_40micron_average.nii.gz':
+    if os.path.basename(preprocess_opts.anat_template)=='DSURQE_40micron_average.nii.gz':
         DSURQE_regions=True
     else:
         DSURQE_regions=False
@@ -122,18 +122,17 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, opts, analysis_split, sca
 
         # calculate the number of scans combined in diagnosis
         num_scan = len(scan_split_name)
-        if opts.local_threads < num_scan:
-            num_scan = opts.local_threads
+        num_procs = min(analysis_opts.local_threads, num_scan)
 
         data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['scan_data_list']),
                                                 name=analysis_opts.output_name+'_diagnosis_split_joinnode',
                                                 joinsource=analysis_split.name,
                                                 joinfield=['scan_data_list'],
-                                                n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
+                                                n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
             name=analysis_opts.output_name+'_DatasetDiagnosis',
-            n_procs=opts.local_threads, mem_gb=1*num_scan*opts.scale_min_memory)
+            n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
 
         workflow.connect([
