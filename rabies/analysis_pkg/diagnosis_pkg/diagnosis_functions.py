@@ -443,7 +443,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         cbar.ax.get_yaxis().labelpad = 35
         cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
     for ax in axes:
-        ax.set_title('Temporal s.d.', fontsize=30, color='white')
+        ax.set_title('BOLD-Temporal s.d.', fontsize=30, color='white')
 
 
     axes = axes2[1, :]
@@ -465,7 +465,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         cbar.ax.get_yaxis().labelpad = 35
         cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
     for ax in axes:
-        ax.set_title('CR Prediction', fontsize=30, color='white')
+        ax.set_title('CR-Temporal s.d.', fontsize=30, color='white')
 
 
     axes = axes2[2, :]
