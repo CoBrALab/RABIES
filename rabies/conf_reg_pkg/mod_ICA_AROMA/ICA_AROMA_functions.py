@@ -102,8 +102,12 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
     #---------------------------------------- Run ICA-AROMA ----------------------------------------#
 
     print('Step 1) MELODIC')
-    aromafunc.runICA(fslDir, inFile, outDir, melDir, mask, dim, TR, random_seed=random_seed)
-    melIC = os.path.join(outDir, 'melodic_IC_thr.nii.gz')
+    try:
+        aromafunc.runICA(fslDir, inFile, outDir, melDir, mask, dim, TR, random_seed=random_seed)
+        melIC = os.path.join(outDir, 'melodic_IC_thr.nii.gz')
+    except:
+        print('MELODIC FAILED. RETURNING EMPTY FILES.')
+        return False
 
     print('Step 2) Automatic classification of the components')
 
@@ -141,6 +145,7 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
     os.chdir(cwd)
 
     print('\n----------------------------------- Finished -----------------------------------\n')
+    return True
 ###end of RABIES modification
 
 

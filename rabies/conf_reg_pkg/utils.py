@@ -62,8 +62,10 @@ def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_
     else:
         tr = float(tr)
 
-    run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
+    success = run_ICA_AROMA(aroma_out, os.path.abspath(inFile), mc=csv2par(mc_file), TR=float(tr), mask=os.path.abspath(
         brain_mask), mask_csf=os.path.abspath(csf_mask), denType="nonaggr", melDir="", dim=str(aroma_dim), overwrite=True, random_seed=random_seed)
+    if not success:
+        return None, aroma_out
     os.rename(aroma_out+'/denoised_func_data_nonaggr.nii.gz', cleaned_file)
     return cleaned_file, aroma_out
 
