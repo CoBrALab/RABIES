@@ -247,8 +247,9 @@ class Regress(BaseInterface):
             if len(frame_mask)<2*num_cut:
                 raise ValueError(f"The timeseries are too short to remove {cr_opts.edge_cutoff}sec of data at each edge.")
 
-            frame_mask[:num_cut]=0
-            frame_mask[-num_cut:]=0
+            if not num_cut==0:
+                frame_mask[:num_cut]=0
+                frame_mask[-num_cut:]=0
 
             # re-apply the masks to take out simulated data points, and take off the edges
             timeseries = timeseries_filtered[frame_mask]
