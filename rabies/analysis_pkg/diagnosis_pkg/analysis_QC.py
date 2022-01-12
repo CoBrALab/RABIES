@@ -110,14 +110,12 @@ def eval_relationships(maps, mask_file, percentile=0.01):
 
     return {'Overlap: Prior - Dataset avg.': dice_coefficient(prior_mask,average_mask), 
             'Overlap: Prior - Dataset MAD': dice_coefficient(prior_mask,std_mask),
-            'Overlap: Prior - Temporal s.d. effect': dice_coefficient(prior_mask,corr_map_std_mask), 
-            'Overlap: Prior - CR prediction effect': dice_coefficient(prior_mask,corr_map_CR_std_mask), 
-            'Overlap: Prior - CR R^2 effect': dice_coefficient(prior_mask,corr_map_VE_mask),
-            'Overlap: Prior - tDOF effect': tdof_spec,
-            'Avg.: Temporal s.d. effect': std_avg_corr,
-            'Avg.: CR prediction effect': CR_std_avg_corr,
-            'Avg.: CR R^2 effect': VE_avg_corr,
-            'Avg.: tDOF effect': tdof_avg_corr,
+            'Overlap: Prior - BOLD-Temporal s.d.': dice_coefficient(prior_mask,corr_map_std_mask), 
+            'Overlap: Prior - CR-Temporal s.d.': dice_coefficient(prior_mask,corr_map_CR_std_mask), 
+            'Overlap: Prior - tDOF': tdof_spec,
+            'Avg.: BOLD-Temporal s.d.': std_avg_corr,
+            'Avg.: CR-Temporal s.d.': CR_std_avg_corr,
+            'Avg.: tDOF': tdof_avg_corr,
             } 
 
 
@@ -125,7 +123,7 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
 
     prior, average, network_var, corr_map_std, corr_map_CR_std, corr_map_VE, corr_map_tdof = maps
 
-    fig,axes = plt.subplots(nrows=7, ncols=1,figsize=(12,2*7))
+    fig,axes = plt.subplots(nrows=6, ncols=1,figsize=(12,2*6))
     
     tmppath = tempfile.mkdtemp()
     recover_3D(mask_file,prior).to_filename(f'{tmppath}/temp_img.nii.gz')
@@ -161,8 +159,8 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
     recover_3D(mask_file,corr_map_std).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[3]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
-    ax.set_title('Temporal s.d. effect', fontsize=25, color='white')
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
+    ax.set_title('BOLD-Temporal s.d.', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
         cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
@@ -171,30 +169,20 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
     recover_3D(mask_file,corr_map_CR_std).to_filename(f'{tmppath}/temp_img.nii.gz')
     img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[4]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
-    ax.set_title('CR prediction effect', fontsize=25, color='white')
+    cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
+    ax.set_title('CR-Temporal s.d.', fontsize=25, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
         cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
 
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,corr_map_VE).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
     ax=axes[5]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
-    ax.set_title('CR R^2 effect', fontsize=25, color='white')
-    for cbar in cbar_list:
-        cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
-
-    ax=axes[6]
     if corr_map_tdof is None:
         ax.axis('off')
     else:
         tmppath = tempfile.mkdtemp()
         recover_3D(mask_file,corr_map_tdof).to_filename(f'{tmppath}/temp_img.nii.gz')
         img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
-        cbar_list = masked_plot(fig,ax, img, scaled, vmax=0.7, percentile=percentile)
+        cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
         ax.set_title('tDOF correlation', fontsize=25, color='white')
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 20
@@ -258,7 +246,7 @@ def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
     voxelwise_array = np.array(voxelwise_list)
 
 
-    label_name = ['Temporal s.d.', 'CR Prediction', 'CR R^2',
+    label_name = ['BOLD-Temporal s.d.', 'CR-Temporal s.d.', 'CR R^2',
                     'GS corr', 'DVARS corr', 'FD corr']
     label_name += [f'BOLD Dual Regression map {i}' for i in range(num_prior_maps)]
     label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
@@ -282,7 +270,7 @@ def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
             recover_3D(
                 mask_file, corr).to_filename('temp_img.nii.gz')
             sitk_img = sitk.ReadImage('temp_img.nii.gz')
-            cbar_list = plot_3d([ax], sitk_img, fig, vmin=-0.7, vmax=0.7, cmap='cold_hot',
+            cbar_list = plot_3d([ax], sitk_img, fig, vmin=-1.0, vmax=1.0, cmap='cold_hot',
                     alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
             ax.set_title(f'Cross-correlation for \n{x_label} and {y_label}', fontsize=20, color='white')
             for cbar in cbar_list:

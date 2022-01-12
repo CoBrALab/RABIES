@@ -210,6 +210,9 @@ class Regress(BaseInterface):
             df.to_csv(mc_file)
 
             cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.aroma_dim, random_seed=cr_opts.aroma_random_seed)
+            # if AROMA failed, returns empty outputs
+            if cleaned_file is None:
+                return runtime
             setattr(self, 'aroma_out', aroma_out)
 
             data_img = sitk.ReadImage(cleaned_file, sitk.sitkFloat32)
