@@ -11,7 +11,7 @@ from .preprocess_pkg.bold_main_wf import init_bold_main_wf
 from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
 from .preprocess_pkg import preprocess_visual_QC
 
-def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts=None, name='main_wf'):
+def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     This workflow organizes the entire processing.
 
@@ -457,67 +457,54 @@ def init_main_wf(data_dir_path, output_folder, opts, cr_opts=None, analysis_opts
                 ]),
             ])
 
+    # fill the datasinks
+    workflow.connect([
+        (bold_selectfiles, bold_datasink, [
+            ("out_file", "input_bold"),
+            ]),
+        (outputnode, confounds_datasink, [
+            ("confounds_csv", "confounds_csv"),  # confounds file
+            ("FD_voxelwise", "FD_voxelwise"),
+            ("pos_voxelwise", "pos_voxelwise"),
+            ("FD_csv", "FD_csv"),
+            ]),
+        (outputnode, bold_datasink, [
+            ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
+            ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction
+            ("native_brain_mask", "native_brain_mask"),  # get the EPI labels
+            ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
+            ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
+            ("native_labels", "native_labels"),  # get the EPI labels
+            # warped EPI to anat
+            ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),
+            # resampled EPI after motion realignment and SDC
+            ("native_bold", "native_bold"),
+            # resampled EPI after motion realignment and SDC
+            ("native_bold_ref", "native_bold_ref"),
+            # resampled EPI after motion realignment and SDC
+            ("commonspace_bold", "commonspace_bold"),
+            ("commonspace_mask", "commonspace_mask"),
+            ("commonspace_WM_mask", "commonspace_WM_mask"),
+            ("commonspace_CSF_mask", "commonspace_CSF_mask"),
+            ("commonspace_vascular_mask", "commonspace_vascular_mask"),
+            ("commonspace_labels", "commonspace_labels"),
+            ("tSNR_filename", "tSNR_map_preprocess"),
+            ("std_filename", "std_map_preprocess"),
+            ("commonspace_resampled_template", "commonspace_resampled_template"),
+            ]),
+        ])
 
-    # Integrate confound regression
-    if cr_opts is not None:
-        workflow, confound_correction_wf = integrate_confound_correction(
-            workflow, outputnode, cr_opts, bold_only=opts.bold_only)
-
-        # Integrate analysis
-        if analysis_opts is not None:
-            workflow = integrate_analysis(
-                workflow, outputnode, confound_correction_wf, analysis_opts, opts.bold_only, not cr_opts.nativespace_analysis, bold_scan_list, opts)
-
-    elif opts.rabies_step == 'preprocess':
-        # only fill datasinks if the related workflow is running
-
+    if not opts.bold_only:
         workflow.connect([
-            (bold_selectfiles, bold_datasink, [
-                ("out_file", "input_bold"),
+            (anat_inho_cor_wf, anat_datasink, [
+                ("outputnode.corrected", "anat_preproc"),
                 ]),
-            (outputnode, confounds_datasink, [
-                ("confounds_csv", "confounds_csv"),  # confounds file
-                ("FD_voxelwise", "FD_voxelwise"),
-                ("pos_voxelwise", "pos_voxelwise"),
-                ("FD_csv", "FD_csv"),
-                ]),
-            (outputnode, bold_datasink, [
-                ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
-                ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction
-                ("native_brain_mask", "native_brain_mask"),  # get the EPI labels
-                ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
-                ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
-                ("native_labels", "native_labels"),  # get the EPI labels
-                # warped EPI to anat
-                ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),
-                # resampled EPI after motion realignment and SDC
-                ("native_bold", "native_bold"),
-                # resampled EPI after motion realignment and SDC
-                ("native_bold_ref", "native_bold_ref"),
-                # resampled EPI after motion realignment and SDC
-                ("commonspace_bold", "commonspace_bold"),
-                ("commonspace_mask", "commonspace_mask"),
-                ("commonspace_WM_mask", "commonspace_WM_mask"),
-                ("commonspace_CSF_mask", "commonspace_CSF_mask"),
-                ("commonspace_vascular_mask", "commonspace_vascular_mask"),
-                ("commonspace_labels", "commonspace_labels"),
-                ("tSNR_filename", "tSNR_map_preprocess"),
-                ("std_filename", "std_map_preprocess"),
-                ("commonspace_resampled_template", "commonspace_resampled_template"),
+            (outputnode, transforms_datasink, [
+                ('affine_bold2anat', 'affine_bold2anat'),
+                ('warp_bold2anat', 'warp_bold2anat'),
+                ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
                 ]),
             ])
-
-        if not opts.bold_only:
-            workflow.connect([
-                (anat_inho_cor_wf, anat_datasink, [
-                    ("outputnode.corrected", "anat_preproc"),
-                 ]),
-                (outputnode, transforms_datasink, [
-                    ('affine_bold2anat', 'affine_bold2anat'),
-                    ('warp_bold2anat', 'warp_bold2anat'),
-                    ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
-                    ]),
-                ])
 
     return workflow
 

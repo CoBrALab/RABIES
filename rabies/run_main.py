@@ -552,9 +552,9 @@ def execute_workflow():
     log.info(args)
 
     if opts.rabies_step == 'preprocess':
-        workflow = preprocess(opts, None, None, log)
+        workflow = preprocess(opts, log)
     elif opts.rabies_step == 'confound_correction':
-        workflow = confound_correction(opts, None, log)
+        workflow = confound_correction(opts)
     elif opts.rabies_step == 'analysis':
         workflow = analysis(opts, log)
     else:
@@ -576,7 +576,7 @@ def execute_workflow():
         raise
 
 
-def preprocess(opts, cr_opts, analysis_opts, log):
+def preprocess(opts, log):
     # Verify input and output directories
     data_dir_path = os.path.abspath(str(opts.bids_dir))
     output_folder = os.path.abspath(str(opts.output_dir))
@@ -625,11 +625,6 @@ def preprocess(opts, cr_opts, analysis_opts, log):
             file=f"{rabies_path}/EPI_labels.nii.gz"
             opts.labels=file
             log.info('With --bold_only, default --labels changed to '+file)
-        if analysis_opts is not None:
-            if str(analysis_opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
-                file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
-                analysis_opts.prior_maps=file
-                log.info('With --bold_only, default --prior_maps changed to '+file)
 
     # make sure we have absolute paths
     opts.anat_template = os.path.abspath(opts.anat_template)
@@ -694,16 +689,11 @@ def preprocess(opts, cr_opts, analysis_opts, log):
 
     methods,ref_string = preprocess_boilerplate(opts)
     txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
-    if cr_opts is not None:
-        methods,ref_string = confound_correction_boilerplate(cr_opts)
-        txt_boilerplate+="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
-
     with open(boilerplate_file, "w") as text_file:
         text_file.write(txt_boilerplate)
 
     from rabies.main_wf import init_main_wf
-    workflow = init_main_wf(data_dir_path, output_folder,
-                            opts, cr_opts=cr_opts, analysis_opts=analysis_opts)
+    workflow = init_main_wf(data_dir_path, output_folder, opts)
 
     # setting workflow options for debug mode
     if opts.debug:
@@ -724,7 +714,7 @@ def preprocess(opts, cr_opts, analysis_opts, log):
     return workflow
 
 
-def confound_correction(opts, analysis_opts, log):
+def confound_correction(opts):
     cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
@@ -736,7 +726,7 @@ def confound_correction(opts, analysis_opts, log):
         text_file.write(txt_boilerplate)
 
     from rabies.main_post import detached_confound_correction_wf
-    workflow = detached_confound_correction_wf(preprocess_opts, opts, analysis_opts)
+    workflow = detached_confound_correction_wf(preprocess_opts, opts)
 
     return workflow
 
@@ -747,7 +737,19 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         confound_correction_opts = pickle.load(handle)
 
-    workflow = confound_correction(confound_correction_opts, opts, log)
+    cli_file = f'{confound_correction_opts.preprocess_out}/rabies_preprocess.pkl'
+    with open(cli_file, 'rb') as handle:
+        preprocess_opts = pickle.load(handle)
+
+    if preprocess_opts.bold_only:
+        if str(opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
+            file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+            opts.prior_maps=file
+            log.info('With --bold_only, default --prior_maps changed to '+file)
+
+
+    from rabies.main_post import detached_analysis_wf
+    workflow = detached_analysis_wf(preprocess_opts, confound_correction_opts, opts)
 
     return workflow
 
