@@ -9,14 +9,18 @@ from rabies.analysis_pkg.analysis_wf import init_analysis_wf
 
 
 def detached_confound_correction_wf(preprocess_opts, cr_opts, analysis_opts):
+    from rabies.conf_reg_pkg.confound_correction import init_confound_correction_wf
 
     workflow = pe.Workflow(name=cr_opts.output_name+'_main_post_wf')
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
-    split_dict, split_name, target_list, bold_scan_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis)
+    if cr_opts.read_datasink:
+        split_dict, split_name, target_list, bold_scan_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis)
+    else:
+        split_dict, split_name, target_list, bold_scan_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
-    # setting up iterables
+    # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
                          name="main_split")
     main_split.iterables = [('split_name', split_name)]
@@ -24,49 +28,33 @@ def detached_confound_correction_wf(preprocess_opts, cr_opts, analysis_opts):
     # set output node from preprocessing
     def read_dict(split_dict, split_name, target_list):
         return [split_dict[split_name][target] for target in target_list]
-    outputnode = pe.Node(Function(input_names=['split_dict', 'split_name', 'target_list'],
+    preproc_outputnode = pe.Node(Function(input_names=['split_dict', 'split_name', 'target_list'],
                                            output_names=target_list,
                                        function=read_dict),
-                              name=cr_opts.output_name+'_outputnode')
-    outputnode.inputs.split_dict = split_dict
-    outputnode.inputs.target_list = target_list
-
-    workflow.connect([
-        (main_split, outputnode, [
-            ("split_name", "split_name"),
-            ]),
-        ])
-
-    workflow, confound_correction_wf = integrate_confound_correction(workflow, outputnode, cr_opts, preprocess_opts.bold_only)
-
-    # Integrate analysis
-    if analysis_opts is not None:
-        workflow = integrate_analysis(
-            workflow, outputnode, confound_correction_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
-
-    return workflow
+                              name=cr_opts.output_name+'_preproc_outputnode')
+    preproc_outputnode.inputs.split_dict = split_dict
+    preproc_outputnode.inputs.target_list = target_list
 
 
-def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
-    cr_output = os.path.abspath(str(cr_opts.output_dir))
-
-    from rabies.conf_reg_pkg.confound_correction import init_confound_correction_wf
     confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts, name=cr_opts.output_name)
 
     workflow.connect([
-        (outputnode, confound_correction_wf, [
+        (main_split, preproc_outputnode, [
+            ("split_name", "split_name"),
+            ]),
+        (preproc_outputnode, confound_correction_wf, [
             ("confounds_csv", "inputnode.confounds_file"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
             ]),
         ])
 
-    if bold_only and cr_opts.nativespace_analysis:
+    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
         raise ValueError(
             'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.nativespace_analysis:
         workflow.connect([
-            (outputnode, confound_correction_wf, [
+            (preproc_outputnode, confound_correction_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
                 ("native_CSF_mask", "inputnode.csf_mask"),
@@ -74,7 +62,7 @@ def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
             ])
     else:
         workflow.connect([
-            (outputnode, confound_correction_wf, [
+            (preproc_outputnode, confound_correction_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
                 ("commonspace_CSF_mask", "inputnode.csf_mask"),
@@ -82,6 +70,8 @@ def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
             ])
 
     if cr_opts.rabies_step == 'confound_correction':
+        cr_output = os.path.abspath(str(cr_opts.output_dir))
+
         confound_correction_datasink = pe.Node(DataSink(base_directory=cr_output,
                                                         container=cr_opts.output_name+"_datasink"),
                                                name=cr_opts.output_name+"_datasink")
@@ -103,7 +93,13 @@ def integrate_confound_correction(workflow, outputnode, cr_opts, bold_only):
                     ]),
                 ])
 
-    return workflow, confound_correction_wf
+
+    # Integrate analysis
+    if analysis_opts is not None:
+        workflow = integrate_analysis(
+            workflow, preproc_outputnode, confound_correction_wf, analysis_opts, True, not cr_opts.nativespace_analysis, bold_scan_list, preprocess_opts)
+
+    return workflow
 
 
 def integrate_analysis(workflow, outputnode, confound_correction_wf, analysis_opts, bold_only, commonspace_bold, bold_scan_list, preprocess_opts):
@@ -400,3 +396,91 @@ def get_files_from_tree(startpath):
         for f in files:
             file_list.append(f'{root}/{f}')
     return file_list
+
+
+def read_preproc_workflow(preproc_output, nativespace=False):
+
+    preproc_workflow_file = f'{preproc_output}/rabies_preprocess_workflow.pkl'
+
+    node_dict = get_workflow_dict(preproc_workflow_file)
+
+    match_targets = {'input_bold':['main_wf.bold_selectfiles', 'out_file'],
+                    'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
+                    'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.Brain_mask_EPI', 'EPI_mask'],
+                    'commonspace_WM_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.WM_mask_EPI', 'EPI_mask'],
+                    'commonspace_CSF_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.CSF_mask_EPI', 'EPI_mask'],
+                    'commonspace_vascular_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.vascular_mask_EPI', 'EPI_mask'],
+                    'commonspace_labels':['main_wf.bold_main_wf.bold_commonspace_trans_wf.prop_labels_EPI', 'EPI_mask'],
+                    'confounds_csv':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'confounds_csv'],
+                    'FD_voxelwise':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'FD_voxelwise'],
+                    'pos_voxelwise':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'pos_voxelwise'],
+                    'FD_csv':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'FD_csv'],
+                    'commonspace_resampled_template':['main_wf.resample_template', 'resampled_template'],
+                    }
+    if nativespace:
+        match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
+                        'native_brain_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.Brain_mask_EPI', 'EPI_mask'],
+                        'native_WM_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.WM_mask_EPI', 'EPI_mask'],
+                        'native_CSF_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.CSF_mask_EPI', 'EPI_mask'],
+                        'native_labels':['main_wf.bold_main_wf.bold_commonspace_trans_wf.prop_labels_EPI', 'EPI_mask'],
+                        })
+
+    split_dict = {}
+    split_name = []
+    bold_scan_list = []
+    # preparing a new iterative node where each BOLD scan is a different split
+    [unit_bold, output_bold] = match_targets['input_bold']
+    bold_dict = node_dict[unit_bold]
+    # fill each BOLD scan split with proper affiliated outputs from preprocessing
+    fill_split_dict(bold_dict, output_bold, split_name, split_dict, [], node_dict, match_targets, bold_scan_list)
+
+    target_list = list(match_targets.keys())
+
+    return split_dict, split_name, target_list, bold_scan_list
+
+
+def fill_split_dict(d, output_bold, split_name, split_dict, keys, node_dict, match_targets, bold_scan_list):
+    if isinstance(d, dict):
+        for key in list(d.keys()):
+            fill_split_dict(d[key], output_bold, split_name, split_dict, keys+[key], node_dict, match_targets, bold_scan_list)
+    else:
+        f = d.result.outputs.get()[output_bold]
+        split = pathlib.Path(f).name.rsplit(".nii")[0]
+        split_name.append(split)
+        bold_scan_list.append(f)
+        split_dict[split]={}
+        target_list = list(match_targets.keys())
+        for target in target_list:
+            [unit, output] = match_targets[target]
+            node = retrieve_node(node_dict[unit], keys)
+            split_dict[split][target] = node.result.outputs.get()[output]
+        
+def retrieve_node(d, keys):
+    if isinstance(d, dict):
+        return retrieve_node(d[keys[0]], keys[1:])
+    else:
+        return d
+
+
+def get_workflow_dict(workflow_file):
+    import pickle
+    with open(workflow_file, 'rb') as handle:
+        graph = pickle.load(handle)
+    
+    node_list = list(graph.nodes)
+    node_dict = {}
+    for node in node_list:
+        key_l = [node.fullname]+node.parameterization
+        fill_node_dict(node_dict, key_l, node)
+    return node_dict
+
+
+def fill_node_dict(d, key_l, e):
+    if len(key_l)>0:
+        key = key_l[0]
+        if not (key in list(d.keys())):
+            d[key] = {}
+        d[key] = fill_node_dict(d[key], key_l[1:], e)
+        return d
+    else:
+        return e

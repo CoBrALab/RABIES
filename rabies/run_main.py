@@ -564,9 +564,13 @@ def execute_workflow():
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
         # execute workflow, with plugin_args limiting the cluster load for parallel execution
-        workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
+        graph_out = workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
                                                       'n_procs': opts.local_threads, 'qsub_args': f'-pe smp {str(opts.min_proc)}'})
-
+        # save the workflow execution
+        workflow_file = f'{output_folder}/rabies_{opts.rabies_step}_workflow.pkl'
+        with open(workflow_file, 'wb') as handle:
+            pickle.dump(graph_out, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
     except Exception as e:
         log.critical(f'RABIES failed: {e}')
         raise
@@ -725,18 +729,14 @@ def confound_correction(opts, analysis_opts, log):
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
-    if opts.read_datasink:
-        boilerplate_file = f'{opts.output_dir}/boilerplate_confound_correction.txt'
-        methods,ref_string = confound_correction_boilerplate(opts)
-        txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
-        with open(boilerplate_file, "w") as text_file:
-            text_file.write(txt_boilerplate)
+    boilerplate_file = f'{opts.output_dir}/boilerplate_confound_correction.txt'
+    methods,ref_string = confound_correction_boilerplate(opts)
+    txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'
+    with open(boilerplate_file, "w") as text_file:
+        text_file.write(txt_boilerplate)
 
-        from rabies.main_post import detached_confound_correction_wf
-        workflow = detached_confound_correction_wf(preprocess_opts, opts, analysis_opts)
-    else:
-        workflow = preprocess(preprocess_opts, opts,
-                            analysis_opts, log)
+    from rabies.main_post import detached_confound_correction_wf
+    workflow = detached_confound_correction_wf(preprocess_opts, opts, analysis_opts)
 
     return workflow
 
