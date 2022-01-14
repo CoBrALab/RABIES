@@ -273,10 +273,11 @@ def get_parser():
                                      """)
     confound_correction.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
                                      help="""
-                                     Choose this option to read directly from preprocessing outputs found in the datasinks
-                                     instead of executing an integrated workflow which includes previously run steps.
-                                     Using this option, it is assumed that outputs in the datasink folders haven't been modified,
-                                     and that preprocessing was properly completed.
+                                     Choose this option to read preprocessing outputs from datasinks instead
+                                     of the saved preprocessing workflow graph. This allows to run confound correction
+                                     without having available RABIES preprocessing folders.
+                                     Using this option, it is assumed that outputs in the datasink folders are in line
+                                     with the expected outputs from preprocessing with RABIES.
                                      """)
     confound_correction.add_argument('--output_name', type=str, default='confound_correction_wf',
                                      help="""
