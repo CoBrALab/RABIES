@@ -300,7 +300,7 @@ def get_parser():
                                      help="""
                                      Specify lowpass filter frequency.
                                      """)
-    confound_correction.add_argument('--edge_cutoff', type=float, default=30,
+    confound_correction.add_argument('--edge_cutoff', type=float, default=0,
                                      help="""
                                      Specify number of seconds to cut at beginning and end of acquisition if applying 
                                      a frequency filter.

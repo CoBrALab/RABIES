@@ -65,7 +65,7 @@ def execute_workflow():
     if opts.rabies_step == 'preprocess':
         workflow = preprocess(opts, log)
     elif opts.rabies_step == 'confound_correction':
-        workflow = confound_correction(opts)
+        workflow = confound_correction(opts, log)
     elif opts.rabies_step == 'analysis':
         workflow = analysis(opts, log)
     else:
@@ -225,7 +225,16 @@ def preprocess(opts, log):
     return workflow
 
 
-def confound_correction(opts):
+def confound_correction(opts, log):
+
+    if opts.edge_cutoff == 0 and ((opts.highpass is not None) or (opts.lowpass is not None)):
+        log.warning(
+            "\n############################################# WARNING\n"
+            "Highpass and/or lowpass filtering will be applied without removing timepoints "
+            "at the edge of acquisition. This may introduce edge artefacts not accounted for, and "
+            "not recommended. We recommend removing ~30sec at both end of the acquisition."
+            "\n############################################# WARNING\n")
+
     cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
