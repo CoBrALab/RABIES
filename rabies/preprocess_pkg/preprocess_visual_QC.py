@@ -267,7 +267,7 @@ def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sour
     fig,axes = plt.subplots(nrows=3, ncols=4, figsize=(12*4,2*3))
 
     scaled = otsu_scaling(raw_img)
-    axes[0,0].set_title('Raw EPI', fontsize=30, color='white')
+    axes[0,0].set_title('Raw Image', fontsize=30, color='white')
     #add_filenames(axes[-1,0], {'File':raw_img})
     plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
