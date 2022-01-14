@@ -1,9 +1,5 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
 from .utils import SliceMotionCorrection, antsMotionCorr
 
 def init_bold_hmc_wf(opts, name='bold_hmc_wf'):

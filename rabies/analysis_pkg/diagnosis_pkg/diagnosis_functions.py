@@ -12,7 +12,7 @@ def resample_mask(in_file, ref_file):
     transforms = []
     inverses = []
     # resampling the reference image to the dimension of the EPI
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(
         in_file).name.rsplit(".nii")

@@ -33,7 +33,7 @@ class PrepMasks(BaseInterface):
     output_spec = PrepMasksOutputSpec
 
     def _run_interface(self, runtime):
-        from rabies.preprocess_pkg.utils import flatten_list,resample_image_spacing
+        from rabies.utils import flatten_list,resample_image_spacing
         merged = flatten_list(list(self.inputs.mask_dict_list))
         mask_dict = merged[0]  # all mask files are assumed to be identical
         brain_mask_file = mask_dict['mask_file']
@@ -179,7 +179,7 @@ class DatasetDiagnosis(BaseInterface):
     output_spec = DatasetDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
-        from rabies.preprocess_pkg.utils import flatten_list
+        from rabies.utils import flatten_list
         from rabies.preprocess_pkg.preprocess_visual_QC import otsu_scaling
         from .analysis_QC import spatial_crosscorrelations, analysis_QC
 

@@ -96,7 +96,7 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt', rabies_data_type
     sitk.WriteImage(image_out, 'STC_temp.nii.gz')
 
     command = f'3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern {tpattern} -TR {tr} STC_temp.nii.gz'
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     rc = run_command(command)
 
     tshift_img = sitk.ReadImage(
@@ -108,7 +108,7 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt', rabies_data_type
         new_array[:, :, i, :] = tshift_array[:, i, :, :]
     image_out = sitk.GetImageFromArray(new_array, isVector=False)
 
-    from rabies.preprocess_pkg.utils import copyInfo_4DImage
+    from rabies.utils import copyInfo_4DImage
     image_out = copyInfo_4DImage(image_out, img, img)
 
     import pathlib  # Better path manipulation

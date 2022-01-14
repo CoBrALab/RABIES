@@ -33,7 +33,7 @@ def resample_IC_file(in_file, ref_file, transforms = [], inverses = []):
     # resampling the reference image to the dimension of the EPI
     import SimpleITK as sitk
     import os
-    from rabies.preprocess_pkg.utils import split_volumes, copyInfo_4DImage, exec_applyTransforms
+    from rabies.utils import split_volumes, copyInfo_4DImage, exec_applyTransforms
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(
         in_file).name.rsplit(".nii")
@@ -105,7 +105,7 @@ def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
 
 def seed_corr(bold_file, mask_file, seed):
     import os
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     
     brain_mask = np.asarray(nb.load(mask_file).dataobj)
     volume_indices = brain_mask.astype(bool)
@@ -216,12 +216,12 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
 
     # create a filelist.txt
     file_path = os.path.abspath('filelist.txt')
-    from rabies.preprocess_pkg.utils import flatten_list
+    from rabies.utils import flatten_list
     merged = flatten_list(list(bold_file_list))
     df = pd.DataFrame(data=merged)
     df.to_csv(file_path, header=False, sep=',', index=False)
 
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
     command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)}'
     rc = run_command(command)
@@ -233,7 +233,7 @@ def resample_4D(input_4d, ref_file):
     import os
     import pathlib  # Better path manipulation
     import SimpleITK as sitk
-    from rabies.preprocess_pkg.utils import run_command, split_volumes, Merge, copyInfo_3DImage
+    from rabies.utils import run_command, split_volumes, Merge, copyInfo_3DImage
     rabies_data_type=sitk.sitkFloat32
 
 

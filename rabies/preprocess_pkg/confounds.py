@@ -78,7 +78,7 @@ class EstimateConfounds(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        from rabies.preprocess_pkg.utils import run_command
+        from rabies.utils import run_command
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(self.inputs.bold).name.rsplit(".nii")
 
@@ -171,7 +171,7 @@ def compute_aCompCor(bold, WM_mask, CSF_mask, method='50%', rabies_data_type=8):
     CSF_data = sitk.GetArrayFromImage(sitk.ReadImage(
         CSF_mask, rabies_data_type))
     combined = (WM_data+CSF_data) > 0
-    from .utils import copyInfo_3DImage
+    from rabies.utils import copyInfo_3DImage
     noise_mask = copyInfo_3DImage(sitk.GetImageFromArray(combined.astype(
         int), isVector=False), sitk.ReadImage(WM_mask, sitk.sitkInt16))
     sitk.WriteImage(noise_mask, 'noise_mask.nii.gz')

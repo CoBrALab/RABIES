@@ -72,7 +72,7 @@ class InhoCorrection(BaseInterface):
         import os
         import numpy as np
         import SimpleITK as sitk
-        from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
+        from rabies.utils import resample_image_spacing, run_command
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(
@@ -219,7 +219,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")
 
-        from rabies.preprocess_pkg.utils import run_command, resample_image_spacing
+        from rabies.utils import run_command, resample_image_spacing
         from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
@@ -278,7 +278,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
 
 def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     import SimpleITK as sitk
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (otsu_ref)
     rc = run_command(command)
     command = 'ThresholdImage 3 %s otsu_weight.nii.gz Otsu 4' % (otsu_ref)

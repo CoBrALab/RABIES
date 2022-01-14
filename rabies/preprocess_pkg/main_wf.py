@@ -8,7 +8,7 @@ from nipype.interfaces.afni import Autobox
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, resample_template
 from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
@@ -175,7 +175,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ])
 
     # Resample the anatomical template according to the resolution of the provided input data
-    from rabies.preprocess_pkg.utils import resample_template
     resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
                                               output_names=[
                                                   'resampled_template', 'resampled_mask'],

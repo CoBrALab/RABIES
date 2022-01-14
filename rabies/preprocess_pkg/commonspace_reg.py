@@ -6,6 +6,7 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
+from rabies.utils import run_command, flatten_list
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
@@ -228,7 +229,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
 
 
 def select_commonspace_outputs(filename, native_list, affine_list, warp_list, inverse_warp_list, warped_native_list):
-    from rabies.preprocess_pkg.utils import select_from_list
+    from rabies.preprocess_pkg.commonspace_reg import select_from_list
     native_to_unbiased_affine = select_from_list(filename, affine_list)
     native_to_unbiased_warp = select_from_list(filename, warp_list)
     native_to_unbiased_inverse_warp = select_from_list(
@@ -236,6 +237,25 @@ def select_commonspace_outputs(filename, native_list, affine_list, warp_list, in
     warped_native = select_from_list(filename, warped_native_list)
     native_ref = select_from_list(filename, native_list)
     return native_ref, warped_native, native_to_unbiased_affine, native_to_unbiased_warp, native_to_unbiased_inverse_warp
+
+
+def select_from_list(filename, filelist):
+    filelist = flatten_list(filelist)
+    import pathlib
+    filename_template = pathlib.Path(filename).name.rsplit(".nii")[0]
+    selected_file = None
+    for file in filelist:
+        if filename_template in file:
+            if selected_file is None:
+                selected_file = file
+            else:
+                raise ValueError(
+                    f"Found duplicates for filename {filename_template}.")
+
+    if selected_file is None:
+        raise ValueError(f"No file associated with {filename_template} were found from list {filelist}.")
+    else:
+        return selected_file
 
 
 def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine,
@@ -258,7 +278,7 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
     filename_split = pathlib.Path(
         native_ref).name.rsplit(".nii")
     native_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-    from rabies.preprocess_pkg.utils import exec_applyTransforms
+    from rabies.utils import exec_applyTransforms
     exec_applyTransforms(commonspace_to_native_transform_list, commonspace_to_native_inverse_list, atlas_mask, native_ref, native_mask, mask=True)
 
     return native_mask, native_to_commonspace_transform_list,native_to_commonspace_inverse_list,commonspace_to_native_transform_list,commonspace_to_native_inverse_list
@@ -305,7 +325,6 @@ class GenerateTemplate(BaseInterface):
         import pandas as pd
         import pathlib
         import multiprocessing
-        from rabies.preprocess_pkg.utils import run_command
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
@@ -313,7 +332,6 @@ class GenerateTemplate(BaseInterface):
         command = f'mkdir -p {template_folder}'
         rc = run_command(command)
 
-        from rabies.preprocess_pkg.utils import flatten_list
         merged = flatten_list(list(self.inputs.moving_image_list))
         # create a csv file of the input image list
         csv_path = cwd+'/commonspace_input_files.csv'

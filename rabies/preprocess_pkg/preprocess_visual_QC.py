@@ -51,7 +51,7 @@ class PlotOverlap(BaseInterface):
         out_name = self.inputs.out_dir+'/' + \
             filename_template+'_registration.png'
 
-        from rabies.preprocess_pkg.utils import run_command
+        from rabies.utils import run_command
         command = f'{script_path} {self.inputs.moving} {self.inputs.fixed} {out_name}'
         rc = run_command(command)
 
@@ -69,7 +69,7 @@ def otsu_scaling(image_file):
     array = sitk.GetArrayFromImage(img)
 
     # select a smart vmax for the image display to enhance contrast
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     command = f'ThresholdImage 3 {image_file} otsu_weight.nii.gz Otsu 4'
     rc = run_command(command)
 
@@ -280,7 +280,7 @@ def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_s
     import SimpleITK as sitk
     import matplotlib.pyplot as plt
     from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d
-    from rabies.preprocess_pkg.utils import copyInfo_3DImage
+    from rabies.utils import copyInfo_3DImage
     fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(20,5))
     # plot the motion timecourses
     import pandas as pd

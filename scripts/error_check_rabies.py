@@ -7,7 +7,7 @@ import numpy as np
 import tempfile
 import shutil
 import subprocess
-from rabies.preprocess_pkg.utils import resample_image_spacing, copyInfo_4DImage
+from rabies.utils import resample_image_spacing, copyInfo_4DImage
 
 if len(sys.argv) == 2:
     tmppath = sys.argv[1]

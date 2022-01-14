@@ -166,7 +166,7 @@ def temporal_censoring(timeseries, FD_trace,
 
 
 def recover_3D(mask_file, vector_map):
-    from rabies.preprocess_pkg.utils import copyInfo_3DImage
+    from rabies.utils import copyInfo_3DImage
     mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
@@ -177,7 +177,7 @@ def recover_3D(mask_file, vector_map):
     return volume_img
 
 def recover_4D(mask_file, vector_maps, ref_4d):
-    from rabies.preprocess_pkg.utils import copyInfo_4DImage
+    from rabies.utils import copyInfo_4DImage
     #vector maps of shape num_volumeXnum_voxel
     mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
     brain_mask = sitk.GetArrayFromImage(mask_img)

@@ -73,7 +73,7 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
         command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     print(command)
     rc = run_command(command)
 
