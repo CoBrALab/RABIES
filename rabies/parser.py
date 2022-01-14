@@ -72,6 +72,8 @@ def get_parser():
                              For SGE parallel processing, specify the minimal number of nodes to be assigned to
                              avoid memory crashes.
                              """)
+    g_execution.add_argument("--debug", dest='debug', action='store_true',
+                            help="Run in debug mode.")
 
     preprocess.add_argument('bids_dir', action='store', type=Path,
                             help="""
@@ -122,8 +124,6 @@ def get_parser():
     preprocess.add_argument("--data_type", type=str, default='float32',
                             choices=['int16', 'int32', 'float32', 'float64'],
                             help="Specify data format outputs to control for file size.")
-    preprocess.add_argument("--debug", dest='debug', action='store_true',
-                            help="Run in debug mode.")
 
     g_registration = preprocess.add_argument_group(title='Registration Options', description="""
         Customize options for various registration steps. The three in-built registration script options provided

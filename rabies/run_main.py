@@ -72,6 +72,22 @@ def execute_workflow():
         parser.print_help()
     workflow.base_dir = output_folder
 
+    # setting workflow options for debug mode
+    if opts.debug:
+        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
+
+        # Change execution parameters
+        workflow.config['execution'] = {'stop_on_first_crash': 'true',
+                                        'remove_unnecessary_outputs': 'false',
+                                        'keep_inputs': 'true'}
+
+        # Change logging parameters
+        workflow.config['logging'] = {'workflow_level': 'DEBUG',
+                                      'filemanip_level': 'DEBUG',
+                                      'interface_level': 'DEBUG',
+                                      'utils_level': 'DEBUG'}
+        log.debug('Debug ON')
+
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
         # execute workflow, with plugin_args limiting the cluster load for parallel execution
@@ -205,22 +221,6 @@ def preprocess(opts, log):
 
     from rabies.preprocess_pkg.main_wf import init_main_wf
     workflow = init_main_wf(data_dir_path, output_folder, opts)
-
-    # setting workflow options for debug mode
-    if opts.debug:
-        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
-
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash': 'true',
-                                        'remove_unnecessary_outputs': 'false',
-                                        'keep_inputs': 'true'}
-
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level': 'DEBUG',
-                                      'filemanip_level': 'DEBUG',
-                                      'interface_level': 'DEBUG',
-                                      'utils_level': 'DEBUG'}
-        log.debug('Debug ON')
 
     return workflow
 
