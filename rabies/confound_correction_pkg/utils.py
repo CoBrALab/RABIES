@@ -48,8 +48,8 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
 
 def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_seed=1):
     import os
-    from rabies.conf_reg_pkg.utils import csv2par
-    from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
+    from rabies.confound_correction_pkg.utils import csv2par
+    from rabies.confound_correction_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
     import pathlib
     filename_split = pathlib.Path(inFile).name.rsplit(".nii")
     aroma_out = os.getcwd()+'/aroma_out'
@@ -104,7 +104,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
 def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     import pandas as pd
     import SimpleITK as sitk
-    from rabies.conf_reg_pkg.utils import select_confound_timecourses
+    from rabies.confound_correction_pkg.utils import select_confound_timecourses
 
     # save specifically the 6 rigid parameters for AROMA
     confounds_6rigid_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)

@@ -126,7 +126,7 @@ class Regress(BaseInterface):
         import nibabel as nb
         from nilearn.signal import butterworth
         from scipy.signal import detrend
-        from rabies.conf_reg_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth
+        from rabies.confound_correction_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted

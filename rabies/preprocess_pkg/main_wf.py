@@ -5,11 +5,11 @@ from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 from nipype.interfaces.afni import Autobox
-from .preprocess_pkg.inho_correction import init_inho_correction_wf
-from .preprocess_pkg.commonspace_reg import init_commonspace_reg_wf
-from .preprocess_pkg.bold_main_wf import init_bold_main_wf
-from .preprocess_pkg.utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
-from .preprocess_pkg import preprocess_visual_QC
+from .inho_correction import init_inho_correction_wf
+from .commonspace_reg import init_commonspace_reg_wf
+from .bold_main_wf import init_bold_main_wf
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS
+from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
