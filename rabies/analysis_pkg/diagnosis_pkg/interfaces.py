@@ -42,7 +42,7 @@ class PrepMasks(BaseInterface):
 
         # resample the template to the EPI dimensions
         resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(
-            brain_mask_file).GetSpacing(), resampling_interpolation='BSpline')
+            brain_mask_file).GetSpacing())
         template_file = os.path.abspath('display_template.nii.gz')
         sitk.WriteImage(resampled, template_file)
 
