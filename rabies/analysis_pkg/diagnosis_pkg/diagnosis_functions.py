@@ -422,7 +422,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
 
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d, otsu_scaling
+    from rabies.visualization import otsu_scaling, plot_3d
 
     axes = axes2[0, :]
     scaled = otsu_scaling(template_file)
