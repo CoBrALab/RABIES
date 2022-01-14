@@ -180,7 +180,7 @@ class DatasetDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         from rabies.utils import flatten_list
-        from rabies.preprocess_pkg.preprocess_visual_QC import otsu_scaling
+        from rabies.visualization import otsu_scaling
         from .analysis_QC import spatial_crosscorrelations, analysis_QC
 
         merged = flatten_list(list(self.inputs.scan_data_list))

@@ -4,7 +4,7 @@ import numpy as np
 import nibabel as nb
 import matplotlib.pyplot as plt
 import nilearn
-from rabies.preprocess_pkg.preprocess_visual_QC import otsu_scaling, plot_3d
+from rabies.visualization import otsu_scaling, plot_3d
 from rabies.analysis_pkg.analysis_math import elementwise_spearman, dice_coefficient
 from rabies.analysis_pkg.analysis_functions import recover_3D
 
