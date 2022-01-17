@@ -220,8 +220,8 @@ class EstimateReferenceImage(BaseInterface):
 
     def _run_interface(self, runtime):
 
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
 
         in_nii = sitk.ReadImage(self.inputs.in_file,
                                 self.inputs.rabies_data_type)
@@ -466,8 +466,8 @@ def register_slice(fixed_image, moving_image):
 
 
 def slice_specific_registration(i, ref_file, timeseries_file):
-    import logging
-    log = logging.getLogger('root')
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
 
     log.debug('Slice-specific correction on volume '+str(i+1))
     ref_image = sitk.ReadImage(ref_file, sitk.sitkFloat32)
@@ -577,8 +577,8 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
     import SimpleITK as sitk
     import numpy as np
     from rabies.utils import resample_image_spacing, run_command
-    import logging
-    log = logging.getLogger('root')
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
 
     if spacing == 'inputs_defined':
         file_list = list(np.asarray(file_list).flatten())

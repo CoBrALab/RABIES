@@ -259,9 +259,9 @@ class Regress(BaseInterface):
             confounds_array = confounds_filtered[frame_mask]
         
         if frame_mask.sum()<int(cr_opts.minimum_timepoint):
-            import logging
-            log = logging.getLogger('root')
-            log.info(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             return runtime
 
         '''
@@ -281,9 +281,9 @@ class Regress(BaseInterface):
             predicted = X.dot(closed_form(X,Y))
             res = Y-predicted
         except:
-            import logging
-            log = logging.getLogger('root')
-            log.info("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
             empty_file = os.path.abspath('empty.nii.gz')
             sitk.WriteImage(empty_img, empty_file)

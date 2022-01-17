@@ -278,8 +278,8 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
 
     # check if the IC_file has the same dimensions as bold_file
     if not sitk.ReadImage(bold_file).GetSize()[:-1]==sitk.ReadImage(IC_file).GetSize()[:-1]:
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.info('Resampling file with IC components to match the scan dimensionality.')
         IC_file = resample_4D(IC_file, bold_file)
 

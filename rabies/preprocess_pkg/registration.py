@@ -86,8 +86,8 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
         raise ValueError(
             'REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.debug('No non-linear warp files as output. Assumes linear registration.')
         warp = 'NULL'
         inverse_warp = 'NULL'

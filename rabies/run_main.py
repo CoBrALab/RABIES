@@ -1,8 +1,7 @@
 import os
-import sys
 import pickle
-import logging
 import SimpleITK as sitk
+from nipype import logging, config
 from .boilerplate import *
 from .parser import get_parser
 
@@ -26,28 +25,7 @@ def execute_workflow():
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
 
-    # managing log info
-    cli_file = f'{output_folder}/rabies_{opts.rabies_step}.pkl'
-    if os.path.isfile(cli_file):
-        raise ValueError(f"""
-            A previous run was indicated by the presence of {cli_file}.
-            This can lead to inconsistencies between previous outputs and the log files.
-            To prevent this, you are required to manually remove {cli_file}, and we 
-            recommend also removing previous datasinks from the {opts.rabies_step} RABIES step.
-            """)
-
-    with open(cli_file, 'wb') as handle:
-        pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    logging.basicConfig(filename=f'{output_folder}/rabies_{opts.rabies_step}.log', filemode='w',
-                        format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
-    log = logging.getLogger('root')
-
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
+    log = prep_logging(opts, output_folder)
 
     # verify default template installation
     install_DSURQE(log)
@@ -72,21 +50,6 @@ def execute_workflow():
         parser.print_help()
     workflow.base_dir = output_folder
 
-    # setting workflow options for debug mode
-    if opts.debug:
-        log.setLevel(os.environ.get("LOGLEVEL", "DEBUG"))
-
-        # Change execution parameters
-        workflow.config['execution'] = {'stop_on_first_crash': 'true',
-                                        'remove_unnecessary_outputs': 'false',
-                                        'keep_inputs': 'true'}
-
-        # Change logging parameters
-        workflow.config['logging'] = {'workflow_level': 'DEBUG',
-                                      'filemanip_level': 'DEBUG',
-                                      'interface_level': 'DEBUG',
-                                      'utils_level': 'DEBUG'}
-        log.debug('Debug ON')
 
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
@@ -101,6 +64,54 @@ def execute_workflow():
     except Exception as e:
         log.critical(f'RABIES failed: {e}')
         raise
+
+
+def prep_logging(opts, output_folder):
+    cli_file = f'{output_folder}/rabies_{opts.rabies_step}.pkl'
+    if os.path.isfile(cli_file):
+        raise ValueError(f"""
+            A previous run was indicated by the presence of {cli_file}.
+            This can lead to inconsistencies between previous outputs and the log files.
+            To prevent this, you are required to manually remove {cli_file}, and we 
+            recommend also removing previous datasinks from the {opts.rabies_step} RABIES step.
+            """)
+
+    with open(cli_file, 'wb') as handle:
+        pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # remove old versions of the log if already existing
+    log_path = f'{output_folder}/rabies_{opts.rabies_step}.log'
+    if os.path.isfile(log_path):
+        os.remove(log_path)
+
+    config.update_config({'logging': {'log_directory': output_folder,
+                                    'log_to_file': True}})
+
+    # setting workflow logging level
+    if opts.verbose==0:
+        level="WARNING"
+    elif opts.verbose==1:
+        level="INFO"
+    elif opts.verbose<=2:
+        level="DEBUG"
+        config.enable_debug_mode()
+    else:
+        raise ValueError(f"--verbose must be provided an integer of 0 or above. {opts.verbose} was provided instead.")
+
+    # nipype has hard-coded 'nipype.log' filename; we rename it after it is created, and change the handlers
+    logging.update_logging(config)
+    os.rename(f'{output_folder}/pypeline.log', log_path)
+    # change the handlers path to the desired file
+    for logger in logging.loggers.keys():
+        log = logging.getLogger(logger)
+        handler = log.handlers[0]
+        handler.baseFilename = log_path
+
+    # set the defined level of verbose
+    log = logging.getLogger('nipype.workflow')
+    log.setLevel(level)
+    log.debug('Debug ON')
+    return log
 
 
 def preprocess(opts, log):

@@ -350,8 +350,8 @@ class GenerateTemplate(BaseInterface):
             unbiased_mask='NULL'
 
         if len(merged) == 1:
-            import logging
-            log = logging.getLogger('root')
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
             log.info("Only a single scan was provided as input for commonspace registration. Commonspace registration "
                   "won't be run, and the output template will be the input scan.")
 

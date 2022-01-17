@@ -72,9 +72,8 @@ def get_parser():
                              For SGE parallel processing, specify the minimal number of nodes to be assigned to
                              avoid memory crashes.
                              """)
-    g_execution.add_argument("--debug", dest='debug', action='store_true',
-                            help="Run in debug mode.")
-
+    g_execution.add_argument("--verbose", type=int, default=1,
+                            help="Set the verbose level. 0=WARNING, 1=INFO, 2 or above=DEBUG.")
     preprocess.add_argument('bids_dir', action='store', type=Path,
                             help="""
                             the root folder of the BIDS-formated input data directory.
