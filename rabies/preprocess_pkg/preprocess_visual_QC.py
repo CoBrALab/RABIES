@@ -3,9 +3,10 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 import os
-import numpy as np
-import SimpleITK as sitk
+import pathlib
 import matplotlib.pyplot as plt
+from rabies.utils import run_command
+
 # set a dark background
 plt.rcParams.update({
     "lines.color": "white",
@@ -42,8 +43,6 @@ class PlotOverlap(BaseInterface):
     output_spec = PlotOverlapOutputSpec
 
     def _run_interface(self, runtime):
-        import os
-        import pathlib
         filename_template = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")[0]
 
         script_path = 'plot_overlap.sh'
@@ -51,7 +50,6 @@ class PlotOverlap(BaseInterface):
         out_name = self.inputs.out_dir+'/' + \
             filename_template+'_registration.png'
 
-        from rabies.preprocess_pkg.utils import run_command
         command = f'{script_path} {self.inputs.moving} {self.inputs.fixed} {out_name}'
         rc = run_command(command)
 
@@ -62,88 +60,6 @@ class PlotOverlap(BaseInterface):
         return {'out_png': getattr(self, 'out_png')}
 
 
-def otsu_scaling(image_file):
-    import numpy as np
-    import SimpleITK as sitk
-    img = sitk.ReadImage(image_file)
-    array = sitk.GetArrayFromImage(img)
-
-    # select a smart vmax for the image display to enhance contrast
-    from rabies.preprocess_pkg.utils import run_command
-    command = f'ThresholdImage 3 {image_file} otsu_weight.nii.gz Otsu 4'
-    rc = run_command(command)
-
-    # clip off the background
-    mask = sitk.GetArrayFromImage(sitk.ReadImage('otsu_weight.nii.gz'))
-    voxel_subset=array[mask>1.0]
-
-    # select a maximal value which encompasses 90% of the voxels in the mask
-    voxel_subset.sort()
-    vmax=voxel_subset[int(len(voxel_subset)*0.9)]
-
-    scaled = array/vmax
-    scaled_img=sitk.GetImageFromArray(scaled, isVector=False)
-    scaled_img.CopyInformation(img)
-    return scaled_img
-
-
-def plot_3d(axes,sitk_img,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, threshold=None, planes=('sagittal', 'coronal', 'horizontal'), num_slices=4, slice_spacing=0.1):
-    physical_dimensions = (np.array(sitk_img.GetSpacing())*np.array(sitk_img.GetSize()))[::-1] # invert because the array is inverted indices
-    array=sitk.GetArrayFromImage(sitk_img)
-
-    array[array==0]=None # set 0 values to be empty
-
-    if not threshold is None:
-        array[np.abs(array)<threshold]=None
-
-    slice_0 = (1.0-((num_slices-1)*slice_spacing))/2
-    slice_fractions=[slice_0]
-    for i in range(1,num_slices):
-        slice_fractions.append(slice_0+(i*slice_spacing))
-
-    cbar_list = []
-    
-    ax_number=0
-    if 'sagittal' in planes:
-        ax=axes[ax_number]
-        ax_number+=1
-        empty_slice = np.array([np.nan]).repeat(array.shape[0])[:,np.newaxis]
-        slices=empty_slice
-        for s in slice_fractions:
-            slice=array[::-1,:,int(array.shape[2]*s)]
-            slices=np.concatenate((slices,slice,empty_slice),axis=1)
-        pos = ax.imshow(slices, extent=[0,physical_dimensions[1]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
-        ax.axis('off')
-        if cbar:
-            cbar_list.append(fig.colorbar(pos, ax=ax))
-
-    if 'coronal' in planes:
-        ax=axes[ax_number]
-        ax_number+=1
-        empty_slice = np.array([np.nan]).repeat(array.shape[0])[:,np.newaxis]
-        slices=empty_slice
-        for s in slice_fractions:
-            slice=array[::-1,int(array.shape[1]*s),:]
-            slices=np.concatenate((slices,slice,empty_slice),axis=1)
-        pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[0]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
-        ax.axis('off')
-        if cbar:
-            cbar_list.append(fig.colorbar(pos, ax=ax))
-
-    if 'horizontal' in planes:
-        ax=axes[ax_number]
-        ax_number+=1
-        empty_slice = np.array([np.nan]).repeat(array.shape[1])[:,np.newaxis]
-        slices=empty_slice
-        for s in slice_fractions:
-            slice=array[int(array.shape[0]*s),::-1,:]
-            slices=np.concatenate((slices,slice,empty_slice),axis=1)
-        pos = ax.imshow(slices, extent=[0,physical_dimensions[2]*num_slices,0,physical_dimensions[1]], vmin=vmin, vmax=vmax,cmap=cmap, alpha=alpha, interpolation='none')
-        ax.axis('off')
-        if cbar:
-            cbar_list.append(fig.colorbar(pos, ax=ax))
-    return cbar_list
-
 def plot_reg(image1,image2, name_source, out_dir):
     import os
     import pathlib
@@ -153,7 +69,7 @@ def plot_reg(image1,image2, name_source, out_dir):
         filename_template
 
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
+    from rabies.visualization import plot_3d, otsu_scaling
     fig,axes = plt.subplots(nrows=2, ncols=3, figsize=(12*3,2*2))
     plt.tight_layout()
 
@@ -178,7 +94,7 @@ def template_info(anat_template, opts, out_dir):
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
     from nilearn import plotting
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
+    from rabies.visualization import plot_3d, otsu_scaling
     brain_mask = str(opts.brain_mask)
     WM_mask = str(opts.WM_mask)
     CSF_mask = str(opts.CSF_mask)
@@ -250,7 +166,7 @@ def template_masking(template, mask, out_dir):
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
     from nilearn import plotting
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling
+    from rabies.visualization import plot_3d, otsu_scaling
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -279,8 +195,8 @@ def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_s
     import numpy as np
     import SimpleITK as sitk
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d
-    from rabies.preprocess_pkg.utils import copyInfo_3DImage
+    from rabies.visualization import plot_3d
+    from rabies.utils import copyInfo_3DImage
     fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(20,5))
     # plot the motion timecourses
     import pandas as pd
@@ -347,11 +263,11 @@ def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sour
         filename_template
 
     import matplotlib.pyplot as plt
-    from rabies.preprocess_pkg.preprocess_visual_QC import plot_3d,otsu_scaling, add_filenames
+    from rabies.visualization import plot_3d, otsu_scaling
     fig,axes = plt.subplots(nrows=3, ncols=4, figsize=(12*4,2*3))
 
     scaled = otsu_scaling(raw_img)
-    axes[0,0].set_title('Raw EPI', fontsize=30, color='white')
+    axes[0,0].set_title('Raw Image', fontsize=30, color='white')
     #add_filenames(axes[-1,0], {'File':raw_img})
     plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 

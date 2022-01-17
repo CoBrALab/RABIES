@@ -5,7 +5,8 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-from .utils import slice_applyTransforms, init_bold_reference_wf, Merge
+from .utils import init_bold_reference_wf
+from rabies.utils import slice_applyTransforms, Merge
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
 
@@ -141,7 +142,7 @@ class MaskEPI(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import SimpleITK as sitk
-        from rabies.preprocess_pkg.utils import exec_applyTransforms
+        from rabies.utils import exec_applyTransforms
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(

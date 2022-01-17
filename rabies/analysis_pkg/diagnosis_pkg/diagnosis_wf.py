@@ -7,7 +7,7 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMask
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis_split, scan_split_name, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_split_name, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
@@ -27,22 +27,22 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
             dual_ICA = analysis_opts.dual_ICA, DSURQE_regions=DSURQE_regions),
-        name=analysis_opts.output_name+'_ScanDiagnosis')
+        name='ScanDiagnosis')
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),
-        name=analysis_opts.output_name+'_PrepMasks')
+        name='PrepMasks')
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                             output_names=[
                                                 'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv'],
                                         function=temporal_external_formating),
-                                name=analysis_opts.output_name+'_temporal_external_formating')
+                                name='temporal_external_formating')
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                             output_names=[
                                                 'VE_filename', 'std_filename', 'predicted_std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
                                         function=spatial_external_formating),
-                                name=analysis_opts.output_name+'_spatial_external_formating')
+                                name='spatial_external_formating')
 
 
     workflow.connect([
@@ -125,13 +125,13 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis
         num_procs = min(analysis_opts.local_threads, num_scan)
 
         data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['scan_data_list']),
-                                                name=analysis_opts.output_name+'_diagnosis_split_joinnode',
-                                                joinsource=analysis_split.name,
+                                                name='diagnosis_split_joinnode',
+                                                joinsource='main_split',
                                                 joinfield=['scan_data_list'],
                                                 n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
-            name=analysis_opts.output_name+'_DatasetDiagnosis',
+            name='DatasetDiagnosis',
             n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
 
@@ -160,8 +160,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, analysis
                 ]),
             ])
     else:
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.warning(
             "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
 

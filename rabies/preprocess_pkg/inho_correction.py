@@ -72,7 +72,7 @@ class InhoCorrection(BaseInterface):
         import os
         import numpy as np
         import SimpleITK as sitk
-        from rabies.preprocess_pkg.utils import resample_image_spacing, run_command
+        from rabies.utils import resample_image_spacing, run_command
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(
@@ -90,8 +90,8 @@ class InhoCorrection(BaseInterface):
             self.inputs.anat_ref, self.inputs.rabies_data_type)
         template_dim = template_image.GetSpacing()
         if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
-            import logging
-            log = logging.getLogger('root')
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
             log.debug('Anat image will be resampled to the template resolution.')
             resampled = resample_image_spacing(target_img, template_dim)
             target_img = f'{cwd}/{filename_split[0]}_resampled.nii.gz'
@@ -219,7 +219,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")
 
-        from rabies.preprocess_pkg.utils import run_command, resample_image_spacing
+        from rabies.utils import run_command, resample_image_spacing
         from rabies.preprocess_pkg.registration import run_antsRegistration
 
         cwd = os.getcwd()
@@ -278,7 +278,7 @@ class OtsuEPIBiasCorrection(BaseInterface):
 
 def otsu_bias_cor(target, otsu_ref, out_name, b_value, mask=None, n_iter=200):
     import SimpleITK as sitk
-    from rabies.preprocess_pkg.utils import run_command
+    from rabies.utils import run_command
     command = 'ImageMath 3 null_mask.nii.gz ThresholdAtMean %s 0' % (otsu_ref)
     rc = run_command(command)
     command = 'ThresholdImage 3 %s otsu_weight.nii.gz Otsu 4' % (otsu_ref)

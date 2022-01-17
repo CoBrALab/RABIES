@@ -48,8 +48,8 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
 
 def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_seed=1):
     import os
-    from rabies.conf_reg_pkg.utils import csv2par
-    from rabies.conf_reg_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
+    from rabies.confound_correction_pkg.utils import csv2par
+    from rabies.confound_correction_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
     import pathlib
     filename_split = pathlib.Path(inFile).name.rsplit(".nii")
     aroma_out = os.getcwd()+'/aroma_out'
@@ -104,7 +104,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
 def prep_CR(bold_file, confounds_file, FD_file, cr_opts):
     import pandas as pd
     import SimpleITK as sitk
-    from rabies.conf_reg_pkg.utils import select_confound_timecourses
+    from rabies.confound_correction_pkg.utils import select_confound_timecourses
 
     # save specifically the 6 rigid parameters for AROMA
     confounds_6rigid_array = select_confound_timecourses(['mot_6'],confounds_file,FD_file)
@@ -157,16 +157,16 @@ def temporal_censoring(timeseries, FD_trace,
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
     if frame_mask.sum()<int(minimum_timepoint):
-        import logging
-        log = logging.getLogger('root')
-        log.info(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
+        log.warning(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None,None,None
 
     return frame_mask,FD_trace,DVARS
 
 
 def recover_3D(mask_file, vector_map):
-    from rabies.preprocess_pkg.utils import copyInfo_3DImage
+    from rabies.utils import copyInfo_3DImage
     mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
@@ -177,7 +177,7 @@ def recover_3D(mask_file, vector_map):
     return volume_img
 
 def recover_4D(mask_file, vector_maps, ref_4d):
-    from rabies.preprocess_pkg.utils import copyInfo_4DImage
+    from rabies.utils import copyInfo_4DImage
     #vector maps of shape num_volumeXnum_voxel
     mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
     brain_mask = sitk.GetArrayFromImage(mask_img)
@@ -208,8 +208,8 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
             conf_keys += [s for s in keys if "rot" in s or "mov" in s]
         elif conf == 'aCompCor':
             aCompCor_keys = [s for s in keys if "aCompCor" in s]
-            import logging
-            log = logging.getLogger('root')
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
             log.info('Applying aCompCor with '+len(aCompCor_keys)+' components.')
             conf_keys += aCompCor_keys
         elif conf == 'mean_FD':

@@ -73,8 +73,7 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
         command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
-    from rabies.preprocess_pkg.utils import run_command
-    print(command)
+    from rabies.utils import run_command
     rc = run_command(command)
 
     cwd = os.getcwd()
@@ -86,8 +85,8 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
         raise ValueError(
             'REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.debug('No non-linear warp files as output. Assumes linear registration.')
         warp = 'NULL'
         inverse_warp = 'NULL'
