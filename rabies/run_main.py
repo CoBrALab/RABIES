@@ -43,7 +43,7 @@ def execute_workflow():
                         format='%(asctime)s - %(levelname)s - %(message)s', level=os.environ.get("LOGLEVEL", "INFO"))
     log = logging.getLogger('root')
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler()
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)

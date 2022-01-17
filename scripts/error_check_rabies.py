@@ -53,7 +53,7 @@ sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
 sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
                 + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
 
-command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+command = f"rabies --debug preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --coreg_script NULL --atlas_reg_script NULL --data_type int16 --bold_only --fast_commonspace --detect_dummy \
     --tpattern seq"
@@ -64,7 +64,7 @@ process = subprocess.run(
     )
 
 os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
-command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+command = f"rabies --debug preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --commonspace_masking --coreg_masking --brain_extraction"
 process = subprocess.run(
@@ -73,7 +73,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies confound_correction {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
+command = f"rabies --debug confound_correction {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
 process = subprocess.run(
     command,
     check=True,
@@ -87,7 +87,7 @@ sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token3_bold.nii.gz')
 
 os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
-command = f"rabies preprocess {tmppath}/inputs {tmppath}/outputs --debug --anat_inho_cor_method disable --bold_inho_cor_method disable \
+command = f"rabies --debug preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --fast_commonspace"
 process = subprocess.run(
@@ -97,14 +97,14 @@ process = subprocess.run(
     )
 
 os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
-command = f"rabies confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
+command = f"rabies --debug confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
 process = subprocess.run(
     command,
     check=True,
     shell=True,
     )
 
-command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
+command = f"rabies --debug analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
 process = subprocess.run(
     command,
     check=True,
@@ -112,7 +112,7 @@ process = subprocess.run(
     )
 
 os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
-command = f"rabies confound_correction {tmppath}/outputs {tmppath}/outputs"
+command = f"rabies --debug confound_correction {tmppath}/outputs {tmppath}/outputs"
 process = subprocess.run(
     command,
     check=True,
@@ -120,7 +120,7 @@ process = subprocess.run(
     )
 
 os.remove(f'{tmppath}/outputs/rabies_analysis.pkl')
-command = f"rabies analysis {tmppath}/outputs {tmppath}/outputs --dual_ICA 1 --data_diagnosis --DR_ICA"
+command = f"rabies --debug analysis {tmppath}/outputs {tmppath}/outputs --dual_ICA 1 --data_diagnosis --DR_ICA"
 process = subprocess.run(
     command,
     check=True,
