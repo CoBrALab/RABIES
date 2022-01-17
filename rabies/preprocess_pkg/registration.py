@@ -74,7 +74,6 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.utils import run_command
-    print(command)
     rc = run_command(command)
 
     cwd = os.getcwd()
