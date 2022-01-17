@@ -275,8 +275,8 @@ class Merge(BaseInterface):
 def run_command(command, verbose = False):
     # Run command and collect stdout
     # http://blog.endpoint.com/2015/01/getting-realtime-output-using-python.html # noqa
-    import logging
-    log = logging.getLogger('root')
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
     log.debug('Running: '+command)
 
     import subprocess

@@ -74,7 +74,6 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.utils import run_command
-    print(command)
     rc = run_command(command)
 
     cwd = os.getcwd()
@@ -86,8 +85,8 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
         raise ValueError(
             'REGISTRATION ERROR: OUTPUT FILES MISSING. Make sure the provided registration script runs properly.')
     if not os.path.isfile(warp) or not os.path.isfile(inverse_warp):
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.debug('No non-linear warp files as output. Assumes linear registration.')
         warp = 'NULL'
         inverse_warp = 'NULL'

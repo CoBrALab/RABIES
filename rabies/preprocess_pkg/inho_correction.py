@@ -90,8 +90,8 @@ class InhoCorrection(BaseInterface):
             self.inputs.anat_ref, self.inputs.rabies_data_type)
         template_dim = template_image.GetSpacing()
         if not (np.array(anat_dim) == np.array(template_dim)).sum() == 3:
-            import logging
-            log = logging.getLogger('root')
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
             log.debug('Anat image will be resampled to the template resolution.')
             resampled = resample_image_spacing(target_img, template_dim)
             target_img = f'{cwd}/{filename_split[0]}_resampled.nii.gz'

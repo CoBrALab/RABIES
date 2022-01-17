@@ -160,8 +160,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
                 ]),
             ])
     else:
-        import logging
-        log = logging.getLogger('root')
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
         log.warning(
             "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
 
