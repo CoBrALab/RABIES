@@ -12,68 +12,115 @@ else:
 def get_parser():
     """Build parser object"""
     parser = argparse.ArgumentParser(
-        description="""RABIES performs processing of rodent fMRI images. Can either run
-        on datasets that only contain EPI images, or both structural and EPI images.""",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        description=
+            "RABIES performs multiple stages of rodent fMRI image processing, including preprocessing, \n"
+            "confound correction, simple analyses and data quality assessment.",
+        formatter_class=argparse.RawTextHelpFormatter)
 
-    subparsers = parser.add_subparsers(title='Commands',
-                                       description="""The RABIES workflow is seperated into three different processing steps: preprocessing,
-                                                   confound regression and analysis. Outputs from the preprocessing provides the inputs for
-                                                   the subsequent confound regression, and finally analysis.""",
-                                       help='Description',
-                                       dest='rabies_step',
-                                       metavar='Processing step')
+    subparsers = parser.add_subparsers(
+        title='Processing options',
+        description=
+            "The RABIES workflow is seperated into three main processing stages: preprocessing, \n"
+            "confound regression and analysis. Outputs from the preprocessing provide the inputs for\n"
+            "the subsequent confound regression, and finally analysis.",
+        help='Description',
+        dest='rabies_stage',
+        metavar='Processing stage')
 
     preprocess = subparsers.add_parser("preprocess",
-                                       help="""
-        Conducts preprocessing on an input dataset in BIDS format.
-        Preprocessing includes realignment for motion, correction for susceptibility distortions through non-linear registration,
-        registration to a commonspace atlas and associated masks, evaluation of confounding timecourses, and includes various
-        execution options (see --help).
-        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        help=
+            "\n"
+            "Conducts preprocessing on an input dataset in BIDS format. Preprocessing includes \n"
+            "motion realignment, susceptibility distortions correction through non-linear \n"
+            "registration, alignment to commonspace, anatomical parcellation and evaluation of \n"
+            "nuisance timecourses.\n"
+            "\n",
+        formatter_class=argparse.RawTextHelpFormatter)
     confound_correction = subparsers.add_parser("confound_correction",
-                                                help="""
-        Flexible options for confound regression are available to apply directly on preprocessing outputs from RABIES.
-        After linear detrending, only selected options are applied sequentially in following the order: 1) ICA-AROMA,
-        2) highpass/lowpass filtering, 3) frame censoring (from FD/DVARS measures), 4) regression of confound timeseries,
-        5) standardization of timeseries, and 6) spatial smoothing.
-        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        help=
+            "\n"
+            "Flexible options for confound correction are applied directly on preprocessing outputs\n"
+            "from RABIES to derive cleaned timeseries. Various correction strategies, if selected, are\n"
+            "applied in the following order, following best practices from human litterature:\n"
+            "   #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)\n"
+            "   #2 - Linear detrending of fMRI timeseries and nuisance regressors\n"
+            "   #3 - Apply ICA-AROMA.\n"
+            "   #4 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
+            "       timepoints using the Lomb-Scargle periodogram, as suggested in Power et al. (2014, \n"
+            "       Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.\n"
+            "   #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance \n"
+            "       regressors orthogonal to the temporal frequency filter.\n"
+            "   #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated \n"
+            "       timepoints).\n"
+            "   #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance \n"
+            "       regressors, taking out the simulated timepoints. Edge artefacts from frequency \n"
+            "       filtering can also be removed as recommended in Power et al. (2014, Neuroimage).\n"
+            "   #8 - Apply confound regression using the selected nuisance regressors (see --conf_list\n" 
+            "       options).\n"
+            "   #9 - Standardize timeseries\n"
+            "   #10 - Apply Gaussian spatial smoothing.\n"
+            "\n",
+        formatter_class=argparse.RawTextHelpFormatter)
     analysis = subparsers.add_parser("analysis",
-                                     help="""
-        A few built-in resting-state functional connectivity (FC) analysis options are provided to conduct rapid analysis
-        on the cleaned timeseries.
-        Options include seed-based FC, whole-brain correlation FC matrix, group-ICA, dual regression and dual ICA.
-        """, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        help=
+            "\n"
+            "Conduct simple resting-state functional connectivity (FC) analysis, or data quality\n" 
+            "diagnosis, on cleaned timeseries after confound correction. Analysis options include\n"
+            "seed-based FC, whole-brain FC matrix, group-ICA and dual regression. --data_diagnosis\n" 
+            "computes features of data quality at the individual scan and group levels, as in \n"
+            "Desrosiers-Gregoire et al. (in prep)\n" 
+            "\n",
+        formatter_class=argparse.RawTextHelpFormatter)
 
-    g_execution = parser.add_argument_group(title='Execution Options', description="""
-        Options for parallel execution of the workflow and memory management.
-        WARNING: CHANGING EXECUTION OPTIONS ON A PREVIOUS EXECUTION RISKS
-        RE-STARTING THE PROCESSING OF STEPS PREVIOUSLY RUN
-        """)
-    g_execution.add_argument("-p", "--plugin", default='Linear',
-                             choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
-                                      'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
-                             help="""
-                             Specify the nipype plugin for workflow execution.
-                             Consult https://nipype.readthedocs.io/en/0.11.0/users/plugins.html for details.
-                             """)
-    g_execution.add_argument('--local_threads', type=int, default=multiprocessing.cpu_count(),
-                             help="""
-                             For local MultiProc execution, set the maximum number of processors run in parallel,
-                             defaults to number of CPUs.
-                             """)
-    g_execution.add_argument("--scale_min_memory", type=float, default=1.0,
-                             help="""
-                             For a parallel execution with MultiProc, the minimal memory attributed to nodes can
-                             be scaled with this multiplier to avoid memory crashes.
-                             """)
-    g_execution.add_argument("--min_proc", type=int, default=1,
-                             help="""
-                             For SGE parallel processing, specify the minimal number of nodes to be assigned to
-                             avoid memory crashes.
-                             """)
-    g_execution.add_argument("--verbose", type=int, default=1,
-                            help="Set the verbose level. 0=WARNING, 1=INFO, 2 or above=DEBUG.")
+    ####Execution
+    g_execution = parser.add_argument_group(title='Execution Options', 
+        description=
+            "Options for parallel execution and memory management."
+        )
+    g_execution.add_argument(
+        "-p", "--plugin", default='Linear',
+        choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
+                'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
+        help=
+            "Specify the nipype plugin for workflow execution.\n"
+            "Consult https://nipype.readthedocs.io/en/0.11.0/users/plugins.html for details.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        '--local_threads', type=int, default=multiprocessing.cpu_count(),
+        help=
+            "For --plugin MultiProc, set the maximum number of processors run in parallel.\n"
+            "Defaults to number of CPUs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "--scale_min_memory", type=float, default=1.0,
+        help=
+            "For --plugin MultiProc, set the memory scaling factor attributed to nodes during\n"
+            "execution. Increase the scaling if memory crashes are reported.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "--min_proc", type=int, default=1,
+        help=
+            "For --plugin SGE/SGEGraph, scale the number of nodes attributed to jobs to\n"
+            "avoid memory crashes.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "--verbose", type=int, default=1,
+        help=
+            "Set the verbose level. 0=WARNING, 1=INFO, 2 or above=DEBUG.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+
+
+    ####Preprocessing
     preprocess.add_argument('bids_dir', action='store', type=Path,
                             help="""
                             the root folder of the BIDS-formated input data directory.
@@ -262,6 +309,9 @@ def get_parser():
                          Atlas file with anatomical labels.
                          """)
 
+
+
+    ####Confound correction
     confound_correction.add_argument('preprocess_out', action='store', type=Path,
                                      help="""
                                      path to RABIES preprocessing output directory with the datasinks.
@@ -372,6 +422,8 @@ def get_parser():
                                      Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.
                                      """)
 
+
+    ####Analysis
     analysis.add_argument('confound_correction_out', action='store', type=Path,
                           help="""
                           path to RABIES confound regression output directory with the datasink.

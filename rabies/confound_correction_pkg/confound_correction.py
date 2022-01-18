@@ -84,23 +84,22 @@ class RegressOutputSpec(TraitedSpec):
 
 class Regress(BaseInterface):
     '''
-    Apply a flexible confound regression algorithm in line with recommendations from
+    Apply a flexible confound correction pipeline in line with recommendations from
     human litterature. 
     
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-    #2 - Detrend timeseries and confound regressors
+    #2 - Linear detrending of fMRI timeseries and nuisance regressors
     #3 - Apply ICA-AROMA.
-    #4 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
-         for both the timeseries and confound regressors prior to filtering.
-    #5 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
-         to the temporal filter.
-    #6 - Apply bandpass filtering on the timeseries (with filled missing values), and 
-         apply again the temporal mask onto output timeseries.
-    #7 - Apply confound regression using the corrected regressors, while applying the 
-         temporal masks to both the regressors and timeseries to remove simulated data
-         points.
-    #8 - Standardize timeseries
-    #9 - Apply spatial smoothing.
+    #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+         as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
+    #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+         to the temporal frequency filter.
+    #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+    #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+         simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
+    #8 - Apply confound regression using the selected nuisance regressors.
+    #9 - Standardize timeseries
+    #10 - Apply Gaussian spatial smoothing.
     
     References:
         
@@ -187,7 +186,7 @@ class Regress(BaseInterface):
         confounds_array = confounds_array[frame_mask]
 
         '''
-        #2 - Detrend timeseries and confound regressors
+        #2 - Linear detrending of fMRI timeseries and nuisance regressors
         '''
         # apply simple detrending, after censoring
         timeseries = detrend(timeseries,axis=0)
@@ -224,22 +223,21 @@ class Regress(BaseInterface):
 
         if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
             '''
-            #4 - If filtering is applied, simulate censored timepoints as in Power et al. 2014
-                for both the timeseries and confound regressors prior to filtering.
+            #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+                as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
             '''
             timeseries_filled = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
             confounds_filled = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
 
             '''
-            #5 - As recommended in Lindquist et al. 2019, make the confound regressors orthogonal
+            #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
                 to the temporal filter.
             '''
             confounds_filtered = butterworth(confounds_filled, TR=TR,
                                     high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
             '''
-            #6 - Apply bandpass filtering on the timeseries (with filled missing values), and 
-                apply again the temporal mask onto output timeseries.
+            #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
             '''
 
             timeseries_filtered = butterworth(timeseries_filled, TR=TR,
@@ -254,6 +252,11 @@ class Regress(BaseInterface):
                 frame_mask[:num_cut]=0
                 frame_mask[-num_cut:]=0
 
+
+            '''
+            #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+                simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
+            '''
             # re-apply the masks to take out simulated data points, and take off the edges
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
@@ -265,11 +268,8 @@ class Regress(BaseInterface):
             return runtime
 
         '''
-        #7 - Apply confound regression using the corrected regressors, while applying the 
-            temporal masks to both the regressors and timeseries to remove simulated data
-            points.
+        #8 - Apply confound regression using the selected nuisance regressors.
         '''
-
         # voxels that have a NaN value are set to 0
         nan_voxels = np.isnan(timeseries).sum(axis=0)>1
         timeseries[:,nan_voxels] = 0
@@ -328,7 +328,7 @@ class Regress(BaseInterface):
 
         if cr_opts.smoothing_filter is not None:
             '''
-            #9 - Apply spatial smoothing.
+            #9 - Apply Gaussian spatial smoothing.
             '''
             timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
             timeseries_3d.to_filename(cleaned_path)
