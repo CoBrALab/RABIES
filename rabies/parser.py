@@ -73,7 +73,8 @@ def get_parser():
         formatter_class=argparse.RawTextHelpFormatter)
 
     ####Execution
-    g_execution = parser.add_argument_group(title='Execution Options', 
+    g_execution = parser.add_argument_group(
+        title='Execution Options', 
         description=
             "Options for parallel execution and memory management."
         )
@@ -121,193 +122,303 @@ def get_parser():
 
 
     ####Preprocessing
-    preprocess.add_argument('bids_dir', action='store', type=Path,
-                            help="""
-                            the root folder of the BIDS-formated input data directory.
-                            """)
-    preprocess.add_argument('output_dir', action='store', type=Path,
-                            help="""
-                            the output path to drop outputs from major preprocessing steps.
-                            """)
-    preprocess.add_argument("--bold_only", dest='bold_only', action='store_true',
-                            help="""
-                            Apply preprocessing with only EPI scans. Commonspace registration
-                            is executed directly using the corrected EPI 3D reference images.
-                            The commonspace registration simultaneously applies distortion
-                            correction, this option will produce only commonspace outputs.
-                            """)
-    preprocess.add_argument('--anat_autobox', dest='anat_autobox', action='store_true',
-                            help="""
-                            Crops out extra space around the brain on the structural image using AFNI's 3dAutobox https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.
-                            """)
-    preprocess.add_argument('--bold_autobox', dest='bold_autobox', action='store_true',
-                            help="""
-                            Crops out extra space around the brain on the EPI image using AFNI's 3dAutobox https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.
-                            """)
-    preprocess.add_argument('--apply_despiking', dest='apply_despiking', action='store_true',
-                            help="""
-                            Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.
-                            """)
-    preprocess.add_argument("--HMC_option", type=str, default='intraSubjectBOLD',
-                            choices=['intraSubjectBOLD', '0', '1', '2', '3'],
-                            help="""
-                            Select an option for head motion realignment among the pre-built options
-                            from https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.
-                            """)
-    preprocess.add_argument('--apply_slice_mc', dest='apply_slice_mc', action='store_true',
-                            help="""
-                            Whether to apply a slice-specific motion correction after initial volumetric HMC.
-                            This can correct for interslice misalignment resulting from within-TR motion.
-                            With this option, motion corrections and the subsequent resampling from registration are applied
-                            sequentially, since the 2D slice registrations cannot be concatenate with 3D transforms.
-                            """)
-    preprocess.add_argument('--detect_dummy', dest='detect_dummy', action='store_true',
-                            help="""
-                            Detect and remove initial dummy volumes from the EPI, and generate
-                            a reference EPI based on these volumes if detected.
-                            Dummy volumes will be removed from the output preprocessed EPI.
-                            """)
-    preprocess.add_argument("--data_type", type=str, default='float32',
-                            choices=['int16', 'int32', 'float32', 'float64'],
-                            help="Specify data format outputs to control for file size.")
+    preprocess.add_argument(
+        'bids_dir', action='store', type=Path,
+        help=
+            "The root folder of the BIDS-formated input data directory.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        'output_dir', action='store', type=Path,
+        help=
+            "the output path to drop outputs from major preprocessing steps.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        "--bold_only", dest='bold_only', action='store_true',
+        help=
+            "Apply preprocessing with only EPI scans. Commonspace registration is executed directly using\n"
+            "the corrected EPI 3D reference images. The commonspace registration simultaneously applies\n"
+            "distortion correction, this option will produce only commonspace outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--anat_autobox', dest='anat_autobox', action='store_true',
+        help=
+            "Crops out extra space around the brain on the structural image using AFNI's 3dAutobox\n"
+            "https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--bold_autobox', dest='bold_autobox', action='store_true',
+        help=
+            "Crops out extra space around the brain on the EPI image using AFNI's 3dAutobox\n"
+            "https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutobox.html.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--apply_despiking', dest='apply_despiking', action='store_true',
+        help=
+            "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        "--HMC_option", type=str, default='intraSubjectBOLD',
+        choices=['intraSubjectBOLD', '0', '1', '2', '3'],
+        help=
+            "Select an option for head motion realignment among the pre-built options from\n"
+            "https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
+        help=
+            "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"
+            "correct for interslice misalignment resulting from within-TR motion. With this option, \n"
+            "motion corrections and the subsequent resampling from registration are applied sequentially\n"
+            "since the 2D slice registrations cannot be concatenate with 3D transforms. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--detect_dummy', dest='detect_dummy', action='store_true',
+        help=
+            "Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on\n"
+            "these volumes if detected. Dummy volumes will be removed from the output preprocessed EPI.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        "--data_type", type=str, default='float32',
+        choices=['int16', 'int32', 'float32', 'float64'],
+        help=
+            "Specify data format outputs to control for file size.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
-    g_registration = preprocess.add_argument_group(title='Registration Options', description="""
-        Customize options for various registration steps. The three in-built registration script options provided
-        consist of a 'Rigid', 'Affine' and 'SyN' (non-linear) registration. Other options also allow alternative
-        workflows to troubleshoot registration failures.
-        """)
-    g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
-                            choices=['Rigid', 'Affine',
-                                     'SyN', 'no_reg', 'N4_reg', 'disable'],
-                            help="""
-                            Select a registration type for masking during inhomogeneity correction of the EPI.
-                            """)
-    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
-                            help="""
-                            """)
-    g_registration.add_argument("--anat_inho_cor_method", type=str, default='SyN',
-                            choices=['Rigid', 'Affine',
-                                     'SyN', 'no_reg', 'N4_reg', 'disable'],
-                            help="""
-                            Select a registration type for masking during inhomogeneity correction of the structural image.
-                            """)
+    g_registration = preprocess.add_argument_group(
+        title='Registration Options', 
+        description=
+            "Customize registration operations and troubleshoot registration failures.\n"
+            "   Rigid: conducts only rigid registration.\n"
+            "   Affine: conducts Rigid then Affine registration.\n"
+            "   SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "   no_reg: skip registration.\n"
+        )
     g_registration.add_argument(
-        '--atlas_reg_script',
-        type=str,
-        default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'NULL'],
-        help="""
-        Specify a registration script for alignment of the unbiased dataset template to the atlas.
-        """)
-    g_registration.add_argument("--fast_commonspace", dest='fast_commonspace', action='store_true',
-                                help="""
-                                This option will skip the generation of a dataset template from https://github.com/CoBrALab/twolevel_ants_dbm.
-                                Instead each anatomical scan will be individually registered to the
-                                commonspace template using the --atlas_reg_script.
-                                Note that this option, although faster, is expected to reduce the
-                                quality of commonspace registration.
-                                """)
-    g_registration.add_argument("--commonspace_masking", dest='commonspace_masking', action='store_true',
-                                help="""
-                                If true, will use masks originating from the inhomogeneity correction step
-                                to orient commonspace alignment.
-                                """)
-    g_registration.add_argument("--coreg_script", type=str, default='SyN',
-                                choices=['Rigid', 'Affine', 'SyN', 'NULL'],
-                                help="""
-                                Specify EPI to anat coregistration script.
-                                """)
-    g_registration.add_argument("--coreg_masking", dest='coreg_masking', action='store_true',
-                                help="""
-                                If true, will use masks originating from the EPI inhomogeneity correction step
-                                to orient alignment to the target anatomical image.
-                                """)
-    g_registration.add_argument("--brain_extraction", dest='brain_extraction', action='store_true',
-                                help="""
-                                If using masking during registration from --commonspace_masking/--coreg_masking, can
-                                specify to extract the brains using the masks prior to registration, which will 
-                                enhance brain edge-matching, but requires good quality masks.
-                                """)
+        "--anat_inho_cor_method", type=str, default='SyN',
+        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
+        help=
+            "Select a registration type for masking during inhomogeneity correction of the structural \n"
+            "image. \n"
+            "   N4_reg: previous correction script prior to version 0.3.1.\n"
+            "   disable: disables the inhomogeneity correction.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
+        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
+        help=
+            "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
+            "   N4_reg: previous correction script prior to version 0.3.1.\n"
+            "   disable: disables the inhomogeneity correction.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
+        help=
+            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
+            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
+            "Otsu threshold level to capture the right intensity distribution.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        '--atlas_reg_script', type=str, default='SyN',
+        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
+        help=
+            "Specify a registration script for alignment of the dataset-generated unbiased template \n"
+            "to the commonspace atlas.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--coreg_script", type=str, default='SyN',
+        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
+        help=
+            "Specify the registration script for cross-modal alignment between the EPI and structural\n"
+            "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--commonspace_masking", dest='commonspace_masking', action='store_true',
+        help=
+            "Combine masks derived from the inhomogeneity correction step to support registration \n"
+            "during the generation of the unbiased template, and then during atlas registration. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--coreg_masking", dest='coreg_masking', action='store_true',
+        help=
+            "Use the mask from the EPI inhomogeneity correction step to support registration to the\n"
+            "structural image.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--brain_extraction", dest='brain_extraction', action='store_true',
+        help=
+            "If using --commonspace_masking and/or --coreg_masking, this option will conduct brain\n"
+            "extractions prior to registration based on the initial mask during inhomogeneity\n"
+            "correction. This will enhance brain edge-matching, but requires good quality masks.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--fast_commonspace", dest='fast_commonspace', action='store_true',
+        help=
+            "Skip the generation of a dataset-generated unbiased template, and instead, register each\n"
+            "anatomical scan independently directly onto the commonspace atlas, using the\n"
+            "--atlas_reg_script registration. This option can be faster, but may decrease the quality\n"
+            "of alignment between subjects."
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
-    g_resampling = preprocess.add_argument_group(title='Resampling Options', description="""
-        The following options allow to customize the voxel dimensions for the preprocessed EPIs or for
-        the anatomical images during registration.
-        Axis resampling specifications must follow the format 'dim1xdim2xdim3' (in mm) with the RAS axis
-        convention (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior).
-        The original dimensions are conserved if 'inputs_defined' is specified.
-        """)
-    g_resampling.add_argument('--nativespace_resampling', type=str, default='inputs_defined',
-                              help="""
-                              Can specify a resampling dimension for the nativespace outputs.
-                              """)
-    g_resampling.add_argument('--commonspace_resampling', type=str, default='inputs_defined',
-                              help="""
-                              Can specify a resampling dimension for the commonspace outputs.
-                              """)
-    g_resampling.add_argument('--anatomical_resampling', type=str, default='inputs_defined',
-                              help="""
-                              Can specify resampling dimensions for the template files to optimize
-                              registration efficiency. By defaults ('inputs_defined'), the resampling
-                              dimension is estimated from the input images. The smallest dimension among
-                              the anatomical images (EPI images instead if --bold_only is True) defines
-                              the isotropic resolution for resampling.
-                              """)
+    g_resampling = preprocess.add_argument_group(
+        title='Resampling Options', 
+        description=
+            "The following options allow to resample the voxel dimensions for the preprocessed EPIs\n"
+            "or for the anatomical images during registration.\n"
+            "The resampling syntax must be 'dim1xdim2xdim3' (in mm), follwing the RAS axis convention\n"
+            "(dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior). If 'inputs_defined'\n"
+            "is provided instead of axis dimensions, the original dimensions are preserved.\n"
+        )
+    g_resampling.add_argument(
+        '--nativespace_resampling', type=str, default='inputs_defined',
+        help=
+            "Can specify a resampling dimension for the nativespace fMRI outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_resampling.add_argument(
+        '--commonspace_resampling', type=str, default='inputs_defined',
+        help=
+            "Can specify a resampling dimension for the commonspace fMRI outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_resampling.add_argument(
+        '--anatomical_resampling', type=str, default='inputs_defined',
+        help=
+            "\n"
+            "This specifies resampling dimensions for the anatomical registration targets. By \n"
+            "default, images are resampled to isotropic resolution based on the smallest dimension\n"
+            "among the provided anatomical images (EPI images instead if --bold_only is True). \n"
+            "Increasing voxel resampling size will increase registration speed at the cost of \n"
+            "accuracy.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
-    g_stc = preprocess.add_argument_group(title='STC Options', description="""
-        Specify Slice Timing Correction (STC) info that is fed to AFNI 3dTshift
-        (https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied in the
-        anterior-posterior orientation, assuming slices were acquired in this direction.
-        """)
-    g_stc.add_argument('--TR', type=str, default='auto',
-                       help="""
-                       Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
-                       """)
-    g_stc.add_argument('--apply_STC', dest='apply_STC', action='store_true',
-                       help="""
-                       Select this option to apply the STC step.
-                       """)
-    g_stc.add_argument('--tpattern', type=str, default='alt',
-                       choices=['alt', 'seq'],
-                       help="""
-                       Specify if interleaved or sequential acquisition. 'alt' for interleaved, 'seq' for sequential.
-                       """)
+    g_stc = preprocess.add_argument_group(
+        title='STC Options', 
+        description=
+            "Specify Slice Timing Correction (STC) info that is fed to AFNI's 3dTshift\n"
+            "(https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html). The STC is applied\n"
+            "in the anterior-posterior orientation, and thus RABIES assumes slices were acquired in\n"
+            "this direction.\n"
+        )
+    g_stc.add_argument(
+        '--apply_STC', dest='apply_STC', action='store_true',
+        help=
+            "Select this option to apply the STC step.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_stc.add_argument(
+        '--TR', type=str, default='auto',
+        help=
+            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2)\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_stc.add_argument(
+        '--tpattern', type=str, default='alt',
+        choices=['alt', 'seq'],
+        help=
+            "Specify if interleaved ('alt') or sequential ('seq') acquisition.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
-    g_atlas = preprocess.add_argument_group(title='Template Files', description="""
-        Specify commonspace template and associated mask/label files.
-        A mouse atlas is provided as default https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.
-        """)
-    g_atlas.add_argument('--anat_template', action='store', type=Path,
-                         default=f"{rabies_path}/DSURQE_40micron_average.nii.gz",
-                         help="""
-                         Anatomical file for the commonspace template.
-                         """)
-    g_atlas.add_argument('--brain_mask', action='store', type=Path,
-                         default=f"{rabies_path}/DSURQE_40micron_mask.nii.gz",
-                         help="""
-                         Brain mask for the template.
-                         """)
-    g_atlas.add_argument('--WM_mask', action='store', type=Path,
-                         default=f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz",
-                         help="""
-                         White matter mask for the template.
-                         """)
-    g_atlas.add_argument('--CSF_mask', action='store', type=Path,
-                         default=f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz",
-                         help="""
-                         CSF mask for the template.
-                         """)
-    g_atlas.add_argument('--vascular_mask', action='store', type=Path,
-                         default=f"{rabies_path}/vascular_mask.nii.gz",
-                         help="""
-                         Can provide a mask of major blood vessels for computing confound timeseries.
-                         The default mask was generated by applying MELODIC ICA and selecting the resulting component
-                         mapping onto major veins.
-                         """)
-    g_atlas.add_argument('--labels', action='store', type=Path,
-                         default=f"{rabies_path}/DSURQE_40micron_labels.nii.gz",
-                         help="""
-                         Atlas file with anatomical labels.
-                         """)
+    g_atlas = preprocess.add_argument_group(
+        title='Template Files', 
+        description=
+            "Specify commonspace template and associated mask/label files. By default, RABIES\n"
+            "provides the mouse DSURQE atlas\n"
+            "https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.\n"
+        )
+    g_atlas.add_argument(
+        '--anat_template', action='store', type=Path,
+        default=f"{rabies_path}/DSURQE_40micron_average.nii.gz",
+        help=
+            "Anatomical file for the commonspace atlas.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_atlas.add_argument(
+        '--brain_mask', action='store', type=Path,
+        default=f"{rabies_path}/DSURQE_40micron_mask.nii.gz",
+        help=
+            "Brain mask aligned with the template.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_atlas.add_argument(
+        '--WM_mask', action='store', type=Path,
+        default=f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz",
+        help=
+            "White matter mask aligned with the template.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_atlas.add_argument(
+        '--CSF_mask', action='store', type=Path,
+        default=f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz",
+        help=
+            "CSF mask aligned with the template.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_atlas.add_argument(
+        '--vascular_mask', action='store', type=Path,
+        default=f"{rabies_path}/vascular_mask.nii.gz",
+        help=
+            "Can provide a mask of major blood vessels to compute associated nuisance timeseries.\n"
+            "The default mask was generated by applying MELODIC ICA and selecting the resulting \n"
+            "component mapping onto major brain vessels.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_atlas.add_argument(
+        '--labels', action='store', type=Path,
+        default=f"{rabies_path}/DSURQE_40micron_labels.nii.gz",
+        help=
+            "Labels file providing the atlas anatomical annotations.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
 

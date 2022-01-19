@@ -105,7 +105,7 @@ def define_reg_script(reg_option):
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine --skip-nonlinear"
     elif reg_option == 'SyN':
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine"
-    elif reg_option == 'NULL':
+    elif reg_option == 'no_reg':
         reg_call = 'null_nonlin.sh'
     else:
         raise ValueError(
