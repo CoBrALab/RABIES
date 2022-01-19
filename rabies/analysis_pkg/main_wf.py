@@ -11,7 +11,7 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 
 def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
-    workflow = pe.Workflow(name=analysis_opts.output_name+'_main_wf')
+    workflow = pe.Workflow(name='analysis_main_wf')
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
@@ -48,8 +48,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     # prepare analysis datasink
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container=analysis_opts.output_name+"_datasink"),
-                                name=analysis_opts.output_name+"_datasink")
+                                         container="analysis_datasink"),
+                                name="analysis_datasink")
 
 
     input_buffer_node = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file','atlas_file','WM_mask_file',
@@ -151,7 +151,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
-                                name=analysis_opts.output_name+'_prep_analysis_dict')
+                                name='analysis_prep_analysis_dict')
 
         diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name, name="diagnosis_wf")
 
@@ -211,7 +211,7 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
 
     node_dict = get_workflow_dict(conf_workflow_file)
 
-    preproc_outputnode_name = f'{cr_opts.output_name}_main_wf.preproc_outputnode'
+    preproc_outputnode_name = 'confound_correction_main_wf.preproc_outputnode'
     match_targets = {'input_bold':[preproc_outputnode_name, 'input_bold'],
                     'commonspace_bold':[preproc_outputnode_name, 'commonspace_bold'],
                     'commonspace_mask':[preproc_outputnode_name, 'commonspace_mask'],
@@ -222,11 +222,11 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
                     'confounds_csv':[preproc_outputnode_name, 'confounds_csv'],
                     'FD_csv':[preproc_outputnode_name, 'FD_csv'],
                     'commonspace_resampled_template':[preproc_outputnode_name, 'commonspace_resampled_template'],
-                    'cleaned_path':[f'{cr_opts.output_name}_main_wf.confound_correction_wf.regress', 'cleaned_path'],
-                    'data_dict':[f'{cr_opts.output_name}_main_wf.confound_correction_wf.regress', 'data_dict'],
-                    'VE_file_path':[f'{cr_opts.output_name}_main_wf.confound_correction_wf.regress', 'VE_file_path'],
-                    'STD_file_path':[f'{cr_opts.output_name}_main_wf.confound_correction_wf.regress', 'STD_file_path'],
-                    'CR_STD_file_path':[f'{cr_opts.output_name}_main_wf.confound_correction_wf.regress', 'CR_STD_file_path'],
+                    'cleaned_path':['confound_correction_main_wf.confound_correction_wf.regress', 'cleaned_path'],
+                    'data_dict':['confound_correction_main_wf.confound_correction_wf.regress', 'data_dict'],
+                    'VE_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'VE_file_path'],
+                    'STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'STD_file_path'],
+                    'CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'CR_STD_file_path'],
                     }
 
     if nativespace:

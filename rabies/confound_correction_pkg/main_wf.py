@@ -10,7 +10,7 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     from rabies.confound_correction_pkg.confound_correction import init_confound_correction_wf
 
-    workflow = pe.Workflow(name=cr_opts.output_name+'_main_wf')
+    workflow = pe.Workflow(name='confound_correction_main_wf')
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
@@ -89,8 +89,8 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     cr_output = os.path.abspath(str(cr_opts.output_dir))
 
     confound_correction_datasink = pe.Node(DataSink(base_directory=cr_output,
-                                                    container=cr_opts.output_name+"_datasink"),
-                                            name=cr_opts.output_name+"_datasink")
+                                                    container="confound_correction_datasink"),
+                                            name="confound_correction_datasink")
     workflow.connect([
         (confound_correction_wf, confound_correction_datasink, [
             ("outputnode.cleaned_path", "cleaned_timeseries"),

@@ -21,8 +21,8 @@ def get_parser():
         title='Processing options',
         description=
             "The RABIES workflow is seperated into three main processing stages: preprocessing, \n"
-            "confound regression and analysis. Outputs from the preprocessing provide the inputs for\n"
-            "the subsequent confound regression, and finally analysis.",
+            "confound correction and analysis. Outputs from the preprocessing provide the inputs for\n"
+            "the subsequent confound correction, and finally analysis.",
         help='Description',
         dest='rabies_stage',
         metavar='Processing stage')
@@ -445,14 +445,6 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--output_name', type=str, default='confound_correction_wf',
-        help=
-            "Creates a new output folder to store the workflow of this CR run, to avoid potential\n"
-            "overlaps with previous runs (can be useful if investigating multiple strategies).\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
         '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
         help=
             "Conduct confound correction and analysis in native space.\n"
@@ -603,14 +595,6 @@ def get_parser():
         'output_dir', action='store', type=Path,
         help=
             "path for analysis outputs.\n"
-            "\n"
-        )
-    analysis.add_argument(
-        '--output_name', type=str, default='analysis_wf',
-        help=
-            "Creates a new output folder to store the workflow of this analysis run, to avoid potential\n"
-            "overlaps with previous runs.\n"
-            "(default: %(default)s)\n"
             "\n"
         )
     analysis.add_argument(
