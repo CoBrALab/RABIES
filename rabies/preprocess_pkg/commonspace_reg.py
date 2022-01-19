@@ -101,6 +101,11 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
+            (atlas_reg, transforms_datasink, [
+                ("affine", "native_to_atlas_affine"),
+                ("warp", "native_to_atlas_warp"),
+                ("inverse_warp", "native_to_atlas_inverse_warp"),
+                ]),
             ])
         if opts.commonspace_masking:
             workflow.connect([
@@ -191,6 +196,16 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (atlas_reg, PlotOverlap_Unbiased2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
+            (atlas_reg, transforms_datasink, [
+                ("affine", "unbiased_to_atlas_affine"),
+                ("warp", "unbiased_to_atlas_warp"),
+                ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
+                ]),
+            (commonspace_selectfiles, transforms_datasink, [
+                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                ]),
             ])
         if opts.commonspace_masking:
             workflow.connect([
@@ -199,29 +214,6 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                     ]),
                 (generate_template, atlas_reg, [
                     ("unbiased_mask", "moving_mask"),
-                    ]),
-                ])
-
-    if opts.rabies_step == 'preprocess':
-        if opts.fast_commonspace:
-            workflow.connect([
-                (atlas_reg, transforms_datasink, [
-                    ("affine", "native_to_atlas_affine"),
-                    ("warp", "native_to_atlas_warp"),
-                    ("inverse_warp", "native_to_atlas_inverse_warp"),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (atlas_reg, transforms_datasink, [
-                    ("affine", "unbiased_to_atlas_affine"),
-                    ("warp", "unbiased_to_atlas_warp"),
-                    ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
-                    ]),
-                (commonspace_selectfiles, transforms_datasink, [
-                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
                     ]),
                 ])
 

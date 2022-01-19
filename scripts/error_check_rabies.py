@@ -55,7 +55,7 @@ sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.
 
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --bold_only --fast_commonspace --detect_dummy \
+    --coreg_script no_reg --atlas_reg_script no_reg --data_type int16 --bold_only --fast_commonspace --detect_dummy \
     --tpattern seq"
 process = subprocess.run(
     command,
@@ -66,7 +66,7 @@ process = subprocess.run(
 os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --commonspace_masking --coreg_masking --brain_extraction"
+    --coreg_script no_reg --atlas_reg_script no_reg --data_type int16 --HMC_option 0 --commonspace_masking --coreg_masking --brain_extraction"
 process = subprocess.run(
     command,
     check=True,
@@ -89,7 +89,7 @@ sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
 os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor_method disable --bold_inho_cor_method disable \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --coreg_script NULL --atlas_reg_script NULL --data_type int16 --HMC_option 0 --fast_commonspace"
+    --coreg_script no_reg --atlas_reg_script no_reg --data_type int16 --HMC_option 0 --fast_commonspace"
 process = subprocess.run(
     command,
     check=True,

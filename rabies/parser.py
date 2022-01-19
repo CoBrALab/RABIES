@@ -126,14 +126,12 @@ def get_parser():
         'bids_dir', action='store', type=Path,
         help=
             "The root folder of the BIDS-formated input data directory.\n"
-            "(default: %(default)s)\n"
             "\n"
         )
     preprocess.add_argument(
         'output_dir', action='store', type=Path,
         help=
             "the output path to drop outputs from major preprocessing steps.\n"
-            "(default: %(default)s)\n"
             "\n"
         )
     preprocess.add_argument(
@@ -208,10 +206,10 @@ def get_parser():
         title='Registration Options', 
         description=
             "Customize registration operations and troubleshoot registration failures.\n"
-            "   Rigid: conducts only rigid registration.\n"
-            "   Affine: conducts Rigid then Affine registration.\n"
-            "   SyN: conducts Rigid, Affine then non-linear registration.\n"
-            "   no_reg: skip registration.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
         )
     g_registration.add_argument(
         "--anat_inho_cor_method", type=str, default='SyN',
@@ -219,8 +217,8 @@ def get_parser():
         help=
             "Select a registration type for masking during inhomogeneity correction of the structural \n"
             "image. \n"
-            "   N4_reg: previous correction script prior to version 0.3.1.\n"
-            "   disable: disables the inhomogeneity correction.\n"
+            "*** N4_reg: previous correction script prior to version 0.3.1.\n"
+            "*** disable: disables the inhomogeneity correction.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -228,8 +226,8 @@ def get_parser():
         choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
         help=
             "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
-            "   N4_reg: previous correction script prior to version 0.3.1.\n"
-            "   disable: disables the inhomogeneity correction.\n"
+            "*** N4_reg: previous correction script prior to version 0.3.1.\n"
+            "*** disable: disables the inhomogeneity correction.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -423,237 +421,338 @@ def get_parser():
 
 
     ####Confound correction
-    confound_correction.add_argument('preprocess_out', action='store', type=Path,
-                                     help="""
-                                     path to RABIES preprocessing output directory with the datasinks.
-                                     """)
-    confound_correction.add_argument('output_dir', action='store', type=Path,
-                                     help="""
-                                     path to drop confound regression output datasink.
-                                     """)
-    confound_correction.add_argument('--read_datasink', dest='read_datasink', action='store_true', default=False,
-                                     help="""
-                                     Choose this option to read preprocessing outputs from datasinks instead
-                                     of the saved preprocessing workflow graph. This allows to run confound correction
-                                     without having available RABIES preprocessing folders.
-                                     Using this option, it is assumed that outputs in the datasink folders are in line
-                                     with the expected outputs from preprocessing with RABIES.
-                                     """)
-    confound_correction.add_argument('--output_name', type=str, default='confound_correction_wf',
-                                     help="""
-                                     Creates a new output folder to store the workflow of this CR run, to avoid potential
-                                     overlaps with previous runs (can be useful if investigating multiple strategies).
-                                     """)
-    confound_correction.add_argument('--nativespace_analysis', dest='nativespace_analysis', action='store_true',
-                                     help="""
-                                     Use to specify confound correction and analysis on native space outputs.
-                                     """)
-    confound_correction.add_argument('--TR', type=str, default='auto',
-                                     help="""
-                                     Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
-                                     """)
-    confound_correction.add_argument('--highpass', type=float, default=None,
-                                     help="""
-                                     Specify highpass filter frequency.
-                                     """)
-    confound_correction.add_argument('--lowpass', type=float, default=None,
-                                     help="""
-                                     Specify lowpass filter frequency.
-                                     """)
-    confound_correction.add_argument('--edge_cutoff', type=float, default=0,
-                                     help="""
-                                     Specify number of seconds to cut at beginning and end of acquisition if applying 
-                                     a frequency filter.
-                                     Applying frequency filters generate edge effects at begining and end of the sequence. 
-                                     We recommend to cut those timepoints (around 30sec at both end for 0.01Hz highpass.).
-                                     """)
-    confound_correction.add_argument('--smoothing_filter', type=float, default=None,
-                                     help="""
-                                     Specify spatial smoothing filter size in mm.
-                                     Uses nilearn's function https://nilearn.github.io/modules/generated/nilearn.image.smooth_img.html
-                                     """)
-    confound_correction.add_argument('--run_aroma', dest='run_aroma', action='store_true', default=False,
-                                     help="""
-                                     Whether to run ICA-AROMA or not. The classifier implemented within RABIES
-                                     is a slightly modified version from the original (Pruim et al. 2015),
-                                     with parameters and masks adapted for rodent images.
-                                     """)
-    confound_correction.add_argument('--aroma_dim', type=int, default=0,
-                                     help="""
-                                     Can specify a fixed number of dimension for the MELODIC run before ICA-AROMA.
-                                     """)
-    confound_correction.add_argument('--aroma_random_seed', type=int, default=1,
-                             help="""
-                             For reproducibility, can manually set a random seed for MELODIC.
-                             """)
-    confound_correction.add_argument('--conf_list', type=str,
-                                     nargs="*",  # 0 or more values expected => creates a list
-                                     default=[],
-                                     choices=["WM_signal", "CSF_signal", "vascular_signal",
-                                              "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
-                                     help="""
-                                     List of nuisance regressors that will be applied on voxel timeseries, i.e., confound regression.
-                                     WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain masks.
-                                     mot_6: 6 rigid HMC parameters.
-                                     mot_24: mot_6 + their temporal derivative, and all 12 parameters squared (Friston et al. 1996).
-                                     aCompCor: corresponds to the timeseries of components from a PCA conducted on the combined
-                                     WM and CSF masks voxel timeseries, including all components that together explain 50/100 of
-                                     the variance, as in Muschelli et al. 2014.
-                                     mean_FD: the mean framewise displacement timecourse
-                                     """)
-    confound_correction.add_argument('--FD_censoring', dest='FD_censoring', action='store_true', default=False,
-                                     help="""
-                                     Whether to remove timepoints that exceed a framewise displacement threshold.
-                                     The frames that exceed the given threshold together with 1 back
-                                     and 4 forward frames will be masked out (based on Power et al. 2012).
-                                     """)
-    confound_correction.add_argument('--FD_threshold', type=float, default=0.05,
-                                     help="""
-                                     Scrubbing threshold for the mean framewise displacement in mm (averaged across the brain
-                                     mask) to select corrupted volumes.
-                                     """)
-    confound_correction.add_argument('--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
-                                     help="""
-                                     Whether to remove timepoints that present outlier values on the DVARS metric (temporal derivative
-                                     of global signal).
-                                     This will censor out timepoints until a distribution of DVARS values is obtained without outliers
-                                     values above or below 2.5 standard deviations.
-                                     """)
-    confound_correction.add_argument('--minimum_timepoint', type=int,default=3,
-                                     help="""
-                                     Can select a threshold number of timepoint to remain after censoring, and return empty files for
-                                     scans that don't pass threshold.
-                                     """)
-    confound_correction.add_argument('--standardize', dest='standardize', action='store_true',default=False,
-                                     help="""
-                                     Whether to standardize timeseries to unit variance.
-                                     """)
-    confound_correction.add_argument('--timeseries_interval', type=str, default='all',
-                                     help="""
-                                     Specify a time interval in the timeseries to keep. e.g. "0,80". By default all timeseries are kept.
-                                     """)
+    confound_correction.add_argument(
+        'preprocess_out', action='store', type=Path,
+        help=
+            "path to RABIES preprocessing output directory.\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        'output_dir', action='store', type=Path,
+        help=
+            "path for confound correction output directory.\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--read_datasink', dest='read_datasink', action='store_true', default=False,
+        help=
+            "\n"
+            "Choose this option to read preprocessing outputs from datasinks instead of the saved \n"
+            "preprocessing workflow graph. This allows to run confound correction without having \n"
+            "available RABIES preprocessing folders, but the targetted datasink folders must follow the\n"
+            "structure of RABIES preprocessing.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--output_name', type=str, default='confound_correction_wf',
+        help=
+            "Creates a new output folder to store the workflow of this CR run, to avoid potential\n"
+            "overlaps with previous runs (can be useful if investigating multiple strategies).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
+        help=
+            "Conduct confound correction and analysis in native space.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--TR', type=str, default='auto',
+        help=
+            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2)\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--highpass', type=float, default=None,
+        help=
+            "Specify highpass filter frequency.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--lowpass', type=float, default=None,
+        help=
+            "Specify lowpass filter frequency.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--edge_cutoff', type=float, default=0,
+        help=
+            "Specify the number of seconds to cut at beginning and end of acquisition if applying a\n"
+            "frequency filter. Frequency filters generate edge effects at begining and end of the\n" 
+            "timeseries. We recommend to cut those timepoints (around 30sec at both end for 0.01Hz \n" 
+            "highpass.).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--smoothing_filter', type=float, default=None,
+        help=
+            "Specify filter size in mm for spatial smoothing. Will apply nilearn's function \n"
+            "https://nilearn.github.io/modules/generated/nilearn.image.smooth_img.html\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--run_aroma', dest='run_aroma', action='store_true', default=False,
+        help=
+            "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
+            "to incorporate rodent-adapted masks and classification hyperparameters.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--aroma_dim', type=int, default=0,
+        help=
+            "Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--aroma_random_seed', type=int, default=1,
+        help=
+            "For reproducibility, this option sets a fixed random seed for MELODIC.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--conf_list', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[],
+        choices=["WM_signal", "CSF_signal", "vascular_signal",
+                "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
+        help=
+            "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
+            "regression.\n"
+            "*** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain \n"
+            "   masks.\n"
+            "*** mot_6: 6 rigid head motion correction parameters.\n"
+            "*** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in \n"
+            "   Friston et al. (1996, Magnetic Resonance in Medicine).\n"
+            "*** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
+            "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
+            "   Components adding up to 50 percent of the variance are included.\n"
+            "*** mean_FD: the mean framewise displacement timecourse.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--FD_censoring', dest='FD_censoring', action='store_true', default=False,
+        help=
+            "Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).\n"
+            "The frames that exceed the given threshold, together with 1 back and 2 forward frames\n"
+            "will be masked out, as in Power et al. (2012, Neuroimage).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--FD_threshold', type=float, default=0.05,
+        help=
+            "--FD_censoring threshold in mm.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
+        help=
+            "Whether to remove timepoints that present outlier values on the DVARS metric (temporal\n"
+            "derivative of global signal). This method will censor timepoints until the distribution\n" 
+            "of DVARS values across time does not contain outliers values above or below 2.5 standard\n" 
+            "deviations.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--minimum_timepoint', type=int,default=3,
+        help=
+            "Can set a minimum number of timepoints remaining after frame censoring. If the threshold\n" 
+            "is not met, an empty file is generated and the scan is not considered in further steps.\n" 
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--standardize', dest='standardize', action='store_true',default=False,
+        help=
+            "Whether to standardize timeseries (z-scoring).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--timeseries_interval', type=str, default='all',
+        help=
+            "Before confound correction, can crop the timeseries within a specific interval.\n"
+            "e.g. '0,80' for timepoint 0 to 80.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis
-    analysis.add_argument('confound_correction_out', action='store', type=Path,
-                          help="""
-                          path to RABIES confound regression output directory with the datasink.
-                          """)
-    analysis.add_argument('output_dir', action='store', type=Path,
-                          help='path to drop analysis outputs.')
-    analysis.add_argument('--output_name', type=str, default='analysis_wf',
-                          help="""
-                          Creates a new output folder to store the workflow of this analysis run, to avoid potential
-                          overlaps with previous runs.
-                          """)
-    analysis.add_argument('--scan_list', type=str,
-                          nargs="*",  # 0 or more values expected => creates a list
-                          default=['all'],
-                          help="""
-                          This option offers to run the analysis on a subset of the scans.
-                          The scans selected are specified by providing the full path to each EPI file from the input BIDS folder.
-                          The list of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz scan2.nii.gz ...'
-                          or the files can be imbedded into a .txt file with one filename per row.
-                          By default, 'all' will use all the scans previously processed.
-                          """)
-    analysis.add_argument('--seed_list', type=str,
-                          nargs="*",  # 0 or more values expected => creates a list
-                          default=[],
-                          help="""
-                          Can provide a list of seed .nii images that will be used to evaluate seed-based correlation maps
-                          based on Pearson's r. Each seed must consist of a binary mask representing the ROI in commonspace.
-                          """)
-    analysis.add_argument('--seed_prior_list', type=str,
-                          nargs="*",  # 0 or more values expected => creates a list
-                          default=[],
-                          help="""
-                          For analysis QC of seed-based FC, prior network maps are required for each seed-FC provided in --seed_list.
-                          Provide the list of prior files in matching order of the --seed_list inputs to match corresponding seed maps.
-                          """)
-    analysis.add_argument('--prior_maps', action='store', type=Path,
-                            default=f"{rabies_path}/melodic_IC.nii.gz",
-                            help="""
-                            Provide a 4D nifti image with a series of spatial priors representing common sources of
-                            signal (e.g. ICA components from a group-ICA run). This 4D prior map file will be used for 
-                            Dual regression, Dual ICA and --data_diagnosis.
-                            Default: Corresponds to a MELODIC run on a combined group of anesthetized-
-                            ventilated and awake mice. Confound regression consisted of highpass at 0.01 Hz,
-                            FD censoring at 0.03mm, DVARS censoring, and mot_6,WM_signal,CSF_signal as regressors.
-                            """)
-    analysis.add_argument('--prior_bold_idx', type=int,
-                            nargs="*",  # 0 or more values expected => creates a list
-                            default=[5, 12, 19],
-                            help="""
-                            Specify the indices for the priors to fit from --prior_maps. Only selected priors will be fitted 
-                            for Dual ICA, and these priors will correspond to the BOLD components during --data_diagnosis.
-                            """)
-    analysis.add_argument('--prior_confound_idx', type=int,
-                                nargs="*",  # 0 or more values expected => creates a list
-                                default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
-                                         13, 14, 21, 22, 24, 26, 28, 29],
-                                help="""
-                                Specify the indices for the confound components from --prior_maps.
-                                This is pertinent for the --data_diagnosis outputs.
-                                """)
-    analysis.add_argument("--data_diagnosis", dest='data_diagnosis', action='store_true',
-                             help="""
-                             This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al.
-                             The diagnosis outputs key temporal and spatial features at the scan level allowing the
-                             identification of sources of confounds in individual scans. A follow-up group-level correlation
-                             between spatial features is also conducted to evaluate corruption of group-level outputs.
-                             We recommend to conduct a data diagnosis from this workflow to complement FC analysis by
-                             evaluating the intrinsic corruption of the dataset as well as the effectiveness of the confound
-                             correction strategies.""")
+    analysis.add_argument(
+        'confound_correction_out', action='store', type=Path,
+        help=
+            "path to RABIES confound correction output directory.\n"
+            "\n"
+        )
+    analysis.add_argument(
+        'output_dir', action='store', type=Path,
+        help=
+            "path for analysis outputs.\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--output_name', type=str, default='analysis_wf',
+        help=
+            "Creates a new output folder to store the workflow of this analysis run, to avoid potential\n"
+            "overlaps with previous runs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--scan_list', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=['all'],
+        help=
+            "This option offers to run the analysis on a subset of the scans. The scans are selected by\n"
+            "providing the full path to the corresponding EPI file in the input BIDS folder. The list \n"
+            "of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz \n"
+            "scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row.\n"
+            "By default, 'all' will use all the scans previously processed.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--prior_maps', action='store', type=Path,
+        default=f"{rabies_path}/melodic_IC.nii.gz",
+        help=
+            "Provide a 4D nifti image with a series of spatial priors representing common sources of\n"
+            "signal (e.g. ICA components from a group-ICA run). This 4D prior map file will be used for \n"
+            "Dual regression, Dual ICA and --data_diagnosis. The RABIES default corresponds to a MELODIC \n"
+            "run on a combined group of anesthetized-ventilated and awake mice. Confound correction \n"
+            "consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and \n"
+            "mot_6,WM_signal,CSF_signal as regressors.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--prior_bold_idx', type=int,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[5, 12, 19],
+        help=
+            "Specify the indices for the priors corresponding to BOLD sources from --prior_maps. These will\n"
+            "be fitted during Dual ICA and provide the BOLD components during --data_diagnosis.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--prior_confound_idx', type=int,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
+                    13, 14, 21, 22, 24, 26, 28, 29],
+        help=
+            "Specify the indices for the confound components from --prior_maps. This is pertinent for the\n" 
+            "--data_diagnosis outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        "--data_diagnosis", dest='data_diagnosis', action='store_true',
+        help=
+            "This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al. \n"
+            "The diagnosis generates key temporal and spatial features both at the scan level and the group\n"
+            "level, allowing the identification of sources of confounds and data quality issues. We recommend \n"
+            "using this data diagnosis workflow, more detailed in the publication, to improve the control for \n"
+            "data quality issues and prevent the corruptions of analysis outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
-    g_fc_matrix = analysis.add_argument_group(title='FC Matrix', description="""
-        Options for performing a whole-brain timeseries correlation matrix analysis.
-        """)
-    g_fc_matrix.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
-                             help="""
-                             Choose this option to derive a whole-brain functional connectivity matrix, based on the
-                             Pearson's r correlation of regional timeseries for each subject cleaned timeseries.
-                             """)
-    g_fc_matrix.add_argument("--ROI_type", type=str, default='parcellated',
-                             choices=['parcellated', 'voxelwise'],
-                             help="""
-                             Define the types of ROI to extract regional timeseries for correlation matrix analysis.
-                             Options are 'parcellated', in which case the atlas labels provided for preprocessing are used
-                             as ROIs, or 'voxelwise', in which case all voxel timeseries are cross-correlated.
-                             """)
-    g_group_ICA = analysis.add_argument_group(title='Group ICA', description="""
-        Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.
-        Note that confound regression must have been conducted on commonspace outputs.
-        """)
-    g_group_ICA.add_argument("--group_ICA", dest='group_ICA', action='store_true',
-                             help="""
-                             Choose this option to conduct group-ICA.
-                             """)
-    g_group_ICA.add_argument('--dim', type=int, default=0,
-                             help="""
-                             You can specify the number of ICA components to be derived. The default uses an automatic estimation.
-                             """)
-    g_group_ICA.add_argument('--melodic_random_seed', type=int, default=1,
-                             help="""
-                             For reproducibility, can manually set a random seed for MELODIC.
-                             """)
-    g_DR_ICA = analysis.add_argument_group(title='DR ICA', description="""
-        Options for performing a dual regression analysis based on a previous group-ICA run from FSL's MELODIC.
-        Note that confound regression must have been conducted on commonspace outputs.
-        """)
-    g_DR_ICA.add_argument("--DR_ICA", dest='DR_ICA', action='store_true',
-                          help="""
-                          Choose this option to conduct dual regression on each subject timeseries. This analysis will
-                          output the spatial maps corresponding to the linear coefficients from the second linear
-                          regression. See rabies.analysis_pkg.analysis_functions.dual_regression for the specific code.
-                          """)
-    g_dual_ICA = analysis.add_argument_group(title='Dual ICA', description="""
-        Options for performing a Dual ICA.
-        Need to provide the prior maps to fit --prior_maps, and the associated indices for the target components
-        in --prior_bold_idx
-        """)
-    g_dual_ICA.add_argument('--dual_ICA', type=int, default=0,
-                            help="""
-                            Specify how many subject-specific sources to compute using dual ICA.
-                            """)
+    analysis.add_argument(
+        '--seed_list', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[],
+        help=
+            "Can provide a list of Nifti files providing a mask for an anatomical seed, which will be used\n"
+            "to evaluate seed-based connectivity maps using on Pearson's r. Each seed must consist of \n"
+            "a binary mask representing the ROI in commonspace.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--seed_prior_list', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[],
+        help=
+            "For analysis QC of seed-based FC during --data_diagnosis, prior network maps are required for \n"
+            "each seed provided in --seed_list. Provide the list of prior files in matching order of the \n"
+            "--seed_list arguments to match corresponding seed maps.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
+        help=
+            "Compute whole-brain connectivity matrices using Pearson's r between ROI timeseries.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        "--ROI_type", type=str, default='parcellated',
+        choices=['parcellated', 'voxelwise'],
+        help=
+            "Define ROIs for --FC_matrix between 'parcellated' from the provided atlas during preprocessing,\n"
+            "or 'voxelwise' to derive the correlations between every voxel."
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_group_ICA = analysis.add_argument_group(
+        title='Group ICA', 
+        description=
+            "Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.\n"
+            "Note that confound correction must have been conducted on commonspace outputs.\n"
+        )
+    g_group_ICA.add_argument(
+        "--group_ICA", dest='group_ICA', action='store_true',
+        help=
+            "Perform group-ICA.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_group_ICA.add_argument(
+        '--dim', type=int, default=0,
+        help=
+            "Derive a fixed number of ICA components during group-ICA. The default uses an automatic \n"
+            "estimation.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_group_ICA.add_argument(
+        '--melodic_random_seed', type=int, default=1,
+        help=
+            "For reproducibility, can manually set a random seed for MELODIC. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        "--DR_ICA", dest='DR_ICA', action='store_true',
+        help=
+            "Conduct dual regression on each subject timeseries, using the priors from --prior_maps. The\n"
+            "linear coefficients from both the first and second regressions will be provided as outputs.\n"
+            "Requires that confound correction was conducted on commonspace outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--dual_ICA', type=int, default=0,
+        help=
+            "Option for performing a Dual ICA. Specify how many subject-specific sources to compute \n"
+            "during dual ICA. Dual ICA will provide a fit for each --prior_bold_idx from --prior_maps.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     return parser

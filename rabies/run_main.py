@@ -40,11 +40,11 @@ def execute_workflow():
         args += input
     log.info(args)
 
-    if opts.rabies_step == 'preprocess':
+    if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)
-    elif opts.rabies_step == 'confound_correction':
+    elif opts.rabies_stage == 'confound_correction':
         workflow = confound_correction(opts, log)
-    elif opts.rabies_step == 'analysis':
+    elif opts.rabies_stage == 'analysis':
         workflow = analysis(opts, log)
     else:
         parser.print_help()
@@ -57,7 +57,7 @@ def execute_workflow():
         graph_out = workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
                                                       'n_procs': opts.local_threads, 'qsub_args': f'-pe smp {str(opts.min_proc)}'})
         # save the workflow execution
-        workflow_file = f'{output_folder}/rabies_{opts.rabies_step}_workflow.pkl'
+        workflow_file = f'{output_folder}/rabies_{opts.rabies_stage}_workflow.pkl'
         with open(workflow_file, 'wb') as handle:
             pickle.dump(graph_out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
@@ -67,20 +67,20 @@ def execute_workflow():
 
 
 def prep_logging(opts, output_folder):
-    cli_file = f'{output_folder}/rabies_{opts.rabies_step}.pkl'
+    cli_file = f'{output_folder}/rabies_{opts.rabies_stage}.pkl'
     if os.path.isfile(cli_file):
         raise ValueError(f"""
             A previous run was indicated by the presence of {cli_file}.
             This can lead to inconsistencies between previous outputs and the log files.
             To prevent this, you are required to manually remove {cli_file}, and we 
-            recommend also removing previous datasinks from the {opts.rabies_step} RABIES step.
+            recommend also removing previous datasinks from the {opts.rabies_stage} RABIES step.
             """)
 
     with open(cli_file, 'wb') as handle:
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # remove old versions of the log if already existing
-    log_path = f'{output_folder}/rabies_{opts.rabies_step}.log'
+    log_path = f'{output_folder}/rabies_{opts.rabies_stage}.log'
     if os.path.isfile(log_path):
         os.remove(log_path)
 
