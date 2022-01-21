@@ -51,6 +51,10 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          container="analysis_datasink"),
                                 name="analysis_datasink")
 
+    data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                         container="data_diagnosis_datasink"),
+                                name="data_diagnosis_datasink")
+
 
     input_buffer_node = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file','atlas_file','WM_mask_file',
                          'CSF_mask_file', 'preprocess_anat_template']),
@@ -169,7 +173,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (prep_analysis_dict_node, diagnosis_wf, [
                 ("analysis_dict", "inputnode.analysis_dict"),
                 ]),
-            (diagnosis_wf, analysis_datasink, [
+            (diagnosis_wf, data_diagnosis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
                 ("outputnode.dataset_diagnosis", "dataset_diagnosis"),

@@ -434,20 +434,39 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--read_datasink', dest='read_datasink', action='store_true', default=False,
+        '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
         help=
-            "\n"
-            "Choose this option to read preprocessing outputs from datasinks instead of the saved \n"
-            "preprocessing workflow graph. This allows to run confound correction without having \n"
-            "available RABIES preprocessing folders, but the targetted datasink folders must follow the\n"
-            "structure of RABIES preprocessing.\n"
+            "Conduct confound correction and analysis in native space.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     confound_correction.add_argument(
-        '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
+        '--conf_list', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[],
+        choices=["WM_signal", "CSF_signal", "vascular_signal",
+                "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
         help=
-            "Conduct confound correction and analysis in native space.\n"
+            "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
+            "regression.\n"
+            "*** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain \n"
+            "   masks.\n"
+            "*** mot_6: 6 rigid head motion correction parameters.\n"
+            "*** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in \n"
+            "   Friston et al. (1996, Magnetic Resonance in Medicine).\n"
+            "*** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
+            "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
+            "   Components adding up to 50 percent of the variance are included.\n"
+            "*** mean_FD: the mean framewise displacement timecourse.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--FD_censoring', dest='FD_censoring', action='store_true', default=False,
+        help=
+            "Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).\n"
+            "The frames that exceed the given threshold, together with 1 back and 2 forward frames\n"
+            "will be masked out, as in Power et al. (2012, Neuroimage).\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -491,58 +510,6 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--run_aroma', dest='run_aroma', action='store_true', default=False,
-        help=
-            "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
-            "to incorporate rodent-adapted masks and classification hyperparameters.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_dim', type=int, default=0,
-        help=
-            "Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_random_seed', type=int, default=1,
-        help=
-            "For reproducibility, this option sets a fixed random seed for MELODIC.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--conf_list', type=str,
-        nargs="*",  # 0 or more values expected => creates a list
-        default=[],
-        choices=["WM_signal", "CSF_signal", "vascular_signal",
-                "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
-        help=
-            "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
-            "regression.\n"
-            "*** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain \n"
-            "   masks.\n"
-            "*** mot_6: 6 rigid head motion correction parameters.\n"
-            "*** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in \n"
-            "   Friston et al. (1996, Magnetic Resonance in Medicine).\n"
-            "*** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
-            "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
-            "   Components adding up to 50 percent of the variance are included.\n"
-            "*** mean_FD: the mean framewise displacement timecourse.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--FD_censoring', dest='FD_censoring', action='store_true', default=False,
-        help=
-            "Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).\n"
-            "The frames that exceed the given threshold, together with 1 back and 2 forward frames\n"
-            "will be masked out, as in Power et al. (2012, Neuroimage).\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
         '--FD_threshold', type=float, default=0.05,
         help=
             "--FD_censoring threshold in mm.\n"
@@ -571,6 +538,39 @@ def get_parser():
         '--standardize', dest='standardize', action='store_true',default=False,
         help=
             "Whether to standardize timeseries (z-scoring).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--run_aroma', dest='run_aroma', action='store_true', default=False,
+        help=
+            "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
+            "to incorporate rodent-adapted masks and classification hyperparameters.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--aroma_dim', type=int, default=0,
+        help=
+            "Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--aroma_random_seed', type=int, default=1,
+        help=
+            "For reproducibility, this option sets a fixed random seed for MELODIC.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--read_datasink', dest='read_datasink', action='store_true', default=False,
+        help=
+            "\n"
+            "Choose this option to read preprocessing outputs from datasinks instead of the saved \n"
+            "preprocessing workflow graph. This allows to run confound correction without having \n"
+            "available RABIES preprocessing folders, but the targetted datasink folders must follow the\n"
+            "structure of RABIES preprocessing.\n"
             "(default: %(default)s)\n"
             "\n"
         )
