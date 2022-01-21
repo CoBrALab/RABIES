@@ -6,6 +6,7 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
+from nipype.interfaces.io import DataSink
 from rabies.utils import run_command, flatten_list
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
@@ -115,6 +116,10 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ])
 
     else:
+        unbiased_template_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                            container="unbiased_template_datasink"),
+                                    name="unbiased_template_datasink")
+
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
                                                    output_names=[
@@ -122,7 +127,8 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                                    function=select_commonspace_outputs),
                                           name='commonspace_selectfiles')
 
-        generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=output_folder+f'/{name}.commonspace_datasink/', cluster_type=opts.plugin,
+        generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
+        generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
                                               ),
                                       name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -205,6 +211,12 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ("native_to_unbiased_affine", "native_to_unbiased_affine"),
                 ("native_to_unbiased_warp", "native_to_unbiased_warp"),
                 ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                ]),
+            (outputnode, unbiased_template_datasink, [
+                ("unbiased_template", "unbiased_template"),
+                ]),
+            (atlas_reg, unbiased_template_datasink, [
+                ("warped_image", "warped_unbiased_template"),
                 ]),
             ])
         if opts.commonspace_masking:

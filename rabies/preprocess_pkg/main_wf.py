@@ -49,11 +49,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             Initial EPI median volume subsequently used as 3D reference EPI volume
         inho_cor_bold
             3D reference EPI volume after bias field correction
-        affine_bold2anat
+        bold_to_anat_affine
             affine transform from the EPI space to the anatomical space
-        warp_bold2anat
+        bold_to_anat_warp
             non-linear transform from the EPI space to the anatomical space
-        inverse_warp_bold2anat
+        bold_to_anat_inverse_warp
             inverse non-linear transform from the EPI space to the anatomical space
         inho_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
@@ -108,8 +108,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'affine_bold2anat',
-                'warp_bold2anat', 'inverse_warp_bold2anat', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'confounds_csv',
+        fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
+                'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'confounds_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                 'commonspace_labels', 'std_filename', 'tSNR_filename']),
@@ -274,9 +274,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
             ("outputnode.pos_voxelwise", "pos_voxelwise"),
             ("outputnode.FD_csv", "FD_csv"),
-            ('outputnode.affine_bold2anat', 'affine_bold2anat'),
-            ('outputnode.warp_bold2anat', 'warp_bold2anat'),
-            ('outputnode.inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+            ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
+            ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
+            ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
             ("outputnode.output_warped_bold", "inho_cor_bold_warped2anat"),
             ("outputnode.native_bold", "native_bold"),
             ("outputnode.native_bold_ref", "native_bold_ref"),
@@ -500,9 +500,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "anat_preproc"),
                 ]),
             (outputnode, transforms_datasink, [
-                ('affine_bold2anat', 'affine_bold2anat'),
-                ('warp_bold2anat', 'warp_bold2anat'),
-                ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+                ('bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
             ])
 

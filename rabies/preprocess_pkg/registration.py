@@ -14,14 +14,14 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=[
-            'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold']),
+            'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'output_warped_bold']),
         name='outputnode'
     )
 
     run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "moving_image", "moving_mask", "fixed_image",
                                             "fixed_mask", "rabies_data_type"],
-                               output_names=['affine_bold2anat', 'warp_bold2anat',
-                                             'inverse_warp_bold2anat', 'output_warped_bold'],
+                               output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
+                                             'bold_to_anat_inverse_warp', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
@@ -49,9 +49,9 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
             ('anat_ref', 'fixed_image'),
             ('anat_mask', 'fixed_mask')]),
         (run_reg, outputnode, [
-            ('affine_bold2anat', 'affine_bold2anat'),
-            ('warp_bold2anat', 'warp_bold2anat'),
-            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+            ('bold_to_anat_affine', 'bold_to_anat_affine'),
+            ('bold_to_anat_warp', 'bold_to_anat_warp'),
+            ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
             ('output_warped_bold', 'output_warped_bold'),
             ]),
         ])
