@@ -134,10 +134,10 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Native2Unbiased')
-        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Unbiased/'
+        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Native2Unbiased/'
         PlotOverlap_Unbiased2Atlas_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Unbiased2Atlas')
-        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
+        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
         if opts.brain_extraction and opts.commonspace_masking:
