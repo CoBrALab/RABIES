@@ -1,5 +1,7 @@
 # Preprocessing Pipeline
 
+![Processing Schema](pics/preprocessing.png)
+
 ## Graphical structure with nipype
 ## Anatomical inhomogeneity correction
 ## Unbiased template generation

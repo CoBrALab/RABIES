@@ -2,7 +2,7 @@
 
 RABIES is an open source image processing pipeline for rodent fMRI. It conducts state-of-the-art preprocessing and confound correction, and supplies standard resting-state functional connectivity analyses.
 
-![Processing Schema](pics/processing_schema.png)
+![Processing Schema](pics/RABIES_schema.png)
 
 ## What you can do with RABIES
 
@@ -72,6 +72,7 @@ caption: Content
 installation.md
 running_the_software.md
 outputs.md
+quality_control.md
 preprocessing.md
 confound_correction.md
 analysis.md
