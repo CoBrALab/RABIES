@@ -4,6 +4,53 @@ from nipype import Function
 
 
 def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
+    """
+    The input volumetric EPI image is registered non-linearly to an associated structural MRI image.
+    The non-linear transform estimates the correction for EPI susceptibility distortions (Wang et al., 2017).
+
+    References:
+        Wang, S., Peterson, D. J., Gatenby, J. C., Li, W., Grabowski, T. J., & Madhyastha, T. M. (2017). 
+            Evaluation of Field Map and Nonlinear Registration Methods for Correction of Susceptibility Artifacts 
+            in Diffusion MRI. Frontiers in Neuroinformatics, 11, 17.
+
+    Command line interface parameters:
+        Registration Options:
+            Customize registration operations and troubleshoot registration failures.
+            *** Rigid: conducts only rigid registration.
+            *** Affine: conducts Rigid then Affine registration.
+            *** SyN: conducts Rigid, Affine then non-linear registration.
+            *** no_reg: skip registration.
+
+        --coreg_script {Rigid,Affine,SyN,no_reg}
+                            Specify the registration script for cross-modal alignment between the EPI and structural
+                            images. This operation is responsible for correcting EPI susceptibility distortions.
+                            (default: SyN)
+                                                        
+        --coreg_masking       Use the mask from the EPI inhomogeneity correction step to support registration to the
+                            structural image.
+                            (default: False)
+                            
+        --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
+                            extractions prior to registration based on the initial mask during inhomogeneity
+                            correction. This will enhance brain edge-matching, but requires good quality masks.
+                            (default: False)
+
+    Workflow:
+        parameters
+            opts: command line interface parameters
+
+        inputs
+            ref_bold_brain: volumetric EPI image to register
+            anat_ref: the target structural image
+            anat_mask: the brain mask of the structural image
+            moving_mask: a EPI mask inherited from inhomogeneity correction
+
+        outputs
+            bold_to_anat_affine: affine transform from the EPI to the anatomical image
+            bold_to_anat_warp: non-linear transform from the EPI to the anatomical image
+            bold_to_anat_inverse_warp: inverse non-linear transform from the EPI to the anatomical image
+            output_warped_bold: the EPI image warped onto the structural image
+    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
@@ -14,14 +61,14 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
 
     outputnode = pe.Node(
         niu.IdentityInterface(fields=[
-            'affine_bold2anat', 'warp_bold2anat', 'inverse_warp_bold2anat', 'output_warped_bold']),
+            'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'output_warped_bold']),
         name='outputnode'
     )
 
     run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "moving_image", "moving_mask", "fixed_image",
                                             "fixed_mask", "rabies_data_type"],
-                               output_names=['affine_bold2anat', 'warp_bold2anat',
-                                             'inverse_warp_bold2anat', 'output_warped_bold'],
+                               output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
+                                             'bold_to_anat_inverse_warp', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
@@ -49,9 +96,9 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
             ('anat_ref', 'fixed_image'),
             ('anat_mask', 'fixed_mask')]),
         (run_reg, outputnode, [
-            ('affine_bold2anat', 'affine_bold2anat'),
-            ('warp_bold2anat', 'warp_bold2anat'),
-            ('inverse_warp_bold2anat', 'inverse_warp_bold2anat'),
+            ('bold_to_anat_affine', 'bold_to_anat_affine'),
+            ('bold_to_anat_warp', 'bold_to_anat_warp'),
+            ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
             ('output_warped_bold', 'output_warped_bold'),
             ]),
         ])
@@ -105,7 +152,7 @@ def define_reg_script(reg_option):
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine --skip-nonlinear"
     elif reg_option == 'SyN':
         reg_call = "antsRegistration_affine_SyN.sh --linear-type affine"
-    elif reg_option == 'NULL':
+    elif reg_option == 'no_reg':
         reg_call = 'null_nonlin.sh'
     else:
         raise ValueError(

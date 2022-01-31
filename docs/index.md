@@ -1,6 +1,5 @@
-# RABIES: Rodent Automated Bold Improvement of EPI Sequences.
-
-![Processing Schema](pics/processing_schema.png)
+```{include} ../README.md
+```
 
 
 ```{toctree}
@@ -8,7 +7,10 @@
 maxdepth: 3
 caption: Content
 ---
-using_the_software.md
+installation.md
+running_the_software.md
+outputs.md
+quality_control.md
 preprocessing.md
 confound_correction.md
 analysis.md

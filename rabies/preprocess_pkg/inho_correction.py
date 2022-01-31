@@ -5,7 +5,57 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-def init_inho_correction_wf(opts, image_type, inho_cor_method='Affine', name='inho_correction_wf'):
+def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
+    """
+    Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
+    denoising (Manjón et al., 2010) followed by iterative correction for intensity inhomogeneities (Sled 
+    et al., 1998). Initial masking is achieved via intensity thresholding, giving an initial correction of 
+    the image, and a registration is then conducted to register a brain mask for a final round of correction.
+
+    References:
+        Manjón, J. V., Coupé, P., Martí-Bonmatí, L., Collins, D. L., & Robles, M. (2010). Adaptive non-local means 
+            denoising of MR images with spatially varying noise levels. Journal of Magnetic Resonance Imaging: 
+            JMRI, 31(1), 192–203.
+        Sled, J. G., Zijdenbos, A. P., & Evans, A. C. (1998). A nonparametric method for automatic correction of 
+            intensity nonuniformity in MRI data. IEEE Transactions on Medical Imaging, 17(1), 87–97.            
+
+    Command line interface parameters:
+        --anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
+                                Select a registration type for masking during inhomogeneity correction of the structural 
+                                image. 
+                                *** N4_reg: previous correction script prior to version 0.3.1.
+                                *** disable: disables the inhomogeneity correction.
+                                (default: SyN)
+                                
+        --bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
+                                Select a registration type for masking during inhomogeneity correction of the EPI.
+                                *** N4_reg: previous correction script prior to version 0.3.1.
+                                *** disable: disables the inhomogeneity correction.
+                                (default: Rigid)
+                                
+        --bold_inho_cor_otsu BOLD_INHO_COR_OTSU
+                                The inhomogeneity correction script necessitates an initial correction with a Otsu
+                                masking strategy (prior to registration of an anatomical mask). This option sets the 
+                                Otsu threshold level to capture the right intensity distribution.
+                                (default: 2)
+
+    Workflow:
+        parameters
+            opts: command line interface parameters
+            image_type: between 'EPI' and 'structural'. Defines which script to run depending on 
+                image type
+
+        inputs
+            target_img: the image to correct
+            anat_ref: the registration target with a brain mask
+            anat_mask: the brain mask of the registration target
+            name_source: reference file for naming purpose
+
+        outputs
+            corrected: the output image after the final correction
+            denoise_mask: the brain mask resampled on the corrected image
+            init_denoise: the image after a first round of correction
+    """
 
     workflow = pe.Workflow(name=name)
 
@@ -17,6 +67,12 @@ def init_inho_correction_wf(opts, image_type, inho_cor_method='Affine', name='in
             fields=['corrected', 'denoise_mask', 'init_denoise']),
         name='outputnode')
 
+    if image_type=='EPI':
+        inho_cor_method=opts.bold_inho_cor_method
+    elif image_type=='structural':
+        inho_cor_method=opts.anat_inho_cor_method
+    else:
+        raise
     anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=opts.bold_inho_cor_otsu, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 

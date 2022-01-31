@@ -5,15 +5,70 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-from .utils import init_bold_reference_wf
+from .bold_ref import init_bold_reference_wf
 from rabies.utils import slice_applyTransforms, Merge
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
+    """
+    This workflow carries out the resampling of the original EPI timeseries into preprocessed timeseries.
+    This is accomplished by applying at each frame a combined transform which accounts for previously estimated 
+    motion correction and susceptibility distortion correction, together with the alignment to common space if
+    the outputs are desired in common space. All transforms are concatenated into a single resampling operation
+    to mitigate interpolation effects from repeated resampling.
+    This workflow also carries the resampling of brain masks and labels from the reference atlas onto the 
+    preprocessed EPI timeseries.
+
+    Command line interface parameters:
+        Resampling Options:
+            The following options allow to resample the voxel dimensions for the preprocessed EPIs
+            or for the anatomical images during registration.
+            The resampling syntax must be 'dim1xdim2xdim3' (in mm), follwing the RAS axis convention
+            (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior). If 'inputs_defined'
+            is provided instead of axis dimensions, the original dimensions are preserved.
+
+        --nativespace_resampling NATIVESPACE_RESAMPLING
+                            Can specify a resampling dimension for the nativespace fMRI outputs.
+                            (default: inputs_defined)
+                            
+        --commonspace_resampling COMMONSPACE_RESAMPLING
+                            Can specify a resampling dimension for the commonspace fMRI outputs.
+                            (default: inputs_defined)
+
+    Workflow:
+        parameters
+            opts: command line interface parameters
+            resampling_dim: specify the desired output voxel dimensions after resampling
+
+        inputs
+            name_source: a reference file for naming the output
+            bold_file: the EPI timeseries to resample
+            motcorr_params: the motion correction parameters
+            transforms_list: a list of transforms to apply onto EPI timeseries, including 
+                susceptibility distortion correction and resampling to common space
+            inverses: a list specifying whether the inverse affine transforms should be 
+                applied in transforms_list
+            ref_file: a reference image in the targetted space for resampling. Should be the structural 
+                image from the same session if outputs are in native space, or the atlas template for
+                outputs in common space
+            mask_transforms_list: the list of transforms to apply onto the atlas parcellations
+                to overlap with the EPI
+            mask_inverses: a list specifying whether the inverse affine transforms should be 
+                applied in mask_transforms_list
+
+        outputs
+            bold: the preprocessed EPI timeseries
+            bold_ref: a volumetric 3D EPI generated from the preprocessed timeseries
+            brain_mask: the brain mask resampled onto preprocessed EPI timeseries
+            WM_mask: the WM mask resampled onto preprocessed EPI timeseries
+            CSF_mask: the CSF mask resampled onto preprocessed EPI timeseries
+            vascular_mask: the vascular mask resampled onto preprocessed EPI timeseries
+            labels: the atlas labels resampled onto preprocessed EPI timeseries
+    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file',
-        'mask_transforms_list', 'mask_inverses', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels']),
+        'mask_transforms_list', 'mask_inverses']),
         name='inputnode'
     )
 
@@ -36,18 +91,23 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
 
     WM_mask_to_EPI = pe.Node(MaskEPI(), name='WM_mask_EPI')
     WM_mask_to_EPI.inputs.name_spec = 'EPI_WM_mask'
+    WM_mask_to_EPI.inputs.mask = str(opts.WM_mask)
 
     CSF_mask_to_EPI = pe.Node(MaskEPI(), name='CSF_mask_EPI')
     CSF_mask_to_EPI.inputs.name_spec = 'EPI_CSF_mask'
+    CSF_mask_to_EPI.inputs.mask = str(opts.CSF_mask)
 
     vascular_mask_to_EPI = pe.Node(MaskEPI(), name='vascular_mask_EPI')
     vascular_mask_to_EPI.inputs.name_spec = 'EPI_vascular_mask'
+    vascular_mask_to_EPI.inputs.mask = str(opts.vascular_mask)
 
     brain_mask_to_EPI = pe.Node(MaskEPI(), name='Brain_mask_EPI')
     brain_mask_to_EPI.inputs.name_spec = 'EPI_brain_mask'
+    brain_mask_to_EPI.inputs.mask = str(opts.brain_mask)
 
     propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
     propagate_labels.inputs.name_spec = 'EPI_anat_labels'
+    propagate_labels.inputs.mask = str(opts.labels)
 
     workflow.connect([
         (inputnode, merge, [('name_source', 'header_source')]),
@@ -63,7 +123,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
         (merge, outputnode, [('out_file', 'bold')]),
         (inputnode, brain_mask_to_EPI, [
             ('name_source', 'name_source'),
-            ('brain_mask', 'mask'),
             ('mask_transforms_list', 'transforms'),
             ('mask_inverses', 'inverses'),
             ]),
@@ -73,7 +132,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ('EPI_mask', 'brain_mask')]),
         (inputnode, WM_mask_to_EPI, [
             ('name_source', 'name_source'),
-            ('WM_mask', 'mask'),
             ('mask_transforms_list', 'transforms'),
             ('mask_inverses', 'inverses'),
             ]),
@@ -83,7 +141,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ('EPI_mask', 'WM_mask')]),
         (inputnode, CSF_mask_to_EPI, [
             ('name_source', 'name_source'),
-            ('CSF_mask', 'mask'),
             ('mask_transforms_list', 'transforms'),
             ('mask_inverses', 'inverses'),
             ]),
@@ -93,7 +150,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ('EPI_mask', 'CSF_mask')]),
         (inputnode, vascular_mask_to_EPI, [
             ('name_source', 'name_source'),
-            ('vascular_mask', 'mask'),
             ('mask_transforms_list', 'transforms'),
             ('mask_inverses', 'inverses'),
             ]),
@@ -103,7 +159,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ('EPI_mask', 'vascular_mask')]),
         (inputnode, propagate_labels, [
             ('name_source', 'name_source'),
-            ('labels', 'mask'),
             ('mask_transforms_list', 'transforms'),
             ('mask_inverses', 'inverses'),
             ]),
