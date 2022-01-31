@@ -4,6 +4,53 @@ from nipype import Function
 
 
 def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
+    """
+    The input volumetric EPI image is registered non-linearly to an associated structural MRI image.
+    The non-linear transform estimates the correction for EPI susceptibility distortions (Wang et al., 2017).
+
+    References:
+        Wang, S., Peterson, D. J., Gatenby, J. C., Li, W., Grabowski, T. J., & Madhyastha, T. M. (2017). 
+            Evaluation of Field Map and Nonlinear Registration Methods for Correction of Susceptibility Artifacts 
+            in Diffusion MRI. Frontiers in Neuroinformatics, 11, 17.
+
+    Command line interface parameters:
+        Registration Options:
+            Customize registration operations and troubleshoot registration failures.
+            *** Rigid: conducts only rigid registration.
+            *** Affine: conducts Rigid then Affine registration.
+            *** SyN: conducts Rigid, Affine then non-linear registration.
+            *** no_reg: skip registration.
+
+        --coreg_script {Rigid,Affine,SyN,no_reg}
+                            Specify the registration script for cross-modal alignment between the EPI and structural
+                            images. This operation is responsible for correcting EPI susceptibility distortions.
+                            (default: SyN)
+                                                        
+        --coreg_masking       Use the mask from the EPI inhomogeneity correction step to support registration to the
+                            structural image.
+                            (default: False)
+                            
+        --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
+                            extractions prior to registration based on the initial mask during inhomogeneity
+                            correction. This will enhance brain edge-matching, but requires good quality masks.
+                            (default: False)
+
+    Workflow:
+        parameters
+            opts: command line interface parameters
+
+        inputs
+            ref_bold_brain: volumetric EPI image to register
+            anat_ref: the target structural image
+            anat_mask: the brain mask of the structural image
+            moving_mask: a EPI mask inherited from inhomogeneity correction
+
+        outputs
+            bold_to_anat_affine: affine transform from the EPI to the anatomical image
+            bold_to_anat_warp: non-linear transform from the EPI to the anatomical image
+            bold_to_anat_inverse_warp: inverse non-linear transform from the EPI to the anatomical image
+            output_warped_bold: the EPI image warped onto the structural image
+    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(

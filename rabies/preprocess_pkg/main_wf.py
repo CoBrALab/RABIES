@@ -254,8 +254,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("resampled_template", "commonspace_resampled_template"),
             ]),
         (merged_join_common_reg, commonspace_reg_wf, [
-            ("file_list0", "inputnode.moving_image"),
-            ("file_list1", "inputnode.moving_mask"),
+            ("file_list0", "inputnode.moving_image_list"),
+            ("file_list1", "inputnode.moving_mask_list"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
             ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
@@ -345,7 +345,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ])
 
         # setting anat preprocessing nodes
-        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', inho_cor_method=opts.anat_inho_cor_method, name="anat_inho_cor_wf")
+        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', name="anat_inho_cor_wf")
 
         workflow.connect([
             (main_split, run_split, [

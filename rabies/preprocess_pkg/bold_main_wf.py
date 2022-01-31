@@ -2,7 +2,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu, afni
 
 from .hmc import init_bold_hmc_wf
-from .utils import init_bold_reference_wf
+from .bold_ref import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf
 from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
@@ -142,7 +142,7 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
 
     if inho_cor_only or (not opts.bold_only):
         bold_reference_wf = init_bold_reference_wf(opts=opts)
-        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', inho_cor_method=opts.bold_inho_cor_method, name="bold_inho_cor_wf")
+        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', name="bold_inho_cor_wf")
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -201,11 +201,6 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
     bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
     bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.commonspace_resampling, name='bold_commonspace_trans_wf')
-    bold_commonspace_trans_wf.inputs.inputnode.brain_mask = str(opts.brain_mask)
-    bold_commonspace_trans_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
-    bold_commonspace_trans_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
-    bold_commonspace_trans_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
-    bold_commonspace_trans_wf.inputs.inputnode.labels = str(opts.labels)
     bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
     bold_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
 
@@ -233,11 +228,6 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                                   name='transforms_prep')
 
         bold_native_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.nativespace_resampling, name='bold_native_trans_wf')
-        bold_native_trans_wf.inputs.inputnode.brain_mask = str(opts.brain_mask)
-        bold_native_trans_wf.inputs.inputnode.WM_mask = str(opts.WM_mask)
-        bold_native_trans_wf.inputs.inputnode.CSF_mask = str(opts.CSF_mask)
-        bold_native_trans_wf.inputs.inputnode.vascular_mask = str(opts.vascular_mask)
-        bold_native_trans_wf.inputs.inputnode.labels = str(opts.labels)
 
         workflow.connect([
             (inputnode, cross_modal_reg_wf, [
