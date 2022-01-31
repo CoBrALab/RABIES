@@ -13,7 +13,7 @@ def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
         fields=['bold', 'ref_bold', 'movpar_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['cleaned_bold', 'confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
+        fields=['confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
         name='outputnode')
 
     estimate_confounds = pe.Node(EstimateConfounds(aCompCor_method=aCompCor_method, rabies_data_type=opts.data_type),
