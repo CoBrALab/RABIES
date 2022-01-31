@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
@@ -9,6 +8,51 @@ from nipype.interfaces.base import (
 )
 
 def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
+    """
+    This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
+    orchestrated in line with recommendations from human litterature:   
+    #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
+    #2 - Linear detrending of fMRI timeseries and nuisance regressors
+    #3 - Apply ICA-AROMA.
+    #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+         as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
+    #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+         to the temporal frequency filter.
+    #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+    #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+         simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
+    #8 - Apply confound regression using the selected nuisance regressors.
+    #9 - Standardize timeseries
+    #10 - Apply Gaussian spatial smoothing.
+    
+    References:
+        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic 
+            correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
+        Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, 
+            characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
+        Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce 
+            artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
+
+    Workflow:
+        parameters
+            cr_opts: command line interface parameters from confound_correction
+
+        inputs
+            bold_file: preprocessed EPI timeseries
+            brain_mask: brain mask overlapping with EPI timeseries
+            csf_mask: CSF mask overlapping with EPI timeseries
+            confounds_file: CSV file with nuisance timecourses
+            FD_file: CSV file with the framewise displacement
+
+        outputs
+            cleaned_path: the cleaned EPI timeseries
+            aroma_out: folder with outputs from ICA-AROMA
+            VE_file: variance explained (R^2) from confound regression at each voxel
+            STD_file: standard deviation on the cleaned EPI timeseries
+            CR_STD_file: standard deviation on the confound timeseries modelled during confound regression
+            frame_mask_file: CSV file which records which frame were censored
+            CR_data_dict: dictionary object storing extra data computed during confound correction
+    """
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
