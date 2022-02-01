@@ -2,7 +2,7 @@
 
 ## Input data in BIDS standard
 
-The input dataset must be organized according to the BIDS data structure (https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'. If anatomical scans are used for preprocessing (--bold_only False), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'. If anatomical scans are used for preprocessing (`--bold_only False`), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
 <br/>
 <br/>
 Mandatory BIDS specifications are:
@@ -12,7 +12,7 @@ Mandatory BIDS specifications are:
 * 'run-{run #}' is necessary for functional images if there are multiple scans per session
 
 ### Directory structure for an example dataset
-* http://doi.org/10.5281/zenodo.3937697 has the following BIDS structure:
+* Our [example dataset](http://doi.org/10.5281/zenodo.3937697) has the following BIDS structure:
 
 <!DOCTYPE html>
 <html>
@@ -567,7 +567,7 @@ The following section provides examples describing the basic syntax for running 
 ```sh
 rabies -p MultiProc preprocess input_BIDS/ preprocess_outputs/ --apply_STC --TR 1.2
 ```
-First, we have to preprocess the dataset before it can be analyzed. In this example, we are running the RABIES preprocessing on the dataset found in the input_BIDS/ folder, formatted according to the BIDS standard, and the outputs from RABIES are stored in the preprocess_outputs/ folder. Additional execution parameters were specified: 
+First, we have to preprocess the dataset before it can be analyzed. In this example, we are running the RABIES preprocessing on the dataset found in the *input_BIDS/* folder, formatted according to the BIDS standard, and the outputs from RABIES are stored in the *preprocess_outputs/* folder. Additional execution parameters were specified: 
 * `-p MultiProc` will execute the pipeline in parallel using the local threads available. Notice that this parameter is specified before the processing stage, because it is one of the `Execution Options` affiliated to the `rabies --help`.
 * `--apply_STC` is a boolean variable which, when selected, will apply slice timing correction during preprocessing, which is not applied by default in RABIES.
 * `--TR 1.2` specifies the repetition time (TR) of the fMRI images that are processed, which must be defined to apply slice timing correction appropriately. Notice that this parameter must be provided with an argument, here `1.2` for TR = 1.2sec, and this is done by writing down the argument with a space dividing the associated parameter.
@@ -576,7 +576,7 @@ First, we have to preprocess the dataset before it can be analyzed. In this exam
 ```sh
 rabies -p MultiProc confound_correction preprocess_outputs/ confound_correction_outputs/ --commonspace_bold --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
 ```
-Next, after completing preprocessing, in most cases the data should be corrected for potential confounds prior to analysis. This is done in the confound correction stage, where confounds are modelled and regressed from the data. In this example we correct the preprocessed data found in the preprocess_outputs/ folder and store the cleaned outputs in the confound_correction_outputs/ folder. Among the range of options available for confound correction, we define in this example three parameters:
+Next, after completing preprocessing, in most cases the data should be corrected for potential confounds prior to analysis. This is done in the confound correction stage, where confounds are modelled and regressed from the data. In this example we correct the preprocessed data found in the *preprocess_outputs/* folder and store the cleaned outputs in the *confound_correction_outputs/* folder. Among the range of options available for confound correction, we define in this example three parameters:
 * `--commonspace_bold` is a boolean variable which will be conduct confound correction on preprocessed data resampled to commonspace, which is necessary for certain analyses at later stage, such as group independent component analysis.
 * `--conf_list` is the option to regress nuisance timeseries from the data, i.e., confound regression. This parameter takes a list as input, where each argument in the list is seperated by a space as follow `WM_signal CSF_signal mot_6`. This list defines which nuisance timeseries are going to model confounds during confound regression, in this case, the WM and CSF mean signals together with the 6 rigid realignment parameters from head motion realignment.
 * `--smoothing_filter` will additionally apply Gaussian spatial smoothing, where in this case, a filter size of `0.3` mm is specified.
@@ -585,7 +585,7 @@ Next, after completing preprocessing, in most cases the data should be corrected
 ```sh
 rabies -p MultiProc analysis confound_correction_outputs analysis_outputs/ --group_ICA
 ```
-Finally, after conducting preprocessing and confound correction, certain analyses can be run within RABIES. In this case, the cleaned outputs found in confound_correction_outputs/ are going to be analyzed, with analysis outputs found in analysis_outputs/. We specify one analysis in this example with the boolean variable `--group_ICA`, which will conducted group independent component analysis (ICA), using FSL's MELODIC algorithm, across all functional scans available. Since this is a group analysis, the different scans need to be overlapping in commonspace, hence specifying `--commonspace_bold` was necessary during confound correction.
+Finally, after conducting preprocessing and confound correction, certain analyses can be run within RABIES. In this case, the cleaned outputs found in *confound_correction_outputs/* are going to be analyzed, with analysis outputs found in *analysis_outputs/*. We specify one analysis in this example with the boolean variable `--group_ICA`, which will conducted group independent component analysis (ICA), using FSL's MELODIC algorithm, across all functional scans available. Since this is a group analysis, the different scans need to be overlapping in commonspace, hence specifying `--commonspace_bold` was necessary during confound correction.
 
 ## Execution syntax with containerized installation (Singularity and Docker)
 
@@ -601,8 +601,8 @@ singularity run -B $PWD/input_BIDS:/input_BIDS:ro \
 /path_to_singularity_image/rabies.sif -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2
 ```
 Singularity containers are stored in image files, for instance `rabies.sif`. `singularity run /path_to_singularity_image/rabies.sif` will execute the image, in this case the RABIES pipeline, and the same rules for the command line interface then apply as previously demonstrated. However, the container must gain access to the relevant folders for running RABIES, in this case an input folder and an output folder, and this is done with `-B`:
-* `-B $PWD/input_BIDS:/input_BIDS:ro`: this argument relates the BIDS input folder found in `$PWD/input_BIDS` to an internal path to the container, which we call `/input_BIDS`. The inputs are thus access according to this path in the RABIES arguments with `/input_BIDS/`. the `:ro` means that the container is only provided reading permissions at this location.
-* `-B $PWD/preprocess_outputs:/preprocess_outputs/`: same as with the `/input_BIDS/`, but now we are relating a desired output directory `$PWD/preprocess_outputs` to `/preprocess_outputs`, and the container has writing permissions at this path since `:ro` is not present.
+* `-B $PWD/input_BIDS:/input_BIDS:ro`: this argument relates the BIDS input folder found in *$PWD/input_BIDS* to an internal path to the container, which we call */input_BIDS*. The inputs are thus accessed according to this path in the RABIES arguments with `/input_BIDS/`. the `:ro` means that the container is only provided reading permissions at this location.
+* `-B $PWD/preprocess_outputs:/preprocess_outputs/`: same as with the */input_BIDS/*, but now we are relating a desired output directory *$PWD/preprocess_outputs* to */preprocess_outputs*, and the container has writing permissions at this path since `:ro` is not present.
 
 
 **confound_correction**
@@ -612,7 +612,7 @@ singularity run -B $PWD/input_BIDS:/input_BIDS:ro \
 -B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
 /path_to_singularity_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --commonspace_bold --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
 ```
-The required paths are similarly provided for the confound correction stage. Note here that the path to `$PWD/input_BIDS` is still linked to the container, even though it is not explicitely part of the arguments during the confound correction call. This is necessary since the paths used in the preprocessing steps still need to be accessed at later stages, and there will be an error if the paths are not kept consistent across processing steps.
+The required paths are similarly provided for the confound correction stage. Note here that the path to *$PWD/input_BIDS* is still linked to the container, even though it is not explicitely part of the arguments during the confound correction call. This is necessary since the paths used in the preprocessing steps still need to be accessed at later stages, and there will be an error if the paths are not kept consistent across processing steps.
 
 **analysis**
 ```sh

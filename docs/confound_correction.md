@@ -14,7 +14,7 @@ The workflow for confound correction is structured following best practices foun
 
 Importantly, each confound correction step (with the exception of linear detrending) is optional when using RABIES. Currently, there are no generalizable confound correction workflow, and rather, the optimal confound correction strategy may well be largely study-specific. The issue of confound correction for resting-state fMRI remains largely unresolved among human literature, and is only beginning to be studied in rodents. Thus, a flexible workflow remains crucial, despite concerns regarding reproducibility.
 
-A single Nipype workflow handles confound correction within RABIES: https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py 
+[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
 ```python
 """
 This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
