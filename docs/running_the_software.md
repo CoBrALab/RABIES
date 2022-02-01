@@ -62,16 +62,8 @@ Mandatory BIDS specifications are:
 	<br><br>
 	</p>
 	<hr>
-	<p class="VERSION">
-		 tree v1.7.0 © 1996 - 2014 by Steve Baker and Thomas Moore <br>
-		 HTML output hacked and copyleft © 1998 by Francesc Rocher <br>
-		 JSON output hacked and copyleft © 2014 by Florian Sesser <br>
-		 Charsets / OS/2 support © 2001 by Kyosuke Tokoro
-	</p>
 </body>
 </html>
-
-
 
 ## Command Line Interface
 
