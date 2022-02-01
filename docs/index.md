@@ -1,3 +1,5 @@
+![RABIES Schema](pics/RABIES_schema.png)
+
 ```{include} ../README.md
 ```
 
