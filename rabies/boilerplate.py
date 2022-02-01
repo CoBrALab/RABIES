@@ -156,9 +156,12 @@ def confound_correction_boilerplate(opts):
     # define references
     rabies_ref='Desrosiers-Gregoire et al., in preparation.'
     aroma='Pruim, R. H., Mennes, M., van Rooij, D., Llera, A., Buitelaar, J. K., & Beckmann, C. F. (2015). ICA-AROMA: A robust ICA-based strategy for removing motion artifacts from fMRI data. Neuroimage, 112, 267-277.'
+    Lindquist='Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce artifacts into fMRI data. Human Brain Mapping, 40(8), 2358–2376.'
+    mathias='Mathias, A., Grond, F., Guardans, R., Seese, D., Canela, M., & Diebner, H. H. (2004). Algorithms for spectral analysis of irregularly sampled time series. Journal of Statistical Software, 11(1), 1–27.'
     melodic='Beckmann, C. F., & Smith, S. M. (2004). Probabilistic independent component analysis for functional magnetic resonance imaging. IEEE transactions on medical imaging, 23(2), 137-152.'
     nilearn='Abraham, A., Pedregosa, F., Eickenberg, M., Gervais, P., Mueller, A., Kossaifi, J., ... & Varoquaux, G. (2014). Machine learning for neuroimaging with scikit-learn. Frontiers in neuroinformatics, 8, 14.'
     power2012='Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.'
+    power2014='Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, characterize, and remove motion artifact in resting state fMRI. NeuroImage, 84, 320–341.'
     friston24='Friston, K. J., Williams, S., Howard, R., Frackowiak, R. S., & Turner, R. (1996). Movement‐related effects in fMRI time‐series. Magnetic resonance in medicine, 35(3), 346-355.'
     aCompCor='Muschelli, J., Nebel, M. B., Caffo, B. S., Barber, A. D., Pekar, J. J., & Mostofsky, S. H. (2014). Reduction of motion-related artifacts in resting state fMRI using aCompCor. Neuroimage, 96, 22-35.'
 
@@ -173,14 +176,33 @@ def confound_correction_boilerplate(opts):
     i+=1
     methods+=f"  Confound correction was executed using the RABIES software (https://github.com/CoBrALab/RABIES)[{references[rabies_ref]}] on {EPI_space}. "
 
+    # Frame censoring
+    if opts.FD_censoring or opts.DVARS_censoring:
+        references[power2012]=i
+        i+=1
+        methods+=f"First, frames with prominent corruption were censored (i.e. scrubbing [{references[power2012]}]). "
+
+        if opts.FD_censoring:
+            methods+=f"Framewise displacement [{references[power2012]}] was measured across time and each frame surpassing {opts.FD_threshold}mm of motion, together with 1 backward and 2 forward frames, were removed. "
+
+        if opts.DVARS_censoring:
+            if not power2012 in references.keys():
+                references[power2012]=i
+                i+=1
+            methods+=f"Using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal, timepoints presenting outlier DVARS values, characteristic of confounds, were removed. \
+This was conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
+        methods+="Next, "
+    else:
+        methods+="First, "
+
     # Detrending
-    methods+=f"Voxelwise linear detrending was first applied to remove first-order drifts and the average image. "
+    methods+=f"voxelwise linear detrending was first applied to remove first-order drifts and the average image. "
 
     # ICA-AROMA
     if opts.run_aroma:
         references[aroma]=i
         i+=1
-        methods+=f"Motion sources were then automatically removed using a modified version of the ICA-AROMA classifier[{references[aroma]}], \
+        methods+=f"Then, motion sources were then automatically removed using a modified version of the ICA-AROMA classifier[{references[aroma]}], \
 where classifier parameters and anatomical masks are instead adapted for rodent images. "
         if not opts.aroma_dim==0:
             references[melodic]=i
@@ -203,22 +225,37 @@ before classification. "
         elif lowpass:
             filter='lowpass'
             freq=opts.lowpass
-        methods+=f"Next, {filter} filtering({freq}Hz) was applied(nilearn.signal.clean)[{references[nilearn]}]. "
-
-    # Frame censoring
-    if opts.FD_censoring:
-        references[power2012]=i
-        i+=1
-        methods+=f"Timepoints with prominent motion corruption were censored from the data (scrubbing [{references[power2012]}]). \
-Framewise displacement was measured across time and each frame surpassing {opts.FD_threshold}mm of motion, together with 1 backward and 4 forward frames, were removed. "
-
-    if opts.DVARS_censoring:
-        if not power2012 in references.keys():
-            references[power2012]=i
+        if opts.FD_censoring or opts.DVARS_censoring:
+            references[power2014]=i
             i+=1
-        methods+=f"Frame censoring was conducted using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal. This built-in strategy \
-removes timepoints presenting outlier values in DVARS, which is characteristic of confounds that are not necessarily well accounted for by framewise displacement estimates[{references[rabies_ref]}]. \
-This is conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
+            references[mathias]=i
+            i+=1
+            methods+=f"Next, frequency filtering requires particular considerations when frame censoring was \
+previously applied, which results in missing timepoints. Conventional filters cannot account for missing data, \
+and to address this issue, Power and colleagues introduced a method for simulating missing timepoints [{references[power2014]}]. \
+This method relies on an adaptation of the Lomb-Scargle periodogram, which allows estimating the frequency composition of \
+timeseries with missing data points, and from that estimation, missing timepoints can be simulated while preserving the \
+frequency profile [{references[mathias]}]. Missing data is thereby simulated with preserved frequency properties for both \
+BOLD timeseries and nuisance regressors prior to frequency filtering. "
+
+            methods+=f"Following the simulation, "
+        else:
+            methods+=f"Next, "
+
+        if not power2014 in references.keys():
+            references[power2014]=i
+            i+=1
+        methods+=f"{filter} filtering({freq}Hz) was applied using a 3rd-order Butterworth filter, and {opts.edge_cutoff} seconds \
+is removed at each edge of the timeseries to account for edge artefacts following filtering [{references[power2014]}]. The removal \
+of 30 seconds and the use of a 3rd order filter was selected based on the visualization of edge artefacts with simulated data. "
+
+        if len(opts.conf_list) > 0:
+            references[Lindquist]=i
+            i+=1
+            methods+=f"The nuisance regressors are also filtered to ensure orthogonality between the frequency filters and subsequent confound regression, which can otherwise re-introduce removed confounds [{references[Lindquist]}]."
+
+        if opts.FD_censoring or opts.DVARS_censoring:
+            methods+=f"After frequency filtering, the temporal masks are re-applied to remove the simulated timepoints. "
 
     # Confound Regression
     if len(opts.conf_list)>0:
@@ -266,7 +303,7 @@ This is conducted by iteratively removing frames which present outlier DVARS val
             conf_list_str+=f' and {str_list[-1]}'
 
 
-        methods+=f"Estimated nuisance timecourses during preprocessing were then used for confound regression. More specifically, using ordinary least square regression, \
+        methods+=f"Selected nuisance regressors were then used for confound regression. More specifically, using ordinary least square regression, \
 {conf_list_str} were modelled at each voxel and regressed from the data. "
 
 
@@ -274,7 +311,7 @@ This is conducted by iteratively removing frames which present outlier DVARS val
         methods+="Before analysis, "
     # Standardize
     if opts.standardize:
-        methods+=f"timeseries were normalized to unit variance and "
+        methods+=f"timeseries were temporally standardized (mean-substrated, variance-normalized) and "
 
     # Spatial smoothing
     if opts.smoothing_filter is not None:
