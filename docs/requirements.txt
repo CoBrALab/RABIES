@@ -2,3 +2,4 @@ sphinx==3.5.4
 myst-parser==0.14.0
 sphinx-rtd-dark-mode
 sphinx-rtd-theme
+sphinxcontrib-bibtex

@@ -35,8 +35,11 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_rtd_dark_mode",
     "sphinx.ext.autosectionlabel",
-    "sphinx.ext.todo"
+    "sphinx.ext.todo",
+    'sphinxcontrib.bibtex'
 ]
+# to get bibliography
+bibtex_bibfiles = ['_static/refs.bib']
 
 # Choose to generate TOOD notices or not. Defaults to False
 todo_include_todos = False

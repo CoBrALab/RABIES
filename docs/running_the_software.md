@@ -2,7 +2,7 @@
 
 ## Input data in BIDS standard
 
-The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/). RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'. If anatomical scans are used for preprocessing (`--bold_only False`), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/){cite}`Gorgolewski2016-zm`. RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'. If anatomical scans are used for preprocessing (`--bold_only False`), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
 <br/>
 <br/>
 Mandatory BIDS specifications are:
@@ -157,7 +157,7 @@ Execution Options:
 <details><summary><b>rabies preprocess --help</b></summary>
 <p>
 
-```sh
+```
 usage: rabies preprocess [-h] [--bold_only] [--anat_autobox] [--bold_autobox] [--apply_despiking] [--HMC_option {intraSubjectBOLD,0,1,2,3}] [--apply_slice_mc] [--detect_dummy]
                          [--data_type {int16,int32,float32,float64}] [--anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}]
                          [--bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}] [--bold_inho_cor_otsu BOLD_INHO_COR_OTSU] [--atlas_reg_script {Rigid,Affine,SyN,no_reg}]
@@ -343,7 +343,7 @@ Template Files:
 <details><summary><b>rabies confound_correction --help</b></summary>
 <p>
 
-```sh
+```
 usage: rabies confound_correction [-h] [--read_datasink] [--nativespace_analysis] [--TR TR] [--highpass HIGHPASS] [--lowpass LOWPASS] [--edge_cutoff EDGE_CUTOFF]
                                   [--smoothing_filter SMOOTHING_FILTER] [--run_aroma] [--aroma_dim AROMA_DIM] [--aroma_random_seed AROMA_RANDOM_SEED]
                                   [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]] [--FD_censoring]
@@ -453,7 +453,7 @@ optional arguments:
 <details><summary><b>rabies analysis --help</b></summary>
 <p>
 
-```sh
+```
 usage: rabies analysis [-h] [--scan_list [SCAN_LIST ...]] [--prior_maps PRIOR_MAPS] [--prior_bold_idx [PRIOR_BOLD_IDX ...]] [--prior_confound_idx [PRIOR_CONFOUND_IDX ...]]
                        [--data_diagnosis] [--seed_list [SEED_LIST ...]] [--seed_prior_list [SEED_PRIOR_LIST ...]] [--FC_matrix] [--ROI_type {parcellated,voxelwise}]
                        [--group_ICA] [--dim DIM] [--melodic_random_seed MELODIC_RANDOM_SEED] [--DR_ICA] [--dual_ICA DUAL_ICA]
