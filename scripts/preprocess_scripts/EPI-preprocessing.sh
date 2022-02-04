@@ -16,7 +16,8 @@ output=$2
 modelfile=$3
 modelmask=$4
 reg_option=$5
-otsu_thresh=$6
+multi_otsu=$6
+otsu_thresh=$7
 
 # convert inputs to mnc
 nii2mnc ${input} ${tmpdir}/input.mnc
@@ -73,31 +74,43 @@ ImageMath 3 ${tmpdir}/originput.mnc RescaleImage ${tmpdir}/originput.mnc 0 65535
 #Construct Otsu Mask of entire image
 input=${tmpdir}/originput.mnc
 
-ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
+#Construct Otsu Mask of entire image
+if [ "$multi_otsu" = true ]; then
+  multistage_otsu_cor.py ${tmpdir}/originput.mnc ${tmpdir} $origdistance
+  n3input=${tmpdir}/multistage_corrected.mnc
+  ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+  cp ${tmpdir}/mask1234.mnc ${tmpdir}/weight.mnc
+  do_correct
+  cp $n3input ${tmpdir}/precorrect.mnc
+  n3input=${tmpdir}/precorrect.mnc
 
-ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
-ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
-ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
-iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
-ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
-iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
-ExtractRegionFromImageByMask 3 ${input} ${tmpdir}/repad.mnc ${tmpdir}/weight.mnc 1 10
-ExtractRegionFromImageByMask 3 ${tmpdir}/originput.mnc ${tmpdir}/repad_orig.mnc ${tmpdir}/weight.mnc 1 10
-mv -f ${tmpdir}/repad_orig.mnc ${tmpdir}/originput.mnc
-mv -f ${tmpdir}/repad.mnc ${input}
-ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
-mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
-mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
+else
+  ImageMath 3 ${tmpdir}/originput.mnc PadImage ${tmpdir}/originput.mnc 20
 
-n3input=${tmpdir}/originput.mnc
-do_correct
+  ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+  ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
+  ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
+  iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+  ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+  iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
+  ExtractRegionFromImageByMask 3 ${input} ${tmpdir}/repad.mnc ${tmpdir}/weight.mnc 1 10
+  ExtractRegionFromImageByMask 3 ${tmpdir}/originput.mnc ${tmpdir}/repad_orig.mnc ${tmpdir}/weight.mnc 1 10
+  mv -f ${tmpdir}/repad_orig.mnc ${tmpdir}/originput.mnc
+  mv -f ${tmpdir}/repad.mnc ${input}
+  ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+  mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
+  mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
 
-for file in ${tmpdir}/*imp; do
-  echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
-done | parallel
+  n3input=${tmpdir}/originput.mnc
+  do_correct
 
-mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc
-mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/precorrect.mnc
+  for file in ${tmpdir}/*imp; do
+    echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
+  done | parallel
+
+  mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc
+  mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/precorrect.mnc
+fi
 
 if [ $reg_option == 'Rigid' ]; then
   reg_type="--linear-type rigid --skip-nonlinear"
@@ -142,12 +155,17 @@ else
   n3input=${tmpdir}/precorrect.mnc
   do_correct
 
-  for file in ${tmpdir}/*imp; do
-    echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
-  done | parallel
+  if [ "$multi_otsu" = true ]; then
+    cp $n3input ${tmpdir}/correct.mnc
+  else
+    for file in ${tmpdir}/*imp; do
+      echo nu_evaluate -clobber -mapping ${file} -mask ${tmpdir}/weight.mnc -field ${tmpdir}/$(basename $file .imp)_field.mnc ${input} ${tmpdir}/$(basename $file .imp).mnc
+    done | parallel
 
-  mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/field_final.mnc
-  mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/field_final.mnc ${tmpdir}/correct.mnc
+    mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/field_final.mnc
+    mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/field_final.mnc ${tmpdir}/correct.mnc
+  fi
+
 fi
 
 ExtractRegionFromImageByMask 3 ${tmpdir}/correct.mnc ${tmpdir}/recrop.mnc ${tmpdir}/weight.mnc 1 10

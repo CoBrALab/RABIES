@@ -158,13 +158,14 @@ Execution Options:
 <p>
 
 ```
-usage: rabies preprocess [-h] [--bold_only] [--anat_autobox] [--bold_autobox] [--apply_despiking] [--HMC_option {intraSubjectBOLD,0,1,2,3}] [--apply_slice_mc] [--detect_dummy]
-                         [--data_type {int16,int32,float32,float64}] [--anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}]
-                         [--bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}] [--bold_inho_cor_otsu BOLD_INHO_COR_OTSU] [--atlas_reg_script {Rigid,Affine,SyN,no_reg}]
-                         [--coreg_script {Rigid,Affine,SyN,no_reg}] [--commonspace_masking] [--coreg_masking] [--brain_extraction] [--fast_commonspace]
-                         [--nativespace_resampling NATIVESPACE_RESAMPLING] [--commonspace_resampling COMMONSPACE_RESAMPLING] [--anatomical_resampling ANATOMICAL_RESAMPLING] [--apply_STC]
-                         [--TR TR] [--tpattern {alt,seq}] [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK] [--CSF_mask CSF_MASK]
-                         [--vascular_mask VASCULAR_MASK] [--labels LABELS]
+usage: rabies preprocess [-h] [--bold_only] [--anat_autobox] [--bold_autobox] [--apply_despiking] [--HMC_option {intraSubjectBOLD,0,1,2,3}] [--apply_slice_mc]
+                         [--detect_dummy] [--data_type {int16,int32,float32,float64}] [--anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}]
+                         [--anat_multistage_otsu] [--bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}] [--bold_multistage_otsu]
+                         [--bold_inho_cor_otsu BOLD_INHO_COR_OTSU] [--atlas_reg_script {Rigid,Affine,SyN,no_reg}] [--coreg_script {Rigid,Affine,SyN,no_reg}]
+                         [--commonspace_masking] [--coreg_masking] [--brain_extraction] [--fast_commonspace] [--nativespace_resampling NATIVESPACE_RESAMPLING]
+                         [--commonspace_resampling COMMONSPACE_RESAMPLING] [--anatomical_resampling ANATOMICAL_RESAMPLING] [--apply_STC] [--TR TR] [--tpattern {alt,seq}]
+                         [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK] [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
+                         [--labels LABELS]
                          bids_dir output_dir
 
 positional arguments:
@@ -225,11 +226,27 @@ Registration Options:
                         *** disable: disables the inhomogeneity correction.
                         (default: SyN)
                         
+  --anat_multistage_otsu
+                        Select this option perform a staged inhomogeneity correction, where only lower intensities 
+                        are initially corrected, then higher intensities are iteratively included to eventually 
+                        correct the whole image. This technique may help with images with particularly strong 
+                        inhomogeneity gradients and very low intensities. This option applies to the anatomical
+                        image.
+                        (default: False)
+                        
   --bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
                         Select a registration type for masking during inhomogeneity correction of the EPI.
                         *** N4_reg: previous correction script prior to version 0.3.1.
                         *** disable: disables the inhomogeneity correction.
                         (default: Rigid)
+                        
+  --bold_multistage_otsu
+                        Select this option perform a staged inhomogeneity correction, where only lower intensities 
+                        are initially corrected, then higher intensities are iteratively included to eventually 
+                        correct the whole image. This technique may help with images with particularly strong 
+                        inhomogeneity gradients and very low intensities. This option applies to the functional
+                        image.
+                        (default: False)
                         
   --bold_inho_cor_otsu BOLD_INHO_COR_OTSU
                         The inhomogeneity correction script necessitates an initial correction with a Otsu

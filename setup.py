@@ -151,7 +151,7 @@ setup(
         'scripts/gen_DSURQE_masks.py',
         'scripts/install_DSURQE.sh',
         'scripts/error_check_rabies.py',
-        'scripts/preprocess_scripts/multiRAT_registration.sh',
+        'scripts/preprocess_scripts/multistage_otsu_cor.py',
         'scripts/preprocess_scripts/null_nonlin.sh',
         'scripts/preprocess_scripts/plot_overlap.sh',
         'scripts/preprocess_scripts/structural-preprocessing.sh',
