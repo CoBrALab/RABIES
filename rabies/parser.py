@@ -233,6 +233,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_registration.add_argument("--anat_inho_cor_otsu", type=int, default=2,
+        help=
+            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
+            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
+            "Otsu threshold level to capture the right intensity distribution.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
         choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
         help=

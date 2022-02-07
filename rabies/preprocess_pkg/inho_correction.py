@@ -35,6 +35,12 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
                                 image.
                                 (default: False)
                                 
+        --anat_inho_cor_otsu ANAT_INHO_COR_OTSU
+                                The inhomogeneity correction script necessitates an initial correction with a Otsu
+                                masking strategy (prior to registration of an anatomical mask). This option sets the 
+                                Otsu threshold level to capture the right intensity distribution.
+                                (default: 2)
+                                
         --bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
                                 Select a registration type for masking during inhomogeneity correction of the EPI.
                                 *** N4_reg: previous correction script prior to version 0.3.1.
@@ -48,6 +54,12 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
                                 inhomogeneity gradients and very low intensities. This option applies to the functional
                                 image.
                                 (default: False)
+
+        --bold_inho_cor_otsu BOLD_INHO_COR_OTSU
+                                The inhomogeneity correction script necessitates an initial correction with a Otsu
+                                masking strategy (prior to registration of an anatomical mask). This option sets the 
+                                Otsu threshold level to capture the right intensity distribution.
+                                (default: 2)
                                 
     Workflow:
         parameters
@@ -80,15 +92,17 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
     multistage_otsu='false'
     if image_type=='EPI':
         inho_cor_method=opts.bold_inho_cor_method
+        otsu_threshold=opts.bold_inho_cor_otsu
         if opts.bold_multistage_otsu:
             multistage_otsu='true'
     elif image_type=='structural':
         inho_cor_method=opts.anat_inho_cor_method
+        otsu_threshold=opts.anat_inho_cor_otsu
         if opts.anat_multistage_otsu:
             multistage_otsu='true'
     else:
         raise
-    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=opts.bold_inho_cor_otsu, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
     workflow.connect([
