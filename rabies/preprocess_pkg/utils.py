@@ -33,10 +33,10 @@ def prep_bids_iter(layout, bold_only=False):
             raise ValueError(
                 "No anatomical file with the suffix 'T2w' or 'T1w' were found among the BIDS directory.")
     bold_bids = layout.get(subject=subject_list, suffix=[
-                           'bold', 'cbv'], extension=['nii', 'nii.gz'])
+                           'bold'], extension=['nii', 'nii.gz'])
     if len(bold_bids) == 0:
         raise ValueError(
-            "No functional file with the suffix 'bold' or 'cbv' were found among the BIDS directory.")
+            "No functional file with the suffix 'bold' were found among the BIDS directory.")
 
     bold_dict = {}
     for bold in bold_bids:
@@ -57,7 +57,7 @@ def prep_bids_iter(layout, bold_only=False):
             bold_dict[sub][ses] = {}
 
         bold_list = layout.get(subject=sub, session=ses, run=run, suffix=[
-                               'bold', 'cbv'], extension=['nii', 'nii.gz'], return_type='filename')
+                               'bold'], extension=['nii', 'nii.gz'], return_type='filename')
         bold_dict[sub][ses][run] = bold_list
 
     # if not bold_only, then the bold_list and run_iter will be a dictionary with keys being the anat filename
