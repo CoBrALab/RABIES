@@ -2,12 +2,12 @@
 
 ## Input data in BIDS standard
 
-The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/){cite}`Gorgolewski2016-zm`. RABIES will iterate through subjects and search for all available functional scans with suffix 'bold' or 'cbv'. If anatomical scans are used for preprocessing (`--bold_only False`), each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session.
+The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/){cite}`Gorgolewski2016-zm`. RABIES will iterate through subjects and search for all available functional scans with suffix 'bold'. Anatomical scans are not necessary (`--bold_only` runs preprocessing with only functional scans), but can improve registration quality. If anatomical scans are used for preprocessing, each functional scan will be matched to one corresponding anatomical scan with suffix 'T1w' or 'T2w' of the same subject/session. Extra files which don't have a functional or structural suffix will be ignored.
 <br/>
 <br/>
 Mandatory BIDS specifications are:
 * 'sub-{subject ID}' and 'ses-{session ID}' for both functional and anatomical images
-* 'bold' or 'cbv' suffix for functional images
+* 'bold' suffix for functional images
 * 'T1w' or 'T2w' for anatomical images
 * 'run-{run #}' is necessary for functional images if there are multiple scans per session
 

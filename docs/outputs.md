@@ -4,18 +4,18 @@ In this section, there is a description for all the output files provided at eac
 
 ## Preprocessing Outputs
 
-Multiple datasink folders are generated during preprocessing for different output types: *anat_datasink/*, *bold_datasink/*, *commonspace_datasink/*,  *transforms_datasink/* and *confounds_datasink/*.
+Multiple datasink folders are generated during preprocessing for different output types: *anat_datasink/*, *bold_datasink/*, *unbiased_template_datasink/*,  *transforms_datasink/* and *confounds_datasink/*. 
 
-- **anat_datasink/**: Includes the inhomogeneity-correction anatomical scans
+- **anat_datasink/**: Includes the inhomogeneity-correction anatomical scans.
     - anat_preproc: anatomical scans after inhomogeneity correction
 
-- **bold_datasink/**: Includes all outputs related to the functional scans, where files are either resampled onto the native or commonspace of the EPI.
+- **bold_datasink/**: Includes all outputs related to the functional scans, where files are either resampled onto the native or commonspace of the EPI. The native space outputs are resampled over the anatomical scan from each corresponding MRI session, whereas the commonspace outputs are resampled over the reference atlas (the original EPI voxel resolution is unchanged during resampling unless specified otherwise in the RABIES command).
     - native_bold: preprocessed EPI timeseries resampled to nativespace
     - native_brain_mask: brain mask in nativespace
     - native_WM_mask: WM mask in nativespace
     - native_CSF_mask: CSF mask in nativespace
     - native_labels: atlas labels in nativespace
-    - native_bold_ref: a reference 3D EPI image generated from native_bold
+    - native_bold_ref: a volumetric 3D EPI average generated from the 4D *native_bold*
     - commonspace_bold: preprocessed EPI timeseries resampled to commonspace
     - commonspace_mask: brain mask in commonspace
     - commonspace_WM_mask: WM mask in commonspace
@@ -24,13 +24,13 @@ Multiple datasink folders are generated during preprocessing for different outpu
     - commonspace_labels: atlas labels in commonspace
     - commonspace_resampled_template: the commonspace anatomical template, resampled to the EPI's dimensions
     - input_bold: the raw EPI scans provided as inputs in the BIDS data folder
-    - initial_bold_ref: the initial reference 3D EPI image generated from input_bold
-    - inho_cor_bold: the reference 3D EPI (initial_bold_ref) after inhomogeneity correction, which is later used for registration of the EPI
-    - inho_cor_bold_warped2anat: inho_cor_bold after co-registration to the associated anatomical image (anat_preproc)
-    - std_map_preprocess: the temporal standard deviation at each voxel on the commonspace_bold
-    - tSNR_map_preprocess: the temporal signal-to-noise ratio (tSNR) of the commonspace_bold
+    - initial_bold_ref: the initial volumetric 3D EPI average generated from the 4D *input_bold*
+    - inho_cor_bold: the volumetric 3D EPI (*initial_bold_ref*) after inhomogeneity correction, which is later used for registration of the EPI
+    - inho_cor_bold_warped2anat: inho_cor_bold after co-registration to the associated anatomical image (*anat_preproc*)
+    - std_map_preprocess: the temporal standard deviation at each voxel on the *commonspace_bold*
+    - tSNR_map_preprocess: the temporal signal-to-noise ratio (tSNR) of the *commonspace_bold*
 
-- **unbiased_template_datasink/**: Outputs related to the generation of the unbiased template using https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction
+- **unbiased_template_datasink/**: Outputs related to the generation of the unbiased template using https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction. The unbiased template corresponds to the average of all anatomical (or functional with `--bold_only`) scans after their alignment.
     - unbiased_template: the unbiased template generated from the input dataset scans
     - warped_unbiased_template: the unbiased template, registered to the reference atlas in commonspace
 
@@ -45,11 +45,11 @@ Multiple datasink folders are generated during preprocessing for different outpu
     - unbiased_to_atlas_warp: non-linear transforms for the alignment between unbiased template and the atlas in commonspace
     - unbiased_to_atlas_inverse_warp: inverse of the non-linear transforms for the alignment between unbiased template and the atlas in commonspace
 
-- **confounds_datasink/**: regroups data features which are later relevant for subsequent confound correction
+- **confounds_datasink/**: regroups data features which are later relevant for subsequent confound correction.
     - confounds_csv: a CSV file grouping a set of nuisance timeseries, which can be used for confound regression. The timeseries generated are detailed in the Nuisance timecourse estimation documentation (https://rabies.readthedocs.io/en/latest/preprocessing.html#nuisance-timecourse-estimation).
     - FD_csv: a CSV file with timescourses for either the mean or maximal framewise displacement (FD) estimations.
-    - FD_voxelwise: a Nifti image which contains framewise displacement timecourses at each voxel
-    - pos_voxelwise: a Nifti image which contains the relative positioning of each voxel across time
+    - FD_voxelwise: a Nifti image which contains framewise displacement evaluated at each voxel
+    - pos_voxelwise: a Nifti image which tracks the displacement (derived from the head motion realignment parameters) of each voxel across time
 
 
 ## Confound Correction Outputs
