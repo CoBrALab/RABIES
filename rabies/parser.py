@@ -222,12 +222,42 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_registration.add_argument(
+        '--anat_multistage_otsu', dest='anat_multistage_otsu', action='store_true',
+        help=
+            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
+            "are initially corrected, then higher intensities are iteratively included to eventually \n"
+            "correct the whole image. This technique may help with images with particularly strong \n"
+            "inhomogeneity gradients and very low intensities. This option applies to the anatomical\n"
+            "image.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument("--anat_inho_cor_otsu", type=int, default=2,
+        help=
+            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
+            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
+            "Otsu threshold level to capture the right intensity distribution.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
         choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
         help=
             "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
             "*** N4_reg: previous correction script prior to version 0.3.1.\n"
             "*** disable: disables the inhomogeneity correction.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        '--bold_multistage_otsu', dest='bold_multistage_otsu', action='store_true',
+        help=
+            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
+            "are initially corrected, then higher intensities are iteratively included to eventually \n"
+            "correct the whole image. This technique may help with images with particularly strong \n"
+            "inhomogeneity gradients and very low intensities. This option applies to the functional\n"
+            "image.\n"
             "(default: %(default)s)\n"
             "\n"
         )
