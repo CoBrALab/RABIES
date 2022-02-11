@@ -6,7 +6,7 @@ RABIES is an open source image processing pipeline for rodent fMRI. It conducts 
 
 ## What you can do with RABIES
 
-The primary purpose of RABIES consists of equipping independent rodent fMRI researchers with a standard, yet flexible and reliable, image processing platform, and complement these tools with guidelines supporting best practices for reproducibility and quality control. The RABIES software is structured into three main processing stages: **preprocessing**, **confound correction** and **analysis**. 
+The primary purpose of RABIES is to provide rodent fMRI research with a standard, flexible, and reliable image processing platform. The package is complemented with informative data diagnostic features for confound characterization and encourages best practices for quality control and reproducibility. The RABIES software is structured into three main processing stages: **preprocessing**, **confound correction** and **analysis**.
 
 ### Preprocessing
 The preprocessing workflow regroups essential fMRI preprocessing steps prior to analysis. It includes a robust registration workflow with automatically-adapting parameters allowing to succesfully process diverse acquisition types (i.e. rodent species, scan field strength, coil type, ...), and can conduct the following preprocessing steps:
