@@ -17,6 +17,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     split_dict, split_name, target_list = read_confound_workflow(conf_output, cr_opts, nativespace=cr_opts.nativespace_analysis)
 
+    # update split_name according to the --scan_list option
+    split_name = get_iterable_scan_list(analysis_opts.scan_list, split_name)
+
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
                          name="main_split")
@@ -252,3 +255,31 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
     target_list = list(match_targets.keys())
 
     return split_dict, split_name, target_list
+
+
+def get_iterable_scan_list(scan_list, split_name):
+    # prep the subset of scans on which the analysis will be run
+    import numpy as np
+    import pandas as pd
+    if os.path.isfile(os.path.abspath(scan_list[0])):
+        updated_split_name=[]
+        if '.nii' in pathlib.Path(scan_list[0]).name:
+            for scan in scan_list:
+                updated_split_name.append(find_split(scan, split_name))
+        else:
+            # read the file as a .txt
+            scan_list = np.array(pd.read_csv(os.path.abspath(scan_list[0]), header=None)).flatten()
+            for scan in scan_list:
+                updated_split_name.append(find_split(scan, split_name))
+    elif scan_list[0]=='all':
+        updated_split_name = split_name
+    else:
+        raise ValueError("The scan_list input had improper format.")
+    return updated_split_name
+
+
+def find_split(scan, split_name):
+    for split in split_name:
+        if split in scan:
+            return split
+    raise ValueError(f"No previous file name is matching {scan}")
