@@ -286,7 +286,7 @@ def grayplot(timeseries_file, mask_file_dict, fig, ax):
     volume_indices = brain_mask.astype(bool)
 
     data_array = sitk.GetArrayFromImage(
-        sitk.ReadImage(timeseries_file)).astype(bool)
+        sitk.ReadImage(timeseries_file))
     timeseries = np.zeros([data_array.shape[0], volume_indices.sum()])
     for i in range(data_array.shape[0]):
         timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
