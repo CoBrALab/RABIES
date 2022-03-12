@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import nibabel as nb
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
 
@@ -180,8 +179,7 @@ class DatasetDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         from rabies.utils import flatten_list
-        from rabies.visualization import otsu_scaling
-        from .analysis_QC import spatial_crosscorrelations, analysis_QC
+        from .analysis_QC import analysis_QC
 
         merged = flatten_list(list(self.inputs.scan_data_list))
         if len(merged) < 3:
@@ -193,13 +191,8 @@ class DatasetDiagnosis(BaseInterface):
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
-        brain_mask = np.asarray(nb.load(mask_file).dataobj)
+        brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)
-
-        scaled = otsu_scaling(template_file)
-
-        fig_path = f'{out_dir}/spatial_crosscorrelations.png'
-        spatial_crosscorrelations(merged, scaled, mask_file, fig_path)
 
         std_maps=[]
         CR_std_maps=[]
@@ -247,9 +240,7 @@ class DatasetDiagnosis(BaseInterface):
             for prior_map in self.inputs.seed_prior_maps:
                 # resample to match the subject
                 sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
-                sitk.WriteImage(sitk_img,f'{tmppath}/temp_img.nii.gz')
-                prior_maps.append(np.asarray(
-                    nb.load(f'{tmppath}/temp_img.nii.gz').dataobj)[volume_indices])
+                prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
 
             prior_maps = np.array(prior_maps)
             num_priors = prior_maps.shape[0]

@@ -103,15 +103,16 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             scan_data['tDOF'] = file_dict['CR_data_dict']['tDOF']
 
             import numpy as np
-            import nibabel as nb
+            import SimpleITK as sitk
             mask_file = mask_file_dict['brain_mask']
-            brain_mask = np.asarray(nb.load(mask_file).dataobj)
-            volume_indices = brain_mask.astype(bool)
+            mask_img = sitk.ReadImage(mask_file)
+            brain_mask = sitk.GetArrayFromImage(mask_img)
+            volume_indices = brain_mask.astype(bool)            
 
             seed_list=[]
             for seed_map in analysis_dict['seed_map_files']:
                 seed_list.append(np.asarray(
-                    nb.load(seed_map).dataobj)[volume_indices])
+                    sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
             scan_data['seed_list'] = seed_list
             return scan_data
 

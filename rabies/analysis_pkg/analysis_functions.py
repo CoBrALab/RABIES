@@ -1,31 +1,34 @@
 import numpy as np
-import nibabel as nb
+import SimpleITK as sitk
 from .analysis_math import vcorrcoef,closed_form
 
 
 def recover_3D(mask_file, vector_map):
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
-    volume_indices = brain_mask.astype(bool)
-    volume = np.zeros(brain_mask.shape)
-    volume[volume_indices] = vector_map
-    volume_img = nb.Nifti1Image(volume, nb.load(
-        mask_file).affine, nb.load(mask_file).header)
+    from rabies.utils import copyInfo_3DImage
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    volume=np.zeros(brain_mask.shape)
+    volume[volume_indices]=vector_map
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        volume, isVector=False), mask_img)
     return volume_img
 
 
-def recover_3D_multiple(mask_file, vector_maps):
-    # vector maps of shape num_volumeXnum_voxel
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
-    volume_indices = brain_mask.astype(bool)
-    shape = (brain_mask.shape[0], brain_mask.shape[1],
-             brain_mask.shape[2], vector_maps.shape[0])
-    volumes = np.zeros(shape)
+def recover_4D(mask_file, vector_maps, ref_4d):
+    from rabies.utils import copyInfo_4DImage
+    #vector maps of shape num_volumeXnum_voxel
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
+    volumes=np.zeros(shape)
     for i in range(vector_maps.shape[0]):
-        volume = volumes[:, :, :, i]
-        volume[volume_indices] = vector_maps[i, :]
-        volumes[:, :, :, i] = volume
-    volume_img = nb.Nifti1Image(volumes, nb.load(
-        mask_file).affine, nb.load(mask_file).header)
+        volume=volumes[i,:,:,:]
+        volume[volume_indices]=vector_maps[i,:]
+        volumes[i,:,:,:]=volume
+    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
+        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
     return volume_img
 
 
@@ -80,26 +83,18 @@ seed-based FC
 
 def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
     import os
-    import nibabel as nb
-    import numpy as np
+    import SimpleITK as sitk
     import pathlib
     from rabies.analysis_pkg.analysis_functions import seed_corr
 
     seed_file = seed_dict[seed_name]
-
-    mask_array = np.asarray(nb.load(brain_mask).dataobj)
-    mask_vector = mask_array.reshape(-1)
-    mask_indices = (mask_vector==True)
-    mask_vector = mask_vector.astype(float)
-
-    mask_vector[mask_indices] = seed_corr(bold_file, brain_mask, seed_file)
-    corr_map = mask_vector.reshape(mask_array.shape)
+    corr_map_img = seed_corr(bold_file, brain_mask, seed_file)
 
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
     corr_map_file = os.path.abspath(
         filename_split+'_'+seed_name+'_corr_map.nii.gz')
-    nb.Nifti1Image(corr_map, nb.load(brain_mask).affine, nb.load(
-        brain_mask).header).to_filename(corr_map_file)
+    
+    sitk.WriteImage(corr_map_img, corr_map_file)
     return corr_map_file
 
 
@@ -107,28 +102,32 @@ def seed_corr(bold_file, mask_file, seed):
     import os
     from rabies.utils import run_command
     
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices = brain_mask.astype(bool)
 
-    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
-    sub_timeseries = np.zeros(
-        [timeseries_array.shape[3], volume_indices.sum()])
-    for t in range(timeseries_array.shape[3]):
-        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
-    
+    data_img = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
         
+
     resampled = os.path.abspath('resampled.nii.gz')
     command=f'antsApplyTransforms -i {seed} -r {mask_file} -o {resampled} -n GenericLabel'
     rc = run_command(command)
 
-    roi_mask = np.asarray(nb.load(resampled).dataobj)[volume_indices].astype(bool)
+    roi_mask = sitk.GetArrayFromImage(sitk.ReadImage(resampled))[volume_indices].astype(bool)
 
     # extract the voxel timeseries within the mask, and take the mean ROI timeseries
-    seed_timeseries = sub_timeseries[:,roi_mask].mean(axis=1)
+    seed_timeseries = timeseries[:,roi_mask].mean(axis=1)
 
-    corrs = vcorrcoef(sub_timeseries.T, seed_timeseries)
+    corrs = vcorrcoef(timeseries.T, seed_timeseries)
     corrs[np.isnan(corrs)] = 0
-    return corrs
+
+    corr_map_img = recover_3D(mask_file, corrs)
+    return corr_map_img
 
 
 '''
@@ -139,28 +138,29 @@ FC matrix
 def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
     import os
     import pandas as pd
+    import SimpleITK as sitk
     import numpy as np
-    import nibabel as nb
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
 
     from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
     
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices = brain_mask.astype(bool)
 
-    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
-    sub_timeseries = np.zeros(
-        [timeseries_array.shape[3], volume_indices.sum()])
-    for t in range(timeseries_array.shape[3]):
-        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
-    
+    data_img = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
     
     if roi_type == 'parcellated':
-        corr_matrix = parcellated_FC_matrix(sub_timeseries, volume_indices, atlas)
+        corr_matrix = parcellated_FC_matrix(timeseries, volume_indices, atlas)
     elif roi_type == 'voxelwise':
-        corr_matrix = np.corrcoef(sub_timeseries.T)
+        corr_matrix = np.corrcoef(timeseries.T)
     else:
         raise ValueError(
             f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
@@ -174,7 +174,7 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
 
 def parcellated_FC_matrix(sub_timeseries, volume_indices, atlas):
 
-    atlas_data = np.asarray(nb.load(atlas).dataobj)[volume_indices]
+    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(atlas))[volume_indices]
     max_int = atlas_data.max()
     
     timeseries_dict = {}
@@ -229,51 +229,13 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
     return out_dir, IC_file
 
 
-def resample_4D(input_4d, ref_file):
-    import os
-    import pathlib  # Better path manipulation
-    import SimpleITK as sitk
-    from rabies.utils import run_command, split_volumes, Merge, copyInfo_3DImage
-    rabies_data_type=sitk.sitkFloat32
-
-
-    # check if the IC_file has the same dimensions as bold_file
-    img_array = sitk.GetArrayFromImage(
-        sitk.ReadImage(ref_file))[0, :, :, :]
-    image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-        img_array, isVector=False), sitk.ReadImage(ref_file))
-    new_ref = 'temp_ref.nii.gz'
-    sitk.WriteImage(image_3d, 'temp_ref.nii.gz')
-
-    filename_split = pathlib.Path(
-        input_4d).name.rsplit(".nii")
-
-    # Splitting into list of single volumes
-    [split_volumes_files, num_volumes] = split_volumes(
-        input_4d, "split_", rabies_data_type)
-
-    resampled_volumes = []
-    for x in range(0, num_volumes):
-        resampled_vol_fname = os.path.abspath(
-            "resampled_volume" + str(x) + ".nii.gz")
-        resampled_volumes.append(resampled_vol_fname)
-
-        command = f'antsApplyTransforms -i {split_volumes_files[x]} -n BSpline[5] -r {new_ref} -o {resampled_vol_fname}'
-        rc = run_command(command)
-        # change image to specified data type
-        sitk.WriteImage(sitk.ReadImage(resampled_vol_fname, rabies_data_type), resampled_vol_fname)
-
-    out=Merge(in_files=resampled_volumes, header_source=input_4d, rabies_data_type=rabies_data_type, clip_negative=False).run()
-    return out.outputs.out_file
-
 def run_DR_ICA(bold_file, mask_file, IC_file):
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
     import numpy as np
-    import nibabel as nb
     import SimpleITK as sitk
-    from rabies.analysis_pkg.analysis_functions import recover_3D_multiple, resample_4D, dual_regression
+    from rabies.analysis_pkg.analysis_functions import recover_4D, resample_IC_file, dual_regression
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     # check if the IC_file has the same dimensions as bold_file
@@ -281,30 +243,34 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
         log.info('Resampling file with IC components to match the scan dimensionality.')
-        IC_file = resample_4D(IC_file, bold_file)
+        IC_file = resample_IC_file(IC_file, mask_file, transforms = [], inverses = [])
 
-    brain_mask = np.asarray(nb.load(mask_file).dataobj)
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices = brain_mask.astype(bool)
 
-    timeseries_array = np.asarray(nb.load(bold_file).dataobj)
-    sub_timeseries = np.zeros(
-        [timeseries_array.shape[3], volume_indices.sum()])
-    for t in range(timeseries_array.shape[3]):
-        sub_timeseries[t, :] = timeseries_array[:, :, :, t][volume_indices]
+    data_img = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
 
-    all_IC_array = np.asarray(nb.load(IC_file).dataobj)
-    all_IC_vectors = np.zeros([all_IC_array.shape[3], volume_indices.sum()])
-    for i in range(all_IC_array.shape[3]):
-        all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
+    data_img = sitk.ReadImage(IC_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_ICs = data_array.shape[0]
+    all_IC_vectors = np.zeros([num_ICs, volume_indices.sum()])
+    for i in range(num_ICs):
+        all_IC_vectors[i, :] = (data_array[i, :, :, :])[volume_indices]
 
-    DR = dual_regression(all_IC_vectors, sub_timeseries)
+    DR = dual_regression(all_IC_vectors, timeseries)
 
     dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
     pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
 
     # save the subjects' IC maps as .nii file
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    recover_3D_multiple(mask_file,DR['C']).to_filename(DR_maps_filename)
+    sitk.WriteImage(recover_4D(mask_file, DR['C'], bold_file), DR_maps_filename)
     return DR_maps_filename, dual_regression_timecourse_csv
 
 
@@ -359,7 +325,6 @@ class dual_ICA_wrapper(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import numpy as np
-        import nibabel as nb
         import pandas as pd
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(
@@ -368,18 +333,23 @@ class dual_ICA_wrapper(BaseInterface):
         resampled_priors = resample_IC_file(self.inputs.prior_maps, self.inputs.mask_file)
 
 
-        brain_mask=np.asarray(nb.load(self.inputs.mask_file).dataobj)
-        volume_indices=brain_mask.astype(bool)
+        mask_img = sitk.ReadImage(self.inputs.mask_file)
+        brain_mask = sitk.GetArrayFromImage(mask_img)
+        volume_indices = brain_mask.astype(bool)
 
-        data_array=np.asarray(nb.load(self.inputs.bold_file).dataobj)
-        timeseries=np.zeros([data_array.shape[3],volume_indices.sum()])
-        for i in range(data_array.shape[3]):
-            timeseries[i,:]=(data_array[:,:,:,i])[volume_indices]
+        data_img = sitk.ReadImage(self.inputs.bold_file)
+        data_array = sitk.GetArrayFromImage(data_img)
+        num_volumes = data_array.shape[0]
+        timeseries = np.zeros([num_volumes, volume_indices.sum()])
+        for i in range(num_volumes):
+            timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
 
-        all_IC_array=np.asarray(nb.load(resampled_priors).dataobj)
-        all_IC_vectors=np.zeros([all_IC_array.shape[3],volume_indices.sum()])
-        for i in range(all_IC_array.shape[3]):
-            all_IC_vectors[i,:]=(all_IC_array[:,:,:,i])[volume_indices]
+        data_img = sitk.ReadImage(resampled_priors)
+        data_array = sitk.GetArrayFromImage(data_img)
+        num_ICs = data_array.shape[0]
+        all_IC_vectors = np.zeros([num_ICs, volume_indices.sum()])
+        for i in range(num_ICs):
+            all_IC_vectors[i, :] = (data_array[i, :, :, :])[volume_indices]
 
         from rabies.analysis_pkg.prior_modeling import dual_ICA_fit
         prior_fit_out = dual_ICA_fit(timeseries, self.inputs.num_comp, all_IC_vectors, self.inputs.prior_bold_idx)
@@ -388,7 +358,7 @@ class dual_ICA_wrapper(BaseInterface):
         pd.DataFrame(prior_fit_out['W']).to_csv(dual_ICA_timecourse_csv, header=False, index=False)
 
         dual_ICA_filename = os.path.abspath(filename_split[0]+'_dual_ICA.nii.gz')
-        recover_3D_multiple(self.inputs.mask_file,np.array(prior_fit_out['C'])).to_filename(dual_ICA_filename)
+        sitk.WriteImage(recover_4D(self.inputs.mask_file,np.array(prior_fit_out['C']), self.inputs.bold_file), dual_ICA_filename)
 
         setattr(self, 'dual_ICA_timecourse_csv', dual_ICA_timecourse_csv)
         setattr(self, 'dual_ICA_filename', dual_ICA_filename)

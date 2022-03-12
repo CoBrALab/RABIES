@@ -36,7 +36,7 @@ def resample_image_spacing(image, output_spacing):
 def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
     # function to establish metadata of an input 4d image. The ref_3d will provide
     # the information for the first 3 dimensions, and the ref_4d for the 4th.
-    if ref_3d.GetMetaData('dim[0]') == '4':
+    if ref_3d.GetDimension() == 4:
         image_4d.SetSpacing(
             tuple(list(ref_3d.GetSpacing()[:3])+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(
@@ -45,7 +45,7 @@ def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
         dim_4d = list(ref_4d.GetDirection())
         image_4d.SetDirection(
             tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[4:7]+[dim_4d[7]]+dim_3d[8:11]+dim_4d[11:]))
-    elif ref_3d.GetMetaData('dim[0]') == '3':
+    elif ref_3d.GetDimension() == 3:
         image_4d.SetSpacing(
             tuple(list(ref_3d.GetSpacing())+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(
@@ -60,12 +60,12 @@ def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
 
 
 def copyInfo_3DImage(image_3d, ref_3d):
-    if ref_3d.GetMetaData('dim[0]') == '4':
+    if ref_3d.GetDimension() == 4:
         image_3d.SetSpacing(ref_3d.GetSpacing()[:3])
         image_3d.SetOrigin(ref_3d.GetOrigin()[:3])
         dim_3d = list(ref_3d.GetDirection())
         image_3d.SetDirection(tuple(dim_3d[:3]+dim_3d[4:7]+dim_3d[8:11]))
-    elif ref_3d.GetMetaData('dim[0]') == '3':
+    elif ref_3d.GetDimension() == 3:
         image_3d.SetSpacing(ref_3d.GetSpacing())
         image_3d.SetOrigin(ref_3d.GetOrigin())
         image_3d.SetDirection(ref_3d.GetDirection())
