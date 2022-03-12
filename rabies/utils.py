@@ -13,7 +13,6 @@ from nipype.interfaces.base import (
 
 
 def recover_3D(mask_file, vector_map):
-    from rabies.utils import copyInfo_3DImage
     mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
@@ -25,7 +24,6 @@ def recover_3D(mask_file, vector_map):
 
 
 def recover_4D(mask_file, vector_maps, ref_4d):
-    from rabies.utils import copyInfo_4DImage
     #vector maps of shape num_volumeXnum_voxel
     mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)

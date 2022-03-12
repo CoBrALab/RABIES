@@ -5,15 +5,8 @@ import nilearn
 from rabies.visualization import otsu_scaling, plot_3d
 from rabies.analysis_pkg.analysis_math import elementwise_spearman, dice_coefficient
 from rabies.utils import recover_3D
-
+from rabies.confound_correction_pkg.utils import smooth_image
 import tempfile
-
-
-def nilearn_smoothing(sitk_img, smoothing_filter):
-    tmppath = tempfile.mkdtemp()
-    sitk.WriteImage(sitk_img, f'{tmppath}/temp_smoothing.nii.gz')
-    nilearn.image.smooth_img(f'{tmppath}/temp_smoothing.nii.gz', smoothing_filter).to_filename(f'{tmppath}/temp_smoothed.nii.gz')
-    return sitk.ReadImage(f'{tmppath}/temp_smoothed.nii.gz')
 
 
 def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path):
@@ -58,15 +51,17 @@ def get_maps(prior, prior_list, std_list, CR_std_maps, VE_list, tdof_list, mask_
         corr_map_tdof = elementwise_spearman(tdof,Y)
     
     if smoothing:
-        prior = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,prior), 0.3))[volume_indices]
-        average = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,average), 0.3))[volume_indices]
-        corr_map_std = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,corr_map_std), 0.3))[volume_indices]
-        corr_map_CR_std = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,corr_map_CR_std), 0.3))[volume_indices]
-        corr_map_VE = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,corr_map_VE), 0.3))[volume_indices]
+        import nibabel as nb
+        affine = nb.load(mask_file).affine[:3,:3]
+        prior = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,prior), affine, 0.3))[volume_indices]
+        average = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,average), affine, 0.3))[volume_indices]
+        corr_map_std = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_std), affine, 0.3))[volume_indices]
+        corr_map_CR_std = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_CR_std), affine, 0.3))[volume_indices]
+        corr_map_VE = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_VE), affine, 0.3))[volume_indices]
         if np.array(tdof_list).std()==0:
             corr_map_tdof=None
         else:
-            corr_map_tdof = sitk.GetArrayFromImage(nilearn_smoothing(recover_3D(mask_file,corr_map_tdof), 0.3))[volume_indices]
+            corr_map_tdof = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_tdof), affine, 0.3))[volume_indices]
     
     return prior, average, network_var, corr_map_std, corr_map_CR_std, corr_map_VE, corr_map_tdof    
 

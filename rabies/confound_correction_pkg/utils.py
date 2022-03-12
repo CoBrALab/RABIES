@@ -300,10 +300,10 @@ def butterworth(signals, TR, high_pass, low_pass):
     return signal.sosfiltfilt(sos, signals, axis=0)
 
 
-def smooth_timeseries(timeseries_img, affine, fwhm):
+def smooth_image(img, affine, fwhm):
     # apply nilearn's Gaussian smoothing on a SITK image
     from nilearn.image.image import _smooth_array
-    from rabies.utils import copyInfo_4DImage
+    from rabies.utils import copyInfo_4DImage, copyInfo_3DImage
 
     # the affine is a 3 by 3 matrix of the spacing*direction for the 3 spatial dimensions
     #spacing_3d = np.array(timeseries_img.GetSpacing())[:3]
@@ -311,12 +311,21 @@ def smooth_timeseries(timeseries_img, affine, fwhm):
     #direction_3d = np.array([list(direction_4d[:3]),list(direction_4d[4:7]),list(direction_4d[8:11])])
     #affine = direction_3d*spacing_3d
 
-    array_4d = sitk.GetArrayFromImage(timeseries_img)
-    arr = array_4d.transpose(3,2,1,0) # re-orient the array to match the affine
+    dim = img.GetDimension()
+    if dim==4:
+        array_4d = sitk.GetArrayFromImage(img)
+        arr = array_4d.transpose(3,2,1,0) # re-orient the array to match the affine
+    elif dim==3:
+        array_3d = sitk.GetArrayFromImage(img)
+        arr = array_3d.transpose(2,1,0) # re-orient the array to match the affine
     smoothed_arr = _smooth_array(arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
-    smoothed_arr = smoothed_arr.transpose(3,2,1,0)
-
-    smoothed_img = copyInfo_4DImage(sitk.GetImageFromArray(
-        smoothed_arr, isVector=False), timeseries_img, timeseries_img)
+    if dim==4:
+        smoothed_arr = smoothed_arr.transpose(3,2,1,0)
+        smoothed_img = copyInfo_4DImage(sitk.GetImageFromArray(
+            smoothed_arr, isVector=False), img, img)
+    elif dim==3:
+        smoothed_arr = smoothed_arr.transpose(2,1,0)
+        smoothed_img = copyInfo_3DImage(sitk.GetImageFromArray(
+            smoothed_arr, isVector=False), img)
 
     return smoothed_img

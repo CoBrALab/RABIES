@@ -167,7 +167,7 @@ class Regress(BaseInterface):
         import SimpleITK as sitk
         from scipy.signal import detrend
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_timeseries
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_image
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -364,7 +364,7 @@ class Regress(BaseInterface):
             '''
             import nibabel as nb
             affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
-            timeseries_img = smooth_timeseries(timeseries_img, affine, cr_opts.smoothing_filter)
+            timeseries_img = smooth_image(timeseries_img, affine, cr_opts.smoothing_filter)
 
         cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
         sitk.WriteImage(timeseries_img, cleaned_path)
