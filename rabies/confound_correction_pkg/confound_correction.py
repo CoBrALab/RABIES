@@ -165,11 +165,8 @@ class Regress(BaseInterface):
         import numpy as np
         import pandas as pd
         import SimpleITK as sitk
-        import nilearn.image
-        import nibabel as nb
-        from nilearn.signal import butterworth
         from scipy.signal import detrend
-        from rabies.confound_correction_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth
+        from rabies.confound_correction_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_timeseries
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -241,9 +238,9 @@ class Regress(BaseInterface):
         '''
         if cr_opts.run_aroma:
             # write intermediary output files for timeseries and 6 rigid body parameters
-            timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
+            timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
             inFile = f'{cr_out}/{filename_split[0]}_aroma_input.nii.gz'
-            sitk.WriteImage(timeseries_3d, inFile)
+            sitk.WriteImage(timeseries_img, inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
             confounds_6rigid_array = detrend(confounds_6rigid_array,axis=0) # apply detrending to the confounds too
@@ -358,9 +355,18 @@ class Regress(BaseInterface):
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
         STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
         CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
-        timeseries_3d = recover_4D(brain_mask_file, timeseries, bold_file)
+        timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
+
+        if cr_opts.smoothing_filter is not None:
+            '''
+            #9 - Apply Gaussian spatial smoothing.
+            '''
+            import nibabel as nb
+            affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
+            timeseries_img = smooth_timeseries(timeseries_img, affine, cr_opts.smoothing_filter)
+
         cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
-        sitk.WriteImage(timeseries_3d, cleaned_path)
+        sitk.WriteImage(timeseries_img, cleaned_path)
         VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
         sitk.WriteImage(VE_spatial_map, VE_file_path)
         STD_file_path = cr_out+'/'+filename_split[0]+'_STD_map.nii.gz'
@@ -369,13 +375,6 @@ class Regress(BaseInterface):
         sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
         frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
         pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
-
-        if cr_opts.smoothing_filter is not None:
-            '''
-            #9 - Apply Gaussian spatial smoothing.
-            '''
-            timeseries_3d = nilearn.image.smooth_img(nb.load(cleaned_path), cr_opts.smoothing_filter)
-            timeseries_3d.to_filename(cleaned_path)
 
         # apply the frame mask to FD trace/DVARS
         DVARS = DVARS[frame_mask]
