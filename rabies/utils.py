@@ -11,6 +11,36 @@ from nipype.interfaces.base import (
 #IMAGE MANIPULATION
 ######################
 
+
+def recover_3D(mask_file, vector_map):
+    from rabies.utils import copyInfo_3DImage
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    volume=np.zeros(brain_mask.shape)
+    volume[volume_indices]=vector_map
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        volume, isVector=False), mask_img)
+    return volume_img
+
+
+def recover_4D(mask_file, vector_maps, ref_4d):
+    from rabies.utils import copyInfo_4DImage
+    #vector maps of shape num_volumeXnum_voxel
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
+    volumes=np.zeros(shape)
+    for i in range(vector_maps.shape[0]):
+        volume=volumes[i,:,:,:]
+        volume[volume_indices]=vector_maps[i,:]
+        volumes[i,:,:,:]=volume
+    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
+        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
+    return volume_img
+
+
 def resample_image_spacing(image, output_spacing):
     dimension = 3
     identity = sitk.Transform(dimension, sitk.sitkIdentity)

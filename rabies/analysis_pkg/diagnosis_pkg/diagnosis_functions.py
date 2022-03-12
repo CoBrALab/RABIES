@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from rabies.utils import copyInfo_3DImage
+from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
@@ -194,46 +194,46 @@ def spatial_external_formating(spatial_info, file_dict):
     import os
     import pathlib  # Better path manipulation
     import SimpleITK as sitk
-    from rabies.analysis_pkg import analysis_functions
+    from rabies.utils import recover_3D,recover_4D
     mask_file = file_dict['mask_file']
     bold_file = file_dict['bold_file']
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
 
     VE_filename = os.path.abspath(filename_split[0]+'_VE.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['VE_spatial']), VE_filename)
 
     std_filename = os.path.abspath(filename_split[0]+'_tSTD.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['temporal_std']), std_filename)
 
     predicted_std_filename = os.path.abspath(filename_split[0]+'_predicted_std.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
 
     DVARS_corr_filename = os.path.abspath(
         filename_split[0]+'_DVARS_corr.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['DVARS_corr']), DVARS_corr_filename)
 
     FD_corr_filename = os.path.abspath(filename_split[0]+'_FD_corr.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_3D(
+    sitk.WriteImage(recover_3D(
         mask_file, spatial_info['FD_corr']), FD_corr_filename)
 
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    sitk.WriteImage(analysis_functions.recover_4D(
+    sitk.WriteImage(recover_4D(
         mask_file, spatial_info['DR_all'], bold_file), DR_maps_filename)
 
     if len(spatial_info['dual_ICA_maps']) > 0:
         import numpy as np
         dual_ICA_filename = os.path.abspath(
             filename_split[0]+'_dual_ICA.nii.gz')
-        sitk.WriteImage(analysis_functions.recover_4D(mask_file, np.array(
+        sitk.WriteImage(recover_4D(mask_file, np.array(
             spatial_info['dual_ICA_maps']), bold_file), dual_ICA_filename)
     else:
         dual_ICA_filename = None
@@ -437,7 +437,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     temporal_std = spatial_info['temporal_std']
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, temporal_std)
 
     # select vmax at 95th percentile value
@@ -458,7 +458,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     predicted_std = spatial_info['predicted_std']
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, predicted_std)
 
     # select vmax at 95th percentile value
@@ -477,7 +477,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     axes = axes2[2, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, spatial_info['VE_spatial'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1, cmap='inferno',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
@@ -490,7 +490,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     axes = axes2[3, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, spatial_info['GS_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
@@ -503,7 +503,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     axes = axes2[4, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, spatial_info['DVARS_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
@@ -516,7 +516,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     axes = axes2[5, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = analysis_functions.recover_3D(
+    sitk_img = recover_3D(
         mask_file, spatial_info['FD_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
@@ -529,7 +529,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for i in range(dr_maps.shape[0]):
         axes = axes2[i+6, :]
 
-        sitk_img = analysis_functions.recover_3D(
+        sitk_img = recover_3D(
             mask_file, dr_maps[i, :])
         cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
 

@@ -3,35 +3,6 @@ import SimpleITK as sitk
 from .analysis_math import vcorrcoef,closed_form
 
 
-def recover_3D(mask_file, vector_map):
-    from rabies.utils import copyInfo_3DImage
-    mask_img = sitk.ReadImage(mask_file)
-    brain_mask = sitk.GetArrayFromImage(mask_img)
-    volume_indices=brain_mask.astype(bool)
-    volume=np.zeros(brain_mask.shape)
-    volume[volume_indices]=vector_map
-    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
-        volume, isVector=False), mask_img)
-    return volume_img
-
-
-def recover_4D(mask_file, vector_maps, ref_4d):
-    from rabies.utils import copyInfo_4DImage
-    #vector maps of shape num_volumeXnum_voxel
-    mask_img = sitk.ReadImage(mask_file)
-    brain_mask = sitk.GetArrayFromImage(mask_img)
-    volume_indices=brain_mask.astype(bool)
-    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
-    volumes=np.zeros(shape)
-    for i in range(vector_maps.shape[0]):
-        volume=volumes[i,:,:,:]
-        volume[volume_indices]=vector_maps[i,:]
-        volumes[i,:,:,:]=volume
-    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
-        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
-    return volume_img
-
-
 def resample_IC_file(in_file, ref_file, transforms = [], inverses = []):
     # resampling the reference image to the dimension of the EPI
     import SimpleITK as sitk
@@ -100,7 +71,7 @@ def seed_based_FC(bold_file, brain_mask, seed_dict, seed_name):
 
 def seed_corr(bold_file, mask_file, seed):
     import os
-    from rabies.utils import run_command
+    from rabies.utils import run_command, recover_3D
     
     mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)
@@ -235,7 +206,8 @@ def run_DR_ICA(bold_file, mask_file, IC_file):
     import pathlib  # Better path manipulation
     import numpy as np
     import SimpleITK as sitk
-    from rabies.analysis_pkg.analysis_functions import recover_4D, resample_IC_file, dual_regression
+    from rabies.utils import recover_4D
+    from rabies.analysis_pkg.analysis_functions import resample_IC_file, dual_regression
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     # check if the IC_file has the same dimensions as bold_file
@@ -327,6 +299,7 @@ class dual_ICA_wrapper(BaseInterface):
         import numpy as np
         import pandas as pd
         import pathlib  # Better path manipulation
+        from rabies.utils import recover_4D
         filename_split = pathlib.Path(
             self.inputs.bold_file).name.rsplit(".nii")
 

@@ -166,7 +166,8 @@ class Regress(BaseInterface):
         import pandas as pd
         import SimpleITK as sitk
         from scipy.signal import detrend
-        from rabies.confound_correction_pkg.utils import recover_3D,recover_4D,temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_timeseries
+        from rabies.utils import recover_3D,recover_4D
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_timeseries
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted

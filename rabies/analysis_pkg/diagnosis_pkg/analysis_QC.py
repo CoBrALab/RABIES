@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import nilearn
 from rabies.visualization import otsu_scaling, plot_3d
 from rabies.analysis_pkg.analysis_math import elementwise_spearman, dice_coefficient
-from rabies.analysis_pkg.analysis_functions import recover_3D
+from rabies.utils import recover_3D
 
 import tempfile
 
