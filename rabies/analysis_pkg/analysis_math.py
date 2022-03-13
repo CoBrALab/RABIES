@@ -49,6 +49,64 @@ def mse(X, Y, w):  # function that computes the Mean Square Error (MSE)
     return np.mean((Y-np.matmul(X, w))**2)
 
 
+'''
+Convergence through alternating minimization using OLS
+'''
+
+from sklearn.utils import check_random_state
+
+def dual_OLS_fit(X, q=1, c_init=None, C_prior=None, tol=1e-6, max_iter=200, verbose=1):
+    # X: time by voxel matrix
+    # q: number of new components to fit
+    # c_init: can specify an voxel by component number matrix for initiating weights
+    # C_prior: a voxel by component matrix of priors that are included in the fitting, but fixed as constant components
+    
+    if q<1:
+        return np.zeros([X.shape[1], 0])
+    
+    # q defines the number of new sources to fit
+    if c_init is None:
+        random_state = check_random_state(None)
+        c_init = random_state.normal(
+            size=(X.shape[1], q))
+        
+    if C_prior is None:
+        C_prior = np.zeros([X.shape[1], 0])
+    C_prior /= np.sqrt((C_prior ** 2).sum(axis=0))
+    num_prior = C_prior.shape[1]
+    
+    C = c_init
+    C /= np.sqrt((C ** 2).sum(axis=0))
+    
+    for i in range(max_iter):
+        C_prev = C
+        C_ = np.concatenate((C, C_prior), axis=1) # add in the prior to contribute to the fitting
+        
+        ##### temporal convergence step
+        W = closed_form(C_, X.T).T
+
+        C_ = closed_form(W, X).T
+            
+        if num_prior>0:
+            C = C_[:,:-num_prior] # take out the fitted components
+        else:
+            C = C_
+        C /= np.sqrt((C ** 2).sum(axis=0))
+
+        ##### evaluate convergence
+        lim = np.abs(np.abs((C * C_prev).sum(axis=0)) - 1).mean()
+        if verbose > 2:
+            print('lim:'+str(lim))
+        if lim < tol:
+            if verbose > 1:
+                print(str(i)+' iterations to converge.')
+            break
+        if i == max_iter-1:
+            if verbose > 0:
+                print(
+                    'Convergence failed. Consider increasing max_iter or decreasing tol.')
+    return C
+
 
 '''
 

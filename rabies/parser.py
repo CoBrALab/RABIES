@@ -761,10 +761,12 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--dual_ICA', type=int, default=0,
+        '--NPR_extra_sources', type=int, default=-1,
         help=
-            "Option for performing a Dual ICA. Specify how many subject-specific sources to compute \n"
-            "during dual ICA. Dual ICA will provide a fit for each --prior_bold_idx from --prior_maps.\n"
+            "Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra \n"
+            "subject-specific sources will be computed to account for non-prior confounds. After computing \n"
+            "these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
+            "Specify at least 0 extra sources to run NPR.\n"
             "(default: %(default)s)\n"
             "\n"
         )

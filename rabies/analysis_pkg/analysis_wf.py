@@ -16,8 +16,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'joined_corr_map_file', 
-                                                       'sub_token', 'group_token',
-                                                       'dual_ICA_timecourse_csv', 'dual_ICA_filename']), name='outputnode')
+                                                       'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
+                                                       'NPR_prior_filename', 'NPR_extra_filename']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -78,7 +78,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     if opts.DR_ICA or opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again with --commonspace_analysis.')
+                'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again without --nativespace_analysis.')
 
         DR_ICA = pe.Node(Function(input_names=['bold_file', 'mask_file', 'IC_file'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
@@ -104,7 +104,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     if include_group_ICA:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
+                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again without --nativespace_analysis.')
         group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
@@ -123,26 +123,28 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    if opts.dual_ICA>0:
+    if opts.NPR_extra_sources>-1:
         if not commonspace_cr:
             raise ValueError(
-                'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again with --nativespace_analysis.')
-        from .analysis_functions import dual_ICA_wrapper
+                'Outputs from confound regression must be in commonspace to run NPR. Try running confound regression again without --nativespace_analysis.')
+        from .analysis_functions import NeuralPriorRecovery
 
-        dual_ICA_node = pe.Node(dual_ICA_wrapper(),
-                            name='dual_ICA_node', mem_gb=1*opts.scale_min_memory)
-        dual_ICA_node.inputs.num_comp = opts.dual_ICA
-        dual_ICA_node.inputs.prior_bold_idx = opts.prior_bold_idx
-        dual_ICA_node.inputs.prior_maps = opts.prior_maps
+        NPR_node = pe.Node(NeuralPriorRecovery(
+                            num_comp_extra=opts.NPR_extra_sources, 
+                            prior_bold_idx = opts.prior_bold_idx, 
+                            prior_maps = opts.prior_maps),
+                            name='NPR_node', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
-            (subject_inputnode, dual_ICA_node, [
+            (subject_inputnode, NPR_node, [
                 ("bold_file", "bold_file"),
                 ("mask_file", "mask_file"),
                 ]),
-            (dual_ICA_node, outputnode, [
-                ("dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                ("dual_ICA_filename", "dual_ICA_filename"),
+            (NPR_node, outputnode, [
+                ("NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
+                ("NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
+                ("NPR_prior_filename", "NPR_prior_filename"),
+                ("NPR_extra_filename", "NPR_extra_filename"),
                 ]),
             ])
 

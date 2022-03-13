@@ -26,7 +26,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
 
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
-            dual_ICA = analysis_opts.dual_ICA, DSURQE_regions=DSURQE_regions),
+            NPR_extra_sources = analysis_opts.NPR_extra_sources, DSURQE_regions=DSURQE_regions),
         name='ScanDiagnosis')
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),
@@ -34,13 +34,13 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
                                             output_names=[
-                                                'temporal_info_csv', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv'],
+                                                'temporal_info_csv'],
                                         function=temporal_external_formating),
                                 name='temporal_external_formating')
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                             output_names=[
-                                                'VE_filename', 'std_filename', 'predicted_std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename', 'DR_maps_filename', 'dual_ICA_filename'],
+                                                'VE_filename', 'std_filename', 'predicted_std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename'],
                                         function=spatial_external_formating),
                                 name='spatial_external_formating')
 
@@ -77,7 +77,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             ]),
         (temporal_external_formating_node, outputnode, [
             ("temporal_info_csv", "temporal_info_csv"),
-            ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
             ]),
         (spatial_external_formating_node, outputnode, [
             ("VE_filename", "spatial_VE_nii"),
@@ -86,7 +85,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             ("GS_corr_filename", "GS_corr_nii"),
             ("DVARS_corr_filename", "DVARS_corr_nii"),
             ("FD_corr_filename", "FD_corr_nii"),
-            ("DR_maps_filename", "dual_regression_nii"),
             ]),
         ])
 
@@ -96,7 +94,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             scan_data={}
 
             dict_keys = ['temporal_std', 'predicted_std', 'VE_spatial', 'GS_corr',
-                            'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps', 'prior_maps' ]
+                            'DVARS_corr', 'FD_corr', 'DR_BOLD', 'NPR_maps', 'prior_maps' ]
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 

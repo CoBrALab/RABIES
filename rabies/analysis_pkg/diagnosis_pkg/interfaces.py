@@ -84,8 +84,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
         desc="The index for the ICA components that correspond to confounding sources.")
-    dual_ICA = traits.Int(
-        desc="number of components to compute from dual ICA.")
+    NPR_extra_sources = traits.Int(
+        desc="number of extra components from NPR.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
@@ -126,7 +126,7 @@ class ScanDiagnosis(BaseInterface):
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=self.inputs.dual_ICA)
+            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=self.inputs.NPR_extra_sources)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)
@@ -199,14 +199,14 @@ class DatasetDiagnosis(BaseInterface):
         VE_maps=[]
         DR_maps_list=[]
         seed_maps_list=[]
-        dual_ICA_maps_list=[]
+        NPR_maps_list=[]
         tdof_list=[]
         for scan_data in merged:
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
             VE_maps.append(scan_data['VE_spatial'])
             DR_maps_list.append(scan_data['DR_BOLD'])
-            dual_ICA_maps_list.append(scan_data['dual_ICA_maps'])
+            NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
             seed_maps_list.append(scan_data['seed_list'])
 
@@ -214,7 +214,7 @@ class DatasetDiagnosis(BaseInterface):
         CR_std_maps=np.array(CR_std_maps)
         VE_maps=np.array(VE_maps)
         DR_maps_list=np.array(DR_maps_list)
-        dual_ICA_maps_list=np.array(dual_ICA_maps_list)
+        NPR_maps_list=np.array(NPR_maps_list)
 
         prior_maps = scan_data['prior_maps']
         num_priors = prior_maps.shape[0]
@@ -224,12 +224,12 @@ class DatasetDiagnosis(BaseInterface):
             dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path)
             pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
-        if dual_ICA_maps_list.shape[1]>0:
+        if NPR_maps_list.shape[1]>0:
             for i in range(num_priors):
-                FC_maps = dual_ICA_maps_list[:,i,:]
-                fig_path = f'{out_dir}/dual_ICA{i}_QC_maps.png'
+                FC_maps = NPR_maps_list[:,i,:]
+                fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
                 dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path)
-                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/dual_ICA{i}_QC_stats.csv', index=None)
+                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
 
 
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds

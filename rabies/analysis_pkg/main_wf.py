@@ -145,16 +145,20 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.corr_map_file", "seed_correlation_maps"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-            ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+            ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
+            ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
+            ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
+            ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
             ]),
         ])
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
-            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
+            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
+                    'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
+                    'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -189,16 +193,20 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),
             ])
-        if analysis_opts.dual_ICA>0:
+        if analysis_opts.NPR_extra_sources>-1:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
-                    ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                    ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+                    ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
+                    ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
+                    ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
+                    ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
                     ]),
                 ])
         else:
-            prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
-            prep_analysis_dict_node.inputs.dual_ICA_filename = None
+            prep_analysis_dict_node.inputs.NPR_prior_timecourse_csv = None
+            prep_analysis_dict_node.inputs.NPR_extra_timecourse_csv = None
+            prep_analysis_dict_node.inputs.NPR_prior_filename = None
+            prep_analysis_dict_node.inputs.NPR_extra_filename = None
 
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([

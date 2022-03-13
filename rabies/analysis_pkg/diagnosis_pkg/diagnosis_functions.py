@@ -62,7 +62,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
+def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=-1):
     temporal_info = {}
     spatial_info = {}
 
@@ -128,10 +128,10 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     prior_fit_out = {'C': [], 'W': []}
-    if dual_ICA > 0:
-        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['dual_ICA_timecourse_csv'], header=None))
+    if NPR_extra_sources > -1:
+        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_dict['dual_ICA_filename']))
+            sitk.ReadImage(analysis_dict['NPR_prior_filename']))
         C = np.zeros([C_array.shape[0], volume_indices.sum()])
         for i in range(C_array.shape[0]):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
@@ -147,8 +147,8 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
-    spatial_info['dual_ICA_maps'] = prior_fit_out['C']
-    temporal_info['dual_ICA_time'] = prior_fit_out['W']
+    spatial_info['NPR_maps'] = prior_fit_out['C']
+    temporal_info['NPR_time'] = prior_fit_out['W']
 
     spatial_info['VE_spatial'] = sitk.GetArrayFromImage(
         sitk.ReadImage(VE_file))[volume_indices]
@@ -171,23 +171,11 @@ def temporal_external_formating(temporal_info, file_dict):
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
 
-    dual_regression_timecourse_csv = os.path.abspath(
-        filename_split[0]+'_dual_regression_timecourse.csv')
-    pd.DataFrame(temporal_info['DR_all']).to_csv(
-        dual_regression_timecourse_csv, header=False, index=False)
-    if len(temporal_info['dual_ICA_time']) > 0:
-        dual_ICA_timecourse_csv = os.path.abspath(
-            filename_split[0]+'_dual_ICA_timecourse.csv')
-        pd.DataFrame(temporal_info['dual_ICA_time']).to_csv(
-            dual_ICA_timecourse_csv, header=False, index=False)
-    else:
-        dual_ICA_timecourse_csv = None
-
-    del temporal_info['DR_all'], temporal_info['dual_ICA_time']
+    del temporal_info['DR_all'], temporal_info['NPR_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
-    return temporal_info_csv, dual_regression_timecourse_csv, dual_ICA_timecourse_csv
+    return temporal_info_csv
 
 
 def spatial_external_formating(spatial_info, file_dict):
@@ -225,20 +213,7 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['FD_corr']), FD_corr_filename)
 
-    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    sitk.WriteImage(recover_4D(
-        mask_file, spatial_info['DR_all'], bold_file), DR_maps_filename)
-
-    if len(spatial_info['dual_ICA_maps']) > 0:
-        import numpy as np
-        dual_ICA_filename = os.path.abspath(
-            filename_split[0]+'_dual_ICA.nii.gz')
-        sitk.WriteImage(recover_4D(mask_file, np.array(
-            spatial_info['dual_ICA_maps']), bold_file), dual_ICA_filename)
-    else:
-        dual_ICA_filename = None
-
-    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
+    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename
 
 
 '''
