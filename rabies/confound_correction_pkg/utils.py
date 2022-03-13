@@ -165,33 +165,6 @@ def temporal_censoring(timeseries, FD_trace,
     return frame_mask,FD_trace,DVARS
 
 
-def recover_3D(mask_file, vector_map):
-    from rabies.utils import copyInfo_3DImage
-    mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
-    brain_mask = sitk.GetArrayFromImage(mask_img)
-    volume_indices=brain_mask.astype(bool)
-    volume=np.zeros(brain_mask.shape)
-    volume[volume_indices]=vector_map
-    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
-        volume, isVector=False), mask_img)
-    return volume_img
-
-def recover_4D(mask_file, vector_maps, ref_4d):
-    from rabies.utils import copyInfo_4DImage
-    #vector maps of shape num_volumeXnum_voxel
-    mask_img = sitk.ReadImage(mask_file, sitk.sitkFloat32)
-    brain_mask = sitk.GetArrayFromImage(mask_img)
-    volume_indices=brain_mask.astype(bool)
-    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
-    volumes=np.zeros(shape)
-    for i in range(vector_maps.shape[0]):
-        volume=volumes[i,:,:,:]
-        volume[volume_indices]=vector_maps[i,:]
-        volumes[i,:,:,:]=volume
-    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
-        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
-    return volume_img
-
 def select_confound_timecourses(conf_list,confounds_file,FD_file):
     import pandas as pd
     if ('mot_6' in conf_list) and ('mot_24' in conf_list):
@@ -325,3 +298,34 @@ def butterworth(signals, TR, high_pass, low_pass):
     order=3
     sos = signal.butter(order, critical_freq, fs=1/TR, btype=btype, output='sos')
     return signal.sosfiltfilt(sos, signals, axis=0)
+
+
+def smooth_image(img, affine, fwhm):
+    # apply nilearn's Gaussian smoothing on a SITK image
+    from nilearn.image.image import _smooth_array
+    from rabies.utils import copyInfo_4DImage, copyInfo_3DImage
+
+    # the affine is a 3 by 3 matrix of the spacing*direction for the 3 spatial dimensions
+    #spacing_3d = np.array(timeseries_img.GetSpacing())[:3]
+    #direction_4d = np.array(timeseries_img.GetDirection())
+    #direction_3d = np.array([list(direction_4d[:3]),list(direction_4d[4:7]),list(direction_4d[8:11])])
+    #affine = direction_3d*spacing_3d
+
+    dim = img.GetDimension()
+    if dim==4:
+        array_4d = sitk.GetArrayFromImage(img)
+        arr = array_4d.transpose(3,2,1,0) # re-orient the array to match the affine
+    elif dim==3:
+        array_3d = sitk.GetArrayFromImage(img)
+        arr = array_3d.transpose(2,1,0) # re-orient the array to match the affine
+    smoothed_arr = _smooth_array(arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
+    if dim==4:
+        smoothed_arr = smoothed_arr.transpose(3,2,1,0)
+        smoothed_img = copyInfo_4DImage(sitk.GetImageFromArray(
+            smoothed_arr, isVector=False), img, img)
+    elif dim==3:
+        smoothed_arr = smoothed_arr.transpose(2,1,0)
+        smoothed_img = copyInfo_3DImage(sitk.GetImageFromArray(
+            smoothed_arr, isVector=False), img)
+
+    return smoothed_img

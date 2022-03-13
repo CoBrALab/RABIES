@@ -11,6 +11,34 @@ from nipype.interfaces.base import (
 #IMAGE MANIPULATION
 ######################
 
+
+def recover_3D(mask_file, vector_map):
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    volume=np.zeros(brain_mask.shape)
+    volume[volume_indices]=vector_map
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        volume, isVector=False), mask_img)
+    return volume_img
+
+
+def recover_4D(mask_file, vector_maps, ref_4d):
+    #vector maps of shape num_volumeXnum_voxel
+    mask_img = sitk.ReadImage(mask_file)
+    brain_mask = sitk.GetArrayFromImage(mask_img)
+    volume_indices=brain_mask.astype(bool)
+    shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
+    volumes=np.zeros(shape)
+    for i in range(vector_maps.shape[0]):
+        volume=volumes[i,:,:,:]
+        volume[volume_indices]=vector_maps[i,:]
+        volumes[i,:,:,:]=volume
+    volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
+        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
+    return volume_img
+
+
 def resample_image_spacing(image, output_spacing):
     dimension = 3
     identity = sitk.Transform(dimension, sitk.sitkIdentity)
@@ -36,7 +64,7 @@ def resample_image_spacing(image, output_spacing):
 def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
     # function to establish metadata of an input 4d image. The ref_3d will provide
     # the information for the first 3 dimensions, and the ref_4d for the 4th.
-    if ref_3d.GetMetaData('dim[0]') == '4':
+    if ref_3d.GetDimension() == 4:
         image_4d.SetSpacing(
             tuple(list(ref_3d.GetSpacing()[:3])+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(
@@ -45,7 +73,7 @@ def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
         dim_4d = list(ref_4d.GetDirection())
         image_4d.SetDirection(
             tuple(dim_3d[:3]+[dim_4d[3]]+dim_3d[4:7]+[dim_4d[7]]+dim_3d[8:11]+dim_4d[11:]))
-    elif ref_3d.GetMetaData('dim[0]') == '3':
+    elif ref_3d.GetDimension() == 3:
         image_4d.SetSpacing(
             tuple(list(ref_3d.GetSpacing())+[ref_4d.GetSpacing()[3]]))
         image_4d.SetOrigin(
@@ -60,12 +88,12 @@ def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
 
 
 def copyInfo_3DImage(image_3d, ref_3d):
-    if ref_3d.GetMetaData('dim[0]') == '4':
+    if ref_3d.GetDimension() == 4:
         image_3d.SetSpacing(ref_3d.GetSpacing()[:3])
         image_3d.SetOrigin(ref_3d.GetOrigin()[:3])
         dim_3d = list(ref_3d.GetDirection())
         image_3d.SetDirection(tuple(dim_3d[:3]+dim_3d[4:7]+dim_3d[8:11]))
-    elif ref_3d.GetMetaData('dim[0]') == '3':
+    elif ref_3d.GetDimension() == 3:
         image_3d.SetSpacing(ref_3d.GetSpacing())
         image_3d.SetOrigin(ref_3d.GetOrigin())
         image_3d.SetDirection(ref_3d.GetDirection())

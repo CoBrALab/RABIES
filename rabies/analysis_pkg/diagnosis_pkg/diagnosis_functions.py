@@ -1,8 +1,8 @@
 import os
 import numpy as np
-import nibabel as nb
 import pandas as pd
 import matplotlib.pyplot as plt
+from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
@@ -35,8 +35,8 @@ def resample_mask(in_file, ref_file):
 
 def compute_edge_mask(in_mask, out_file, num_edge_voxels=1):
     #custom function for computing edge mask from an input brain mask
-    img = nb.load(in_mask)
-    mask_array = np.asarray(img.dataobj)
+    mask_img = sitk.ReadImage(in_mask)
+    mask_array = sitk.GetArrayFromImage(mask_img)
     shape = mask_array.shape
 
     #iterate through all voxels from the three dimensions and look if it contains surrounding voxels
@@ -53,7 +53,8 @@ def compute_edge_mask(in_mask, out_file, num_edge_voxels=1):
         mask_array = mask_array-edge_mask
         num_voxel += 1
 
-    nb.Nifti1Image(edge_mask, img.affine, img.header).to_filename(out_file)
+    sitk.WriteImage(copyInfo_3DImage(sitk.GetImageFromArray(
+        edge_mask.astype(int), isVector=False), mask_img), out_file)
 
 
 '''
@@ -71,32 +72,34 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     temporal_info['DVARS'] = DVARS
     temporal_info['VE_temporal'] = data_dict['VE_temporal']
 
-    WM_mask = np.asarray(
-        nb.load(mask_file_dict['WM_mask']).dataobj).astype(bool)
-    CSF_mask = np.asarray(
-        nb.load(mask_file_dict['CSF_mask']).dataobj).astype(bool)
-
-    edge_mask = np.asarray(
-        nb.load(mask_file_dict['edge_mask']).dataobj).astype(bool)
-    brain_mask = np.asarray(nb.load(mask_file_dict['brain_mask']).dataobj)
+    WM_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['WM_mask'])).astype(bool)
+    CSF_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['CSF_mask'])).astype(bool)
+    edge_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['edge_mask'])).astype(bool)
+    brain_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['brain_mask']))
     volume_indices = brain_mask.astype(bool)
     edge_idx = edge_mask[volume_indices]
     WM_idx = WM_mask[volume_indices]
     CSF_idx = CSF_mask[volume_indices]
     not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
 
-
-    data_array = np.asarray(nb.load(bold_file).dataobj)
-    timeseries = np.zeros([data_array.shape[3], volume_indices.sum()])
-    for i in range(data_array.shape[3]):
-        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
+    data_img = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
 
     '''Temporal Features'''
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
-    DR_array = np.asarray(nb.load(analysis_dict['dual_regression_nii']).dataobj)
-    DR_C = np.zeros([DR_array.shape[3], volume_indices.sum()])
-    for i in range(DR_array.shape[3]):
-        DR_C[i, :] = (DR_array[:, :, :, i])[volume_indices]
+    DR_array = sitk.GetArrayFromImage(
+        sitk.ReadImage(analysis_dict['dual_regression_nii']))
+    DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
+    for i in range(DR_array.shape[0]):
+        DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
 
     temporal_info['DR_all'] = DR_W
 
@@ -127,16 +130,18 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     prior_fit_out = {'C': [], 'W': []}
     if dual_ICA > 0:
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['dual_ICA_timecourse_csv'], header=None))
-        C_array = np.asarray(nb.load(analysis_dict['dual_ICA_filename']).dataobj)
-        C = np.zeros([C_array.shape[3], volume_indices.sum()])
-        for i in range(C_array.shape[3]):
-            C[i, :] = (C_array[:, :, :, i])[volume_indices]
+        C_array = sitk.GetArrayFromImage(
+            sitk.ReadImage(analysis_dict['dual_ICA_filename']))
+        C = np.zeros([C_array.shape[0], volume_indices.sum()])
+        for i in range(C_array.shape[0]):
+            C[i, :] = (C_array[i, :, :, :])[volume_indices]
         prior_fit_out['C'] = C
 
-    all_IC_array = np.asarray(nb.load(mask_file_dict['prior_maps']).dataobj)
-    all_IC_vectors = np.zeros([all_IC_array.shape[3], volume_indices.sum()])
-    for i in range(all_IC_array.shape[3]):
-        all_IC_vectors[i, :] = (all_IC_array[:, :, :, i])[volume_indices]
+    all_IC_array = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['prior_maps']))
+    all_IC_vectors = np.zeros([all_IC_array.shape[0], volume_indices.sum()])
+    for i in range(all_IC_array.shape[0]):
+        all_IC_vectors[i, :] = (all_IC_array[i, :, :, :])[volume_indices]
 
     spatial_info['prior_maps'] = all_IC_vectors[prior_bold_idx]
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
@@ -145,12 +150,12 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     spatial_info['dual_ICA_maps'] = prior_fit_out['C']
     temporal_info['dual_ICA_time'] = prior_fit_out['W']
 
-    spatial_info['VE_spatial'] = np.asarray(
-        nb.load(VE_file).dataobj)[volume_indices]
-    spatial_info['temporal_std'] = np.asarray(
-        nb.load(STD_file).dataobj)[volume_indices]
-    spatial_info['predicted_std'] = np.asarray(
-        nb.load(CR_STD_file).dataobj)[volume_indices]
+    spatial_info['VE_spatial'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(VE_file))[volume_indices]
+    spatial_info['temporal_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(STD_file))[volume_indices]
+    spatial_info['predicted_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(CR_STD_file))[volume_indices]
     spatial_info['GS_corr'] = GS_corr
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
@@ -188,47 +193,48 @@ def temporal_external_formating(temporal_info, file_dict):
 def spatial_external_formating(spatial_info, file_dict):
     import os
     import pathlib  # Better path manipulation
-    from rabies.analysis_pkg import analysis_functions
+    import SimpleITK as sitk
+    from rabies.utils import recover_3D,recover_4D
     mask_file = file_dict['mask_file']
     bold_file = file_dict['bold_file']
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
 
     VE_filename = os.path.abspath(filename_split[0]+'_VE.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['VE_spatial']).to_filename(VE_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['VE_spatial']), VE_filename)
 
     std_filename = os.path.abspath(filename_split[0]+'_tSTD.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['temporal_std']).to_filename(std_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['temporal_std']), std_filename)
 
     predicted_std_filename = os.path.abspath(filename_split[0]+'_predicted_std.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['predicted_std']).to_filename(predicted_std_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['GS_corr']).to_filename(GS_corr_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['GS_corr']), GS_corr_filename)
 
     DVARS_corr_filename = os.path.abspath(
         filename_split[0]+'_DVARS_corr.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['DVARS_corr']).to_filename(DVARS_corr_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['DVARS_corr']), DVARS_corr_filename)
 
     FD_corr_filename = os.path.abspath(filename_split[0]+'_FD_corr.nii.gz')
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['FD_corr']).to_filename(FD_corr_filename)
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['FD_corr']), FD_corr_filename)
 
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    analysis_functions.recover_3D_multiple(
-        mask_file, spatial_info['DR_all']).to_filename(DR_maps_filename)
+    sitk.WriteImage(recover_4D(
+        mask_file, spatial_info['DR_all'], bold_file), DR_maps_filename)
 
     if len(spatial_info['dual_ICA_maps']) > 0:
         import numpy as np
         dual_ICA_filename = os.path.abspath(
             filename_split[0]+'_dual_ICA.nii.gz')
-        analysis_functions.recover_3D_multiple(mask_file, np.array(
-            spatial_info['dual_ICA_maps'])).to_filename(dual_ICA_filename)
+        sitk.WriteImage(recover_4D(mask_file, np.array(
+            spatial_info['dual_ICA_maps']), bold_file), dual_ICA_filename)
     else:
         dual_ICA_filename = None
 
@@ -241,18 +247,18 @@ Subject-level QC
 
 
 def grayplot_regional(timeseries_file, mask_file_dict, fig, ax):
-    timeseries_4d = np.asarray(nb.load(timeseries_file).dataobj)
+    timeseries_4d = sitk.GetArrayFromImage(sitk.ReadImage(timeseries_file))
 
-    WM_mask = np.asarray(
-        nb.load(mask_file_dict['WM_mask']).dataobj).astype(bool)
-    CSF_mask = np.asarray(
-        nb.load(mask_file_dict['CSF_mask']).dataobj).astype(bool)
-    right_hem_mask = np.asarray(
-        nb.load(mask_file_dict['right_hem_mask']).dataobj).astype(bool)
-    left_hem_mask = np.asarray(
-        nb.load(mask_file_dict['left_hem_mask']).dataobj).astype(bool)
+    WM_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['WM_mask'])).astype(bool)
+    CSF_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['CSF_mask'])).astype(bool)
+    right_hem_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['right_hem_mask'])).astype(bool)
+    left_hem_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['left_hem_mask'])).astype(bool)
 
-    grayplot_array = np.empty((0, timeseries_4d.shape[3]))
+    grayplot_array = np.empty((0, timeseries_4d.shape[0]))
     slice_alt = np.array([])
     region_mask_label = np.array([])
     c = 0
@@ -263,7 +269,7 @@ def grayplot_regional(timeseries_file, mask_file_dict, fig, ax):
         token = False
         for i in range(mask_indices.shape[1]):
             grayplot_array = np.append(
-                grayplot_array, timeseries_4d[:, i, :, :][mask_indices[:, i, :]], axis=0)
+                grayplot_array, timeseries_4d[:, :, i, :][mask_indices[:, i, :]], axis=0)
             slice_alt = np.append(slice_alt, np.ones(
                 mask_indices[:, i, :].sum())*token)
             token = not token
@@ -275,13 +281,15 @@ def grayplot_regional(timeseries_file, mask_file_dict, fig, ax):
 
 
 def grayplot(timeseries_file, mask_file_dict, fig, ax):
-    brain_mask = np.asarray(nb.load(mask_file_dict['brain_mask']).dataobj)
+    brain_mask = sitk.GetArrayFromImage(
+        sitk.ReadImage(mask_file_dict['brain_mask'])).astype(bool)
     volume_indices = brain_mask.astype(bool)
 
-    data_array = np.asarray(nb.load(timeseries_file).dataobj)
-    timeseries = np.zeros([data_array.shape[3], volume_indices.sum()])
-    for i in range(data_array.shape[3]):
-        timeseries[i, :] = (data_array[:, :, :, i])[volume_indices]
+    data_array = sitk.GetArrayFromImage(
+        sitk.ReadImage(timeseries_file))
+    timeseries = np.zeros([data_array.shape[0], volume_indices.sum()])
+    for i in range(data_array.shape[0]):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
 
     grayplot_array = timeseries.T
 
@@ -333,6 +341,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax0.spines['bottom'].set_visible(False)
     ax0.spines['left'].set_visible(False)
     ax0.axes.get_yaxis().set_ticks([])
+    plt.setp(ax0.get_xticklabels(), fontsize=15)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
     y = temporal_info['FD_trace'].to_numpy()
@@ -354,7 +363,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])
     ax1.plot(x,df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
-               loc='center left', bbox_to_anchor=(1.15, 0.5))
+               loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
@@ -363,56 +372,66 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1_.plot(x,df['rot2'].to_numpy()[time_range][frame_mask])
     ax1_.plot(x,df['rot3'].to_numpy()[time_range][frame_mask])
     ax1_.legend(['rotation 1', 'rotation 2', 'rotation 3'],
-                loc='center left', bbox_to_anchor=(1.15, 0.5))
+                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     plt.setp(ax1_.get_xticklabels(), visible=False)
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
     y = temporal_info['FD_trace'].to_numpy()
     ax2.plot(x,y, 'r')
-    ax2.set_ylabel('FD in mm', fontsize=15)
+    ax2.set_ylabel('FD in mm', fontsize=20)
     DVARS = temporal_info['DVARS']
     DVARS[0] = None
     ax2_ = ax2.twinx()
     y2 = DVARS
     ax2_.plot(x,y2, 'b')
-    ax2_.set_ylabel('DVARS', fontsize=15)
+    ax2_.set_ylabel('DVARS', fontsize=20)
     ax2.spines['right'].set_visible(False)
     ax2.spines['top'].set_visible(False)
     ax2_.spines['top'].set_visible(False)
     plt.setp(ax2.get_xticklabels(), visible=False)
     plt.setp(ax2_.get_xticklabels(), visible=False)
     ax2.legend(['Framewise \nDisplacement (FD)'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.6))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax2_.legend(['DVARS'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.4))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.3))
 
     ax3.plot(x,temporal_info['edge_trace'])
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
     ax3.plot(x,temporal_info['predicted_time'])
-    ax3.set_ylabel('Mask L2-norm', fontsize=15)
+    ax3.set_ylabel('Mask L2-norm', fontsize=20)
     ax3_ = ax3.twinx()
     ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
-    ax3_.set_ylabel('CR R^2', fontsize=15)
+    ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
+    plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
     ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', 'CR prediction'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.7))
-    ax3_.legend(['CR R^2'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.3))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
+    ax3_.legend(['CR $\mathregular{R^2}$'
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
     ax3_.set_ylim([0,1])
 
     y = temporal_info['signal_trace']
     ax4.plot(x,y)
     ax4.plot(x,temporal_info['noise_trace'])
     ax4.legend(['BOLD components', 'Confound components'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.5))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
-    ax4.set_xlabel('Timepoint', fontsize=15)
-    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=15)
+    ax4.set_xlabel('Timepoint', fontsize=25)
+    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=20)
+    plt.setp(ax4.get_xticklabels(), fontsize=15)
+
+    plt.setp(ax1.get_yticklabels(), fontsize=15)
+    plt.setp(ax1_.get_yticklabels(), fontsize=15)
+    plt.setp(ax2.get_yticklabels(), fontsize=15)
+    plt.setp(ax2_.get_yticklabels(), fontsize=15)
+    plt.setp(ax3.get_yticklabels(), fontsize=15)
+    plt.setp(ax3_.get_yticklabels(), fontsize=15)
+    plt.setp(ax4.get_yticklabels(), fontsize=15)
 
     dr_maps = spatial_info['DR_BOLD']
     mask_file = mask_file_dict['brain_mask']
@@ -429,9 +448,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     temporal_std = spatial_info['temporal_std']
-    analysis_functions.recover_3D(
-        mask_file, temporal_std).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, temporal_std)
 
     # select vmax at 95th percentile value
     vector = temporal_std.flatten()
@@ -441,9 +459,10 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 35
-        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
+        cbar.set_label('Standard \n Deviation', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('BOLD-Temporal s.d.', fontsize=30, color='white')
+        ax.set_title('$\mathregular{BOLD_{SD}}$', fontsize=30, color='white')
 
 
     axes = axes2[1, :]
@@ -451,9 +470,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     predicted_std = spatial_info['predicted_std']
-    analysis_functions.recover_3D(
-        mask_file, predicted_std).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, predicted_std)
 
     # select vmax at 95th percentile value
     vector = predicted_std.flatten()
@@ -463,78 +481,79 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 35
-        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
+        cbar.set_label('Standard \n Deviation', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('CR-Temporal s.d.', fontsize=30, color='white')
+        ax.set_title('$\mathregular{CR_{SD}}$', fontsize=30, color='white')
 
 
     axes = axes2[2, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['VE_spatial']).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, spatial_info['VE_spatial'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1, cmap='inferno',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label('CR R^2', fontsize=15, rotation=270, color='white')
+        cbar.set_label('$\mathregular{R^2}$', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('CR R^2', fontsize=30, color='white')
+        ax.set_title('CR $\mathregular{R^2}$', fontsize=30, color='white')
 
     axes = axes2[3, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['GS_corr']).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, spatial_info['GS_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('Global Signal Correlation', fontsize=30, color='white')
 
     axes = axes2[4, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['DVARS_corr']).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, spatial_info['DVARS_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
     axes = axes2[5, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
-    analysis_functions.recover_3D(
-        mask_file, spatial_info['FD_corr']).to_filename('temp_img.nii.gz')
-    sitk_img = sitk.ReadImage('temp_img.nii.gz')
+    sitk_img = recover_3D(
+        mask_file, spatial_info['FD_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('FD Correlation', fontsize=30, color='white')
 
     for i in range(dr_maps.shape[0]):
         axes = axes2[i+6, :]
 
-        analysis_functions.recover_3D(
-            mask_file, dr_maps[i, :]).to_filename('temp_img.nii.gz')
-        sitk_img = sitk.ReadImage('temp_img.nii.gz')
+        sitk_img = recover_3D(
+            mask_file, dr_maps[i, :])
         cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35
-            cbar.set_label("Beta \nCoefficient", fontsize=15, rotation=270, color='white')
+            cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
         for ax in axes:
             ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
 

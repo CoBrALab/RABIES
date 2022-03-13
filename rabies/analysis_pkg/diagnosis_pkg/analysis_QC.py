@@ -1,14 +1,13 @@
 import SimpleITK as sitk
-import pandas as pd
 import numpy as np
-import nibabel as nb
 import matplotlib.pyplot as plt
 import nilearn
 from rabies.visualization import otsu_scaling, plot_3d
 from rabies.analysis_pkg.analysis_math import elementwise_spearman, dice_coefficient
-from rabies.analysis_pkg.analysis_functions import recover_3D
-
+from rabies.utils import recover_3D
+from rabies.confound_correction_pkg.utils import smooth_image
 import tempfile
+
 
 def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, CR_std_maps, VE_maps, tdof_list, template_file, fig_path):
 
@@ -27,7 +26,7 @@ def analysis_QC(FC_maps, consensus_network, mask_file, std_maps, CR_std_maps, VE
 
     
 def get_maps(prior, prior_list, std_list, CR_std_maps, VE_list, tdof_list, mask_file, smoothing=False):
-    volume_indices=np.asarray(nb.load(mask_file).dataobj).astype(bool)    
+    volume_indices=sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)    
 
     Y=np.array(prior_list)
     average=Y.mean(axis=0)
@@ -52,31 +51,23 @@ def get_maps(prior, prior_list, std_list, CR_std_maps, VE_list, tdof_list, mask_
         corr_map_tdof = elementwise_spearman(tdof,Y)
     
     if smoothing:
-        prior = np.array(nilearn.image.smooth_img(recover_3D(mask_file,prior), 0.3).dataobj)[volume_indices]
-        average = np.array(nilearn.image.smooth_img(recover_3D(mask_file,average), 0.3).dataobj)[volume_indices]
-        corr_map_std = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_std), 0.3).dataobj)[volume_indices]
-        corr_map_CR_std = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_CR_std), 0.3).dataobj)[volume_indices]
-        corr_map_VE = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_VE), 0.3).dataobj)[volume_indices]
+        import nibabel as nb
+        affine = nb.load(mask_file).affine[:3,:3]
+        prior = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,prior), affine, 0.3))[volume_indices]
+        average = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,average), affine, 0.3))[volume_indices]
+        corr_map_std = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_std), affine, 0.3))[volume_indices]
+        corr_map_CR_std = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_CR_std), affine, 0.3))[volume_indices]
+        corr_map_VE = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_VE), affine, 0.3))[volume_indices]
         if np.array(tdof_list).std()==0:
             corr_map_tdof=None
         else:
-            corr_map_tdof = np.array(nilearn.image.smooth_img(recover_3D(mask_file,corr_map_tdof), 0.3).dataobj)[volume_indices]
+            corr_map_tdof = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,corr_map_tdof), affine, 0.3))[volume_indices]
     
-    return prior, average, network_var, corr_map_std, corr_map_CR_std, corr_map_VE, corr_map_tdof
-    
+    return prior, average, network_var, corr_map_std, corr_map_CR_std, corr_map_VE, corr_map_tdof    
+
 
 def eval_relationships(maps, mask_file, percentile=0.01):
     prior, average, network_var, corr_map_std, corr_map_CR_std, corr_map_VE, corr_map_tdof = maps
-
-    # 1) the correlation between the prior and the fitted average
-    #prior_cor = np.corrcoef(prior,average)[0,1]
-    # 2) the weighted average of the temporal s.d. correlations
-    #weights=prior/prior.sum()
-    #weighted_std_corr=(weights*corr_map_std)[np.isnan(corr_map_std)==0].sum()
-    #std_corr = np.corrcoef(prior[np.isnan(corr_map_std)==0], corr_map_std[np.isnan(corr_map_std)==0])[0,1]
-    # 3) the correlation between the prior and the fitted average
-    #VE_corr = np.corrcoef(prior[np.isnan(corr_map_VE)==0], corr_map_VE[np.isnan(corr_map_VE)==0])[0,1]
-    #weighted_VE_corr=(weights*corr_map_VE)[np.isnan(corr_map_VE)==0].sum()
  
     tmppath = tempfile.mkdtemp()
     map_masks=[]
@@ -85,8 +76,7 @@ def eval_relationships(maps, mask_file, percentile=0.01):
             map_masks.append(None)
             tdof_avg_corr=None
             continue
-        recover_3D(mask_file,map).to_filename(f'{tmppath}/temp_img.nii.gz')
-        img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+        img = recover_3D(mask_file,map)
         mask=percent_masking(img, percentile=percentile)
         map_masks.append(mask)
         
@@ -125,68 +115,62 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
 
     fig,axes = plt.subplots(nrows=6, ncols=1,figsize=(12,2*6))
     
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,prior).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+    img = recover_3D(mask_file,prior)
     ax=axes[0]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Prior network', fontsize=25, color='white')
+    ax.set_title('Prior network', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Prior measure", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Prior measure", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,average).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+    img = recover_3D(mask_file,average)
     ax=axes[1]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Dataset average', fontsize=25, color='white')
+    ax.set_title('Dataset average', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Mean", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Mean", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,network_var).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+    img = recover_3D(mask_file,network_var)
     ax=axes[2]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Dataset MAD', fontsize=25, color='white')
+    ax.set_title('Dataset MAD', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Median Absolute \nDeviation", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Median Absolute \nDeviation", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,corr_map_std).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+    img = recover_3D(mask_file,corr_map_std)
     ax=axes[3]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-    ax.set_title('BOLD-Temporal s.d.', fontsize=25, color='white')
+    ax.set_title('$\mathregular{BOLD_{SD}}$ X network corr.', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
-    tmppath = tempfile.mkdtemp()
-    recover_3D(mask_file,corr_map_CR_std).to_filename(f'{tmppath}/temp_img.nii.gz')
-    img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+    img = recover_3D(mask_file,corr_map_CR_std)
     ax=axes[4]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-    ax.set_title('CR-Temporal s.d.', fontsize=25, color='white')
+    ax.set_title('$\mathregular{CR_{SD}}$ X network corr.', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     ax=axes[5]
     if corr_map_tdof is None:
         ax.axis('off')
     else:
-        tmppath = tempfile.mkdtemp()
-        recover_3D(mask_file,corr_map_tdof).to_filename(f'{tmppath}/temp_img.nii.gz')
-        img = sitk.ReadImage(f'{tmppath}/temp_img.nii.gz')
+        img = recover_3D(mask_file,corr_map_tdof)
         cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-        ax.set_title('tDOF correlation', fontsize=25, color='white')
+        ax.set_title('tDOF correlation', fontsize=30, color='white')
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 20
-            cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+            cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
 
     plt.tight_layout()
 
@@ -224,58 +208,3 @@ def masked_plot(fig,axes, img, scaled, percentile=0.01, vmax=None):
     sitk_img = sitk.Resample(masked, scaled)
     cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
     return cbar_list
-
-
-def spatial_crosscorrelations(merged, scaled, mask_file, fig_path):
-
-    dict_keys = ['temporal_std', 'predicted_std', 'VE_spatial', 'GS_corr',
-                    'DVARS_corr', 'FD_corr', 'DR_BOLD', 'dual_ICA_maps']
-
-    voxelwise_list = []
-    for scan_data in merged:
-        sub_list = [scan_data[key] for key in dict_keys]
-        voxelwise_sub = np.array(sub_list[:6])
-        if len(sub_list[7]) > 0:
-            voxelwise_sub = np.concatenate(
-                (voxelwise_sub, np.array(sub_list[6]), np.array(sub_list[7])), axis=0)
-        else:
-            voxelwise_sub = np.concatenate(
-                (voxelwise_sub, np.array(sub_list[6])), axis=0)
-        voxelwise_list.append(voxelwise_sub)
-        num_prior_maps = len(sub_list[6])
-    voxelwise_array = np.array(voxelwise_list)
-
-
-    label_name = ['BOLD-Temporal s.d.', 'CR-Temporal s.d.', 'CR R^2',
-                    'GS corr', 'DVARS corr', 'FD corr']
-    label_name += [f'BOLD Dual Regression map {i}' for i in range(num_prior_maps)]
-    label_name += [f'BOLD Dual ICA map {i}' for i in range(num_prior_maps)]
-
-    ncols = 6
-    fig, axes = plt.subplots(nrows=voxelwise_array.shape[1], ncols=ncols, figsize=(
-        12*ncols, 2*voxelwise_array.shape[1]))
-    for i, x_label in zip(range(voxelwise_array.shape[1]), label_name):
-        for j, y_label in zip(range(ncols), label_name[:ncols]):
-            ax = axes[i, j]
-            if i <= j:
-                ax.axis('off')
-                continue
-
-            X = voxelwise_array[:, i, :]
-            Y = voxelwise_array[:, j, :]
-            corr = elementwise_spearman(X, Y)
-
-            plot_3d([ax], scaled, fig, vmin=0, vmax=1, cmap='gray',
-                    alpha=1, cbar=False, num_slices=6, planes=('coronal'))
-            recover_3D(
-                mask_file, corr).to_filename('temp_img.nii.gz')
-            sitk_img = sitk.ReadImage('temp_img.nii.gz')
-            cbar_list = plot_3d([ax], sitk_img, fig, vmin=-1.0, vmax=1.0, cmap='cold_hot',
-                    alpha=1, cbar=True, threshold=0.1, num_slices=6, planes=('coronal'))
-            ax.set_title(f'Cross-correlation for \n{x_label} and {y_label}', fontsize=20, color='white')
-            for cbar in cbar_list:
-                cbar.ax.get_yaxis().labelpad = 20
-                cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
-
-    fig.savefig(fig_path,
-                bbox_inches='tight')
