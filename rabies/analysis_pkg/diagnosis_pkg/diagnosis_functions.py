@@ -341,6 +341,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax0.spines['bottom'].set_visible(False)
     ax0.spines['left'].set_visible(False)
     ax0.axes.get_yaxis().set_ticks([])
+    plt.setp(ax0.get_xticklabels(), fontsize=15)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
     y = temporal_info['FD_trace'].to_numpy()
@@ -362,7 +363,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])
     ax1.plot(x,df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
-               loc='center left', bbox_to_anchor=(1.15, 0.5))
+               loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
@@ -371,56 +372,66 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     ax1_.plot(x,df['rot2'].to_numpy()[time_range][frame_mask])
     ax1_.plot(x,df['rot3'].to_numpy()[time_range][frame_mask])
     ax1_.legend(['rotation 1', 'rotation 2', 'rotation 3'],
-                loc='center left', bbox_to_anchor=(1.15, 0.5))
+                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     plt.setp(ax1_.get_xticklabels(), visible=False)
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
     y = temporal_info['FD_trace'].to_numpy()
     ax2.plot(x,y, 'r')
-    ax2.set_ylabel('FD in mm', fontsize=15)
+    ax2.set_ylabel('FD in mm', fontsize=20)
     DVARS = temporal_info['DVARS']
     DVARS[0] = None
     ax2_ = ax2.twinx()
     y2 = DVARS
     ax2_.plot(x,y2, 'b')
-    ax2_.set_ylabel('DVARS', fontsize=15)
+    ax2_.set_ylabel('DVARS', fontsize=20)
     ax2.spines['right'].set_visible(False)
     ax2.spines['top'].set_visible(False)
     ax2_.spines['top'].set_visible(False)
     plt.setp(ax2.get_xticklabels(), visible=False)
     plt.setp(ax2_.get_xticklabels(), visible=False)
     ax2.legend(['Framewise \nDisplacement (FD)'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.6))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax2_.legend(['DVARS'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.4))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.3))
 
     ax3.plot(x,temporal_info['edge_trace'])
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
     ax3.plot(x,temporal_info['predicted_time'])
-    ax3.set_ylabel('Mask L2-norm', fontsize=15)
+    ax3.set_ylabel('Mask L2-norm', fontsize=20)
     ax3_ = ax3.twinx()
     ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
-    ax3_.set_ylabel('CR R^2', fontsize=15)
+    ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
+    plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
     ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', 'CR prediction'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.7))
-    ax3_.legend(['CR R^2'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.3))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
+    ax3_.legend(['CR $\mathregular{R^2}$'
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
     ax3_.set_ylim([0,1])
 
     y = temporal_info['signal_trace']
     ax4.plot(x,y)
     ax4.plot(x,temporal_info['noise_trace'])
     ax4.legend(['BOLD components', 'Confound components'
-                ], loc='center left', bbox_to_anchor=(1.15, 0.5))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
-    ax4.set_xlabel('Timepoint', fontsize=15)
-    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=15)
+    ax4.set_xlabel('Timepoint', fontsize=25)
+    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=20)
+    plt.setp(ax4.get_xticklabels(), fontsize=15)
+
+    plt.setp(ax1.get_yticklabels(), fontsize=15)
+    plt.setp(ax1_.get_yticklabels(), fontsize=15)
+    plt.setp(ax2.get_yticklabels(), fontsize=15)
+    plt.setp(ax2_.get_yticklabels(), fontsize=15)
+    plt.setp(ax3.get_yticklabels(), fontsize=15)
+    plt.setp(ax3_.get_yticklabels(), fontsize=15)
+    plt.setp(ax4.get_yticklabels(), fontsize=15)
 
     dr_maps = spatial_info['DR_BOLD']
     mask_file = mask_file_dict['brain_mask']
@@ -448,9 +459,10 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 35
-        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
+        cbar.set_label('Standard \n Deviation', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('BOLD-Temporal s.d.', fontsize=30, color='white')
+        ax.set_title('$\mathregular{BOLD_{SD}}$', fontsize=30, color='white')
 
 
     axes = axes2[1, :]
@@ -469,9 +481,10 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cmap='inferno', alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 35
-        cbar.set_label('Standard \n Deviation', fontsize=15, rotation=270, color='white')
+        cbar.set_label('Standard \n Deviation', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('CR-Temporal s.d.', fontsize=30, color='white')
+        ax.set_title('$\mathregular{CR_{SD}}$', fontsize=30, color='white')
 
 
     axes = axes2[2, :]
@@ -483,9 +496,10 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label('CR R^2', fontsize=15, rotation=270, color='white')
+        cbar.set_label('$\mathregular{R^2}$', fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('CR R^2', fontsize=30, color='white')
+        ax.set_title('CR $\mathregular{R^2}$', fontsize=30, color='white')
 
     axes = axes2[3, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
@@ -496,7 +510,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('Global Signal Correlation', fontsize=30, color='white')
 
@@ -509,7 +524,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
@@ -522,7 +538,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=15, rotation=270, color='white')
+        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
     for ax in axes:
         ax.set_title('FD Correlation', fontsize=30, color='white')
 
@@ -535,7 +552,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35
-            cbar.set_label("Beta \nCoefficient", fontsize=15, rotation=270, color='white')
+            cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
         for ax in axes:
             ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
 

@@ -118,42 +118,47 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
     img = recover_3D(mask_file,prior)
     ax=axes[0]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Prior network', fontsize=25, color='white')
+    ax.set_title('Prior network', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Prior measure", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Prior measure", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,average)
     ax=axes[1]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Dataset average', fontsize=25, color='white')
+    ax.set_title('Dataset average', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Mean", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Mean", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,network_var)
     ax=axes[2]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
-    ax.set_title('Dataset MAD', fontsize=25, color='white')
+    ax.set_title('Dataset MAD', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Median Absolute \nDeviation", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Median Absolute \nDeviation", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,corr_map_std)
     ax=axes[3]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-    ax.set_title('BOLD-Temporal s.d.', fontsize=25, color='white')
+    ax.set_title('$\mathregular{BOLD_{SD}}$ X network corr.', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,corr_map_CR_std)
     ax=axes[4]
     cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-    ax.set_title('CR-Temporal s.d.', fontsize=25, color='white')
+    ax.set_title('$\mathregular{CR_{SD}}$ X network corr.', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+        cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+        cbar.ax.tick_params(labelsize=15)
 
     ax=axes[5]
     if corr_map_tdof is None:
@@ -161,10 +166,11 @@ def plot_relationships(mask_file, scaled, maps, percentile=0.01):
     else:
         img = recover_3D(mask_file,corr_map_tdof)
         cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
-        ax.set_title('tDOF correlation', fontsize=25, color='white')
+        ax.set_title('tDOF correlation', fontsize=30, color='white')
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 20
-            cbar.set_label("Spearman rho", fontsize=12, rotation=270, color='white')
+            cbar.set_label("Spearman rho", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
 
     plt.tight_layout()
 
