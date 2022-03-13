@@ -160,6 +160,12 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
 
+    if len(prior_fit_out['W'])>0:
+        NPR_prior_W = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
+        NPR_extra_W = np.array(pd.read_csv(analysis_dict['NPR_extra_timecourse_csv'], header=None))
+        temporal_info['NPR_prior_trace'] = np.abs(NPR_prior_W).mean(axis=1)
+        temporal_info['NPR_noise_trace'] = np.abs(NPR_extra_W).mean(axis=1)
+
     return temporal_info, spatial_info
 
 
@@ -392,7 +398,12 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     y = temporal_info['signal_trace']
     ax4.plot(x,y)
     ax4.plot(x,temporal_info['noise_trace'])
-    ax4.legend(['BOLD components', 'Confound components'
+    if len(spatial_info['NPR_maps'])>0:
+        ax4.plot(x,temporal_info['NPR_prior_trace'])
+        ax4.plot(x,temporal_info['NPR_noise_trace'])
+
+    ax4.legend(['DR BOLD components', 'DR Confound components',
+                'NPR priors', 'NPR confounds',
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
@@ -408,10 +419,12 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plt.setp(ax3_.get_yticklabels(), fontsize=15)
     plt.setp(ax4.get_yticklabels(), fontsize=15)
 
+
     dr_maps = spatial_info['DR_BOLD']
+    NPR_maps = spatial_info['NPR_maps']
     mask_file = mask_file_dict['brain_mask']
 
-    nrows = 6+dr_maps.shape[0]
+    nrows = 6+dr_maps.shape[0]+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -530,7 +543,21 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
+            ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
+
+    for i in range(len(NPR_maps)):
+        axes = axes2[i+6+dr_maps.shape[0], :]
+
+        sitk_img = recover_3D(
+            mask_file, NPR_maps[i, :])
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
+
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
+        for ax in axes:
+            ax.set_title(f'NPR component {i}', fontsize=30, color='white')
 
     return fig, fig2
 
