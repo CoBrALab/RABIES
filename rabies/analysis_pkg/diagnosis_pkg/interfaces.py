@@ -122,11 +122,13 @@ class ScanDiagnosis(BaseInterface):
         VE_file = self.inputs.file_dict['VE_file']
         STD_file = self.inputs.file_dict['STD_file']
         CR_STD_file = self.inputs.file_dict['CR_STD_file']
+        random_CR_STD_file = self.inputs.file_dict['random_CR_STD_file']
+        corrected_CR_STD_file = self.inputs.file_dict['corrected_CR_STD_file']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=self.inputs.NPR_extra_sources)
+            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=self.inputs.NPR_extra_sources)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)

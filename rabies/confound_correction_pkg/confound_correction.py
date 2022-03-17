@@ -58,8 +58,8 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     inputnode = pe.Node(niu.IdentityInterface(fields=[
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
-
+                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
@@ -88,6 +88,8 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file_path"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
@@ -118,7 +120,11 @@ class RegressOutputSpec(TraitedSpec):
     STD_file_path = File(exists=True, mandatory=True,
                       desc="Temporal standard deviation map after confound correction, prior to standardization.")
     CR_STD_file_path = File(exists=True, mandatory=True,
-                      desc="Temporal standard deviation map after confound correction, prior to standardization.")
+                      desc="Temporal standard deviation on predicted confound timeseries.")
+    random_CR_STD_file_path = File(exists=True, mandatory=True,
+                      desc="Temporal standard deviation on predicted confound timeseries from random regressors.")
+    corrected_CR_STD_file_path = File(exists=True, mandatory=True,
+                      desc="Same as CR_STD_file_path, but the variance explained by random regressors was substracted.")
     frame_mask_file = File(exists=True, mandatory=True,
                       desc="Frame mask from temporal censoring.")
     data_dict = traits.Any(
@@ -167,7 +173,7 @@ class Regress(BaseInterface):
         import SimpleITK as sitk
         from scipy.signal import detrend
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_image
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -179,6 +185,8 @@ class Regress(BaseInterface):
         setattr(self, 'VE_file_path', empty_file)
         setattr(self, 'STD_file_path', empty_file)
         setattr(self, 'CR_STD_file_path', empty_file)
+        setattr(self, 'random_CR_STD_file_path', empty_file)
+        setattr(self, 'corrected_CR_STD_file_path', empty_file)
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
@@ -346,6 +354,16 @@ class Regress(BaseInterface):
         # save the temporal STD map prior to standardization and smoothing
         temporal_std = timeseries.std(axis=0)
 
+        # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
+        randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
+        X=randomized_confounds_array 
+        Y = timeseries
+        predicted_random = X.dot(closed_form(X,Y))
+        predicted_random_std = predicted_random.std(axis=0)
+
+        # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
+        corrected_predicted_std = np.sqrt(predicted.var(axis=0)-predicted_random.var(axis=0))
+
         '''
         #8 - Standardize timeseries
         '''
@@ -356,6 +374,8 @@ class Regress(BaseInterface):
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
         STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
         CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
         timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
 
         if cr_opts.smoothing_filter is not None:
@@ -374,6 +394,10 @@ class Regress(BaseInterface):
         sitk.WriteImage(STD_spatial_map, STD_file_path)
         CR_STD_file_path = cr_out+'/'+filename_split[0]+'_CR_STD_map.nii.gz'
         sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
+        random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
+        sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
+        corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
+        sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
         frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
         pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
@@ -396,6 +420,8 @@ class Regress(BaseInterface):
         setattr(self, 'VE_file_path', VE_file_path)
         setattr(self, 'STD_file_path', STD_file_path)
         setattr(self, 'CR_STD_file_path', CR_STD_file_path)
+        setattr(self, 'random_CR_STD_file_path', random_CR_STD_file_path)
+        setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
 
@@ -406,6 +432,8 @@ class Regress(BaseInterface):
                 'VE_file_path': getattr(self, 'VE_file_path'),
                 'STD_file_path': getattr(self, 'STD_file_path'),
                 'CR_STD_file_path': getattr(self, 'CR_STD_file_path'),
+                'random_CR_STD_file_path': getattr(self, 'random_CR_STD_file_path'),
+                'corrected_CR_STD_file_path': getattr(self, 'corrected_CR_STD_file_path'),
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),

@@ -300,6 +300,71 @@ def butterworth(signals, TR, high_pass, low_pass):
     return signal.sosfiltfilt(sos, signals, axis=0)
 
 
+######### Taken from https://stackoverflow.com/questions/39543002/returning-a-real-valued-phase-scrambled-timeseries
+def phaseScrambleTS(ts):
+    from scipy.fftpack import fft, ifft
+    """Returns a TS: original TS power is preserved; TS phase is shuffled."""
+    fs = fft(ts, axis=0)
+    pow_fs = np.abs(fs) ** 2.
+    phase_fs = np.angle(fs)
+    phase_fsr = phase_fs.copy()
+    if len(ts) % 2 == 0:
+        phase_fsr_lh = phase_fsr[1:int(len(phase_fsr)/2)]
+    else:
+        phase_fsr_lh = phase_fsr[1:int(len(phase_fsr)/2) + 1]
+    np.random.shuffle(phase_fsr_lh)
+    if len(ts) % 2 == 0:
+        phase_fsr_rh = -phase_fsr_lh[::-1]
+        phase_fsr = np.concatenate((np.array((phase_fsr[0],)), phase_fsr_lh,
+                                    np.array((phase_fsr[int(len(phase_fsr)/2)],)),
+                                    phase_fsr_rh))
+    else:
+        phase_fsr_rh = -phase_fsr_lh[::-1]
+        phase_fsr = np.concatenate((np.array((phase_fsr[0],)), phase_fsr_lh, phase_fsr_rh))
+    fsrp = np.sqrt(pow_fs) * (np.cos(phase_fsr) + 1j * np.sin(phase_fsr))
+    tsrp = ifft(fsrp, axis=0)
+    if not np.allclose(tsrp.imag, np.zeros(tsrp.shape)):
+        max_imag = (np.abs(tsrp.imag)).max()
+        imag_str = f'\nNOTE: a non-negligible imaginary component was discarded.\n\tMax: {max_imag}'
+        print(imag_str)
+    return tsrp.real
+
+
+def phase_randomized_regressors(confounds_array, frame_mask, TR):
+    """
+    METHOD FROM BRIGHT AND MURPHY 2015
+    "The true noise regressors were phase-randomised to create simulated noise regressors with similar frequency 
+    distributions to the true noise regressors, but with no relation to the measured head motion or physiology. 
+    To achieve this, the frequency spectra of the true noise regressors were obtained using a Fourier transform, 
+    and the phase of each frequency in half of the spectrum was randomised and mirrored before performing the 
+    inverse Fourier transform (this phase randomization was repeated until the temporal correlation with the true 
+    regressor was r b 0.1). The entire set of resulting time-series was then orthogonalised to the complete set 
+    of original regressors to make them independent from the true noise."
+
+    """
+    
+    from rabies.analysis_pkg.analysis_math import closed_form
+    from rabies.confound_correction_pkg.utils import lombscargle_fill
+    num_conf = confounds_array.shape[1]
+    randomized_confounds_array = np.zeros(confounds_array.shape)
+    for n in range(num_conf):
+        corr=1
+        while(corr>0.1):
+            x=confounds_array[:,n:n+1]
+            # fill missing datapoints to obtain a good reading of frequency spectrum
+            y = lombscargle_fill(x,TR,frame_mask)
+            # phase randomize
+            y_r = phaseScrambleTS(y)
+            # re-apply the time mask to the same number of timepoints
+            y_m = y_r[frame_mask]
+            corr = np.abs(np.corrcoef(x.T,y_m.T)[0,1])
+            
+        #### impose orthogonality relative to every original regressor      
+        y_m -= np.matmul(confounds_array, closed_form(confounds_array, y_m))
+        randomized_confounds_array[:,n:n+1] = y_m
+    return randomized_confounds_array
+
+
 def smooth_image(img, affine, fwhm):
     # apply nilearn's Gaussian smoothing on a SITK image
     from nilearn.image.image import _smooth_array

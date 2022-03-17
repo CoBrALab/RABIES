@@ -55,6 +55,11 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts)
 
+    plot_CR_overfit_node = pe.Node(Function(input_names=['mask_file', 'STD_file_path', 'CR_STD_file_path', 'random_CR_STD_file_path', 'corrected_CR_STD_file_path'],
+                                           output_names=['figure_path'],
+                                       function=plot_CR_overfit),
+                              name='plot_CR_overfit_node')
+
     workflow.connect([
         (main_split, preproc_outputnode, [
             ("split_name", "split_name"),
@@ -62,6 +67,12 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         (preproc_outputnode, confound_correction_wf, [
             ("confounds_csv", "inputnode.confounds_file"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
+            ]),
+        (confound_correction_wf, plot_CR_overfit_node, [
+            ("outputnode.STD_file", "STD_file_path"),
+            ("outputnode.CR_STD_file", "CR_STD_file_path"),
+            ("outputnode.random_CR_STD_file_path", "random_CR_STD_file_path"),
+            ("outputnode.corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ]),
         ])
 
@@ -76,6 +87,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("native_brain_mask", "inputnode.brain_mask"),
                 ("native_CSF_mask", "inputnode.csf_mask"),
                 ]),
+            (preproc_outputnode, plot_CR_overfit_node, [
+                ("native_brain_mask", "mask_file"),
+                ]),
             ])
     else:
         workflow.connect([
@@ -83,6 +97,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
                 ("commonspace_CSF_mask", "inputnode.csf_mask"),
+                ]),
+            (preproc_outputnode, plot_CR_overfit_node, [
+                ("commonspace_mask", "mask_file"),
                 ]),
             ])
 
@@ -94,6 +111,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     workflow.connect([
         (confound_correction_wf, confound_correction_datasink, [
             ("outputnode.cleaned_path", "cleaned_timeseries"),
+            ]),
+        (plot_CR_overfit_node, confound_correction_datasink, [
+            ("figure_path", "plot_CR_overfit"),
             ]),
         ])
     if cr_opts.run_aroma:
@@ -206,3 +226,45 @@ def read_preproc_workflow(preproc_output, nativespace=False):
     target_list = list(match_targets.keys())
 
     return split_dict, split_name, target_list
+
+
+def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path):
+    import os
+    import matplotlib.pyplot as plt
+    import SimpleITK as sitk
+    nrows = 4
+    fig, axes = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
+    plt.tight_layout()
+
+    from rabies.visualization import plot_3d
+    volume_indices = sitk.GetArrayFromImage(sitk.ReadImage(mask_file, sitk.sitkFloat32)).astype(bool)
+
+    def get_vmax(sitk_img, volume_indices):
+        # select vmax at 95th percentile value
+        vector = sitk.GetArrayFromImage(sitk_img)[volume_indices].flatten()
+        vector.sort()
+        vmax = vector[int(len(vector)*0.95)]
+        return vmax
+    
+    title_list = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 
+                  '$\mathregular{CR_{SD}}$ random', '$\mathregular{CR_{SD}}$ corrected']
+    row=0
+    for file, title in zip([STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path], title_list):
+        sitk_img = sitk.ReadImage(file)
+        cbar_list = plot_3d(axes[row, :], sitk_img, fig, vmin=0, vmax=get_vmax(sitk_img, volume_indices),
+                    cmap='inferno', alpha=1, cbar=True, num_slices=6)
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label('Standard \n Deviation', fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
+        for ax in axes[row, :]:
+            ax.set_title(title, fontsize=30, color='white')
+        row +=1
+
+    import pathlib
+    filename_template = pathlib.Path(STD_file_path).name.rsplit("_STD_map.nii.gz")[0]
+    figure_path = os.path.abspath(filename_template)+'_CR_overfit.png'
+    fig.savefig(figure_path, bbox_inches='tight')
+
+    return figure_path
+

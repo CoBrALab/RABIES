@@ -14,7 +14,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
         fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
                                                        'dataset_diagnosis', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii',
-                                                       'CR_prediction_std_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
+                                                       'CR_prediction_std_nii', 'random_CR_std_nii', 'corrected_CR_std_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
     if not (commonspace_bold or preprocess_opts.bold_only):
         raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
@@ -40,11 +40,10 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
                                             output_names=[
-                                                'VE_filename', 'std_filename', 'predicted_std_filename', 'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename'],
+                                                'VE_filename', 'std_filename', 'predicted_std_filename', 'random_CR_std_filename', 'corrected_CR_std_filename', 
+                                                'GS_corr_filename', 'DVARS_corr_filename', 'FD_corr_filename'],
                                         function=spatial_external_formating),
                                 name='spatial_external_formating')
-
-
     workflow.connect([
         (inputnode, PrepMasks_node, [
             ("mask_dict_list", "mask_dict_list"),
@@ -82,6 +81,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             ("VE_filename", "spatial_VE_nii"),
             ("std_filename", "temporal_std_nii"),
             ("predicted_std_filename", "CR_prediction_std_nii"),
+            ("random_CR_std_filename", "random_CR_std_nii"),
+            ("corrected_CR_std_filename", "corrected_CR_std_nii"),
             ("GS_corr_filename", "GS_corr_nii"),
             ("DVARS_corr_filename", "DVARS_corr_nii"),
             ("FD_corr_filename", "FD_corr_nii"),

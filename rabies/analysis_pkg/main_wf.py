@@ -89,9 +89,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
     # concatenate the different inputs into a dictionary
-    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'CR_STD_file':CR_STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
+    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
+        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'CR_STD_file':CR_STD_file, 'random_CR_STD_file':random_CR_STD_file, 'corrected_CR_STD_file':corrected_CR_STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
+    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
@@ -102,6 +102,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
             ("input_bold", "name_source"),
             ]),
         (input_buffer_node, prep_dict_node, [
@@ -188,6 +190,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.CR_prediction_std_nii", "CR_prediction_std_nii"),
+                ("outputnode.random_CR_std_nii", "random_CR_std_nii"),
+                ("outputnode.corrected_CR_std_nii", "corrected_CR_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
@@ -243,6 +247,8 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
                     'VE_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'VE_file_path'],
                     'STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'STD_file_path'],
                     'CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'CR_STD_file_path'],
+                    'random_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'random_CR_STD_file_path'],
+                    'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
                     }
 
     if nativespace:

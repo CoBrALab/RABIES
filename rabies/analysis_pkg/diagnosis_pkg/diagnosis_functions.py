@@ -62,7 +62,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=-1):
+def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=-1):
     temporal_info = {}
     spatial_info = {}
 
@@ -156,6 +156,10 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
         sitk.ReadImage(STD_file))[volume_indices]
     spatial_info['predicted_std'] = sitk.GetArrayFromImage(
         sitk.ReadImage(CR_STD_file))[volume_indices]
+    spatial_info['random_CR_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(random_CR_STD_file))[volume_indices]
+    spatial_info['corrected_CR_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
     spatial_info['GS_corr'] = GS_corr
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
@@ -206,6 +210,14 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
+    random_CR_std_filename = os.path.abspath(filename_split[0]+'_random_CR_std.nii.gz')
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['random_CR_std']), random_CR_std_filename)
+
+    corrected_CR_std_filename = os.path.abspath(filename_split[0]+'_corrected_CR_std.nii.gz')
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['corrected_CR_std']), corrected_CR_std_filename)
+
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
@@ -219,7 +231,7 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['FD_corr']), FD_corr_filename)
 
-    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename
+    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename
 
 
 '''
