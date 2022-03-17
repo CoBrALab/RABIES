@@ -236,6 +236,11 @@ def read_preproc_workflow(preproc_output, nativespace=False):
 
 
 def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path):
+
+    for file in STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path:
+        if 'empty' in file:
+            return file
+
     import os
     import matplotlib.pyplot as plt
     import SimpleITK as sitk

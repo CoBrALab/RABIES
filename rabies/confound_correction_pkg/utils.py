@@ -374,6 +374,7 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
     randomized_confounds_array = np.zeros(confounds_array.shape)
     for n in range(num_conf):
         corr=1
+        iter=1
         while(corr>0.1):
             x=confounds_array[:,n:n+1]
             # fill missing datapoints to obtain a good reading of frequency spectrum
@@ -383,6 +384,12 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
             # re-apply the time mask to the same number of timepoints
             y_m = y_r[frame_mask]
             corr = np.abs(np.corrcoef(x.T,y_m.T)[0,1])
+            if iter>100:
+                from nipype import logging
+                log = logging.getLogger('nipype.workflow')
+                log.warning("Could not set uncorrelated random regressors!")
+                break
+            iter += 1
             
         #### impose orthogonality relative to every original regressor      
         y_m -= np.matmul(confounds_array, closed_form(confounds_array, y_m))
