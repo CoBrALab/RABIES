@@ -471,6 +471,15 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
+        '--detrending_order', type=str,
+        default="linear",
+        choices=["linear", "quadratic"],
+        help=
+            "Select between linear or quadratic (second-order) detrending of voxel timeseries.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
         '--conf_list', type=str,
         nargs="*",  # 0 or more values expected => creates a list
         default=[],

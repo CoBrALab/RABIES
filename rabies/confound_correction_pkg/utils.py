@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import SimpleITK as sitk
+from rabies.analysis_pkg.analysis_math import closed_form
 
 
 def tree_list(dirName):
@@ -195,6 +196,32 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
     return np.asarray(confounds[conf_keys])
 
 
+def remove_trend(timeseries, frame_mask, second_order=False, keep_intercept=False):
+    num_timepoints = len(frame_mask)
+    
+    # we create a centered time axis, to fit an intercept value in the center
+    time=np.linspace(-num_timepoints/2,num_timepoints/2 , num_timepoints)
+    
+    # evaluate the linear trend using an interpolated time axis based on previous censoring
+    X = time[frame_mask].reshape(-1,1)
+    if second_order:
+        X = np.concatenate((X, X**2), axis=1) # second order polynomial
+    X = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1) # add an intercept at the end
+    Y=timeseries
+    W = closed_form(X,Y)
+    
+    predicted = X.dot(W)
+    #plt.plot(time[frame_mask], timeseries.mean(axis=1))
+    #plt.plot(time[frame_mask], predicted.mean(axis=1))
+    
+    res = (Y-predicted) # add back the intercept after
+    if keep_intercept:
+        fitted_intercept = X[:,-1:].dot(W[-1:,:]) # predicted intercept
+        res += fitted_intercept
+    #plt.plot(time[frame_mask], res.mean(axis=1))
+    return res
+    
+
 def lombscargle_mathias(t, x, w):
 
     '''
@@ -342,8 +369,6 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
     of original regressors to make them independent from the true noise."
 
     """
-    
-    from rabies.analysis_pkg.analysis_math import closed_form
     from rabies.confound_correction_pkg.utils import lombscargle_fill
     num_conf = confounds_array.shape[1]
     randomized_confounds_array = np.zeros(confounds_array.shape)

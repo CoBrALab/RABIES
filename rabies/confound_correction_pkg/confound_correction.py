@@ -171,9 +171,8 @@ class Regress(BaseInterface):
         import numpy as np
         import pandas as pd
         import SimpleITK as sitk
-        from scipy.signal import detrend
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -238,9 +237,15 @@ class Regress(BaseInterface):
         '''
         #2 - Linear detrending of fMRI timeseries and nuisance regressors
         '''
-        # apply simple detrending, after censoring
-        timeseries = detrend(timeseries,axis=0)
-        confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too
+        # apply detrending, after censoring
+        if cr_opts.detrending_order=='linear':
+            second_order=False
+        elif cr_opts.detrending_order=='quadratic':
+            second_order=True
+        else:
+            raise ValueError(f"--detrending_order must be 'linear' or 'quadratic', not {cr_opts.detrending_order}")
+        timeseries = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=False)
+        confounds_array = remove_trend(confounds_array, frame_mask, second_order=second_order, keep_intercept=False)
 
         '''
         #3 - Apply ICA-AROMA.
