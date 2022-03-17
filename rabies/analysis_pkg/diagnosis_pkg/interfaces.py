@@ -165,8 +165,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
-    dataset_diagnosis = traits.Str(
-        exists=True, desc="Output figure from the dataset diagnosis")
+    analysis_QC = traits.Str(
+        exists=True, desc="Output figure from the analysis QC.")
 
 
 class DatasetDiagnosis(BaseInterface):
@@ -188,8 +188,10 @@ class DatasetDiagnosis(BaseInterface):
             raise ValueError(
                 "Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
 
-        out_dir = os.path.abspath('analysis_QC')
-        os.makedirs(out_dir, exist_ok=True)
+        out_dir_normal = os.path.abspath('analysis_QC')
+        os.makedirs(out_dir_normal, exist_ok=True)
+        out_dir_corrected = f'{out_dir_normal}/analysis_QC_corrected_CR'
+        os.makedirs(out_dir_corrected, exist_ok=True)
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
@@ -198,6 +200,8 @@ class DatasetDiagnosis(BaseInterface):
 
         std_maps=[]
         CR_std_maps=[]
+        random_CR_std_maps=[]
+        corrected_CR_std_maps=[]
         DR_maps_list=[]
         seed_maps_list=[]
         NPR_maps_list=[]
@@ -205,6 +209,8 @@ class DatasetDiagnosis(BaseInterface):
         for scan_data in merged:
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
+            corrected_CR_std_maps.append(scan_data['corrected_CR_std'])
+            random_CR_std_maps.append(scan_data['random_CR_std'])
             DR_maps_list.append(scan_data['DR_BOLD'])
             NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
@@ -212,55 +218,62 @@ class DatasetDiagnosis(BaseInterface):
 
         std_maps=np.array(std_maps)
         CR_std_maps=np.array(CR_std_maps)
-        corr_variable = [std_maps, CR_std_maps]
-        variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$']
+        corrected_CR_std_maps=np.array(corrected_CR_std_maps)
+        random_CR_std_maps=np.array(random_CR_std_maps)
 
-        # tdof effect; if there's no variability don't compute
-        if not np.array(tdof_list).std()==0:
-            tdof = np.array(tdof_list).reshape(-1,1)
-            corr_variable.append(tdof)
-            variable_name.append('tDOF')
+        for corr_variable,variable_name,out_dir in zip(
+            [[std_maps, CR_std_maps], [std_maps, corrected_CR_std_maps, random_CR_std_maps]], 
+            [['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$'], ['$\mathregular{BOLD_{SD}}$', 'Corrected $\mathregular{CR_{SD}}$', 'Random $\mathregular{CR_{SD}}$']], 
+            [out_dir_normal, out_dir_corrected]):
 
-        prior_maps = scan_data['prior_maps']
-        num_priors = prior_maps.shape[0]
+            # tdof effect; if there's no variability don't compute
+            if not np.array(tdof_list).std()==0:
+                tdof = np.array(tdof_list).reshape(-1,1)
+                corr_variable.append(tdof)
+                variable_name.append('tDOF')
 
-        DR_maps_list=np.array(DR_maps_list)
-        for i in range(num_priors):
-            FC_maps = DR_maps_list[:,i,:]
-            fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-            dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
-            pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
-
-        NPR_maps_list=np.array(NPR_maps_list)
-        if NPR_maps_list.shape[1]>0:
-            for i in range(num_priors):
-                FC_maps = NPR_maps_list[:,i,:]
-                fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
-                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
-
-
-        # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
-        if len(self.inputs.seed_prior_maps)>0:
-            prior_maps=[]
-            for prior_map in self.inputs.seed_prior_maps:
-                # resample to match the subject
-                sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
-                prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
-
-            prior_maps = np.array(prior_maps)
+            prior_maps = scan_data['prior_maps']
             num_priors = prior_maps.shape[0]
-            seed_maps_list=np.array(seed_maps_list)
-            for i in range(num_priors):
-                FC_maps = seed_maps_list[:,i,:]
-                fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
-                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
 
-        setattr(self, 'dataset_diagnosis',
-                out_dir)
+            DR_maps_list=np.array(DR_maps_list)
+            for i in range(num_priors):
+                FC_maps = DR_maps_list[:,i,:]
+                fig_path = f'{out_dir}/DR{i}_QC_maps.png'
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
+
+            NPR_maps_list=np.array(NPR_maps_list)
+            if NPR_maps_list.shape[1]>0:
+                for i in range(num_priors):
+                    FC_maps = NPR_maps_list[:,i,:]
+                    fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                    pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
+
+
+            # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
+            if len(self.inputs.seed_prior_maps)>0:
+                prior_maps=[]
+                for prior_map in self.inputs.seed_prior_maps:
+                    # resample to match the subject
+                    sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
+                    prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
+
+                prior_maps = np.array(prior_maps)
+                num_priors = prior_maps.shape[0]
+                seed_maps_list=np.array(seed_maps_list)
+                for i in range(num_priors):
+                    FC_maps = seed_maps_list[:,i,:]
+                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                    pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+
+        setattr(self, 'analysis_QC',
+                out_dir_normal)
         return runtime
 
     def _list_outputs(self):
-        return {'dataset_diagnosis': getattr(self, 'dataset_diagnosis')}
+        return {
+            'analysis_QC': getattr(self, 'analysis_QC'),
+            }
 

@@ -13,7 +13,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
-                                                       'dataset_diagnosis', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii',
+                                                       'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii',
                                                        'CR_prediction_std_nii', 'random_CR_std_nii', 'corrected_CR_std_nii', 'DVARS_corr_nii', 'FD_corr_nii']), name='outputnode')
 
     if not (commonspace_bold or preprocess_opts.bold_only):
@@ -94,7 +94,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
         def prep_scan_data(spatial_info, analysis_dict, file_dict, mask_file_dict):
             scan_data={}
 
-            dict_keys = ['temporal_std', 'predicted_std', 'VE_spatial', 'GS_corr',
+            dict_keys = ['temporal_std', 'predicted_std', 'corrected_CR_std', 'random_CR_std', 'GS_corr',
                             'DVARS_corr', 'FD_corr', 'DR_BOLD', 'NPR_maps', 'prior_maps' ]
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
@@ -156,7 +156,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
                 ("mask_file_dict", "mask_file_dict"),
                 ]),
             (DatasetDiagnosis_node, outputnode, [
-                ("dataset_diagnosis", "dataset_diagnosis"),
+                ("analysis_QC", "analysis_QC"),
                 ]),
             ])
     else:

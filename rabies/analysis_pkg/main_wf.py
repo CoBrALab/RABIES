@@ -185,7 +185,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (diagnosis_wf, data_diagnosis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
+                ("outputnode.analysis_QC", "analysis_QC"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
                 ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
