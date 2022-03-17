@@ -67,6 +67,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         (preproc_outputnode, confound_correction_wf, [
             ("confounds_csv", "inputnode.confounds_file"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
+            ("input_bold", "inputnode.raw_input_file"),
             ]),
         (confound_correction_wf, plot_CR_overfit_node, [
             ("outputnode.STD_file", "STD_file_path"),
@@ -126,6 +127,12 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),
+                ]),
+            ])
+    if cr_opts.background_scaling:
+        workflow.connect([
+            (confound_correction_wf, confound_correction_datasink, [
+                ("outputnode.background_fig", "background_masking_fig"),
                 ]),
             ])
 

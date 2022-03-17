@@ -471,6 +471,16 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
+        '--background_scaling', dest='background_scaling', action='store_true',
+        help=
+            "Using this option, a background mask will be derived to map background noise voxels\n"
+            "from the raw input EPI scan, and timeseries will be scaled according to the noise \n"
+            "standard deviation. This will allow to match the intensity profile of different scans \n"
+            "and avoid biases in data variance and amplitude estimation during analysis.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
         '--detrending_order', type=str,
         default="linear",
         choices=["linear", "quadratic"],

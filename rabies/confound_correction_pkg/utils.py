@@ -419,3 +419,85 @@ def smooth_image(img, affine, fwhm):
             smoothed_arr, isVector=False), img)
 
     return smoothed_img
+
+
+def get_background_mask(bold_file, plotting=False):
+    """
+    Function that takes a 4D EPI timeseries and computes a background mask 
+    excluding contributions from biological tissues.
+    """
+    import tempfile
+    import matplotlib.pyplot as plt
+    from rabies.utils import run_command
+    from rabies.utils import copyInfo_3DImage
+    tmppath = tempfile.mkdtemp()
+
+    data_img = sitk.ReadImage(bold_file, sitk.sitkFloat32)
+    data_array = sitk.GetArrayFromImage(data_img)
+    median = np.median(data_array, axis=0)
+    temporal_std = data_array.std(axis=0)
+    
+    median_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        median, isVector=False), data_img)
+    sitk.WriteImage(median_img, f'{tmppath}/median.nii.gz')
+    
+    std_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        temporal_std, isVector=False), data_img)
+    sitk.WriteImage(std_img, f'{tmppath}/std_map.nii.gz')
+    
+    ### first iteration of otsu thresholding, taking the background
+    command = f'ThresholdImage 3 {tmppath}/median.nii.gz {tmppath}/weight.nii.gz Otsu 4'
+    rc = run_command(command)
+    otsu_img = sitk.ReadImage(f'{tmppath}/weight.nii.gz', sitk.sitkFloat32)
+    otsu_array = sitk.GetArrayFromImage(otsu_img)
+    background_mask = otsu_array<1
+    
+    not_zeros_indices = temporal_std!=0
+    background_mask *= not_zeros_indices # make sure there are no 0s
+    
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        background_mask.astype(float), isVector=False), otsu_img)
+    sitk.WriteImage(volume_img, f'{tmppath}/background_mask.nii.gz')
+    
+    ### second iteration of otsu thresholding, taking the lower distribution
+    # there were residual effects from the brain influencing the distribution
+    command = f'ThresholdImage 3 {tmppath}/std_map.nii.gz {tmppath}/weight2.nii.gz Otsu 1 {tmppath}/background_mask.nii.gz'
+    rc = run_command(command)
+    otsu_img = sitk.ReadImage(f'{tmppath}/weight2.nii.gz', sitk.sitkFloat32)
+    otsu_array = sitk.GetArrayFromImage(otsu_img)
+    background_mask *= (otsu_array<2)
+    mask_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        background_mask.astype(float), isVector=False), otsu_img)
+    sitk.WriteImage(mask_img, f'{tmppath}/background_mask.nii.gz')
+
+    from rabies.visualization import otsu_scaling, plot_3d
+    
+    fig_path = None
+    if plotting:
+        import pathlib
+        filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
+
+        fig = plt.figure(figsize=(24,6))
+        #fig.suptitle(name, fontsize=30, color='white')
+        ax1 = fig.add_subplot(3,2,1)
+        ax2 = fig.add_subplot(3,2,3)
+        ax3 = fig.add_subplot(3,2,5)
+        ax4 = fig.add_subplot(1,4,3)
+
+        ax4.hist(data_array[:,background_mask].flatten(), bins=100)
+        ax4.set_title('Noise Distribution (should be Rician)', fontsize=20, color='white')
+
+        
+        from rabies.visualization import otsu_scaling, plot_3d
+        planes = ('sagittal', 'coronal', 'horizontal')
+        scaled = otsu_scaling(f'{tmppath}/std_map.nii.gz')
+        
+        plot_3d([ax1,ax2,ax3],scaled,fig,vmin=0,vmax=1,cmap='viridis', alpha=1, cbar=False, num_slices=6, planes=planes)
+        plot_3d([ax1,ax2,ax3],mask_img,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False, num_slices=6, planes=planes)
+        ax1.set_title('Background masking (in red) over standard deviation map', fontsize=20, color='white')
+
+        fig_path = os.path.abspath(f'{filename_split}_background_masking.png')
+        fig.savefig(fig_path, bbox_inches='tight')
+
+    return background_mask, data_array, fig_path
+        

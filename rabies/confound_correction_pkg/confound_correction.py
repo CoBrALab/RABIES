@@ -56,10 +56,10 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-                        'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
+                        'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
-                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict', 'background_fig']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
@@ -79,6 +79,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
             ("csf_mask", "CSF_mask_file"),
+            ("raw_input_file", "raw_input_file"),
             ]),
         (prep_CR_node, regress_node, [
             ("data_dict", "data_dict"),
@@ -93,14 +94,16 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
+            ("background_fig", "background_fig"),
             ]),
         ])
-
 
     return workflow
 
 
 class RegressInputSpec(BaseInterfaceInputSpec):
+    raw_input_file = File(exists=True, mandatory=True,
+                      desc="The raw EPI scan before preprocessing.")
     bold_file = File(exists=True, mandatory=True,
                       desc="Timeseries to denoise.")
     data_dict = traits.Dict(
@@ -131,6 +134,8 @@ class RegressOutputSpec(TraitedSpec):
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
+    background_fig = traits.Str(
+        desc="Figure to visualize the quality of background noise mapping.")
 
 class Regress(BaseInterface):
     '''
@@ -172,7 +177,7 @@ class Regress(BaseInterface):
         import pandas as pd
         import SimpleITK as sitk
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend, get_background_mask
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -189,6 +194,7 @@ class Regress(BaseInterface):
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
+        setattr(self, 'background_fig', empty_file)
         ###
 
         bold_file = self.inputs.bold_file
@@ -224,6 +230,19 @@ class Regress(BaseInterface):
             TR = float(cr_opts.TR)
 
         '''
+        scaling based on background noise
+        '''
+        if cr_opts.background_scaling:
+            background_mask, data_array, background_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
+            # based on Gudbjartsson and Patz (1995, Magn Reson Med.), there's a linear relationship between the mean 
+            # in the background noise and the scanner noise signal variability in the Fourrier domain
+            scaling_factor = data_array[:,background_mask].flatten().mean() # we take the mean as a proxy for signal standard deviation in Fourier domain
+            timeseries = timeseries/scaling_factor
+        else:
+            background_fig_path = empty_file
+        
+
+        '''
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
         frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
@@ -257,7 +276,7 @@ class Regress(BaseInterface):
             sitk.WriteImage(timeseries_img, inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array = detrend(confounds_6rigid_array,axis=0) # apply detrending to the confounds too
+            confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, second_order=second_order, keep_intercept=False) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
@@ -429,6 +448,7 @@ class Regress(BaseInterface):
         setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
+        setattr(self, 'background_fig', background_fig_path)
 
         return runtime
 
@@ -442,4 +462,5 @@ class Regress(BaseInterface):
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),
+                'background_fig': getattr(self, 'background_fig'),
                 }
