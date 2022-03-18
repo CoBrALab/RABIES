@@ -216,10 +216,15 @@ class DatasetDiagnosis(BaseInterface):
             tdof_list.append(scan_data['tDOF'])
             seed_maps_list.append(scan_data['seed_list'])
 
-        std_maps=np.array(std_maps)
-        CR_std_maps=np.array(CR_std_maps)
-        corrected_CR_std_maps=np.array(corrected_CR_std_maps)
-        random_CR_std_maps=np.array(random_CR_std_maps)
+        from rabies.utils import recover_3D
+        non_zero_voxels = ((std_maps==0).sum(axis=0).astype(bool)==0)
+        non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
+        sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
+
+        std_maps=np.array(std_maps)[:,non_zero_voxels]
+        CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
+        corrected_CR_std_maps=np.array(corrected_CR_std_maps)[:,non_zero_voxels]
+        random_CR_std_maps=np.array(random_CR_std_maps)[:,non_zero_voxels]
 
         for corr_variable,variable_name,out_dir in zip(
             [[std_maps, CR_std_maps], [std_maps, corrected_CR_std_maps, random_CR_std_maps]], 
@@ -232,22 +237,22 @@ class DatasetDiagnosis(BaseInterface):
                 corr_variable.append(tdof)
                 variable_name.append('tDOF')
 
-            prior_maps = scan_data['prior_maps']
+            prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
             num_priors = prior_maps.shape[0]
 
             DR_maps_list=np.array(DR_maps_list)
             for i in range(num_priors):
-                FC_maps = DR_maps_list[:,i,:]
+                FC_maps = DR_maps_list[:,i,non_zero_voxels]
                 fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
             NPR_maps_list=np.array(NPR_maps_list)
             if NPR_maps_list.shape[1]>0:
                 for i in range(num_priors):
-                    FC_maps = NPR_maps_list[:,i,:]
+                    FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
                     pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
 
 
@@ -259,13 +264,13 @@ class DatasetDiagnosis(BaseInterface):
                     sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
                     prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
 
-                prior_maps = np.array(prior_maps)
+                prior_maps = np.array(prior_maps)[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
                 seed_maps_list=np.array(seed_maps_list)
                 for i in range(num_priors):
-                    FC_maps = seed_maps_list[:,i,:]
+                    FC_maps = seed_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], mask_file, corr_variable, variable_name, template_file, fig_path)
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
                     pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
 
         setattr(self, 'analysis_QC',
