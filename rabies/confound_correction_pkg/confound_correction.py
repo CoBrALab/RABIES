@@ -379,7 +379,9 @@ class Regress(BaseInterface):
         predicted_random_std = predicted_random.std(axis=0)
 
         # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
-        corrected_predicted_std = np.sqrt(predicted.var(axis=0)-predicted_random.var(axis=0))
+        var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
+        var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
+        corrected_predicted_std = np.sqrt(var_dif)
 
         if len(cr_opts.conf_list) > 0:
             # if confound regression is applied

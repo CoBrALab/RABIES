@@ -217,6 +217,7 @@ class DatasetDiagnosis(BaseInterface):
             seed_maps_list.append(scan_data['seed_list'])
 
         from rabies.utils import recover_3D
+        std_maps=np.array(std_maps)
         non_zero_voxels = ((std_maps==0).sum(axis=0).astype(bool)==0)
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
