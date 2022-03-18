@@ -371,13 +371,6 @@ class Regress(BaseInterface):
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
-        if len(cr_opts.conf_list) > 0:
-            # if confound regression is applied
-            timeseries = res
-
-        # save the temporal STD map prior to standardization and smoothing
-        temporal_std = timeseries.std(axis=0)
-
         # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
         randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
         X=randomized_confounds_array 
@@ -387,6 +380,13 @@ class Regress(BaseInterface):
 
         # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
         corrected_predicted_std = np.sqrt(predicted.var(axis=0)-predicted_random.var(axis=0))
+
+        if len(cr_opts.conf_list) > 0:
+            # if confound regression is applied
+            timeseries = res
+
+        # save the temporal STD map prior to standardization and smoothing
+        temporal_std = timeseries.std(axis=0)
 
         '''
         #8 - Standardize timeseries

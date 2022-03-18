@@ -384,7 +384,7 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
             # re-apply the time mask to the same number of timepoints
             y_m = y_r[frame_mask]
             corr = np.abs(np.corrcoef(x.T,y_m.T)[0,1])
-            if iter>100:
+            if iter>100: # set a maximum number of iterations
                 from nipype import logging
                 log = logging.getLogger('nipype.workflow')
                 log.warning("Could not set uncorrelated random regressors!")
