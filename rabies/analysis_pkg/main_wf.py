@@ -197,7 +197,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),
             ])
-        if analysis_opts.NPR_extra_sources>-1:
+        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1):
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),

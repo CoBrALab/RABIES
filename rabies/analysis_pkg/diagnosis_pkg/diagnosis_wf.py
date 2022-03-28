@@ -26,7 +26,9 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
 
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
-            NPR_extra_sources = analysis_opts.NPR_extra_sources, DSURQE_regions=DSURQE_regions),
+            NPR_temporal_comp=analysis_opts.NPR_temporal_comp, 
+            NPR_spatial_comp=analysis_opts.NPR_spatial_comp, 
+            DSURQE_regions=DSURQE_regions),
         name='ScanDiagnosis')
 
     PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),

@@ -123,14 +123,15 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    if opts.NPR_extra_sources>-1:
+    if (opts.NPR_temporal_comp>-1) or (opts.NPR_spatial_comp>-1):
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run NPR. Try running confound regression again without --nativespace_analysis.')
         from .analysis_functions import NeuralPriorRecovery
 
         NPR_node = pe.Node(NeuralPriorRecovery(
-                            num_comp_extra=opts.NPR_extra_sources, 
+                            NPR_temporal_comp=opts.NPR_temporal_comp, 
+                            NPR_spatial_comp=opts.NPR_spatial_comp, 
                             prior_bold_idx = opts.prior_bold_idx, 
                             prior_maps = opts.prior_maps),
                             name='NPR_node', mem_gb=1*opts.scale_min_memory)

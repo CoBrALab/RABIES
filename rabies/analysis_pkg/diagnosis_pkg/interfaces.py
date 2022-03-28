@@ -84,8 +84,10 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
         desc="The index for the ICA components that correspond to confounding sources.")
-    NPR_extra_sources = traits.Int(
-        desc="number of extra components from NPR.")
+    NPR_temporal_comp = traits.Int(
+        desc="number of data-driven temporal components to compute.")
+    NPR_spatial_comp = traits.Int(
+        desc="number of data-driven spatial components to compute.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
 
@@ -128,7 +130,7 @@ class ScanDiagnosis(BaseInterface):
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=self.inputs.NPR_extra_sources)
+            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=self.inputs.NPR_temporal_comp, NPR_spatial_comp=self.inputs.NPR_spatial_comp)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
                                    spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)

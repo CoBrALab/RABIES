@@ -780,12 +780,21 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--NPR_extra_sources', type=int, default=-1,
+        '--NPR_temporal_comp', type=int, default=-1,
         help=
             "Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra \n"
-            "subject-specific sources will be computed to account for non-prior confounds. After computing \n"
+            "subject-specific sources will be computed to account for non-prior confounds. This options \n"
+            "specifies the number of temporal components to compute. After computing \n"
             "these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
             "Specify at least 0 extra sources to run NPR.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--NPR_spatial_comp', type=int, default=-1,
+        help=
+            "Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are \n"
+            "additioned to the temporal components).\n"
             "(default: %(default)s)\n"
             "\n"
         )

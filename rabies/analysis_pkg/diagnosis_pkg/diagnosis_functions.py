@@ -62,7 +62,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_extra_sources=-1):
+def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
     temporal_info = {}
     spatial_info = {}
 
@@ -128,7 +128,7 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     prior_fit_out = {'C': [], 'W': []}
-    if NPR_extra_sources > -1:
+    if (NPR_temporal_comp>-1) or (NPR_spatial_comp>-1):
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
             sitk.ReadImage(analysis_dict['NPR_prior_filename']))

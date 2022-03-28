@@ -277,8 +277,10 @@ class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
     mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
     prior_maps = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    num_comp_extra = traits.Int(
-        desc="number of scan-specific to fit extra to the priors.")
+    NPR_temporal_comp = traits.Int(
+        desc="number of data-driven temporal components to compute.")
+    NPR_spatial_comp = traits.Int(
+        desc="number of data-driven spatial components to compute.")
 
 class NeuralPriorRecoveryOutputSpec(TraitedSpec):
     NPR_prior_timecourse_csv = File(
@@ -305,6 +307,7 @@ class NeuralPriorRecovery(BaseInterface):
         import pandas as pd
         import pathlib  # Better path manipulation
         from rabies.utils import recover_4D
+        from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
         filename_split = pathlib.Path(
             self.inputs.bold_file).name.rsplit(".nii")
 
@@ -330,20 +333,30 @@ class NeuralPriorRecovery(BaseInterface):
             all_IC_vectors[i, :] = (data_array[i, :, :, :])[volume_indices]
 
         C_prior = all_IC_vectors[self.inputs.prior_bold_idx,:].T
-        modeling = neural_prior_recovery(timeseries, n_extra_fit=self.inputs.num_comp_extra, C_prior=C_prior, verbose=1)
+        NPR_temporal_comp = self.inputs.NPR_temporal_comp
+        NPR_spatial_comp = self.inputs.NPR_spatial_comp
+        if NPR_temporal_comp<1: # make sure there is no negative number
+            NPR_temporal_comp=0
+        if NPR_spatial_comp<1: # make sure there is no negative number
+            NPR_spatial_comp=0
+        modeling = spatiotemporal_prior_fit(timeseries, C_prior, num_W=NPR_temporal_comp, num_C=NPR_spatial_comp)
+
+        # put together the spatial and temporal extra componentsZ
+        W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
+        C_extra = np.concatenate((modeling['C_spatial'],modeling['C_temporal']), axis=1)
 
         NPR_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_prior_timecourse.csv')
         pd.DataFrame(modeling['W_fitted_prior']).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
 
         NPR_extra_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_extra_timecourse.csv')
-        pd.DataFrame(modeling['W_extra']).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
+        pd.DataFrame(W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
 
         NPR_prior_filename = os.path.abspath(filename_split[0]+'_NPR_prior.nii.gz')
         sitk.WriteImage(recover_4D(self.inputs.mask_file,modeling['C_fitted_prior'].T, self.inputs.bold_file), NPR_prior_filename)
 
-        if self.inputs.num_comp_extra>0:
+        if (self.inputs.NPR_temporal_comp+self.inputs.NPR_spatial_comp)>0:
             NPR_extra_filename = os.path.abspath(filename_split[0]+'_NPR_extra.nii.gz')
-            sitk.WriteImage(recover_4D(self.inputs.mask_file,modeling['C_extra'].T, self.inputs.bold_file), NPR_extra_filename)
+            sitk.WriteImage(recover_4D(self.inputs.mask_file,C_extra.T, self.inputs.bold_file), NPR_extra_filename)
         else:
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
             empty_file = os.path.abspath('empty.nii.gz')
@@ -363,39 +376,3 @@ class NeuralPriorRecovery(BaseInterface):
                 'NPR_prior_filename': getattr(self, 'NPR_prior_filename'),
                 'NPR_extra_filename': getattr(self, 'NPR_extra_filename'),
                 }
-
-
-def neural_prior_recovery(X, n_extra_fit, C_prior, verbose=1):
-    from rabies.analysis_pkg.analysis_math import dual_OLS_fit
-    
-    num_priors = C_prior.shape[1]
-
-    C_extra = dual_OLS_fit(X, q=n_extra_fit, c_init=None, C_prior=C_prior, tol=1e-6, max_iter=200, verbose=verbose)
-    
-    corr_list=[]
-    C_fitted_prior = np.zeros([X.shape[1], num_priors])
-    for i in range(num_priors):
-        prior = C_prior[:,i] # the prior that will be fitted
-        N_prior = np.concatenate((C_extra, C_prior[:,:i], C_prior[:,i+1:]), axis=1) # combine previously-fitted extra components with priors not getting fitted
-        C_fitted_prior[:,i] = dual_OLS_fit(X, q=1, c_init=None, C_prior=N_prior, tol=1e-6, max_iter=200, verbose=verbose).flatten() # fit the selected prior, left out of N_prior
-            
-        corr = np.corrcoef(C_fitted_prior[:,i].T, prior.T)[0,1]
-        if corr<0: # if the correlation is negative, invert the weights on the fitted component
-            C_fitted_prior[:,i]*=-1
-        corr_list.append(np.abs(corr))
-
-    ### compute the timecourses and normalize variance
-    # the finalized C
-    C = np.concatenate((C_fitted_prior, C_extra), axis=1)
-
-    # L-2 norm normalization of the components
-    C /= np.sqrt((C ** 2).sum(axis=0))
-    W = closed_form(C,X.T, intercept=False).T
-    # the components will contain the weighting/STD/singular value, and the timecourses are normalized
-    C=C*W.std(axis=0)
-    # normalize the component timecourses to unit variance
-    W /= W.std(axis=0)
-    
-    return {'C_fitted_prior':C[:,:num_priors], 'C_extra':C[:,num_priors:], 
-            'W_fitted_prior':W[:,:num_priors], 'W_extra':W[:,num_priors:],
-            'corr_list':corr_list}
