@@ -193,6 +193,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.random_CR_std_nii", "random_CR_std_nii"),
                 ("outputnode.corrected_CR_std_nii", "corrected_CR_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
+                ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),

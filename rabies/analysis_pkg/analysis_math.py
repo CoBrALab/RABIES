@@ -190,28 +190,4 @@ def lme_stats_3d(X,Y):
 
     return ts_b,p_values,w,residuals
 
-non_nan_idx = (np.isnan(voxelwise_array).sum(axis=(0,1))==0)
-
-# take out the voxels which have null values
-X=voxelwise_array[:,:6,non_nan_idx].transpose(2,0,1)
-Y=voxelwise_array[:,6:,non_nan_idx].transpose(2,0,1)
-
-
-ts_b,p_values,w,residuals = lme_stats_3d(X,Y)
-
-x_name=['Somatomotor','Dorsal Comp','DMN', 'Prior Modeling 1', 'Prior Modeling 2', 'Prior Modeling 3']
-y_name=['group','temporal_std','VE_spatial','GS_corr','DVARS_corr','FD_corr']
-
-fig,axes = plt.subplots(nrows=len(x_name), ncols=len(y_name),figsize=(12*len(y_name),3*len(x_name)))
-
-
-for i,x_label in zip(range(len(x_name)),x_name):
-    for j,y_label in zip(range(len(y_name)),y_name):
-        ax=axes[i,j]
-
-        stat_map=np.zeros(voxelwise_array.shape[2])
-        stat_map[non_nan_idx]=ts_b[:,j,i]
-
-        ax.set_title('T-value of {} on {}'.format(y_label,x_label), fontsize=15)
-        plot_stat_map(analysis_functions.recover_3D(mask_file,stat_map),bg_img='DSURQE.nii.gz', axes=ax, cut_coords=(0,1,2,3,4,5), display_mode='y')
 '''

@@ -477,6 +477,8 @@ def get_parser():
         help=
             "Select an option for scaling the image variance to match the intensity profile of \n"
             "different scans and avoid biases in data variance and amplitude estimation during analysis.\n"
+            "The variance explained from confound regression is also scaled accordingly for later use with \n"
+            "--data_diagnosis. \n"
             "*** None: No scaling is applied, only detrending.\n"
             "*** background_noise: a mask is derived to map background noise, and scale the image \n"
             "   intensity relative to the noise standard deviation. \n"

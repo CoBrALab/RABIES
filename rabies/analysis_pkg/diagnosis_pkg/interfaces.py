@@ -200,6 +200,8 @@ class DatasetDiagnosis(BaseInterface):
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)
 
+        GS_cov_maps=[]
+        GS_corr_maps=[]
         std_maps=[]
         CR_std_maps=[]
         random_CR_std_maps=[]
@@ -209,6 +211,8 @@ class DatasetDiagnosis(BaseInterface):
         NPR_maps_list=[]
         tdof_list=[]
         for scan_data in merged:
+            GS_cov_maps.append(scan_data['GS_cov'])
+            GS_corr_maps.append(scan_data['GS_corr'])
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
             corrected_CR_std_maps.append(scan_data['corrected_CR_std'])
@@ -225,13 +229,15 @@ class DatasetDiagnosis(BaseInterface):
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
         std_maps=np.array(std_maps)[:,non_zero_voxels]
+        GS_cov_maps=np.array(GS_cov_maps)[:,non_zero_voxels]
+        GS_corr_maps=np.array(GS_corr_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
         corrected_CR_std_maps=np.array(corrected_CR_std_maps)[:,non_zero_voxels]
         random_CR_std_maps=np.array(random_CR_std_maps)[:,non_zero_voxels]
 
         for corr_variable,variable_name,out_dir in zip(
-            [[std_maps, CR_std_maps], [std_maps, corrected_CR_std_maps, random_CR_std_maps]], 
-            [['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$'], ['$\mathregular{BOLD_{SD}}$', 'Corrected $\mathregular{CR_{SD}}$', 'Random $\mathregular{CR_{SD}}$']], 
+            [[std_maps, GS_cov_maps, GS_corr_maps, CR_std_maps], [std_maps, GS_cov_maps, GS_corr_maps, corrected_CR_std_maps, random_CR_std_maps]], 
+            [['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', '$\mathregular{CR_{SD}}$'], ['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', 'Corrected $\mathregular{CR_{SD}}$', 'Random $\mathregular{CR_{SD}}$']], 
             [out_dir_normal, out_dir_corrected]):
 
             # tdof effect; if there's no variability don't compute
