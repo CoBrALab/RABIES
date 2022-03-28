@@ -259,8 +259,7 @@ def dual_regression(all_IC_vectors, timeseries):
     Y = timeseries.T
     # for one given volume, it's values can be expressed through a linear combination of the components
     W = closed_form(X, Y, intercept=False).T
-    # normalize the component timecourses to unit variance
-    W /= W.std(axis=0)
+    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
     # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
     C = closed_form(W, Y.T, intercept=False)
     DR = {'C':C, 'W':W}
