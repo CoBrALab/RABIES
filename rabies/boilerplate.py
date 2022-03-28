@@ -307,18 +307,12 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
 {conf_list_str} were modelled at each voxel and regressed from the data. "
 
 
-    if opts.standardize or opts.smoothing_filter is not None:
-        methods+="Before analysis, "
-    # Standardize
-    if opts.standardize:
-        methods+=f"timeseries were temporally standardized (mean-substrated, variance-normalized) and "
-
     # Spatial smoothing
     if opts.smoothing_filter is not None:
         if not nilearn in references.keys():
             references[nilearn]=i
             i+=1
-        methods+=f"a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
+        methods+=f"Before analysis, a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
 
     methods+='\n'
     ref_string=''

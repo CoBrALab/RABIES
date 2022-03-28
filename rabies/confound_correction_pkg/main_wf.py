@@ -129,7 +129,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),
                 ]),
             ])
-    if cr_opts.background_scaling:
+    if cr_opts.image_scaling=='background_noise':
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.background_fig", "background_masking_fig"),

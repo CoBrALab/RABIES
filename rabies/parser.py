@@ -471,12 +471,19 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--background_scaling', dest='background_scaling', action='store_true',
+        '--image_scaling', type=str,
+        default="None",
+        choices=["None", "background_noise", "global_variance", "voxelwise_standardization"],
         help=
-            "Using this option, a background mask will be derived to map background noise voxels\n"
-            "from the raw input EPI scan, and timeseries will be scaled according to the noise \n"
-            "standard deviation. This will allow to match the intensity profile of different scans \n"
-            "and avoid biases in data variance and amplitude estimation during analysis.\n"
+            "Select an option for scaling the image variance to match the intensity profile of \n"
+            "different scans and avoid biases in data variance and amplitude estimation during analysis.\n"
+            "*** None: No scaling is applied, only detrending.\n"
+            "*** background_noise: a mask is derived to map background noise, and scale the image \n"
+            "   intensity relative to the noise standard deviation. \n"
+            "*** global_variance: After applying confound correction, the cleaned timeseries are scaled \n"
+            "   according to the total standard deviation of all voxels, to scale total variance to 1. \n"
+            "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
+            "   scaled to unit variance (z-scoring). \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -580,13 +587,6 @@ def get_parser():
         help=
             "Can set a minimum number of timepoints remaining after frame censoring. If the threshold\n" 
             "is not met, an empty file is generated and the scan is not considered in further steps.\n" 
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--standardize', dest='standardize', action='store_true',default=False,
-        help=
-            "Whether to standardize timeseries (z-scoring).\n"
             "(default: %(default)s)\n"
             "\n"
         )

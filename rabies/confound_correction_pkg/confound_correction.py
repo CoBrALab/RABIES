@@ -232,7 +232,7 @@ class Regress(BaseInterface):
         '''
         scaling based on background noise
         '''
-        if cr_opts.background_scaling:
+        if cr_opts.image_scaling=='background_noise':
             background_mask, data_array, background_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
             # based on Gudbjartsson and Patz (1995, Magn Reson Med.), there's a linear relationship between the mean 
             # in the background noise and the scanner noise signal variability in the Fourrier domain
@@ -364,10 +364,6 @@ class Regress(BaseInterface):
 
             return runtime
 
-        # derive features from the predicted timeseries
-        predicted_std = predicted.std(axis=0)
-        predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
-
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
@@ -376,25 +372,44 @@ class Regress(BaseInterface):
         X=randomized_confounds_array 
         Y = timeseries
         predicted_random = X.dot(closed_form(X,Y))
+
+        if len(cr_opts.conf_list) > 0:
+            # if confound regression is applied
+            timeseries = res
+
+        '''
+        #8 - Standardize timeseries
+        '''
+        if cr_opts.image_scaling=='global_variance':
+            scaling_factor = timeseries.std()
+            timeseries = timeseries/scaling_factor
+            # we scale also the variance estimates from CR
+            predicted = predicted/scaling_factor
+            predicted_random = predicted_random/scaling_factor
+        elif cr_opts.image_scaling=='voxelwise_standardization':
+            # each voxel is scaled according to its STD
+            temporal_std = timeseries.std(axis=0) 
+            timeseries = timeseries/temporal_std
+            nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+            timeseries[:,nan_voxels] = 0
+            # we scale also the variance estimates from CR
+            predicted = predicted/temporal_std
+            nan_voxels = np.isnan(predicted).sum(axis=0)>1
+            predicted[:,nan_voxels] = 0
+            predicted_random = predicted_random/temporal_std
+            nan_voxels = np.isnan(predicted_random).sum(axis=0)>1
+            predicted_random[:,nan_voxels] = 0
+
+        # after variance scaling, compute the variability estimates
+        temporal_std = timeseries.std(axis=0)
+        predicted_std = predicted.std(axis=0)
+        predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
         predicted_random_std = predicted_random.std(axis=0)
 
         # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
         var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
         var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
         corrected_predicted_std = np.sqrt(var_dif)
-
-        if len(cr_opts.conf_list) > 0:
-            # if confound regression is applied
-            timeseries = res
-
-        # save the temporal STD map prior to standardization and smoothing
-        temporal_std = timeseries.std(axis=0)
-
-        '''
-        #8 - Standardize timeseries
-        '''
-        if cr_opts.standardize:
-            timeseries = (timeseries-timeseries.mean(axis=0))/temporal_std
 
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
