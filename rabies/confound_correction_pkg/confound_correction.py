@@ -250,6 +250,32 @@ class Regress(BaseInterface):
         if frame_mask is None:
             return runtime
 
+        if cr_opts.match_number_timepoints:
+            if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
+                # if frequency filtering is applied, avoid selecting timepoints that would be removed with --edge_cutoff
+                num_cut = int(cr_opts.edge_cutoff/TR)
+                if not num_cut==0:
+                    frame_mask[:num_cut]=0
+                    frame_mask[-num_cut:]=0
+
+                    if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+                        from nipype import logging
+                        log = logging.getLogger('nipype.workflow')
+                        log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+                        return runtime
+
+            # randomly shuffle indices that haven't been censored, then remove an extra subset above --minimum_timepoint
+            num_timepoints = len(frame_mask)
+            time_idx=np.array(range(num_timepoints))
+            perm = np.random.permutation(time_idx[frame_mask])
+            # selecting the subset of extra timepoints, and censoring them
+            subset_idx = perm[cr_opts.minimum_timepoint:]
+            frame_mask[subset_idx]=0
+            # keep track of the original number of timepoints for tDOF estimation, to evaluate latter if the correction was succesful
+            number_extra_timepoints = len(subset_idx)
+        else:
+            number_extra_timepoints = 0
+
         timeseries = timeseries[frame_mask]
         confounds_array = confounds_array[frame_mask]
 
@@ -453,7 +479,7 @@ class Regress(BaseInterface):
         else:
             aroma_rm = 0
         num_regressors = confounds_array.shape[1]
-        tDOF = num_timepoints - (aroma_rm+num_regressors)
+        tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
         data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF}
 

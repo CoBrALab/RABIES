@@ -593,6 +593,17 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
+        '--match_number_timepoints', dest='match_number_timepoints', action='store_true', default=False,
+        help=
+            "With this option, only a subset of the timepoints are kept post-censoring to match the \n"
+            "--minimum_timepoint number for all scans. This can be conducted to avoid inconsistent \n" 
+            "temporal degrees of freedom (tDOF) between scans during downstream analysis. We recommend \n" 
+            "selecting this option if a significant confounding effect of tDOF is detected during --data_diagnosis.\n" 
+            "The extra timepoints removed are randomly selected among the set available post-censoring.\n" 
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
         '--run_aroma', dest='run_aroma', action='store_true', default=False,
         help=
             "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
