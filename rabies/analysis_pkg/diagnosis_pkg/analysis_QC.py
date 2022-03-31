@@ -121,7 +121,7 @@ def plot_relationships(mask_file, scaled, maps, name_list, percentile=0.01):
 
 def percent_masking(img, percentile):
 
-    array=sitk.GetArrayFromImage(img)
+    array=np.abs(sitk.GetArrayFromImage(img)) # taking absolute values to include negative weights
     flat=array.flatten()
     flat.sort()
     idx=int((1-percentile)*len(flat))
