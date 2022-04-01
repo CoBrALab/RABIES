@@ -270,6 +270,17 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
 
     target_list = list(match_targets.keys())
 
+    # don't include scans that were removed during confound correction
+    corrected_split_name=[]
+    import pathlib
+    for name in split_name:
+        filename = pathlib.Path(split_dict[name]['cleaned_path']).name
+        if 'empty' in filename:
+            del split_dict[name]
+        else:
+            corrected_split_name.append(name)
+    split_name = corrected_split_name
+
     return split_dict, split_name, target_list
 
 
