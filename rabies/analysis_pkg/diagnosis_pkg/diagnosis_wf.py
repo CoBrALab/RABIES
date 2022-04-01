@@ -116,6 +116,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
                 seed_list.append(np.asarray(
                     sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
             scan_data['seed_list'] = seed_list
+
+            scan_data['name_source'] = file_dict['name_source']
             return scan_data
 
         prep_scan_data_node = pe.Node(Function(input_names=['spatial_info', 'analysis_dict', 'file_dict', 'mask_file_dict'],

@@ -182,6 +182,7 @@ class DatasetDiagnosis(BaseInterface):
     output_spec = DatasetDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
+        import pathlib
         from rabies.utils import flatten_list
         from .analysis_QC import analysis_QC
 
@@ -202,6 +203,7 @@ class DatasetDiagnosis(BaseInterface):
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)
 
+        scan_name_list=[]
         GS_cov_maps=[]
         GS_corr_maps=[]
         std_maps=[]
@@ -211,6 +213,8 @@ class DatasetDiagnosis(BaseInterface):
         NPR_maps_list=[]
         tdof_list=[]
         for scan_data in merged:
+            scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
+            scan_name_list.append(scan_name)
             GS_cov_maps.append(scan_data['GS_cov'])
             GS_corr_maps.append(scan_data['GS_corr'])
             std_maps.append(scan_data['temporal_std'])
@@ -219,6 +223,9 @@ class DatasetDiagnosis(BaseInterface):
             NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
             seed_maps_list.append(scan_data['seed_list'])
+
+        # save the list of the scan names that were included in the group statistics
+        pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/analysis_QC_scanlist.txt', index=None, header=False)
 
         from rabies.utils import recover_3D
         std_maps=np.array(std_maps)
