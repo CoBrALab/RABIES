@@ -190,10 +190,12 @@ class DatasetDiagnosis(BaseInterface):
             raise ValueError(
                 "Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
 
-        out_dir_normal = os.path.abspath('analysis_QC')
-        os.makedirs(out_dir_normal, exist_ok=True)
-        out_dir_corrected = f'{out_dir_normal}/analysis_QC_corrected_CR'
-        os.makedirs(out_dir_corrected, exist_ok=True)
+        out_dir_global = os.path.abspath('analysis_QC/')
+        os.makedirs(out_dir_global, exist_ok=True)
+        out_dir_parametric = out_dir_global+'/parametric_stats/'
+        os.makedirs(out_dir_parametric, exist_ok=True)
+        out_dir_non_parametric = out_dir_global+'/non_parametric_stats/'
+        os.makedirs(out_dir_non_parametric, exist_ok=True)
 
         template_file = self.inputs.mask_file_dict['template_file']
         mask_file = self.inputs.mask_file_dict['brain_mask']
@@ -204,8 +206,6 @@ class DatasetDiagnosis(BaseInterface):
         GS_corr_maps=[]
         std_maps=[]
         CR_std_maps=[]
-        random_CR_std_maps=[]
-        corrected_CR_std_maps=[]
         DR_maps_list=[]
         seed_maps_list=[]
         NPR_maps_list=[]
@@ -215,8 +215,6 @@ class DatasetDiagnosis(BaseInterface):
             GS_corr_maps.append(scan_data['GS_corr'])
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
-            corrected_CR_std_maps.append(scan_data['corrected_CR_std'])
-            random_CR_std_maps.append(scan_data['random_CR_std'])
             DR_maps_list.append(scan_data['DR_BOLD'])
             NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
@@ -232,13 +230,11 @@ class DatasetDiagnosis(BaseInterface):
         GS_cov_maps=np.array(GS_cov_maps)[:,non_zero_voxels]
         GS_corr_maps=np.array(GS_corr_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
-        corrected_CR_std_maps=np.array(corrected_CR_std_maps)[:,non_zero_voxels]
-        random_CR_std_maps=np.array(random_CR_std_maps)[:,non_zero_voxels]
 
-        for corr_variable,variable_name,out_dir in zip(
-            [[std_maps, GS_cov_maps, GS_corr_maps, CR_std_maps], [std_maps, GS_cov_maps, GS_corr_maps, corrected_CR_std_maps, random_CR_std_maps]], 
-            [['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', '$\mathregular{CR_{SD}}$'], ['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', 'Corrected $\mathregular{CR_{SD}}$', 'Random $\mathregular{CR_{SD}}$']], 
-            [out_dir_normal, out_dir_corrected]):
+        corr_variable = [std_maps, GS_cov_maps, GS_corr_maps, CR_std_maps]
+        variable_name = ['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', '$\mathregular{CR_{SD}}$']
+
+        for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
 
             # tdof effect; if there's no variability don't compute
             if not np.array(tdof_list).std()==0:
@@ -253,7 +249,7 @@ class DatasetDiagnosis(BaseInterface):
             for i in range(num_priors):
                 FC_maps = DR_maps_list[:,i,non_zero_voxels]
                 fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
+                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
                 pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
             NPR_maps_list=np.array(NPR_maps_list)
@@ -261,7 +257,7 @@ class DatasetDiagnosis(BaseInterface):
                 for i in range(num_priors):
                     FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
                     pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
 
 
@@ -279,11 +275,11 @@ class DatasetDiagnosis(BaseInterface):
                 for i in range(num_priors):
                     FC_maps = seed_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path)
+                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
                     pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
 
         setattr(self, 'analysis_QC',
-                out_dir_normal)
+                out_dir_global)
         return runtime
 
     def _list_outputs(self):
