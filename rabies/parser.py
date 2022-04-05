@@ -382,10 +382,13 @@ def get_parser():
             "\n"
         )
     g_stc.add_argument(
-        '--tpattern', type=str, default='alt',
-        choices=['alt', 'seq'],
+        '--tpattern', type=str, default='alt-z',
+        choices=['alt-z', 'seq-z', 'alt+z', 'seq+z'],
         help=
-            "Specify if interleaved ('alt') or sequential ('seq') acquisition.\n"
+            "Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which \n"
+            "direction (- or +) to apply the correction. If slices were acquired from front to back, \n"
+            "the correction should be in the negative (-) direction. Refer to this discussion on the \n"
+            "topic for more information https://github.com/CoBrALab/RABIES/discussions/217.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -393,7 +396,8 @@ def get_parser():
         '--stc_axis', type=str, default='Y',
         choices=['X', 'Y', 'Z'],
         help=
-            "Can specify over which axis of the image the STC must be applied.\n"
+            "Can specify over which axis of the image the STC must be applied. Generally, the correction \n"
+            "should be over the Y axis, which corresponds to the anteroposterior axis in RAS convention. \n"
             "(default: %(default)s)\n"
             "\n"
         )
