@@ -389,6 +389,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_stc.add_argument(
+        '--stc_axis', type=str, default='Y',
+        choices=['X', 'Y', 'Z'],
+        help=
+            "Can specify over which axis of the image the STC must be applied.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     g_atlas = preprocess.add_argument_group(
         title='Template Files', 
