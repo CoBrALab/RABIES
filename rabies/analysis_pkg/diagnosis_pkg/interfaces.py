@@ -205,7 +205,6 @@ class DatasetDiagnosis(BaseInterface):
 
         scan_name_list=[]
         GS_cov_maps=[]
-        GS_corr_maps=[]
         std_maps=[]
         CR_std_maps=[]
         DR_maps_list=[]
@@ -216,7 +215,6 @@ class DatasetDiagnosis(BaseInterface):
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
             GS_cov_maps.append(scan_data['GS_cov'])
-            GS_corr_maps.append(scan_data['GS_corr'])
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
             DR_maps_list.append(scan_data['DR_BOLD'])
@@ -233,14 +231,25 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
-        std_maps=np.array(std_maps)[:,non_zero_voxels]
         GS_cov_maps=np.array(GS_cov_maps)[:,non_zero_voxels]
-        GS_corr_maps=np.array(GS_corr_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
 
-        corr_variable = [std_maps, GS_cov_maps, GS_corr_maps, CR_std_maps]
-        variable_name = ['$\mathregular{BOLD_{SD}}$', 'GS covariance', 'GS correlation', '$\mathregular{CR_{SD}}$']
+        corr_variable = [GS_cov_maps, CR_std_maps]
+        variable_name = ['GS covariance', '$\mathregular{CR_{SD}}$']
 
+        def change_columns(df):
+            columns = list(df.columns)
+            i=0
+            for column in columns:
+                if '$\mathregular{CR_{SD}}$' in column:
+                    if 'Overlap:' in column:
+                        columns[i] = 'Overlap: Prior - CRsd'
+                    if 'Avg.:' in column:
+                        columns[i] = 'Avg.: CRsd'
+                i+=1
+            df.columns = columns
+            return df
+                        
         for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
 
             # tdof effect; if there's no variability don't compute
@@ -257,7 +266,9 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = DR_maps_list[:,i,non_zero_voxels]
                 fig_path = f'{out_dir}/DR{i}_QC_maps.png'
                 dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
-                pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
+                df = pd.DataFrame(dataset_stats, index=[1])
+                df = change_columns(df)
+                df.to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
 
             NPR_maps_list=np.array(NPR_maps_list)
             if NPR_maps_list.shape[1]>0:
@@ -265,7 +276,9 @@ class DatasetDiagnosis(BaseInterface):
                     FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
                     dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
-                    pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
+                    df = pd.DataFrame(dataset_stats, index=[1])
+                    df = change_columns(df)
+                    df.to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
 
 
             # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
@@ -283,7 +296,9 @@ class DatasetDiagnosis(BaseInterface):
                     FC_maps = seed_maps_list[:,i,non_zero_voxels]
                     fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
                     dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
-                    pd.DataFrame(dataset_stats, index=[1]).to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+                    df = pd.DataFrame(dataset_stats, index=[1])
+                    df = change_columns(df)
+                    df.to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
 
         setattr(self, 'analysis_QC',
                 out_dir_global)
