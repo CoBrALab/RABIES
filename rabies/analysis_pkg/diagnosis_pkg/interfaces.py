@@ -237,6 +237,12 @@ class DatasetDiagnosis(BaseInterface):
         corr_variable = [GS_cov_maps, CR_std_maps]
         variable_name = ['GS covariance', '$\mathregular{CR_{SD}}$']
 
+        # tdof effect; if there's no variability don't compute
+        if not np.array(tdof_list).std()==0:
+            tdof = np.array(tdof_list).reshape(-1,1)
+            corr_variable.append(tdof)
+            variable_name.append('tDOF')
+
         def change_columns(df):
             columns = list(df.columns)
             i=0
@@ -251,12 +257,6 @@ class DatasetDiagnosis(BaseInterface):
             return df
                         
         for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
-
-            # tdof effect; if there's no variability don't compute
-            if not np.array(tdof_list).std()==0:
-                tdof = np.array(tdof_list).reshape(-1,1)
-                corr_variable.append(tdof)
-                variable_name.append('tDOF')
 
             prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
             num_priors = prior_maps.shape[0]

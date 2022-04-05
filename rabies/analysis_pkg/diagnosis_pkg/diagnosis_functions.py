@@ -440,7 +440,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     NPR_maps = spatial_info['NPR_maps']
     mask_file = mask_file_dict['brain_mask']
 
-    nrows = 7+dr_maps.shape[0]+len(NPR_maps)
+    nrows = 6+dr_maps.shape[0]+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -527,20 +527,6 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     sitk_img = recover_3D(
-        mask_file, spatial_info['GS_corr'])
-    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
-            alpha=1, cbar=True, threshold=0.1, num_slices=6)
-    for cbar in cbar_list:
-        cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
-        cbar.ax.tick_params(labelsize=15)
-    for ax in axes:
-        ax.set_title('Global Signal Correlation', fontsize=30, color='white')
-
-    axes = axes2[5, :]
-    plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
-            cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = recover_3D(
         mask_file, spatial_info['DVARS_corr'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
@@ -551,7 +537,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('DVARS Correlation', fontsize=30, color='white')
 
-    axes = axes2[6, :]
+    axes = axes2[5, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     sitk_img = recover_3D(
@@ -566,7 +552,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         ax.set_title('FD Correlation', fontsize=30, color='white')
 
     for i in range(dr_maps.shape[0]):
-        axes = axes2[i+7, :]
+        axes = axes2[i+6, :]
 
         sitk_img = recover_3D(
             mask_file, dr_maps[i, :])
@@ -580,7 +566,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
 
     for i in range(len(NPR_maps)):
-        axes = axes2[i+7+dr_maps.shape[0], :]
+        axes = axes2[i+6+dr_maps.shape[0], :]
 
         sitk_img = recover_3D(
             mask_file, NPR_maps[i, :])
