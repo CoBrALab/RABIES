@@ -73,8 +73,8 @@ RABIES is executed using a command line interface, within a terminal. The softwa
 <p>
 
 ```
-usage: rabies [-h] [-p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}] [--local_threads LOCAL_THREADS] [--scale_min_memory SCALE_MIN_MEMORY] [--min_proc MIN_PROC]
-              [--verbose VERBOSE]
+usage: rabies [-h] [-p {Linear,MultiProc,SGE,SGEGraph,PBS,LSF,SLURM,SLURMGraph}] [--local_threads LOCAL_THREADS] [--scale_min_memory SCALE_MIN_MEMORY]
+              [--min_proc MIN_PROC] [--verbose VERBOSE]
               Processing stage ...
 
 RABIES performs multiple stages of rodent fMRI image processing, including preprocessing, 
@@ -164,8 +164,9 @@ usage: rabies preprocess [-h] [--bold_only] [--anat_autobox] [--bold_autobox] [-
                          [--bold_multistage_otsu] [--bold_inho_cor_otsu BOLD_INHO_COR_OTSU] [--atlas_reg_script {Rigid,Affine,SyN,no_reg}]
                          [--coreg_script {Rigid,Affine,SyN,no_reg}] [--commonspace_masking] [--coreg_masking] [--brain_extraction] [--fast_commonspace]
                          [--nativespace_resampling NATIVESPACE_RESAMPLING] [--commonspace_resampling COMMONSPACE_RESAMPLING]
-                         [--anatomical_resampling ANATOMICAL_RESAMPLING] [--apply_STC] [--TR TR] [--tpattern {alt,seq}] [--anat_template ANAT_TEMPLATE]
-                         [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK] [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK] [--labels LABELS]
+                         [--anatomical_resampling ANATOMICAL_RESAMPLING] [--apply_STC] [--TR TR] [--tpattern {alt-z,seq-z,alt+z,seq+z}] [--stc_axis {X,Y,Z}]
+                         [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK] [--WM_mask WM_MASK] [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK]
+                         [--labels LABELS]
                          bids_dir output_dir
 
 positional arguments:
@@ -327,8 +328,16 @@ STC Options:
   --TR TR               Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                         (default: auto)
                         
-  --tpattern {alt,seq}  Specify if interleaved ('alt') or sequential ('seq') acquisition.
-                        (default: alt)
+  --tpattern {alt-z,seq-z,alt+z,seq+z}
+                        Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which 
+                        direction (- or +) to apply the correction. If slices were acquired from front to back, 
+                        the correction should be in the negative (-) direction. Refer to this discussion on the 
+                        topic for more information https://github.com/CoBrALab/RABIES/discussions/217.
+                        (default: alt-z)
+                        
+  --stc_axis {X,Y,Z}    Can specify over which axis of the image the STC must be applied. Generally, the correction 
+                        should be over the Y axis, which corresponds to the anteroposterior axis in RAS convention. 
+                        (default: Y)
                         
 
 Template Files:
@@ -367,11 +376,12 @@ Template Files:
 <p>
 
 ```
-usage: rabies confound_correction [-h] [--read_datasink] [--nativespace_analysis] [--TR TR] [--highpass HIGHPASS] [--lowpass LOWPASS] [--edge_cutoff EDGE_CUTOFF]
-                                  [--smoothing_filter SMOOTHING_FILTER] [--run_aroma] [--aroma_dim AROMA_DIM] [--aroma_random_seed AROMA_RANDOM_SEED]
-                                  [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]] [--FD_censoring]
-                                  [--FD_threshold FD_THRESHOLD] [--DVARS_censoring] [--minimum_timepoint MINIMUM_TIMEPOINT] [--standardize]
-                                  [--timeseries_interval TIMESERIES_INTERVAL]
+usage: rabies confound_correction [-h] [--nativespace_analysis] [--image_scaling {None,background_noise,global_variance,voxelwise_standardization}]
+                                  [--detrending_order {linear,quadratic}]
+                                  [--conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]] [--FD_censoring] [--TR TR]
+                                  [--highpass HIGHPASS] [--lowpass LOWPASS] [--edge_cutoff EDGE_CUTOFF] [--smoothing_filter SMOOTHING_FILTER]
+                                  [--FD_threshold FD_THRESHOLD] [--DVARS_censoring] [--minimum_timepoint MINIMUM_TIMEPOINT] [--match_number_timepoints] [--run_aroma]
+                                  [--aroma_dim AROMA_DIM] [--aroma_random_seed AROMA_RANDOM_SEED] [--read_datasink] [--timeseries_interval TIMESERIES_INTERVAL]
                                   preprocess_out output_dir
 
 positional arguments:
@@ -382,15 +392,45 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --read_datasink       
-                        Choose this option to read preprocessing outputs from datasinks instead of the saved 
-                        preprocessing workflow graph. This allows to run confound correction without having 
-                        available RABIES preprocessing folders, but the targetted datasink folders must follow the
-                        structure of RABIES preprocessing.
-                        (default: False)
-                        
   --nativespace_analysis
                         Conduct confound correction and analysis in native space.
+                        (default: False)
+                        
+  --image_scaling {None,background_noise,global_variance,voxelwise_standardization}
+                        Select an option for scaling the image variance to match the intensity profile of 
+                        different scans and avoid biases in data variance and amplitude estimation during analysis.
+                        The variance explained from confound regression is also scaled accordingly for later use with 
+                        --data_diagnosis. 
+                        *** None: No scaling is applied, only detrending.
+                        *** background_noise: a mask is derived to map background noise, and scale the image 
+                           intensity relative to the noise standard deviation. 
+                        *** global_variance: After applying confound correction, the cleaned timeseries are scaled 
+                           according to the total standard deviation of all voxels, to scale total variance to 1. 
+                        *** voxelwise_standardization: After applying confound correction, each voxel is separately 
+                           scaled to unit variance (z-scoring). 
+                        (default: None)
+                        
+  --detrending_order {linear,quadratic}
+                        Select between linear or quadratic (second-order) detrending of voxel timeseries.
+                        (default: linear)
+                        
+  --conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]
+                        Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound
+                        regression.
+                        *** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain 
+                           masks.
+                        *** mot_6: 6 rigid head motion correction parameters.
+                        *** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in 
+                           Friston et al. (1996, Magnetic Resonance in Medicine).
+                        *** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries
+                           are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. 
+                           Components adding up to 50 percent of the variance are included.
+                        *** mean_FD: the mean framewise displacement timecourse.
+                        (default: [])
+                        
+  --FD_censoring        Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).
+                        The frames that exceed the given threshold, together with 1 back and 2 forward frames
+                        will be masked out, as in Power et al. (2012, Neuroimage).
                         (default: False)
                         
   --TR TR               Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
@@ -414,37 +454,6 @@ optional arguments:
                         https://nilearn.github.io/modules/generated/nilearn.image.smooth_img.html
                         (default: None)
                         
-  --run_aroma           Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified
-                        to incorporate rodent-adapted masks and classification hyperparameters.
-                        (default: False)
-                        
-  --aroma_dim AROMA_DIM
-                        Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.
-                        (default: 0)
-                        
-  --aroma_random_seed AROMA_RANDOM_SEED
-                        For reproducibility, this option sets a fixed random seed for MELODIC.
-                        (default: 1)
-                        
-  --conf_list [{WM_signal,CSF_signal,vascular_signal,global_signal,aCompCor,mot_6,mot_24,mean_FD} ...]
-                        Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound
-                        regression.
-                        *** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain 
-                           masks.
-                        *** mot_6: 6 rigid head motion correction parameters.
-                        *** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in 
-                           Friston et al. (1996, Magnetic Resonance in Medicine).
-                        *** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries
-                           are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. 
-                           Components adding up to 50 percent of the variance are included.
-                        *** mean_FD: the mean framewise displacement timecourse.
-                        (default: [])
-                        
-  --FD_censoring        Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).
-                        The frames that exceed the given threshold, together with 1 back and 2 forward frames
-                        will be masked out, as in Power et al. (2012, Neuroimage).
-                        (default: False)
-                        
   --FD_threshold FD_THRESHOLD
                         --FD_censoring threshold in mm.
                         (default: 0.05)
@@ -460,7 +469,31 @@ optional arguments:
                         is not met, an empty file is generated and the scan is not considered in further steps.
                         (default: 3)
                         
-  --standardize         Whether to standardize timeseries (z-scoring).
+  --match_number_timepoints
+                        With this option, only a subset of the timepoints are kept post-censoring to match the 
+                        --minimum_timepoint number for all scans. This can be conducted to avoid inconsistent 
+                        temporal degrees of freedom (tDOF) between scans during downstream analysis. We recommend 
+                        selecting this option if a significant confounding effect of tDOF is detected during --data_diagnosis.
+                        The extra timepoints removed are randomly selected among the set available post-censoring.
+                        (default: False)
+                        
+  --run_aroma           Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified
+                        to incorporate rodent-adapted masks and classification hyperparameters.
+                        (default: False)
+                        
+  --aroma_dim AROMA_DIM
+                        Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.
+                        (default: 0)
+                        
+  --aroma_random_seed AROMA_RANDOM_SEED
+                        For reproducibility, this option sets a fixed random seed for MELODIC.
+                        (default: 1)
+                        
+  --read_datasink       
+                        Choose this option to read preprocessing outputs from datasinks instead of the saved 
+                        preprocessing workflow graph. This allows to run confound correction without having 
+                        available RABIES preprocessing folders, but the targetted datasink folders must follow the
+                        structure of RABIES preprocessing.
                         (default: False)
                         
   --timeseries_interval TIMESERIES_INTERVAL
@@ -477,9 +510,10 @@ optional arguments:
 <p>
 
 ```
-usage: rabies analysis [-h] [--scan_list [SCAN_LIST ...]] [--prior_maps PRIOR_MAPS] [--prior_bold_idx [PRIOR_BOLD_IDX ...]] [--prior_confound_idx [PRIOR_CONFOUND_IDX ...]]
-                       [--data_diagnosis] [--seed_list [SEED_LIST ...]] [--seed_prior_list [SEED_PRIOR_LIST ...]] [--FC_matrix] [--ROI_type {parcellated,voxelwise}]
-                       [--group_ICA] [--dim DIM] [--melodic_random_seed MELODIC_RANDOM_SEED] [--DR_ICA] [--dual_ICA DUAL_ICA]
+usage: rabies analysis [-h] [--scan_list [SCAN_LIST ...]] [--prior_maps PRIOR_MAPS] [--prior_bold_idx [PRIOR_BOLD_IDX ...]]
+                       [--prior_confound_idx [PRIOR_CONFOUND_IDX ...]] [--data_diagnosis] [--seed_list [SEED_LIST ...]] [--seed_prior_list [SEED_PRIOR_LIST ...]]
+                       [--FC_matrix] [--ROI_type {parcellated,voxelwise}] [--group_ICA] [--dim DIM] [--melodic_random_seed MELODIC_RANDOM_SEED] [--DR_ICA]
+                       [--NPR_temporal_comp NPR_TEMPORAL_COMP] [--NPR_spatial_comp NPR_SPATIAL_COMP]
                        confound_correction_out output_dir
 
 positional arguments:
@@ -549,9 +583,18 @@ optional arguments:
                         Requires that confound correction was conducted on commonspace outputs.
                         (default: False)
                         
-  --dual_ICA DUAL_ICA   Option for performing a Dual ICA. Specify how many subject-specific sources to compute 
-                        during dual ICA. Dual ICA will provide a fit for each --prior_bold_idx from --prior_maps.
-                        (default: 0)
+  --NPR_temporal_comp NPR_TEMPORAL_COMP
+                        Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra 
+                        subject-specific sources will be computed to account for non-prior confounds. This options 
+                        specifies the number of temporal components to compute. After computing 
+                        these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.
+                        Specify at least 0 extra sources to run NPR.
+                        (default: -1)
+                        
+  --NPR_spatial_comp NPR_SPATIAL_COMP
+                        Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are 
+                        additioned to the temporal components).
+                        (default: -1)
                         
 
 Group ICA:
