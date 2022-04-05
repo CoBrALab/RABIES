@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import SimpleITK as sitk
+from rabies.analysis_pkg.analysis_math import closed_form
 
 
 def tree_list(dirName):
@@ -195,6 +196,32 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
     return np.asarray(confounds[conf_keys])
 
 
+def remove_trend(timeseries, frame_mask, second_order=False, keep_intercept=False):
+    num_timepoints = len(frame_mask)
+    
+    # we create a centered time axis, to fit an intercept value in the center
+    time=np.linspace(-num_timepoints/2,num_timepoints/2 , num_timepoints)
+    
+    # evaluate the linear trend using an interpolated time axis based on previous censoring
+    X = time[frame_mask].reshape(-1,1)
+    if second_order:
+        X = np.concatenate((X, X**2), axis=1) # second order polynomial
+    X = np.concatenate((X, np.ones([X.shape[0], 1])), axis=1) # add an intercept at the end
+    Y=timeseries
+    W = closed_form(X,Y)
+    
+    predicted = X.dot(W)
+    #plt.plot(time[frame_mask], timeseries.mean(axis=1))
+    #plt.plot(time[frame_mask], predicted.mean(axis=1))
+    
+    res = (Y-predicted) # add back the intercept after
+    if keep_intercept:
+        fitted_intercept = X[:,-1:].dot(W[-1:,:]) # predicted intercept
+        res += fitted_intercept
+    #plt.plot(time[frame_mask], res.mean(axis=1))
+    return res
+    
+
 def lombscargle_mathias(t, x, w):
 
     '''
@@ -300,6 +327,76 @@ def butterworth(signals, TR, high_pass, low_pass):
     return signal.sosfiltfilt(sos, signals, axis=0)
 
 
+######### Taken from https://stackoverflow.com/questions/39543002/returning-a-real-valued-phase-scrambled-timeseries
+def phaseScrambleTS(ts):
+    from scipy.fftpack import fft, ifft
+    """Returns a TS: original TS power is preserved; TS phase is shuffled."""
+    fs = fft(ts, axis=0)
+    pow_fs = np.abs(fs) ** 2.
+    phase_fs = np.angle(fs)
+    phase_fsr = phase_fs.copy()
+    if len(ts) % 2 == 0:
+        phase_fsr_lh = phase_fsr[1:int(len(phase_fsr)/2)]
+    else:
+        phase_fsr_lh = phase_fsr[1:int(len(phase_fsr)/2) + 1]
+    np.random.shuffle(phase_fsr_lh)
+    if len(ts) % 2 == 0:
+        phase_fsr_rh = -phase_fsr_lh[::-1]
+        phase_fsr = np.concatenate((np.array((phase_fsr[0],)), phase_fsr_lh,
+                                    np.array((phase_fsr[int(len(phase_fsr)/2)],)),
+                                    phase_fsr_rh))
+    else:
+        phase_fsr_rh = -phase_fsr_lh[::-1]
+        phase_fsr = np.concatenate((np.array((phase_fsr[0],)), phase_fsr_lh, phase_fsr_rh))
+    fsrp = np.sqrt(pow_fs) * (np.cos(phase_fsr) + 1j * np.sin(phase_fsr))
+    tsrp = ifft(fsrp, axis=0)
+    if not np.allclose(tsrp.imag, np.zeros(tsrp.shape)):
+        max_imag = (np.abs(tsrp.imag)).max()
+        imag_str = f'\nNOTE: a non-negligible imaginary component was discarded.\n\tMax: {max_imag}'
+        print(imag_str)
+    return tsrp.real
+
+
+def phase_randomized_regressors(confounds_array, frame_mask, TR):
+    """
+    METHOD FROM BRIGHT AND MURPHY 2015
+    "The true noise regressors were phase-randomised to create simulated noise regressors with similar frequency 
+    distributions to the true noise regressors, but with no relation to the measured head motion or physiology. 
+    To achieve this, the frequency spectra of the true noise regressors were obtained using a Fourier transform, 
+    and the phase of each frequency in half of the spectrum was randomised and mirrored before performing the 
+    inverse Fourier transform (this phase randomization was repeated until the temporal correlation with the true 
+    regressor was r b 0.1). The entire set of resulting time-series was then orthogonalised to the complete set 
+    of original regressors to make them independent from the true noise."
+
+    """
+    from rabies.confound_correction_pkg.utils import lombscargle_fill
+    num_conf = confounds_array.shape[1]
+    randomized_confounds_array = np.zeros(confounds_array.shape)
+    for n in range(num_conf):
+        corr=1
+        iter=1
+        while(corr>0.1):
+            x=confounds_array[:,n:n+1]
+            # fill missing datapoints to obtain a good reading of frequency spectrum
+            y = lombscargle_fill(x,TR,frame_mask)
+            # phase randomize
+            y_r = phaseScrambleTS(y)
+            # re-apply the time mask to the same number of timepoints
+            y_m = y_r[frame_mask]
+            corr = np.abs(np.corrcoef(x.T,y_m.T)[0,1])
+            if iter>100: # set a maximum number of iterations
+                from nipype import logging
+                log = logging.getLogger('nipype.workflow')
+                log.warning("Could not set uncorrelated random regressors!")
+                break
+            iter += 1
+            
+        #### impose orthogonality relative to every original regressor      
+        y_m -= np.matmul(confounds_array, closed_form(confounds_array, y_m))
+        randomized_confounds_array[:,n:n+1] = y_m
+    return randomized_confounds_array
+
+
 def smooth_image(img, affine, fwhm):
     # apply nilearn's Gaussian smoothing on a SITK image
     from nilearn.image.image import _smooth_array
@@ -329,3 +426,85 @@ def smooth_image(img, affine, fwhm):
             smoothed_arr, isVector=False), img)
 
     return smoothed_img
+
+
+def get_background_mask(bold_file, plotting=False):
+    """
+    Function that takes a 4D EPI timeseries and computes a background mask 
+    excluding contributions from biological tissues.
+    """
+    import tempfile
+    import matplotlib.pyplot as plt
+    from rabies.utils import run_command
+    from rabies.utils import copyInfo_3DImage
+    tmppath = tempfile.mkdtemp()
+
+    data_img = sitk.ReadImage(bold_file, sitk.sitkFloat32)
+    data_array = sitk.GetArrayFromImage(data_img)
+    median = np.median(data_array, axis=0)
+    temporal_std = data_array.std(axis=0)
+    
+    median_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        median, isVector=False), data_img)
+    sitk.WriteImage(median_img, f'{tmppath}/median.nii.gz')
+    
+    std_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        temporal_std, isVector=False), data_img)
+    sitk.WriteImage(std_img, f'{tmppath}/std_map.nii.gz')
+    
+    ### first iteration of otsu thresholding, taking the background
+    command = f'ThresholdImage 3 {tmppath}/median.nii.gz {tmppath}/weight.nii.gz Otsu 4'
+    rc = run_command(command)
+    otsu_img = sitk.ReadImage(f'{tmppath}/weight.nii.gz', sitk.sitkFloat32)
+    otsu_array = sitk.GetArrayFromImage(otsu_img)
+    background_mask = otsu_array<1
+    
+    not_zeros_indices = temporal_std!=0
+    background_mask *= not_zeros_indices # make sure there are no 0s
+    
+    volume_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        background_mask.astype(float), isVector=False), otsu_img)
+    sitk.WriteImage(volume_img, f'{tmppath}/background_mask.nii.gz')
+    
+    ### second iteration of otsu thresholding, taking the lower distribution
+    # there were residual effects from the brain influencing the distribution
+    command = f'ThresholdImage 3 {tmppath}/std_map.nii.gz {tmppath}/weight2.nii.gz Otsu 1 {tmppath}/background_mask.nii.gz'
+    rc = run_command(command)
+    otsu_img = sitk.ReadImage(f'{tmppath}/weight2.nii.gz', sitk.sitkFloat32)
+    otsu_array = sitk.GetArrayFromImage(otsu_img)
+    background_mask *= (otsu_array<2)
+    mask_img = copyInfo_3DImage(sitk.GetImageFromArray(
+        background_mask.astype(float), isVector=False), otsu_img)
+    sitk.WriteImage(mask_img, f'{tmppath}/background_mask.nii.gz')
+
+    from rabies.visualization import otsu_scaling, plot_3d
+    
+    fig_path = None
+    if plotting:
+        import pathlib
+        filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
+
+        fig = plt.figure(figsize=(24,6))
+        #fig.suptitle(name, fontsize=30, color='white')
+        ax1 = fig.add_subplot(3,2,1)
+        ax2 = fig.add_subplot(3,2,3)
+        ax3 = fig.add_subplot(3,2,5)
+        ax4 = fig.add_subplot(1,4,3)
+
+        ax4.hist(data_array[:,background_mask].flatten(), bins=100)
+        ax4.set_title('Noise Distribution (should be Rician)', fontsize=20, color='white')
+
+        
+        from rabies.visualization import otsu_scaling, plot_3d
+        planes = ('sagittal', 'coronal', 'horizontal')
+        scaled = otsu_scaling(f'{tmppath}/std_map.nii.gz')
+        
+        plot_3d([ax1,ax2,ax3],scaled,fig,vmin=0,vmax=1,cmap='viridis', alpha=1, cbar=False, num_slices=6, planes=planes)
+        plot_3d([ax1,ax2,ax3],mask_img,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False, num_slices=6, planes=planes)
+        ax1.set_title('Background masking (in red) over standard deviation map', fontsize=20, color='white')
+
+        fig_path = os.path.abspath(f'{filename_split}_background_masking.png')
+        fig.savefig(fig_path, bbox_inches='tight')
+
+    return background_mask, data_array, fig_path
+        

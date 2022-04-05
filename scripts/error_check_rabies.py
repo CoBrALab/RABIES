@@ -104,7 +104,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --dual_ICA 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
+command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --DR_ICA --NPR_temporal_comp 1 --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
 process = subprocess.run(
     command,
     check=True,
@@ -120,7 +120,7 @@ process = subprocess.run(
     )
 
 os.remove(f'{tmppath}/outputs/rabies_analysis.pkl')
-command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --dual_ICA 1 --data_diagnosis --DR_ICA"
+command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --NPR_temporal_comp 1 --data_diagnosis --DR_ICA"
 process = subprocess.run(
     command,
     check=True,

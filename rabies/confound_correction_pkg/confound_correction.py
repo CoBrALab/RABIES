@@ -56,10 +56,10 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-                        'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file']), name='inputnode')
+                        'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
-
+                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict', 'background_fig']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
@@ -79,6 +79,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
             ("csf_mask", "CSF_mask_file"),
+            ("raw_input_file", "raw_input_file"),
             ]),
         (prep_CR_node, regress_node, [
             ("data_dict", "data_dict"),
@@ -88,17 +89,21 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file_path"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
+            ("background_fig", "background_fig"),
             ]),
         ])
-
 
     return workflow
 
 
 class RegressInputSpec(BaseInterfaceInputSpec):
+    raw_input_file = File(exists=True, mandatory=True,
+                      desc="The raw EPI scan before preprocessing.")
     bold_file = File(exists=True, mandatory=True,
                       desc="Timeseries to denoise.")
     data_dict = traits.Dict(
@@ -118,13 +123,19 @@ class RegressOutputSpec(TraitedSpec):
     STD_file_path = File(exists=True, mandatory=True,
                       desc="Temporal standard deviation map after confound correction, prior to standardization.")
     CR_STD_file_path = File(exists=True, mandatory=True,
-                      desc="Temporal standard deviation map after confound correction, prior to standardization.")
+                      desc="Temporal standard deviation on predicted confound timeseries.")
+    random_CR_STD_file_path = File(exists=True, mandatory=True,
+                      desc="Temporal standard deviation on predicted confound timeseries from random regressors.")
+    corrected_CR_STD_file_path = File(exists=True, mandatory=True,
+                      desc="Same as CR_STD_file_path, but the variance explained by random regressors was substracted.")
     frame_mask_file = File(exists=True, mandatory=True,
                       desc="Frame mask from temporal censoring.")
     data_dict = traits.Any(
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
+    background_fig = traits.Str(
+        desc="Figure to visualize the quality of background noise mapping.")
 
 class Regress(BaseInterface):
     '''
@@ -165,9 +176,8 @@ class Regress(BaseInterface):
         import numpy as np
         import pandas as pd
         import SimpleITK as sitk
-        from scipy.signal import detrend
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, smooth_image
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend, get_background_mask
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -179,9 +189,12 @@ class Regress(BaseInterface):
         setattr(self, 'VE_file_path', empty_file)
         setattr(self, 'STD_file_path', empty_file)
         setattr(self, 'CR_STD_file_path', empty_file)
+        setattr(self, 'random_CR_STD_file_path', empty_file)
+        setattr(self, 'corrected_CR_STD_file_path', empty_file)
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
+        setattr(self, 'background_fig', empty_file)
         ###
 
         bold_file = self.inputs.bold_file
@@ -217,6 +230,19 @@ class Regress(BaseInterface):
             TR = float(cr_opts.TR)
 
         '''
+        scaling based on background noise
+        '''
+        if cr_opts.image_scaling=='background_noise':
+            background_mask, data_array, background_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
+            # based on Gudbjartsson and Patz (1995, Magn Reson Med.), there's a linear relationship between the mean 
+            # in the background noise and the scanner noise signal variability in the Fourrier domain
+            scaling_factor = data_array[:,background_mask].flatten().mean() # we take the mean as a proxy for signal standard deviation in Fourier domain
+            timeseries = timeseries/scaling_factor
+        else:
+            background_fig_path = empty_file
+        
+
+        '''
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
         frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
@@ -224,15 +250,47 @@ class Regress(BaseInterface):
         if frame_mask is None:
             return runtime
 
+        if cr_opts.match_number_timepoints:
+            if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
+                # if frequency filtering is applied, avoid selecting timepoints that would be removed with --edge_cutoff
+                num_cut = int(cr_opts.edge_cutoff/TR)
+                if not num_cut==0:
+                    frame_mask[:num_cut]=0
+                    frame_mask[-num_cut:]=0
+
+                    if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+                        from nipype import logging
+                        log = logging.getLogger('nipype.workflow')
+                        log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+                        return runtime
+
+            # randomly shuffle indices that haven't been censored, then remove an extra subset above --minimum_timepoint
+            num_timepoints = len(frame_mask)
+            time_idx=np.array(range(num_timepoints))
+            perm = np.random.permutation(time_idx[frame_mask])
+            # selecting the subset of extra timepoints, and censoring them
+            subset_idx = perm[cr_opts.minimum_timepoint:]
+            frame_mask[subset_idx]=0
+            # keep track of the original number of timepoints for tDOF estimation, to evaluate latter if the correction was succesful
+            number_extra_timepoints = len(subset_idx)
+        else:
+            number_extra_timepoints = 0
+
         timeseries = timeseries[frame_mask]
         confounds_array = confounds_array[frame_mask]
 
         '''
         #2 - Linear detrending of fMRI timeseries and nuisance regressors
         '''
-        # apply simple detrending, after censoring
-        timeseries = detrend(timeseries,axis=0)
-        confounds_array = detrend(confounds_array,axis=0) # apply detrending to the confounds too
+        # apply detrending, after censoring
+        if cr_opts.detrending_order=='linear':
+            second_order=False
+        elif cr_opts.detrending_order=='quadratic':
+            second_order=True
+        else:
+            raise ValueError(f"--detrending_order must be 'linear' or 'quadratic', not {cr_opts.detrending_order}")
+        timeseries = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=False)
+        confounds_array = remove_trend(confounds_array, frame_mask, second_order=second_order, keep_intercept=False)
 
         '''
         #3 - Apply ICA-AROMA.
@@ -244,7 +302,7 @@ class Regress(BaseInterface):
             sitk.WriteImage(timeseries_img, inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array = detrend(confounds_6rigid_array,axis=0) # apply detrending to the confounds too
+            confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, second_order=second_order, keep_intercept=False) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
@@ -332,30 +390,59 @@ class Regress(BaseInterface):
 
             return runtime
 
-        # derive features from the predicted timeseries
-        predicted_std = predicted.std(axis=0)
-        predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
-
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
+
+        # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
+        randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
+        X=randomized_confounds_array 
+        Y = timeseries
+        predicted_random = X.dot(closed_form(X,Y))
 
         if len(cr_opts.conf_list) > 0:
             # if confound regression is applied
             timeseries = res
 
-        # save the temporal STD map prior to standardization and smoothing
-        temporal_std = timeseries.std(axis=0)
-
         '''
         #8 - Standardize timeseries
         '''
-        if cr_opts.standardize:
-            timeseries = (timeseries-timeseries.mean(axis=0))/temporal_std
+        if cr_opts.image_scaling=='global_variance':
+            scaling_factor = timeseries.std()
+            timeseries = timeseries/scaling_factor
+            # we scale also the variance estimates from CR
+            predicted = predicted/scaling_factor
+            predicted_random = predicted_random/scaling_factor
+        elif cr_opts.image_scaling=='voxelwise_standardization':
+            # each voxel is scaled according to its STD
+            temporal_std = timeseries.std(axis=0) 
+            timeseries = timeseries/temporal_std
+            nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+            timeseries[:,nan_voxels] = 0
+            # we scale also the variance estimates from CR
+            predicted = predicted/temporal_std
+            nan_voxels = np.isnan(predicted).sum(axis=0)>1
+            predicted[:,nan_voxels] = 0
+            predicted_random = predicted_random/temporal_std
+            nan_voxels = np.isnan(predicted_random).sum(axis=0)>1
+            predicted_random[:,nan_voxels] = 0
+
+        # after variance scaling, compute the variability estimates
+        temporal_std = timeseries.std(axis=0)
+        predicted_std = predicted.std(axis=0)
+        predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
+        predicted_random_std = predicted_random.std(axis=0)
+
+        # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
+        var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
+        var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
+        corrected_predicted_std = np.sqrt(var_dif)
 
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
         STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
         CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
         timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
 
         if cr_opts.smoothing_filter is not None:
@@ -374,6 +461,10 @@ class Regress(BaseInterface):
         sitk.WriteImage(STD_spatial_map, STD_file_path)
         CR_STD_file_path = cr_out+'/'+filename_split[0]+'_CR_STD_map.nii.gz'
         sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
+        random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
+        sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
+        corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
+        sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
         frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
         pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
@@ -388,7 +479,7 @@ class Regress(BaseInterface):
         else:
             aroma_rm = 0
         num_regressors = confounds_array.shape[1]
-        tDOF = num_timepoints - (aroma_rm+num_regressors)
+        tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
         data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF}
 
@@ -396,8 +487,11 @@ class Regress(BaseInterface):
         setattr(self, 'VE_file_path', VE_file_path)
         setattr(self, 'STD_file_path', STD_file_path)
         setattr(self, 'CR_STD_file_path', CR_STD_file_path)
+        setattr(self, 'random_CR_STD_file_path', random_CR_STD_file_path)
+        setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
+        setattr(self, 'background_fig', background_fig_path)
 
         return runtime
 
@@ -406,7 +500,10 @@ class Regress(BaseInterface):
                 'VE_file_path': getattr(self, 'VE_file_path'),
                 'STD_file_path': getattr(self, 'STD_file_path'),
                 'CR_STD_file_path': getattr(self, 'CR_STD_file_path'),
+                'random_CR_STD_file_path': getattr(self, 'random_CR_STD_file_path'),
+                'corrected_CR_STD_file_path': getattr(self, 'corrected_CR_STD_file_path'),
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),
+                'background_fig': getattr(self, 'background_fig'),
                 }

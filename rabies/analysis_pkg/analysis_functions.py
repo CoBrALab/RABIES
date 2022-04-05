@@ -259,8 +259,7 @@ def dual_regression(all_IC_vectors, timeseries):
     Y = timeseries.T
     # for one given volume, it's values can be expressed through a linear combination of the components
     W = closed_form(X, Y, intercept=False).T
-    # normalize the component timecourses to unit variance
-    W /= W.std(axis=0)
+    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
     # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
     C = closed_form(W, Y.T, intercept=False)
     DR = {'C':C, 'W':W}
@@ -272,27 +271,34 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-class dual_ICA_wrapperInputSpec(BaseInterfaceInputSpec):
+class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
     bold_file = File(exists=True, mandatory=True, desc="Timeseries to fit.")
     mask_file = File(exists=True, mandatory=True, desc="Brain mask.")
     prior_maps = File(exists=True, mandatory=True, desc="MELODIC ICA components to use.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    num_comp = traits.Int(
-        desc="number of components to compute from dual ICA.")
+    NPR_temporal_comp = traits.Int(
+        desc="number of data-driven temporal components to compute.")
+    NPR_spatial_comp = traits.Int(
+        desc="number of data-driven spatial components to compute.")
 
-class dual_ICA_wrapperOutputSpec(TraitedSpec):
-    dual_ICA_timecourse_csv = File(
-        exists=True, desc=".csv with timecourses from dual ICA")
-    dual_ICA_filename = File(
-        exists=True, desc=".nii file of the Dual ICA maps")
+class NeuralPriorRecoveryOutputSpec(TraitedSpec):
+    NPR_prior_timecourse_csv = File(
+        exists=True, desc=".csv with timecourses from the fitted prior sources.")
+    NPR_extra_timecourse_csv = File(
+        exists=True, desc=".csv with timecourses from the scan-specific extra sources.")
+    NPR_prior_filename = File(
+        exists=True, desc=".nii file with spatial components from the fitted prior sources.")
+    NPR_extra_filename = File(
+        exists=True, desc=".nii file with spatial components from the scan-specific extra sources.")
 
-class dual_ICA_wrapper(BaseInterface):
+
+class NeuralPriorRecovery(BaseInterface):
     """
 
     """
 
-    input_spec = dual_ICA_wrapperInputSpec
-    output_spec = dual_ICA_wrapperOutputSpec
+    input_spec = NeuralPriorRecoveryInputSpec
+    output_spec = NeuralPriorRecoveryOutputSpec
 
     def _run_interface(self, runtime):
         import os
@@ -300,6 +306,7 @@ class dual_ICA_wrapper(BaseInterface):
         import pandas as pd
         import pathlib  # Better path manipulation
         from rabies.utils import recover_4D
+        from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
         filename_split = pathlib.Path(
             self.inputs.bold_file).name.rsplit(".nii")
 
@@ -324,20 +331,47 @@ class dual_ICA_wrapper(BaseInterface):
         for i in range(num_ICs):
             all_IC_vectors[i, :] = (data_array[i, :, :, :])[volume_indices]
 
-        from rabies.analysis_pkg.prior_modeling import dual_ICA_fit
-        prior_fit_out = dual_ICA_fit(timeseries, self.inputs.num_comp, all_IC_vectors, self.inputs.prior_bold_idx)
+        C_prior = all_IC_vectors[self.inputs.prior_bold_idx,:].T
+        NPR_temporal_comp = self.inputs.NPR_temporal_comp
+        NPR_spatial_comp = self.inputs.NPR_spatial_comp
+        if NPR_temporal_comp<1: # make sure there is no negative number
+            NPR_temporal_comp=0
+        if NPR_spatial_comp<1: # make sure there is no negative number
+            NPR_spatial_comp=0
+        modeling = spatiotemporal_prior_fit(timeseries, C_prior, num_W=NPR_temporal_comp, num_C=NPR_spatial_comp)
 
-        dual_ICA_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_ICA_timecourse.csv')
-        pd.DataFrame(prior_fit_out['W']).to_csv(dual_ICA_timecourse_csv, header=False, index=False)
+        # put together the spatial and temporal extra componentsZ
+        W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
+        C_extra = np.concatenate((modeling['C_spatial'],modeling['C_temporal']), axis=1)
 
-        dual_ICA_filename = os.path.abspath(filename_split[0]+'_dual_ICA.nii.gz')
-        sitk.WriteImage(recover_4D(self.inputs.mask_file,np.array(prior_fit_out['C']), self.inputs.bold_file), dual_ICA_filename)
+        NPR_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_prior_timecourse.csv')
+        pd.DataFrame(modeling['W_fitted_prior']).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
 
-        setattr(self, 'dual_ICA_timecourse_csv', dual_ICA_timecourse_csv)
-        setattr(self, 'dual_ICA_filename', dual_ICA_filename)
+        NPR_extra_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_extra_timecourse.csv')
+        pd.DataFrame(W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
+
+        NPR_prior_filename = os.path.abspath(filename_split[0]+'_NPR_prior.nii.gz')
+        sitk.WriteImage(recover_4D(self.inputs.mask_file,modeling['C_fitted_prior'].T, self.inputs.bold_file), NPR_prior_filename)
+
+        if (self.inputs.NPR_temporal_comp+self.inputs.NPR_spatial_comp)>0:
+            NPR_extra_filename = os.path.abspath(filename_split[0]+'_NPR_extra.nii.gz')
+            sitk.WriteImage(recover_4D(self.inputs.mask_file,C_extra.T, self.inputs.bold_file), NPR_extra_filename)
+        else:
+            empty_img = sitk.GetImageFromArray(np.empty([1,1]))
+            empty_file = os.path.abspath('empty.nii.gz')
+            sitk.WriteImage(empty_img, empty_file)
+            NPR_extra_filename = empty_file
+
+        setattr(self, 'NPR_prior_timecourse_csv', NPR_prior_timecourse_csv)
+        setattr(self, 'NPR_extra_timecourse_csv', NPR_extra_timecourse_csv)
+        setattr(self, 'NPR_prior_filename', NPR_prior_filename)
+        setattr(self, 'NPR_extra_filename', NPR_extra_filename)
 
         return runtime
 
     def _list_outputs(self):
-        return {'dual_ICA_timecourse_csv': getattr(self, 'dual_ICA_timecourse_csv'),
-                'dual_ICA_filename': getattr(self, 'dual_ICA_filename')}
+        return {'NPR_prior_timecourse_csv': getattr(self, 'NPR_prior_timecourse_csv'),
+                'NPR_extra_timecourse_csv': getattr(self, 'NPR_extra_timecourse_csv'),
+                'NPR_prior_filename': getattr(self, 'NPR_prior_filename'),
+                'NPR_extra_filename': getattr(self, 'NPR_extra_filename'),
+                }

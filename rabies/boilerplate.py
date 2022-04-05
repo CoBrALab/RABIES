@@ -196,7 +196,11 @@ This was conducted by iteratively removing frames which present outlier DVARS va
         methods+="First, "
 
     # Detrending
-    methods+=f"voxelwise linear detrending was first applied to remove first-order drifts and the average image. "
+    if opts.detrending_order=='linear':
+        order="first-order"
+    elif opts.detrending_order=='quadratic':
+        order="second-order"
+    methods+=f"voxelwise detrending was applied to remove {order} drifts and the average image. "
 
     # ICA-AROMA
     if opts.run_aroma:
@@ -306,19 +310,20 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
         methods+=f"Selected nuisance regressors were then used for confound regression. More specifically, using ordinary least square regression, \
 {conf_list_str} were modelled at each voxel and regressed from the data. "
 
-
-    if opts.standardize or opts.smoothing_filter is not None:
-        methods+="Before analysis, "
-    # Standardize
-    if opts.standardize:
-        methods+=f"timeseries were temporally standardized (mean-substrated, variance-normalized) and "
+    # variance standardization
+    if opts.image_scaling=="background_noise":
+        methods+=f"To normalize variance, each image was seperately scaled according to its background noise. "
+    elif opts.image_scaling=="global_variance":
+        methods+=f"To normalize variance, each image was seperately scaled according to its total variance. "
+    elif opts.image_scaling=="voxelwise_standardization":
+        methods+=f"To normalize variance, each voxel was individually standardized to unit variance. "
 
     # Spatial smoothing
     if opts.smoothing_filter is not None:
         if not nilearn in references.keys():
             references[nilearn]=i
             i+=1
-        methods+=f"a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
+        methods+=f"Finally, a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
 
     methods+='\n'
     ref_string=''

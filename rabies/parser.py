@@ -382,10 +382,22 @@ def get_parser():
             "\n"
         )
     g_stc.add_argument(
-        '--tpattern', type=str, default='alt',
-        choices=['alt', 'seq'],
+        '--tpattern', type=str, default='alt-z',
+        choices=['alt-z', 'seq-z', 'alt+z', 'seq+z'],
         help=
-            "Specify if interleaved ('alt') or sequential ('seq') acquisition.\n"
+            "Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which \n"
+            "direction (- or +) to apply the correction. If slices were acquired from front to back, \n"
+            "the correction should be in the negative (-) direction. Refer to this discussion on the \n"
+            "topic for more information https://github.com/CoBrALab/RABIES/discussions/217.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_stc.add_argument(
+        '--stc_axis', type=str, default='Y',
+        choices=['X', 'Y', 'Z'],
+        help=
+            "Can specify over which axis of the image the STC must be applied. Generally, the correction \n"
+            "should be over the Y axis, which corresponds to the anteroposterior axis in RAS convention. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -467,6 +479,34 @@ def get_parser():
         '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
         help=
             "Conduct confound correction and analysis in native space.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--image_scaling', type=str,
+        default="None",
+        choices=["None", "background_noise", "global_variance", "voxelwise_standardization"],
+        help=
+            "Select an option for scaling the image variance to match the intensity profile of \n"
+            "different scans and avoid biases in data variance and amplitude estimation during analysis.\n"
+            "The variance explained from confound regression is also scaled accordingly for later use with \n"
+            "--data_diagnosis. \n"
+            "*** None: No scaling is applied, only detrending.\n"
+            "*** background_noise: a mask is derived to map background noise, and scale the image \n"
+            "   intensity relative to the noise standard deviation. \n"
+            "*** global_variance: After applying confound correction, the cleaned timeseries are scaled \n"
+            "   according to the total standard deviation of all voxels, to scale total variance to 1. \n"
+            "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
+            "   scaled to unit variance (z-scoring). \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--detrending_order', type=str,
+        default="linear",
+        choices=["linear", "quadratic"],
+        help=
+            "Select between linear or quadratic (second-order) detrending of voxel timeseries.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -565,9 +605,13 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--standardize', dest='standardize', action='store_true',default=False,
+        '--match_number_timepoints', dest='match_number_timepoints', action='store_true', default=False,
         help=
-            "Whether to standardize timeseries (z-scoring).\n"
+            "With this option, only a subset of the timepoints are kept post-censoring to match the \n"
+            "--minimum_timepoint number for all scans. This can be conducted to avoid inconsistent \n" 
+            "temporal degrees of freedom (tDOF) between scans during downstream analysis. We recommend \n" 
+            "selecting this option if a significant confounding effect of tDOF is detected during --data_diagnosis.\n" 
+            "The extra timepoints removed are randomly selected among the set available post-censoring.\n" 
             "(default: %(default)s)\n"
             "\n"
         )
@@ -761,10 +805,21 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--dual_ICA', type=int, default=0,
+        '--NPR_temporal_comp', type=int, default=-1,
         help=
-            "Option for performing a Dual ICA. Specify how many subject-specific sources to compute \n"
-            "during dual ICA. Dual ICA will provide a fit for each --prior_bold_idx from --prior_maps.\n"
+            "Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra \n"
+            "subject-specific sources will be computed to account for non-prior confounds. This options \n"
+            "specifies the number of temporal components to compute. After computing \n"
+            "these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
+            "Specify at least 0 extra sources to run NPR.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--NPR_spatial_comp', type=int, default=-1,
+        help=
+            "Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are \n"
+            "additioned to the temporal components).\n"
             "(default: %(default)s)\n"
             "\n"
         )

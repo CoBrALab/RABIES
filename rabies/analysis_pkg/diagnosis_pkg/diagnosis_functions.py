@@ -62,7 +62,7 @@ Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, dual_ICA=0):
+def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
     temporal_info = {}
     spatial_info = {}
 
@@ -109,12 +109,10 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     temporal_info['noise_trace'] = noise_trace
 
     # take regional timecourse from L2-norm
-    global_trace = np.sqrt((timeseries.T**2).mean(axis=0))
     WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
     CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
     edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
     not_edge_trace = np.sqrt((timeseries.T[not_edge_idx]**2).mean(axis=0))
-    temporal_info['global_trace'] = global_trace
     temporal_info['WM_trace'] = WM_trace
     temporal_info['CSF_trace'] = CSF_trace
     temporal_info['edge_trace'] = edge_trace
@@ -123,15 +121,16 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
 
     '''Spatial Features'''
     global_signal = timeseries.mean(axis=1)
+    GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
     DVARS_corr = analysis_functions.vcorrcoef(timeseries.T[:, 1:], DVARS[1:])
     FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     prior_fit_out = {'C': [], 'W': []}
-    if dual_ICA > 0:
-        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['dual_ICA_timecourse_csv'], header=None))
+    if (NPR_temporal_comp>-1) or (NPR_spatial_comp>-1):
+        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_dict['dual_ICA_filename']))
+            sitk.ReadImage(analysis_dict['NPR_prior_filename']))
         C = np.zeros([C_array.shape[0], volume_indices.sum()])
         for i in range(C_array.shape[0]):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
@@ -147,8 +146,8 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
-    spatial_info['dual_ICA_maps'] = prior_fit_out['C']
-    temporal_info['dual_ICA_time'] = prior_fit_out['W']
+    spatial_info['NPR_maps'] = prior_fit_out['C']
+    temporal_info['NPR_time'] = prior_fit_out['W']
 
     spatial_info['VE_spatial'] = sitk.GetArrayFromImage(
         sitk.ReadImage(VE_file))[volume_indices]
@@ -156,9 +155,20 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, mask_file
         sitk.ReadImage(STD_file))[volume_indices]
     spatial_info['predicted_std'] = sitk.GetArrayFromImage(
         sitk.ReadImage(CR_STD_file))[volume_indices]
+    spatial_info['random_CR_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(random_CR_STD_file))[volume_indices]
+    spatial_info['corrected_CR_std'] = sitk.GetArrayFromImage(
+        sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
     spatial_info['GS_corr'] = GS_corr
+    spatial_info['GS_cov'] = GS_cov
     spatial_info['DVARS_corr'] = DVARS_corr
     spatial_info['FD_corr'] = FD_corr
+
+    if len(prior_fit_out['W'])>0:
+        NPR_prior_W = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
+        NPR_extra_W = np.array(pd.read_csv(analysis_dict['NPR_extra_timecourse_csv'], header=None))
+        temporal_info['NPR_prior_trace'] = np.abs(NPR_prior_W).mean(axis=1)
+        temporal_info['NPR_noise_trace'] = np.abs(NPR_extra_W).mean(axis=1)
 
     return temporal_info, spatial_info
 
@@ -171,23 +181,11 @@ def temporal_external_formating(temporal_info, file_dict):
     filename_split = pathlib.Path(
         bold_file).name.rsplit(".nii")
 
-    dual_regression_timecourse_csv = os.path.abspath(
-        filename_split[0]+'_dual_regression_timecourse.csv')
-    pd.DataFrame(temporal_info['DR_all']).to_csv(
-        dual_regression_timecourse_csv, header=False, index=False)
-    if len(temporal_info['dual_ICA_time']) > 0:
-        dual_ICA_timecourse_csv = os.path.abspath(
-            filename_split[0]+'_dual_ICA_timecourse.csv')
-        pd.DataFrame(temporal_info['dual_ICA_time']).to_csv(
-            dual_ICA_timecourse_csv, header=False, index=False)
-    else:
-        dual_ICA_timecourse_csv = None
-
-    del temporal_info['DR_all'], temporal_info['dual_ICA_time']
+    del temporal_info['DR_all'], temporal_info['NPR_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
-    return temporal_info_csv, dual_regression_timecourse_csv, dual_ICA_timecourse_csv
+    return temporal_info_csv
 
 
 def spatial_external_formating(spatial_info, file_dict):
@@ -212,9 +210,21 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
+    random_CR_std_filename = os.path.abspath(filename_split[0]+'_random_CR_std.nii.gz')
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['random_CR_std']), random_CR_std_filename)
+
+    corrected_CR_std_filename = os.path.abspath(filename_split[0]+'_corrected_CR_std.nii.gz')
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['corrected_CR_std']), corrected_CR_std_filename)
+
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
+
+    GS_cov_filename = os.path.abspath(filename_split[0]+'_GS_cov.nii.gz')
+    sitk.WriteImage(recover_3D(
+        mask_file, spatial_info['GS_cov']), GS_cov_filename)
 
     DVARS_corr_filename = os.path.abspath(
         filename_split[0]+'_DVARS_corr.nii.gz')
@@ -225,20 +235,7 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['FD_corr']), FD_corr_filename)
 
-    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    sitk.WriteImage(recover_4D(
-        mask_file, spatial_info['DR_all'], bold_file), DR_maps_filename)
-
-    if len(spatial_info['dual_ICA_maps']) > 0:
-        import numpy as np
-        dual_ICA_filename = os.path.abspath(
-            filename_split[0]+'_dual_ICA.nii.gz')
-        sitk.WriteImage(recover_4D(mask_file, np.array(
-            spatial_info['dual_ICA_maps']), bold_file), dual_ICA_filename)
-    else:
-        dual_ICA_filename = None
-
-    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, DVARS_corr_filename, FD_corr_filename, DR_maps_filename, dual_ICA_filename
+    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, GS_cov_filename, DVARS_corr_filename, FD_corr_filename
 
 
 '''
@@ -417,7 +414,12 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     y = temporal_info['signal_trace']
     ax4.plot(x,y)
     ax4.plot(x,temporal_info['noise_trace'])
-    ax4.legend(['BOLD components', 'Confound components'
+    if len(spatial_info['NPR_maps'])>0:
+        ax4.plot(x,temporal_info['NPR_prior_trace'])
+        ax4.plot(x,temporal_info['NPR_noise_trace'])
+
+    ax4.legend(['DR BOLD components', 'DR Confound components',
+                'NPR priors', 'NPR confounds',
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
@@ -433,10 +435,12 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plt.setp(ax3_.get_yticklabels(), fontsize=15)
     plt.setp(ax4.get_yticklabels(), fontsize=15)
 
+
     dr_maps = spatial_info['DR_BOLD']
+    NPR_maps = spatial_info['NPR_maps']
     mask_file = mask_file_dict['brain_mask']
 
-    nrows = 6+dr_maps.shape[0]
+    nrows = 6+dr_maps.shape[0]+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -505,15 +509,19 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     sitk_img = recover_3D(
-        mask_file, spatial_info['GS_corr'])
-    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
-            alpha=1, cbar=True, threshold=0.1, num_slices=6)
+        mask_file, spatial_info['GS_cov'])
+    # select vmax at 95th percentile value
+    vector = spatial_info['GS_cov'].flatten()
+    vector.sort()
+    vmax = vector[int(len(vector)*0.95)]
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-vmax, vmax=vmax, cmap='cold_hot',
+            alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
+        cbar.set_label("Covariance", fontsize=17, rotation=270, color='white')
         cbar.ax.tick_params(labelsize=15)
     for ax in axes:
-        ax.set_title('Global Signal Correlation', fontsize=30, color='white')
+        ax.set_title('Global Signal Covariance', fontsize=30, color='white')
 
     axes = axes2[4, :]
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
@@ -555,7 +563,21 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'BOLD component {i}', fontsize=30, color='white')
+            ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
+
+    for i in range(len(NPR_maps)):
+        axes = axes2[i+6+dr_maps.shape[0], :]
+
+        sitk_img = recover_3D(
+            mask_file, NPR_maps[i, :])
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
+
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
+        for ax in axes:
+            ax.set_title(f'NPR component {i}', fontsize=30, color='white')
 
     return fig, fig2
 

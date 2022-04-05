@@ -89,9 +89,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
     # concatenate the different inputs into a dictionary
-    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'CR_STD_file':CR_STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
+    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
+        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'CR_STD_file':CR_STD_file, 'random_CR_STD_file':random_CR_STD_file, 'corrected_CR_STD_file':corrected_CR_STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
+    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
                                            output_names=[
                                                'prep_dict'],
                                        function=prep_dict),
@@ -102,6 +102,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
             ("input_bold", "name_source"),
             ]),
         (input_buffer_node, prep_dict_node, [
@@ -145,16 +147,20 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.corr_map_file", "seed_correlation_maps"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-            ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+            ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
+            ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
+            ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
+            ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
             ]),
         ])
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, dual_ICA_timecourse_csv, dual_ICA_filename):
-            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 'dual_ICA_timecourse_csv':dual_ICA_timecourse_csv, 'dual_ICA_filename':dual_ICA_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'dual_ICA_timecourse_csv', 'dual_ICA_filename'],
+        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
+            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
+                    'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
+                    'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -179,26 +185,33 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (diagnosis_wf, data_diagnosis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("outputnode.dataset_diagnosis", "dataset_diagnosis"),
+                ("outputnode.analysis_QC", "analysis_QC"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
                 ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.CR_prediction_std_nii", "CR_prediction_std_nii"),
+                ("outputnode.random_CR_std_nii", "random_CR_std_nii"),
+                ("outputnode.corrected_CR_std_nii", "corrected_CR_std_nii"),
                 ("outputnode.GS_corr_nii", "GS_corr_nii"),
+                ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ("outputnode.DVARS_corr_nii", "DVARS_corr_nii"),
                 ("outputnode.FD_corr_nii", "FD_corr_nii"),
                 ]),
             ])
-        if analysis_opts.dual_ICA>0:
+        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1):
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
-                    ("outputnode.dual_ICA_timecourse_csv", "dual_ICA_timecourse_csv"),
-                    ("outputnode.dual_ICA_filename", "dual_ICA_filename"),
+                    ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
+                    ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
+                    ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
+                    ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
                     ]),
                 ])
         else:
-            prep_analysis_dict_node.inputs.dual_ICA_timecourse_csv = None
-            prep_analysis_dict_node.inputs.dual_ICA_filename = None
+            prep_analysis_dict_node.inputs.NPR_prior_timecourse_csv = None
+            prep_analysis_dict_node.inputs.NPR_extra_timecourse_csv = None
+            prep_analysis_dict_node.inputs.NPR_prior_filename = None
+            prep_analysis_dict_node.inputs.NPR_extra_filename = None
 
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([
@@ -235,6 +248,8 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
                     'VE_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'VE_file_path'],
                     'STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'STD_file_path'],
                     'CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'CR_STD_file_path'],
+                    'random_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'random_CR_STD_file_path'],
+                    'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
                     }
 
     if nativespace:
@@ -254,6 +269,17 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
     fill_split_dict(bold_dict, output_bold, split_name, split_dict, [], node_dict, match_targets)
 
     target_list = list(match_targets.keys())
+
+    # don't include scans that were removed during confound correction
+    corrected_split_name=[]
+    import pathlib
+    for name in split_name:
+        filename = pathlib.Path(split_dict[name]['cleaned_path']).name
+        if 'empty' in filename:
+            del split_dict[name]
+        else:
+            corrected_split_name.append(name)
+    split_name = corrected_split_name
 
     return split_dict, split_name, target_list
 
