@@ -107,7 +107,7 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
         melIC = os.path.join(outDir, 'melodic_IC_thr.nii.gz')
     except:
         print('MELODIC FAILED. RETURNING EMPTY FILES.')
-        return False
+        return False, False
 
     print('Step 2) Automatic classification of the components')
 
@@ -139,13 +139,15 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
 
     if (denType != 'no'):
         print('Step 3) Data denoising')
-        aromafunc.denoising(fslDir, inFile, outDir, melmix, denType, motionICs)
+        denoising_applied = aromafunc.denoising(fslDir, inFile, outDir, melmix, denType, motionICs)
+    else:
+        denoising_applied=False
 
     # Revert to old directory
     os.chdir(cwd)
 
     print('\n----------------------------------- Finished -----------------------------------\n')
-    return True
+    return True, denoising_applied
 ###end of RABIES modification
 
 
@@ -879,9 +881,7 @@ def denoising(fslDir, inFile, outDir, melmix, denType, denIdx):
                                 '--filter="' + denIdxStrJoin + '"',
                                 '--out=' + os.path.join(outDir, 'denoised_func_data_aggr.nii.gz'),
                                 '-a']))
+        return True # we return whether denoising was applied or not
     else:
-        print("  - None of the components were classified as motion, so no denoising is applied (a symbolic link to the input file will be created).")
-        if (denType == 'nonaggr') or (denType == 'both'):
-            os.symlink(inFile, os.path.join(outDir, 'denoised_func_data_nonaggr.nii.gz'))
-        if (denType == 'aggr') or (denType == 'both'):
-            os.symlink(inFile, os.path.join(outDir, 'denoised_func_data_aggr.nii.gz'))
+        print("  - None of the components were classified as motion, so no denoising is applied.")
+        return False # we return whether denoising was applied or not
