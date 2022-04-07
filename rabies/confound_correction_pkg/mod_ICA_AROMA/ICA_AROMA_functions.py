@@ -883,9 +883,5 @@ def denoising(fslDir, inFile, outDir, melmix, denType, denIdx):
                                 '-a']))
         return True # we return whether denoising was applied or not
     else:
-        print("  - None of the components were classified as motion, so no denoising is applied (a symbolic link to the input file will be created).")
-        if (denType == 'nonaggr') or (denType == 'both'):
-            os.symlink(inFile, os.path.join(outDir, 'denoised_func_data_nonaggr.nii.gz'))
-        if (denType == 'aggr') or (denType == 'both'):
-            os.symlink(inFile, os.path.join(outDir, 'denoised_func_data_aggr.nii.gz'))
+        print("  - None of the components were classified as motion, so no denoising is applied.")
         return False # we return whether denoising was applied or not
