@@ -13,7 +13,6 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
 
     scaled = otsu_scaling(template_file)
         
-    percentile=0.01
     smoothing=True
     if non_parametric:
         name_list = ['Prior network', 'Dataset Median', 'Dataset MAD']+variable_name
@@ -23,9 +22,9 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
         measure_list = ["Mean", "Standard \nDeviation", "Pearson r"]
     
     maps = get_maps(consensus_network, FC_maps, corr_variable, mask_file, smoothing, non_parametric=non_parametric)
-    dataset_stats=eval_relationships(maps, name_list, mask_file, percentile=percentile)
+    dataset_stats, map_masks=eval_relationships(maps, name_list)
 
-    fig = plot_relationships(mask_file, scaled, maps, name_list, measure_list, percentile=percentile)
+    fig = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list)
     fig.savefig(fig_path, bbox_inches='tight')
 
     return dataset_stats
@@ -66,30 +65,32 @@ def get_maps(prior, prior_list, corr_variable, mask_file, smoothing=False, non_p
     return maps
 
 
-def eval_relationships(maps, name_list, mask_file, percentile=0.01):
+def eval_relationships(maps, name_list):
     dataset_stats = {}
     map_masks=[]
     
     for i in range(len(maps)):
-        img = recover_3D(mask_file,maps[i])
-        mask=percent_masking(img, percentile=percentile)
+        map = maps[i]
+        threshold = threshold_distribution(map)
+        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         map_masks.append(mask)
         if i>0: #once we're past the prior, evaluate Dice relative to it
             dataset_stats[f'Overlap: Prior - {name_list[i]}'] = dice_coefficient(map_masks[0],mask)
         if i>2: # once we're past the MAD metric, for the corr maps, get an average correlation within the maks
-            dataset_stats[f'Avg.: {name_list[i]}'] = sitk.GetArrayFromImage(img)[map_masks[0]].mean()    
+            dataset_stats[f'Avg.: {name_list[i]}'] = map[map_masks[0]].mean()    
 
-    return dataset_stats
+    return dataset_stats, map_masks
 
 
-def plot_relationships(mask_file, scaled, maps, name_list, measure_list, percentile=0.01):
+def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list):
 
     nrows = len(name_list)
     fig,axes = plt.subplots(nrows=nrows, ncols=1,figsize=(12,2*nrows))
         
     img = recover_3D(mask_file,maps[0])
+    mask_img = recover_3D(mask_file,map_masks[0])
     ax=axes[0]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
+    cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title('Prior network', fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -97,8 +98,9 @@ def plot_relationships(mask_file, scaled, maps, name_list, measure_list, percent
         cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,maps[1])
+    mask_img = recover_3D(mask_file,map_masks[1])
     ax=axes[1]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
+    cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title(name_list[1], fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -106,8 +108,9 @@ def plot_relationships(mask_file, scaled, maps, name_list, measure_list, percent
         cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,maps[2])
+    mask_img = recover_3D(mask_file,map_masks[2])
     ax=axes[2]
-    cbar_list = masked_plot(fig,ax, img, scaled, vmax=None, percentile=percentile)
+    cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title(name_list[2], fontsize=30, color='white')
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20
@@ -117,8 +120,9 @@ def plot_relationships(mask_file, scaled, maps, name_list, measure_list, percent
     for i in range(3,len(maps)):
 
         img = recover_3D(mask_file,maps[i])
+        mask_img = recover_3D(mask_file,map_masks[i])
         ax=axes[i]
-        cbar_list = masked_plot(fig,ax, img, scaled, vmax=1.0, percentile=percentile)
+        cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=1.0)
         ax.set_title(f'{name_list[i]} X network corr.', fontsize=30, color='white')
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 20
@@ -129,23 +133,16 @@ def plot_relationships(mask_file, scaled, maps, name_list, measure_list, percent
 
     return fig
 
-def percent_masking(img, percentile):
+def threshold_distribution(array):
+    x = array.copy()
+    med = np.median(x)
+    x -= med # center around median
+    l2_std = np.sqrt(np.mean(x**2)) # take L2-norm after centering; similar to STD
+    threshold = (l2_std*2)+med # set threshold as 2 STD away from the median
+    return threshold
 
-    array=np.abs(sitk.GetArrayFromImage(img)) # taking absolute values to include negative weights
-    flat=array.flatten()
-    flat.sort()
-    idx=int((1-percentile)*len(flat))
-    threshold = flat[idx]
-    mask=array>=threshold
-
-    return mask
-
-
-def masked_plot(fig,axes, img, scaled, percentile=0.01, vmax=None):
-    mask=percent_masking(img, percentile=percentile)
-    
-    masked=sitk.GetImageFromArray(sitk.GetArrayFromImage(img)*mask)
-    masked.CopyInformation(img)
+def masked_plot(fig,axes, img, scaled, mask_img, vmax=None):
+    masked = img*mask_img
     
     data=sitk.GetArrayFromImage(img)
     if vmax is None:

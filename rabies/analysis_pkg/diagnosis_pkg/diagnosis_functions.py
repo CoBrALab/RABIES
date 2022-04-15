@@ -6,7 +6,7 @@ from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
-from .analysis_QC import masked_plot
+from .analysis_QC import masked_plot, threshold_distribution
 
 def resample_mask(in_file, ref_file):
     transforms = []
@@ -554,9 +554,13 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for i in range(dr_maps.shape[0]):
         axes = axes2[i+6, :]
 
+        map = dr_maps[i, :]
+        threshold = threshold_distribution(map)
+        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
+        mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
-            mask_file, dr_maps[i, :])
-        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
+            mask_file, map)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35
@@ -568,9 +572,13 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for i in range(len(NPR_maps)):
         axes = axes2[i+6+dr_maps.shape[0], :]
 
+        map = NPR_maps[i, :]
+        threshold = threshold_distribution(map)
+        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
+        mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
-            mask_file, NPR_maps[i, :])
-        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, percentile=0.015, vmax=None)
+            mask_file, map)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
 
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 35
