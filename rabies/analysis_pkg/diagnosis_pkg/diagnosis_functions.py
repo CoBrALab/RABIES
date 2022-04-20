@@ -6,7 +6,7 @@ from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
-from .analysis_QC import masked_plot, threshold_distribution
+from .analysis_QC import masked_plot, percent_threshold
 
 def resample_mask(in_file, ref_file):
     transforms = []
@@ -555,7 +555,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         axes = axes2[i+6, :]
 
         map = dr_maps[i, :]
-        threshold = threshold_distribution(map)
+        threshold = percent_threshold(map)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
@@ -573,7 +573,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         axes = axes2[i+6+dr_maps.shape[0], :]
 
         map = NPR_maps[i, :]
-        threshold = threshold_distribution(map)
+        threshold = percent_threshold(map)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(

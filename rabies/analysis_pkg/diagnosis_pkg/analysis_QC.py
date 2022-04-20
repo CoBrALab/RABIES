@@ -71,7 +71,7 @@ def eval_relationships(maps, name_list):
     
     for i in range(len(maps)):
         map = maps[i]
-        threshold = threshold_distribution(map)
+        threshold = percent_threshold(map)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         map_masks.append(mask)
         if i>0: #once we're past the prior, evaluate Dice relative to it
@@ -133,12 +133,21 @@ def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_li
 
     return fig
 
+'''
 def threshold_distribution(array):
     x = array.copy()
     med = np.median(x)
     x -= med # center around median
     l2_std = np.sqrt(np.mean(x**2)) # take L2-norm after centering; similar to STD
     threshold = (l2_std*2)+med # set threshold as 2 STD away from the median
+    return threshold
+'''
+
+def percent_threshold(array): # set threshold to be the top 4% of all voxels
+    flat=array.flatten()
+    flat.sort()
+    idx=int((0.96)*len(flat))
+    threshold = flat[idx]
     return threshold
 
 def masked_plot(fig,axes, img, scaled, mask_img, vmax=None):
