@@ -9,7 +9,7 @@ from rabies.confound_correction_pkg.utils import smooth_image
 import tempfile
 
 
-def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, fig_path, non_parametric=False):
+def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False):
 
     scaled = otsu_scaling(template_file)
         
@@ -24,10 +24,10 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
     maps = get_maps(consensus_network, FC_maps, corr_variable, mask_file, smoothing, non_parametric=non_parametric)
     dataset_stats, map_masks=eval_relationships(maps, name_list)
 
-    fig = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list)
-    fig.savefig(fig_path, bbox_inches='tight')
+    fig = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list, thresholded=True)
+    fig_unthresholded = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list, thresholded=False)
 
-    return dataset_stats
+    return dataset_stats, fig, fig_unthresholded
 
     
 def get_maps(prior, prior_list, corr_variable, mask_file, smoothing=False, non_parametric=False):
@@ -82,13 +82,16 @@ def eval_relationships(maps, name_list):
     return dataset_stats, map_masks
 
 
-def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list):
+def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list, thresholded=True):
 
     nrows = len(name_list)
     fig,axes = plt.subplots(nrows=nrows, ncols=1,figsize=(12,2*nrows))
         
     img = recover_3D(mask_file,maps[0])
-    mask_img = recover_3D(mask_file,map_masks[0])
+    if thresholded:
+        mask_img = recover_3D(mask_file,map_masks[0])
+    else:
+        mask_img = sitk.ReadImage(mask_file)
     ax=axes[0]
     cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title('Prior network', fontsize=30, color='white')
@@ -98,7 +101,10 @@ def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_li
         cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,maps[1])
-    mask_img = recover_3D(mask_file,map_masks[1])
+    if thresholded:
+        mask_img = recover_3D(mask_file,map_masks[1])
+    else:
+        mask_img = sitk.ReadImage(mask_file)
     ax=axes[1]
     cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title(name_list[1], fontsize=30, color='white')
@@ -108,7 +114,10 @@ def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_li
         cbar.ax.tick_params(labelsize=15)
 
     img = recover_3D(mask_file,maps[2])
-    mask_img = recover_3D(mask_file,map_masks[2])
+    if thresholded:
+        mask_img = recover_3D(mask_file,map_masks[2])
+    else:
+        mask_img = sitk.ReadImage(mask_file)
     ax=axes[2]
     cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=None)
     ax.set_title(name_list[2], fontsize=30, color='white')
@@ -120,9 +129,13 @@ def plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_li
     for i in range(3,len(maps)):
 
         img = recover_3D(mask_file,maps[i])
-        mask_img = recover_3D(mask_file,map_masks[i])
+        if thresholded:
+            mask=np.abs(maps[i])>=0.1 # we set the min correlation at 0.1
+            mask_img = recover_3D(mask_file,mask)
+        else:
+            mask_img = sitk.ReadImage(mask_file)
         ax=axes[i]
-        cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=1.0)
+        cbar_list = masked_plot(fig,ax, img, scaled, mask_img=mask_img, vmax=0.5)
         ax.set_title(f'{name_list[i]} X network corr.', fontsize=30, color='white')
         for cbar in cbar_list:
             cbar.ax.get_yaxis().labelpad = 20

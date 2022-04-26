@@ -261,21 +261,27 @@ class DatasetDiagnosis(BaseInterface):
             DR_maps_list=np.array(DR_maps_list)
             for i in range(num_priors):
                 FC_maps = DR_maps_list[:,i,non_zero_voxels]
-                fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
+                fig_path = f'{out_dir}/DR{i}_QC_maps.png'
+                fig.savefig(fig_path, bbox_inches='tight')
+                fig_path = f'{out_dir}/DR{i}_QC_maps_unthresholded.png'
+                fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
             NPR_maps_list=np.array(NPR_maps_list)
             if NPR_maps_list.shape[1]>0:
                 for i in range(num_priors):
                     FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                    fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                     df = pd.DataFrame(dataset_stats, index=[1])
                     df = change_columns(df)
                     df.to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
+                    fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
+                    fig.savefig(fig_path, bbox_inches='tight')
+                    fig_path = f'{out_dir}/NPR{i}_QC_maps_unthresholded.png'
+                    fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
 
             # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
@@ -291,11 +297,14 @@ class DatasetDiagnosis(BaseInterface):
                 seed_maps_list=np.array(seed_maps_list)
                 for i in range(num_priors):
                     FC_maps = seed_maps_list[:,i,non_zero_voxels]
-                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                     df = pd.DataFrame(dataset_stats, index=[1])
                     df = change_columns(df)
                     df.to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
+                    fig.savefig(fig_path, bbox_inches='tight')
+                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps_unthresholded.png'
+                    fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)
