@@ -204,7 +204,6 @@ class DatasetDiagnosis(BaseInterface):
         volume_indices = brain_mask.astype(bool)
 
         scan_name_list=[]
-        GS_cov_maps=[]
         std_maps=[]
         CR_std_maps=[]
         DR_maps_list=[]
@@ -214,7 +213,6 @@ class DatasetDiagnosis(BaseInterface):
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
-            GS_cov_maps.append(scan_data['GS_cov'])
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
             DR_maps_list.append(scan_data['DR_BOLD'])
@@ -231,11 +229,10 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
-        GS_cov_maps=np.array(GS_cov_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
 
-        corr_variable = [GS_cov_maps, CR_std_maps]
-        variable_name = ['GS covariance', '$\mathregular{CR_{SD}}$']
+        corr_variable = [CR_std_maps]
+        variable_name = ['$\mathregular{CR_{SD}}$']
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
