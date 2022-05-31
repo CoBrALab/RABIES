@@ -100,6 +100,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 
+            scan_data['FD_trace'] = file_dict['CR_data_dict']['FD_trace']
             scan_data['tDOF'] = file_dict['CR_data_dict']['tDOF']
 
             import numpy as np
