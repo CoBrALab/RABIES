@@ -204,7 +204,6 @@ class DatasetDiagnosis(BaseInterface):
         volume_indices = brain_mask.astype(bool)
 
         scan_name_list=[]
-        GS_cov_maps=[]
         std_maps=[]
         CR_std_maps=[]
         DR_maps_list=[]
@@ -214,7 +213,6 @@ class DatasetDiagnosis(BaseInterface):
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
-            GS_cov_maps.append(scan_data['GS_cov'])
             std_maps.append(scan_data['temporal_std'])
             CR_std_maps.append(scan_data['predicted_std'])
             DR_maps_list.append(scan_data['DR_BOLD'])
@@ -231,11 +229,10 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
-        GS_cov_maps=np.array(GS_cov_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
 
-        corr_variable = [GS_cov_maps, CR_std_maps]
-        variable_name = ['GS covariance', '$\mathregular{CR_{SD}}$']
+        corr_variable = [CR_std_maps]
+        variable_name = ['$\mathregular{CR_{SD}}$']
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -264,21 +261,27 @@ class DatasetDiagnosis(BaseInterface):
             DR_maps_list=np.array(DR_maps_list)
             for i in range(num_priors):
                 FC_maps = DR_maps_list[:,i,non_zero_voxels]
-                fig_path = f'{out_dir}/DR{i}_QC_maps.png'
-                dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/DR{i}_QC_stats.csv', index=None)
+                fig_path = f'{out_dir}/DR{i}_QC_maps.png'
+                fig.savefig(fig_path, bbox_inches='tight')
+                fig_path = f'{out_dir}/DR{i}_QC_maps_unthresholded.png'
+                fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
             NPR_maps_list=np.array(NPR_maps_list)
             if NPR_maps_list.shape[1]>0:
                 for i in range(num_priors):
                     FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                    fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                     df = pd.DataFrame(dataset_stats, index=[1])
                     df = change_columns(df)
                     df.to_csv(f'{out_dir}/NPR{i}_QC_stats.csv', index=None)
+                    fig_path = f'{out_dir}/NPR{i}_QC_maps.png'
+                    fig.savefig(fig_path, bbox_inches='tight')
+                    fig_path = f'{out_dir}/NPR{i}_QC_maps_unthresholded.png'
+                    fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
 
             # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
@@ -294,11 +297,14 @@ class DatasetDiagnosis(BaseInterface):
                 seed_maps_list=np.array(seed_maps_list)
                 for i in range(num_priors):
                     FC_maps = seed_maps_list[:,i,non_zero_voxels]
-                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
-                    dataset_stats = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, fig_path, non_parametric=non_parametric)
+                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_maps[i,:], non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
                     df = pd.DataFrame(dataset_stats, index=[1])
                     df = change_columns(df)
                     df.to_csv(f'{out_dir}/seed_FC{i}_QC_stats.csv', index=None)
+                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps.png'
+                    fig.savefig(fig_path, bbox_inches='tight')
+                    fig_path = f'{out_dir}/seed_FC{i}_QC_maps_unthresholded.png'
+                    fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)
