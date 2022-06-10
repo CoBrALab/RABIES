@@ -123,8 +123,6 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
     global_signal = timeseries.mean(axis=1)
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
-    DVARS_corr = analysis_functions.vcorrcoef(timeseries.T[:, 1:], DVARS[1:])
-    FD_corr = analysis_functions.vcorrcoef(timeseries.T, np.asarray(FD_trace))
 
     prior_fit_out = {'C': [], 'W': []}
     if (NPR_temporal_comp>-1) or (NPR_spatial_comp>-1):
@@ -161,8 +159,6 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
         sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
-    spatial_info['DVARS_corr'] = DVARS_corr
-    spatial_info['FD_corr'] = FD_corr
 
     if len(prior_fit_out['W'])>0:
         NPR_prior_W = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
@@ -226,16 +222,7 @@ def spatial_external_formating(spatial_info, file_dict):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_cov']), GS_cov_filename)
 
-    DVARS_corr_filename = os.path.abspath(
-        filename_split[0]+'_DVARS_corr.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['DVARS_corr']), DVARS_corr_filename)
-
-    FD_corr_filename = os.path.abspath(filename_split[0]+'_FD_corr.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['FD_corr']), FD_corr_filename)
-
-    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, GS_cov_filename, DVARS_corr_filename, FD_corr_filename
+    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, GS_cov_filename
 
 
 '''
@@ -440,7 +427,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     NPR_maps = spatial_info['NPR_maps']
     mask_file = mask_file_dict['brain_mask']
 
-    nrows = 6+dr_maps.shape[0]+len(NPR_maps)
+    nrows = 4+dr_maps.shape[0]+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -523,36 +510,8 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
     for ax in axes:
         ax.set_title('Global Signal Covariance', fontsize=30, color='white')
 
-    axes = axes2[4, :]
-    plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
-            cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = recover_3D(
-        mask_file, spatial_info['DVARS_corr'])
-    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
-            alpha=1, cbar=True, threshold=0.1, num_slices=6)
-    for cbar in cbar_list:
-        cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
-        cbar.ax.tick_params(labelsize=15)
-    for ax in axes:
-        ax.set_title('DVARS Correlation', fontsize=30, color='white')
-
-    axes = axes2[5, :]
-    plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
-            cmap='gray', alpha=1, cbar=False, num_slices=6)
-    sitk_img = recover_3D(
-        mask_file, spatial_info['FD_corr'])
-    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-1, vmax=1, cmap='cold_hot',
-            alpha=1, cbar=True, threshold=0.1, num_slices=6)
-    for cbar in cbar_list:
-        cbar.ax.get_yaxis().labelpad = 20
-        cbar.set_label("Pearson's' r", fontsize=17, rotation=270, color='white')
-        cbar.ax.tick_params(labelsize=15)
-    for ax in axes:
-        ax.set_title('FD Correlation', fontsize=30, color='white')
-
     for i in range(dr_maps.shape[0]):
-        axes = axes2[i+6, :]
+        axes = axes2[i+4, :]
 
         map = dr_maps[i, :]
         threshold = percent_threshold(map)
@@ -570,7 +529,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
             ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
 
     for i in range(len(NPR_maps)):
-        axes = axes2[i+6+dr_maps.shape[0], :]
+        axes = axes2[i+4+dr_maps.shape[0], :]
 
         map = NPR_maps[i, :]
         threshold = percent_threshold(map)

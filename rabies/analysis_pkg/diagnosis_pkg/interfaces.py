@@ -210,6 +210,7 @@ class DatasetDiagnosis(BaseInterface):
         seed_maps_list=[]
         NPR_maps_list=[]
         tdof_list=[]
+        mean_FD_list=[]
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
@@ -218,6 +219,7 @@ class DatasetDiagnosis(BaseInterface):
             DR_maps_list.append(scan_data['DR_BOLD'])
             NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
+            mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
             seed_maps_list.append(scan_data['seed_list'])
 
         # save the list of the scan names that were included in the group statistics
@@ -229,10 +231,11 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
+        BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
         CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
 
-        corr_variable = [CR_std_maps]
-        variable_name = ['$\mathregular{CR_{SD}}$']
+        corr_variable = [BOLD_std_maps, CR_std_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -249,6 +252,11 @@ class DatasetDiagnosis(BaseInterface):
                         columns[i] = 'Overlap: Prior - CRsd'
                     if 'Avg.:' in column:
                         columns[i] = 'Avg.: CRsd'
+                elif '$\mathregular{BOLD_{SD}}$' in column:
+                    if 'Overlap:' in column:
+                        columns[i] = 'Overlap: Prior - BOLDsd'
+                    if 'Avg.:' in column:
+                        columns[i] = 'Avg.: BOLDsd'
                 i+=1
             df.columns = columns
             return df
