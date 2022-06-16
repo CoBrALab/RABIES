@@ -77,6 +77,24 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                               name='load_maps_dict_node')
     load_maps_dict_node.inputs.atlas_ref = str(preprocess_opts.labels)
 
+    if commonspace_bold or preprocess_opts.bold_only:
+        split_name = list(split_dict.keys())[0] # can take the commonspace files from any subject, they are all identical
+        load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
+        load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
+        load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
+        load_maps_dict_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
+        load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
+    else:
+        workflow.connect([
+            (conf_outputnode, load_maps_dict_node, [
+                ("native_brain_mask", "mask_file"),
+                ("native_WM_mask", "WM_mask_file"),
+                ("native_CSF_mask", "CSF_mask_file"),
+                ("native_labels", "atlas_file"),
+                ("anat_preproc", "preprocess_anat_template"),
+                ]),
+            ])
+
 
     load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'name_source'],
                                            output_names=[
@@ -84,10 +102,27 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                        function=load_sub_input_dict),
                               name='load_sub_dict_node')
 
+    workflow.connect([
+        (conf_outputnode, load_sub_dict_node, [
+            ("cleaned_path", "bold_file"),
+            ("data_dict", "CR_data_dict"),
+            ("VE_file_path", "VE_file"),
+            ("STD_file_path", "STD_file"),
+            ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
+            ("input_bold", "name_source"),
+            ]),
+        (load_maps_dict_node, load_sub_dict_node, [
+            ("maps_dict", "maps_dict"),
+            ]),
+        ])
+
 
     input_buffer_node = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file','atlas_file','WM_mask_file',
                          'CSF_mask_file', 'preprocess_anat_template']),
                          name="input_buffer")
+
 
     workflow.connect([
         (conf_outputnode, input_buffer_node, [
@@ -122,30 +157,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                                'prep_dict'],
                                        function=prep_dict),
                               name='prep_dict')
-    workflow.connect([
-        (conf_outputnode, load_sub_dict_node, [
-            ("data_dict", "CR_data_dict"),
-            ("VE_file_path", "VE_file"),
-            ("STD_file_path", "STD_file"),
-            ("CR_STD_file_path", "CR_STD_file"),
-            ("random_CR_STD_file_path", "random_CR_STD_file"),
-            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
-            ("input_bold", "name_source"),
-            ]),
-        (input_buffer_node, load_sub_dict_node, [
-            ("bold_file", "bold_file"),
-            ]),
-        (input_buffer_node, load_maps_dict_node, [
-            ("mask_file", "mask_file"),
-            ("WM_mask_file", "WM_mask_file"),
-            ("CSF_mask_file", "CSF_mask_file"),
-            ("atlas_file", "atlas_file"),
-            ("preprocess_anat_template", "preprocess_anat_template"),
-            ]),
-        (load_maps_dict_node, load_sub_dict_node, [
-            ("maps_dict", "maps_dict"),
-            ]),
-        ])
 
     workflow.connect([
         (conf_outputnode, prep_dict_node, [
