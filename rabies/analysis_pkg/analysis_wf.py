@@ -33,7 +33,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again without --nativespace_analysis.')
-        seed_based_FC_node = pe.Node(Function(input_names=['bold_file', 'brain_mask', 'seed_dict', 'seed_name'],
+        seed_based_FC_node = pe.Node(Function(input_names=['dict_file', 'seed_dict', 'seed_name'],
                                               output_names=['corr_map_file'],
                                               function=seed_based_FC),
                                      name='seed_based_FC', mem_gb=1*opts.scale_min_memory)
@@ -59,8 +59,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
         workflow.connect([
             (subject_inputnode, seed_based_FC_node, [
-                ("bold_file", "bold_file"),
-                ("mask_file", "brain_mask"),
+                ("dict_file", "dict_file"),
                 ]),
             (seed_based_FC_node, outputnode, [
                 ("corr_map_file", "corr_map_file"),
@@ -73,22 +72,19 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    include_group_ICA = opts.group_ICA
-
     if opts.DR_ICA or opts.data_diagnosis:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again without --nativespace_analysis.')
 
-        DR_ICA = pe.Node(Function(input_names=['bold_file', 'mask_file', 'IC_file'],
+        DR_ICA = pe.Node(Function(input_names=['dict_file'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
                                   function=run_DR_ICA),
                          name='DR_ICA', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
             (subject_inputnode, DR_ICA, [
-                ("bold_file", "bold_file"),
-                ("mask_file", "mask_file"),
+                ("dict_file", "dict_file"),
                 ]),
             (DR_ICA, outputnode, [
                 ("dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
@@ -96,12 +92,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-        if not os.path.isfile(str(opts.prior_maps)):
-            raise ValueError("--prior_maps doesn't exists.")
-        else:
-            DR_ICA.inputs.IC_file = os.path.abspath(opts.prior_maps)
 
-    if include_group_ICA:
+    if opts.group_ICA:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again without --nativespace_analysis.')
@@ -132,14 +124,12 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         NPR_node = pe.Node(NeuralPriorRecovery(
                             NPR_temporal_comp=opts.NPR_temporal_comp, 
                             NPR_spatial_comp=opts.NPR_spatial_comp, 
-                            prior_bold_idx = opts.prior_bold_idx, 
-                            prior_maps = opts.prior_maps),
+                            prior_bold_idx = opts.prior_bold_idx),
                             name='NPR_node', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
             (subject_inputnode, NPR_node, [
-                ("bold_file", "bold_file"),
-                ("mask_file", "mask_file"),
+                ("dict_file", "dict_file"),
                 ]),
             (NPR_node, outputnode, [
                 ("NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),

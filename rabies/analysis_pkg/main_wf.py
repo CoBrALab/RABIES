@@ -70,12 +70,17 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     # you should make a test though of whether somehow the sharing of those arrays between nodes is copying the entire dictionary everytime; if so you need to somehow link it differently to save space; maybe will need to pickle it into a file
     ###############
 
-    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template'],
+    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps'],
                                            output_names=[
                                                'maps_dict'],
                                        function=load_maps_dict),
                               name='load_maps_dict_node')
     load_maps_dict_node.inputs.atlas_ref = str(preprocess_opts.labels)
+    if not os.path.isfile(str(analysis_opts.prior_maps)):
+        raise ValueError("--prior_maps doesn't exists.")
+    else:
+        load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+
 
     if commonspace_bold or preprocess_opts.bold_only:
         split_name = list(split_dict.keys())[0] # can take the commonspace files from any subject, they are all identical
@@ -289,12 +294,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
 # this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
-def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template):
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps):
     import numpy as np
     import SimpleITK as sitk
     import os
     import pathlib  # Better path manipulation
-    from rabies.utils import resample_image_spacing, compute_edge_mask
+    from rabies.utils import resample_image_spacing
+    from rabies.analysis_pkg.utils import resample_prior_maps, compute_edge_mask
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
     volume_indices = mask_array.astype(bool)
@@ -313,8 +319,8 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
     sitk.WriteImage(resampled, template_file)
 
-    #from rabies.analysis_pkg.analysis_functions import resample_IC_file
-    #prior_maps = resample_IC_file(prior_maps, brain_mask_file)
+    resampled_maps = resample_prior_maps(prior_maps, mask_file, volume_indices)
+    prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
 
     # prepare the list ROI numbers from the atlas for FC matrices
     # get the complete set of original ROI integers 
@@ -325,7 +331,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
             roi_list.append(i)
 
     return {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx, 
-            'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'roi_list':roi_list}
+            'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
 
 
 # this function loads subject-specific data
