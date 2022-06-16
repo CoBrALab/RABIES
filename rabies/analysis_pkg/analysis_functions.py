@@ -106,30 +106,29 @@ FC matrix
 '''
 
 
-def run_FC_matrix(bold_file, mask_file, bold_atlas, ref_atlas, roi_type='parcellated'):
+def run_FC_matrix(dict_file, roi_type='parcellated'):
     import os
     import pandas as pd
     import SimpleITK as sitk
     import numpy as np
     import pathlib  # Better path manipulation
+    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
+
+    import pickle
+    with open(dict_file, 'rb') as handle:
+        data_dict = pickle.load(handle)
+
+
+    bold_file = data_dict['bold_file']
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
-
-    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
     
-    mask_img = sitk.ReadImage(mask_file)
-    brain_mask = sitk.GetArrayFromImage(mask_img)
-    volume_indices = brain_mask.astype(bool)
+    timeseries = data_dict['timeseries']
+    atlas_idx = data_dict['atlas_idx']
+    roi_list = data_dict['roi_list']
 
-    data_img = sitk.ReadImage(bold_file)
-    data_array = sitk.GetArrayFromImage(data_img)
-    num_volumes = data_array.shape[0]
-    timeseries = np.zeros([num_volumes, volume_indices.sum()])
-    for i in range(num_volumes):
-        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
-    
     if roi_type == 'parcellated':
-        corr_matrix,roi_labels = parcellated_FC_matrix(timeseries, volume_indices, bold_atlas, ref_atlas)
+        corr_matrix,roi_labels = parcellated_FC_matrix(timeseries, atlas_idx, roi_list)
         matrix_df = pd.DataFrame(corr_matrix, index=roi_labels, columns=roi_labels)
     elif roi_type == 'voxelwise':
         corr_matrix = np.corrcoef(timeseries.T)
@@ -144,20 +143,11 @@ def run_FC_matrix(bold_file, mask_file, bold_atlas, ref_atlas, roi_type='parcell
     return data_file, figname
 
 
-def parcellated_FC_matrix(sub_timeseries, volume_indices, bold_atlas, ref_atlas):
-
-    # get the complete set of original ROI integers 
-    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(ref_atlas)).astype(int)
-    roi_list = []
-    for i in range(1, atlas_data.max()+1):
-        if np.max(i == atlas_data):  # include integers that do have labelled voxels
-            roi_list.append(i)
-
-    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(bold_atlas))[volume_indices]
+def parcellated_FC_matrix(sub_timeseries, atlas_idx, roi_list):
     
     timeseries_dict = {}
     for i in roi_list:
-        roi_mask = np.asarray(atlas_data == i, dtype=bool)
+        roi_mask = np.asarray(atlas_idx == i, dtype=bool)
         # extract the voxel timeseries within the mask, and take the mean ROI timeseries
         timeseries_dict[str(i)] = sub_timeseries[:,roi_mask].mean(axis=1)
 

@@ -48,7 +48,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
     commonspace_bold = not cr_opts.nativespace_analysis
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, preprocess_opts=preprocess_opts, commonspace_cr=commonspace_bold)
+        opts=analysis_opts, commonspace_cr=commonspace_bold)
 
     # prepare analysis datasink
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
@@ -61,6 +61,28 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
+
+    ###############
+    # NODE TO LOAD DATA INTO STANDARDIZED NUMPY ARRAYS FROM conf_outputnode
+    # could replace the prep_dict_node below to make the code cleaner
+    # will need to keep also the file verions though for the MELODIC
+    # I think the input_buffer_node is to have either native or commonspace data inputs; may be possible ot replace with a generalized input reader
+    # you should make a test though of whether somehow the sharing of those arrays between nodes is copying the entire dictionary everytime; if so you need to somehow link it differently to save space; maybe will need to pickle it into a file
+    ###############
+
+    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template'],
+                                           output_names=[
+                                               'maps_dict'],
+                                       function=load_maps_dict),
+                              name='load_maps_dict_node')
+    load_maps_dict_node.inputs.atlas_ref = str(preprocess_opts.labels)
+
+
+    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'name_source'],
+                                           output_names=[
+                                               'dict_file'],
+                                       function=load_sub_input_dict),
+                              name='load_sub_dict_node')
 
 
     input_buffer_node = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file','atlas_file','WM_mask_file',
@@ -101,6 +123,31 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                        function=prep_dict),
                               name='prep_dict')
     workflow.connect([
+        (conf_outputnode, load_sub_dict_node, [
+            ("data_dict", "CR_data_dict"),
+            ("VE_file_path", "VE_file"),
+            ("STD_file_path", "STD_file"),
+            ("CR_STD_file_path", "CR_STD_file"),
+            ("random_CR_STD_file_path", "random_CR_STD_file"),
+            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
+            ("input_bold", "name_source"),
+            ]),
+        (input_buffer_node, load_sub_dict_node, [
+            ("bold_file", "bold_file"),
+            ]),
+        (input_buffer_node, load_maps_dict_node, [
+            ("mask_file", "mask_file"),
+            ("WM_mask_file", "WM_mask_file"),
+            ("CSF_mask_file", "CSF_mask_file"),
+            ("atlas_file", "atlas_file"),
+            ("preprocess_anat_template", "preprocess_anat_template"),
+            ]),
+        (load_maps_dict_node, load_sub_dict_node, [
+            ("maps_dict", "maps_dict"),
+            ]),
+        ])
+
+    workflow.connect([
         (conf_outputnode, prep_dict_node, [
             ("data_dict", "CR_data_dict"),
             ("VE_file_path", "VE_file"),
@@ -136,6 +183,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("bold_file", "subject_inputnode.bold_file"),
             ("mask_file", "subject_inputnode.mask_file"),
             ("atlas_file", "subject_inputnode.atlas_file"),
+            ]),
+        (load_sub_dict_node, analysis_wf, [
+            ("dict_file", "subject_inputnode.dict_file"),
             ]),
         (prep_dict_node, analysis_split_joinnode, [
             ("prep_dict", "prep_dict_list"),
@@ -226,6 +276,90 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     return workflow
 
+
+# this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template):
+    import numpy as np
+    import SimpleITK as sitk
+    import os
+    import pathlib  # Better path manipulation
+    from rabies.utils import resample_image_spacing, compute_edge_mask
+    mask_img = sitk.ReadImage(mask_file)
+    mask_array = sitk.GetArrayFromImage(mask_img)
+    volume_indices = mask_array.astype(bool)
+
+    WM_idx = sitk.GetArrayFromImage(
+        sitk.ReadImage(WM_mask_file))[volume_indices].astype(bool)
+    CSF_idx = sitk.GetArrayFromImage(
+        sitk.ReadImage(CSF_mask_file))[volume_indices].astype(bool)
+    atlas_idx = sitk.GetArrayFromImage(sitk.ReadImage(atlas_file))[volume_indices]
+
+    edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
+
+    # the reference anatomical image (either the native space anat scan or commonspace template) is resampled to match the EPI resolution for plotting during --data_diagnosis
+    resampled = resample_image_spacing(sitk.ReadImage(preprocess_anat_template), mask_img.GetSpacing())
+    filename_split = pathlib.Path(preprocess_anat_template).name.rsplit(".nii")
+    template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
+    sitk.WriteImage(resampled, template_file)
+
+    #from rabies.analysis_pkg.analysis_functions import resample_IC_file
+    #prior_maps = resample_IC_file(prior_maps, brain_mask_file)
+
+    # prepare the list ROI numbers from the atlas for FC matrices
+    # get the complete set of original ROI integers 
+    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(atlas_ref)).astype(int)
+    roi_list = []
+    for i in range(1, atlas_data.max()+1):
+        if np.max(i == atlas_data):  # include integers that do have labelled voxels
+            roi_list.append(i)
+
+    return {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx, 
+            'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'roi_list':roi_list}
+
+
+# this function loads subject-specific data
+def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, name_source):
+    import pickle
+    import pathlib
+    import os
+    import numpy as np
+    import SimpleITK as sitk
+
+    volume_indices = maps_dict['volume_indices']
+
+    data_img = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(data_img)
+    num_volumes = data_array.shape[0]
+    timeseries = np.zeros([num_volumes, volume_indices.sum()])
+    for i in range(num_volumes):
+        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+
+    VE_spatial = sitk.GetArrayFromImage(
+        sitk.ReadImage(VE_file))[volume_indices]
+    temporal_std = sitk.GetArrayFromImage(
+        sitk.ReadImage(STD_file))[volume_indices]
+    predicted_std = sitk.GetArrayFromImage(
+        sitk.ReadImage(CR_STD_file))[volume_indices]
+    random_CR_std = sitk.GetArrayFromImage(
+        sitk.ReadImage(random_CR_STD_file))[volume_indices]
+    corrected_CR_std = sitk.GetArrayFromImage(
+        sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
+
+    sub_dict = {'bold_file':bold_file, 'name_source':name_source, 'CR_data_dict':CR_data_dict, 
+            'timeseries':timeseries, 'VE_spatial':VE_spatial, 'temporal_std':temporal_std,
+            'predicted_std':predicted_std, 'random_CR_std':random_CR_std, 
+            'corrected_CR_std':corrected_CR_std}
+    
+    # add all the maps_dict into the sub_dict
+    for k in maps_dict.keys():
+        sub_dict[k] = maps_dict[k]
+
+    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    dict_file = os.path.abspath(f'{filename_split[0]}_data_dict.pkl')
+    with open(dict_file, 'wb') as handle:
+        pickle.dump(sub_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return dict_file
 
 
 def read_confound_workflow(conf_output, cr_opts, nativespace=False):

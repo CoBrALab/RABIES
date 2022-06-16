@@ -7,11 +7,11 @@ from nipype import Function
 from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
 
 
-def init_analysis_wf(opts, preprocess_opts, commonspace_cr=False, name="analysis_wf"):
+def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
+        fields=['dict_file', 'bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
@@ -151,18 +151,15 @@ def init_analysis_wf(opts, preprocess_opts, commonspace_cr=False, name="analysis
 
 
     if opts.FC_matrix:
-        FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'bold_atlas', 'ref_atlas', 'roi_type'],
+        FC_matrix = pe.Node(Function(input_names=['dict_file', 'roi_type'],
                                      output_names=['data_file', 'figname'],
                                      function=run_FC_matrix),
                             name='FC_matrix', mem_gb=1*opts.scale_min_memory)
         FC_matrix.inputs.roi_type = opts.ROI_type
-        FC_matrix.inputs.ref_atlas = str(preprocess_opts.labels)
 
         workflow.connect([
             (subject_inputnode, FC_matrix, [
-                ("bold_file", "bold_file"),
-                ("mask_file", "mask_file"),
-                ("atlas_file", "bold_atlas"),
+                ("dict_file", "dict_file"),
                 ]),
             (FC_matrix, outputnode, [
                 ("data_file", "matrix_data_file"),
