@@ -298,6 +298,8 @@ def install_DSURQE(log):
         install = True
     elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_labels.nii.gz"):
         install = True
+    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_R_mapping.csv"):
+        install = True
     elif not os.path.isfile(f"{rabies_path}/vascular_mask.nii.gz"):
         install = True
     elif not os.path.isfile(f"{rabies_path}/melodic_IC.nii.gz"):

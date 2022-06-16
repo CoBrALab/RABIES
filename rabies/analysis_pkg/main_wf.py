@@ -25,6 +25,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                          name="main_split")
     main_split.iterables = [('split_name', split_name)]
 
+    # function to read each elements from the dictionary of confound correction outputs
     def read_dict(split_dict, split_name, target_list):
         return [split_dict[split_name][target] for target in target_list]
 
@@ -43,16 +44,19 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         ])
 
 
+    # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
     commonspace_bold = not cr_opts.nativespace_analysis
-    # prepare analysis workflow
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold)
+        opts=analysis_opts, preprocess_opts=preprocess_opts, commonspace_cr=commonspace_bold)
 
     # prepare analysis datasink
     analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="analysis_datasink"),
                                 name="analysis_datasink")
+    if analysis_opts.FC_matrix:
+        if os.path.isfile(str(analysis_opts.ROI_csv)):
+            analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
