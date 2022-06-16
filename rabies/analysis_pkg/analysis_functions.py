@@ -106,7 +106,7 @@ FC matrix
 '''
 
 
-def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
+def run_FC_matrix(bold_file, mask_file, bold_atlas, ref_atlas, roi_type='parcellated'):
     import os
     import pandas as pd
     import SimpleITK as sitk
@@ -129,46 +129,50 @@ def run_FC_matrix(bold_file, mask_file, atlas, roi_type='parcellated'):
         timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
     
     if roi_type == 'parcellated':
-        corr_matrix = parcellated_FC_matrix(timeseries, volume_indices, atlas)
+        corr_matrix,roi_labels = parcellated_FC_matrix(timeseries, volume_indices, bold_atlas, ref_atlas)
+        matrix_df = pd.DataFrame(corr_matrix, index=roi_labels, columns=roi_labels)
     elif roi_type == 'voxelwise':
         corr_matrix = np.corrcoef(timeseries.T)
+        matrix_df = pd.DataFrame(corr_matrix)
     else:
         raise ValueError(
             f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
     plot_matrix(figname, corr_matrix)
 
     data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
-    df = pd.DataFrame(corr_matrix)
-    df.to_csv(data_file, sep=',')
+    matrix_df.to_csv(data_file, sep=',')
     return data_file, figname
 
 
-def parcellated_FC_matrix(sub_timeseries, volume_indices, atlas):
+def parcellated_FC_matrix(sub_timeseries, volume_indices, bold_atlas, ref_atlas):
 
-    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(atlas))[volume_indices]
-    max_int = atlas_data.max()
+    # get the complete set of original ROI integers 
+    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(ref_atlas)).astype(int)
+    roi_list = []
+    for i in range(1, atlas_data.max()+1):
+        if np.max(i == atlas_data):  # include integers that do have labelled voxels
+            roi_list.append(i)
+
+    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(bold_atlas))[volume_indices]
     
     timeseries_dict = {}
-    for i in range(1, max_int+1):
-        if np.max(i == atlas_data):  # taking a ROI only if it has labeled voxels
-            roi_mask = np.asarray(atlas_data == i, dtype=bool)
-            # extract the voxel timeseries within the mask, and take the mean ROI timeseries
-            timeseries_dict[str(i)] = sub_timeseries[:,roi_mask].mean(axis=1)
-    
-    roi_labels = timeseries_dict.keys()
+    for i in roi_list:
+        roi_mask = np.asarray(atlas_data == i, dtype=bool)
+        # extract the voxel timeseries within the mask, and take the mean ROI timeseries
+        timeseries_dict[str(i)] = sub_timeseries[:,roi_mask].mean(axis=1)
+
+    roi_labels = list(timeseries_dict.keys())
     sub_timeseries = []
     for roi in roi_labels:
         sub_timeseries.append(timeseries_dict[roi])
     corr_matrix = np.corrcoef(sub_timeseries)
-    return corr_matrix
+    return corr_matrix,roi_labels
 
 
 def plot_matrix(filename, corr_matrix):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 1, figsize=(4, 4))
-    vmax = np.abs(corr_matrix).max()
-    vmin = -vmax
-    g = ax.imshow(corr_matrix, cmap='coolwarm', vmax=vmax, vmin=vmin)
+    g = ax.imshow(corr_matrix, cmap='coolwarm', vmax=1, vmin=-1)
     ax.axis('off')
     cbar = plt.colorbar(g, ax=ax, shrink=0.5)
     cbar.set_label('R score', rotation=270, fontsize=10)

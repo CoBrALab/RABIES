@@ -7,7 +7,7 @@ from nipype import Function
 from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
 
 
-def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
+def init_analysis_wf(opts, preprocess_opts, commonspace_cr=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
@@ -151,17 +151,18 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
 
     if opts.FC_matrix:
-        FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'atlas', 'roi_type'],
+        FC_matrix = pe.Node(Function(input_names=['bold_file', 'mask_file', 'bold_atlas', 'ref_atlas', 'roi_type'],
                                      output_names=['data_file', 'figname'],
                                      function=run_FC_matrix),
                             name='FC_matrix', mem_gb=1*opts.scale_min_memory)
         FC_matrix.inputs.roi_type = opts.ROI_type
+        FC_matrix.inputs.ref_atlas = str(preprocess_opts.labels)
 
         workflow.connect([
             (subject_inputnode, FC_matrix, [
                 ("bold_file", "bold_file"),
                 ("mask_file", "mask_file"),
-                ("atlas_file", "atlas"),
+                ("atlas_file", "bold_atlas"),
                 ]),
             (FC_matrix, outputnode, [
                 ("data_file", "matrix_data_file"),

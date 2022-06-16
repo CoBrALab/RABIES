@@ -767,6 +767,15 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        "--ROI_csv", action='store', type=Path, 
+        default=f"{rabies_path}/DSURQE_40micron_labels.nii.gz",
+        help=
+            "A CSV file with the ROI names matching the ROI index numbers in the atlas labels Nifti file. \n"
+            "A copy of this file is provided along the FC matrix generated for each subject.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_group_ICA = analysis.add_argument_group(
         title='Group ICA', 
         description=
