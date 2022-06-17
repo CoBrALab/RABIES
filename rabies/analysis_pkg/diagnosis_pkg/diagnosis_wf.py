@@ -7,11 +7,11 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMask
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_split_name, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['mask_dict_list', 'file_dict', 'analysis_dict']), name='inputnode')
+        fields=['dict_file', 'file_dict', 'analysis_dict']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
                                                        'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii', 'random_CR_std_nii', 'corrected_CR_std_nii']), name='outputnode')
@@ -31,40 +31,25 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             DSURQE_regions=DSURQE_regions),
         name='ScanDiagnosis')
 
-    PrepMasks_node = pe.Node(PrepMasks(prior_maps=os.path.abspath(str(analysis_opts.prior_maps)), DSURQE_regions=DSURQE_regions),
-        name='PrepMasks')
-
-    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'file_dict'],
+    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'dict_file'],
                                             output_names=[
                                                 'temporal_info_csv'],
                                         function=temporal_external_formating),
                                 name='temporal_external_formating')
 
-    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'file_dict'],
+    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'dict_file'],
                                             output_names=[
                                                 'VE_filename', 'std_filename', 'predicted_std_filename', 'random_CR_std_filename', 'corrected_CR_std_filename', 
                                                 'GS_corr_filename', 'GS_cov_filename'],
                                         function=spatial_external_formating),
                                 name='spatial_external_formating')
     workflow.connect([
-        (inputnode, PrepMasks_node, [
-            ("mask_dict_list", "mask_dict_list"),
-            ]),
-        (PrepMasks_node, ScanDiagnosis_node, [
-            ("mask_file_dict", "mask_file_dict"),
-            ]),
         (inputnode, ScanDiagnosis_node, [
-            ("file_dict", "file_dict"),
+            ("dict_file", "dict_file"),
             ("analysis_dict", "analysis_dict"),
-            ]),
-        (inputnode, temporal_external_formating_node, [
-            ("file_dict", "file_dict"),
             ]),
         (ScanDiagnosis_node, temporal_external_formating_node, [
             ("temporal_info", "temporal_info"),
-            ]),
-        (inputnode, spatial_external_formating_node, [
-            ("file_dict", "file_dict"),
             ]),
         (ScanDiagnosis_node, spatial_external_formating_node, [
             ("spatial_info", "spatial_info"),
@@ -90,9 +75,13 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             ]),
         ])
 
-    if not len(scan_split_name)<3:
+    if not len(split_name_list)<3:
 
-        def prep_scan_data(spatial_info, analysis_dict, file_dict, mask_file_dict):
+        def prep_scan_data(dict_file, analysis_dict, spatial_info):
+            import pickle
+            with open(dict_file, 'rb') as handle:
+                data_dict = pickle.load(handle)
+
             scan_data={}
 
             dict_keys = ['temporal_std', 'predicted_std', 'corrected_CR_std', 'random_CR_std', 'GS_corr', 'GS_cov',
@@ -100,12 +89,12 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 
-            scan_data['FD_trace'] = file_dict['CR_data_dict']['FD_trace']
-            scan_data['tDOF'] = file_dict['CR_data_dict']['tDOF']
+            scan_data['FD_trace'] = data_dict['CR_data_dict']['FD_trace']
+            scan_data['tDOF'] = data_dict['CR_data_dict']['tDOF']
 
             import numpy as np
             import SimpleITK as sitk
-            mask_file = mask_file_dict['brain_mask']
+            mask_file = data_dict['mask_file']
             mask_img = sitk.ReadImage(mask_file)
             brain_mask = sitk.GetArrayFromImage(mask_img)
             volume_indices = brain_mask.astype(bool)            
@@ -116,16 +105,18 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
                     sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
             scan_data['seed_list'] = seed_list
 
-            scan_data['name_source'] = file_dict['name_source']
+            scan_data['name_source'] = data_dict['name_source']
+            scan_data['template_file'] = data_dict['template_file']
+            scan_data['mask_file'] = data_dict['mask_file']
             return scan_data
 
-        prep_scan_data_node = pe.Node(Function(input_names=['spatial_info', 'analysis_dict', 'file_dict', 'mask_file_dict'],
+        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'analysis_dict', 'spatial_info'],
                                             output_names=['scan_data'],
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
 
         # calculate the number of scans combined in diagnosis
-        num_scan = len(scan_split_name)
+        num_scan = len(split_name_list)
         num_procs = min(analysis_opts.local_threads, num_scan)
 
         data_diagnosis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['scan_data_list']),
@@ -141,23 +132,17 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [
-                ("file_dict", "file_dict"),
+                ("dict_file", "dict_file"),
                 ("analysis_dict", "analysis_dict"),
                 ]),
             (ScanDiagnosis_node, prep_scan_data_node, [
                 ("spatial_info", "spatial_info"),
-                ]),
-            (PrepMasks_node, prep_scan_data_node, [
-                ("mask_file_dict", "mask_file_dict"),
                 ]),
             (prep_scan_data_node, data_diagnosis_split_joinnode, [
                 ("scan_data", "scan_data_list"),
                 ]),
             (data_diagnosis_split_joinnode, DatasetDiagnosis_node, [
                 ("scan_data_list", "scan_data_list"),
-                ]),
-            (PrepMasks_node, DatasetDiagnosis_node, [
-                ("mask_file_dict", "mask_file_dict"),
                 ]),
             (DatasetDiagnosis_node, outputnode, [
                 ("analysis_QC", "analysis_QC"),
@@ -168,6 +153,5 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, scan_spl
         log = logging.getLogger('nipype.workflow')
         log.warning(
             "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
-
 
     return workflow

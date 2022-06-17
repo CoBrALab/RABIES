@@ -15,15 +15,15 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
-    split_dict, split_name, target_list = read_confound_workflow(conf_output, cr_opts, nativespace=cr_opts.nativespace_analysis)
+    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts, nativespace=cr_opts.nativespace_analysis)
 
     # update split_name according to the --scan_list option
-    split_name = get_iterable_scan_list(analysis_opts.scan_list, split_name)
+    split_name_list = get_iterable_scan_list(analysis_opts.scan_list, split_name_list)
 
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
                          name="main_split")
-    main_split.iterables = [('split_name', split_name)]
+    main_split.iterables = [('split_name', split_name_list)]
 
     # function to read each elements from the dictionary of confound correction outputs
     def read_dict(split_dict, split_name, target_list):
@@ -83,7 +83,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
     if commonspace_bold or preprocess_opts.bold_only:
-        split_name = list(split_dict.keys())[0] # can take the commonspace files from any subject, they are all identical
+        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
         load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
         load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
         load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
@@ -236,11 +236,11 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                         function=prep_analysis_dict),
                                 name='analysis_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name, name="diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf")
 
         workflow.connect([
-            (analysis_split_joinnode, diagnosis_wf, [
-                ("prep_dict_list", "inputnode.mask_dict_list"),
+            (load_sub_dict_node, diagnosis_wf, [
+                ("dict_file", "inputnode.dict_file"),
                 ]),
             (analysis_wf, prep_analysis_dict_node, [
                 ("outputnode.DR_nii_file", "dual_regression_nii"),
