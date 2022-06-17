@@ -11,7 +11,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
-        fields=['dict_file', 'bold_file', 'mask_file', 'atlas_file', 'token']), name='subject_inputnode')
+        fields=['dict_file', 'token']), name='subject_inputnode')
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',

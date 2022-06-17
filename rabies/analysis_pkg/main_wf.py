@@ -62,14 +62,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
 
-    ###############
-    # NODE TO LOAD DATA INTO STANDARDIZED NUMPY ARRAYS FROM conf_outputnode
-    # could replace the prep_dict_node below to make the code cleaner
-    # will need to keep also the file verions though for the MELODIC
-    # I think the input_buffer_node is to have either native or commonspace data inputs; may be possible ot replace with a generalized input reader
-    # you should make a test though of whether somehow the sharing of those arrays between nodes is copying the entire dictionary everytime; if so you need to somehow link it differently to save space; maybe will need to pickle it into a file
-    ###############
-
     load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps'],
                                            output_names=[
                                                'maps_dict'],
@@ -124,87 +116,30 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         ])
 
 
-    input_buffer_node = pe.Node(niu.IdentityInterface(fields=['bold_file', 'mask_file','atlas_file','WM_mask_file',
-                         'CSF_mask_file', 'preprocess_anat_template']),
-                         name="input_buffer")
-
-
-    workflow.connect([
-        (conf_outputnode, input_buffer_node, [
-            ("cleaned_path", "bold_file"),
-            ]),
-        ])
+    analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                                         name='analysis_split_joinnode',
+                                         joinsource='main_split',
+                                         joinfield=['file_list'])
 
     if commonspace_bold or preprocess_opts.bold_only:
         workflow.connect([
-            (conf_outputnode, input_buffer_node, [
+            (conf_outputnode, analysis_split_joinnode, [
                 ("commonspace_mask", "mask_file"),
-                ("commonspace_labels", "atlas_file"),
-                ("commonspace_WM_mask", "WM_mask_file"),
-                ("commonspace_CSF_mask", "CSF_mask_file"),
-                ("commonspace_resampled_template", "preprocess_anat_template"),
                 ]),
             ])
     else:
         workflow.connect([
-            (conf_outputnode, input_buffer_node, [
+            (conf_outputnode, analysis_split_joinnode, [
                 ("native_brain_mask", "mask_file"),
-                ("native_labels", "atlas_file"),
                 ]),
             ])
 
-
-    # concatenate the different inputs into a dictionary
-    def prep_dict(bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file, WM_mask_file, CSF_mask_file, atlas_file, preprocess_anat_template, name_source):
-        return {'bold_file':bold_file, 'CR_data_dict':CR_data_dict, 'VE_file':VE_file, 'STD_file':STD_file, 'CR_STD_file':CR_STD_file, 'random_CR_STD_file':random_CR_STD_file, 'corrected_CR_STD_file':corrected_CR_STD_file, 'mask_file':mask_file, 'WM_mask_file':WM_mask_file, 'CSF_mask_file':CSF_mask_file, 'atlas_file':atlas_file, 'preprocess_anat_template':preprocess_anat_template, 'name_source':name_source}
-    prep_dict_node = pe.Node(Function(input_names=['bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'preprocess_anat_template', 'name_source'],
-                                           output_names=[
-                                               'prep_dict'],
-                                       function=prep_dict),
-                              name='prep_dict')
-
     workflow.connect([
-        (conf_outputnode, prep_dict_node, [
-            ("data_dict", "CR_data_dict"),
-            ("VE_file_path", "VE_file"),
-            ("STD_file_path", "STD_file"),
-            ("CR_STD_file_path", "CR_STD_file"),
-            ("random_CR_STD_file_path", "random_CR_STD_file"),
-            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
-            ("input_bold", "name_source"),
-            ]),
-        (input_buffer_node, prep_dict_node, [
-            ("bold_file", "bold_file"),
-            ("mask_file", "mask_file"),
-            ("WM_mask_file", "WM_mask_file"),
-            ("CSF_mask_file", "CSF_mask_file"),
-            ("atlas_file", "atlas_file"),
-            ("preprocess_anat_template", "preprocess_anat_template"),
-            ]),
-        ])
-
-
-    analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file', 'prep_dict_list']),
-                                         name='analysis_split_joinnode',
-                                         joinsource='main_split',
-                                         joinfield=['file_list', 'prep_dict_list'])
-
-
-    workflow.connect([
-        (input_buffer_node, analysis_split_joinnode, [
-            ("mask_file", "mask_file"),
-            ("bold_file", "file_list"),
-            ]),
-        (input_buffer_node, analysis_wf, [
-            ("bold_file", "subject_inputnode.bold_file"),
-            ("mask_file", "subject_inputnode.mask_file"),
-            ("atlas_file", "subject_inputnode.atlas_file"),
+        (conf_outputnode, analysis_split_joinnode, [
+            ("cleaned_path", "file_list"),
             ]),
         (load_sub_dict_node, analysis_wf, [
             ("dict_file", "subject_inputnode.dict_file"),
-            ]),
-        (prep_dict_node, analysis_split_joinnode, [
-            ("prep_dict", "prep_dict_list"),
             ]),
         (analysis_split_joinnode, analysis_wf, [
             ("file_list", "group_inputnode.bold_file_list"),
@@ -245,9 +180,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (analysis_wf, prep_analysis_dict_node, [
                 ("outputnode.DR_nii_file", "dual_regression_nii"),
                 ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-                ]),
-            (prep_dict_node, diagnosis_wf, [
-                ("prep_dict", "inputnode.file_dict"),
                 ]),
             (prep_analysis_dict_node, diagnosis_wf, [
                 ("analysis_dict", "inputnode.analysis_dict"),
