@@ -16,9 +16,6 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
                                                        'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii', 'random_CR_std_nii', 'corrected_CR_std_nii']), name='outputnode')
 
-    if not (commonspace_bold or preprocess_opts.bold_only):
-        raise ValueError("Cannot currently select --nativespace_analysis for running data_diagnosis")
-
     if os.path.basename(preprocess_opts.anat_template)=='DSURQE_40micron_average.nii.gz':
         DSURQE_regions=True
     else:
@@ -75,7 +72,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             ]),
         ])
 
-    if not len(split_name_list)<3:
+    if (commonspace_bold or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
         def prep_scan_data(dict_file, analysis_dict, spatial_info):
             import pickle

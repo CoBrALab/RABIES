@@ -73,9 +73,6 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             ])
 
     if opts.DR_ICA or opts.data_diagnosis:
-        if not commonspace_cr:
-            raise ValueError(
-                'Outputs from confound regression must be in commonspace to run dual regression. Try running confound regression again without --nativespace_analysis.')
 
         DR_ICA = pe.Node(Function(input_names=['dict_file'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
@@ -116,9 +113,6 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             ])
 
     if (opts.NPR_temporal_comp>-1) or (opts.NPR_spatial_comp>-1):
-        if not commonspace_cr:
-            raise ValueError(
-                'Outputs from confound regression must be in commonspace to run NPR. Try running confound regression again without --nativespace_analysis.')
         from .analysis_functions import NeuralPriorRecovery
 
         NPR_node = pe.Node(NeuralPriorRecovery(

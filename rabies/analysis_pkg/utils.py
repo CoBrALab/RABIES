@@ -2,15 +2,11 @@ import numpy as np
 import SimpleITK as sitk
 
 
-def resample_prior_maps(in_file, ref_file, volume_indices, transforms = [], inverses = []):
+def resample_prior_maps(in_file, ref_file, transforms = [], inverses = []):
     # resampling the reference image to the dimension of the EPI
     import SimpleITK as sitk
     import os
-    from rabies.utils import split_volumes, copyInfo_4DImage, exec_applyTransforms
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(
-        in_file).name.rsplit(".nii")
-    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
+    from rabies.utils import split_volumes, exec_applyTransforms
 
     # Splitting bold file into lists of single volumes
     [volumes_list, num_volumes] = split_volumes(

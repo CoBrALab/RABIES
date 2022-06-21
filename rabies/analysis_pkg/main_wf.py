@@ -62,7 +62,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
 
-    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps'],
+    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps', 'transform_list','inverse_list'],
                                            output_names=[
                                                'maps_dict'],
                                        function=load_maps_dict),
@@ -81,6 +81,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
         load_maps_dict_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
         load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
+        load_maps_dict_node.inputs.transform_list = []
+        load_maps_dict_node.inputs.inverse_list = []
     else:
         workflow.connect([
             (conf_outputnode, load_maps_dict_node, [
@@ -89,6 +91,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("native_CSF_mask", "CSF_mask_file"),
                 ("native_labels", "atlas_file"),
                 ("anat_preproc", "preprocess_anat_template"),
+                ("commonspace_to_native_transform_list", "transform_list"),
+                ("commonspace_to_native_inverse_list", "inverse_list"),
                 ]),
             ])
 
@@ -226,7 +230,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
 # this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
-def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps):
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps, transform_list, inverse_list):
     import numpy as np
     import SimpleITK as sitk
     import os
@@ -251,7 +255,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
     sitk.WriteImage(resampled, template_file)
 
-    resampled_maps = resample_prior_maps(prior_maps, mask_file, volume_indices)
+    resampled_maps = resample_prior_maps(prior_maps, mask_file, transforms = transform_list, inverses = inverse_list)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
 
     # prepare the list ROI numbers from the atlas for FC matrices
@@ -343,6 +347,9 @@ def read_confound_workflow(conf_output, cr_opts, nativespace=False):
                         'native_WM_mask':[preproc_outputnode_name, 'native_WM_mask'],
                         'native_CSF_mask':[preproc_outputnode_name, 'native_CSF_mask'],
                         'native_labels':[preproc_outputnode_name, 'native_labels'],
+                        'anat_preproc':[preproc_outputnode_name, 'anat_preproc'],
+                        'commonspace_to_native_transform_list':[preproc_outputnode_name, 'commonspace_to_native_transform_list'],
+                        'commonspace_to_native_inverse_list':[preproc_outputnode_name, 'commonspace_to_native_inverse_list'],
                         })
 
     split_dict = {}

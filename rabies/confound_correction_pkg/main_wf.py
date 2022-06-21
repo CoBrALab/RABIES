@@ -15,7 +15,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
     if cr_opts.read_datasink:
-        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis)
+        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.fast_commonspace)
     else:
         split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
@@ -39,7 +39,8 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, confounds_csv=None,
         FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, 
-        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_labels=None):
+        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_labels=None,
+        anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None):
         return
     buffer_outputnode_node = pe.Node(Function(input_names=target_list,
                                            output_names=[],
@@ -140,7 +141,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
 
 
-def read_preproc_datasinks(preproc_output, nativespace=False):
+def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=False):
     import pathlib
     import glob
 
@@ -168,7 +169,6 @@ def read_preproc_datasinks(preproc_output, nativespace=False):
     if nativespace:
         directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'],
             ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_labels']]
-        
 
     target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
@@ -184,6 +184,67 @@ def read_preproc_datasinks(preproc_output, nativespace=False):
                     split_dict[split][target]=f
                     break
 
+    ###
+    # For the anat_preproc and transforms, there needs to be a different file matching, where files may be named based on the anat
+    # scan, so here we match the BIDS specs. The transforms to native space are put together into a prepared list of transforms.
+    ###
+    directory_list=[['anat_datasink','anat_preproc']]
+    if fast_commonspace:
+        directory_list+=[['transforms_datasink','native_to_atlas_affine'], ['transforms_datasink','native_to_atlas_inverse_warp']]
+    else:
+        directory_list+=[['transforms_datasink','unbiased_to_atlas_affine'], ['transforms_datasink','unbiased_to_atlas_inverse_warp'], 
+            ['transforms_datasink','native_to_unbiased_affine'], ['transforms_datasink','native_to_unbiased_inverse_warp']]
+
+    from bids.layout import parse_file_entities
+    for datasink,target in directory_list:
+
+        if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
+            raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
+                "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
+        target_list.append(target)
+        file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
+        for split in split_name:
+            parser_split = parse_file_entities('/'+split)
+            for f in file_list:
+                parser_f = parse_file_entities(f)
+                if parser_f['subject']==parser_split['subject'] and parser_f['session']==parser_split['session']:
+                    if 'run' in list(parser_f.keys()):
+                        if parser_f['run']==parser_split['run']:
+                            split_dict[split][target]=f
+                            break
+                    else:
+                        split_dict[split][target]=f
+                        break
+
+    if nativespace:
+        for split in split_name:
+            if fast_commonspace:
+                to_atlas_inverse_warp = split_dict[split]['native_to_atlas_inverse_warp']
+                to_atlas_affine = split_dict[split]['native_to_atlas_affine']
+                commonspace_to_native_transform_list=[to_atlas_affine,to_atlas_inverse_warp]
+                commonspace_to_native_inverse_list=[1,0]
+            else:
+                native_to_unbiased_inverse_warp = split_dict[split]['native_to_unbiased_inverse_warp']
+                native_to_unbiased_affine = split_dict[split]['native_to_unbiased_affine']
+                to_atlas_inverse_warp = split_dict[split]['unbiased_to_atlas_inverse_warp']
+                to_atlas_affine = split_dict[split]['unbiased_to_atlas_affine']
+                commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine,to_atlas_inverse_warp]
+                commonspace_to_native_inverse_list=[1,0,1,0]
+
+            split_dict[split]['commonspace_to_native_transform_list'] = commonspace_to_native_transform_list
+            split_dict[split]['commonspace_to_native_inverse_list'] = commonspace_to_native_inverse_list
+        target_list += ['commonspace_to_native_transform_list', 'commonspace_to_native_inverse_list']
+
+        if fast_commonspace:
+            target_list.remove('native_to_atlas_inverse_warp')
+            target_list.remove('native_to_atlas_affine')
+        else:
+            target_list.remove('native_to_unbiased_inverse_warp')
+            target_list.remove('native_to_unbiased_affine')
+            target_list.remove('unbiased_to_atlas_inverse_warp')
+            target_list.remove('unbiased_to_atlas_affine')
+
+    print(target_list)
     return split_dict, split_name, target_list
 
 
@@ -215,11 +276,14 @@ def read_preproc_workflow(preproc_output, nativespace=False):
                     'commonspace_resampled_template':['main_wf.resample_template', 'resampled_template'],
                     }
     if nativespace:
-        match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
-                        'native_brain_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.Brain_mask_EPI', 'EPI_mask'],
-                        'native_WM_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.WM_mask_EPI', 'EPI_mask'],
-                        'native_CSF_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.CSF_mask_EPI', 'EPI_mask'],
-                        'native_labels':['main_wf.bold_main_wf.bold_commonspace_trans_wf.prop_labels_EPI', 'EPI_mask'],
+        match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.merge', 'out_file'],
+                        'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.Brain_mask_EPI', 'EPI_mask'],
+                        'native_WM_mask':['main_wf.bold_main_wf.bold_native_trans_wf.WM_mask_EPI', 'EPI_mask'],
+                        'native_CSF_mask':['main_wf.bold_main_wf.bold_native_trans_wf.CSF_mask_EPI', 'EPI_mask'],
+                        'native_labels':['main_wf.bold_main_wf.bold_native_trans_wf.prop_labels_EPI', 'EPI_mask'],
+                        'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
+                        'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
+                        'commonspace_to_native_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_inverse_list'],
                         })
 
     split_dict = {}
