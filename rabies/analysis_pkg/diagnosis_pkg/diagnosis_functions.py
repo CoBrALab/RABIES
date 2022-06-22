@@ -33,65 +33,33 @@ def resample_mask(in_file, ref_file):
     return out_file
 
 
-def compute_edge_mask(in_mask, out_file, num_edge_voxels=1):
-    #custom function for computing edge mask from an input brain mask
-    mask_img = sitk.ReadImage(in_mask)
-    mask_array = sitk.GetArrayFromImage(mask_img)
-    shape = mask_array.shape
-
-    #iterate through all voxels from the three dimensions and look if it contains surrounding voxels
-    edge_mask = np.zeros(shape, dtype=bool)
-    num_voxel = 0
-    while num_voxel < num_edge_voxels:
-        for x in range(shape[0]):
-            for y in range(shape[1]):
-                for z in range(shape[2]):
-                    #only look if the voxel is part of the mask
-                    if mask_array[x, y, z]:
-                        if (mask_array[x-1:x+2, y-1:y+2, z-1:z+2] == 0).sum() > 0:
-                            edge_mask[x, y, z] = 1
-        mask_array = mask_array-edge_mask
-        num_voxel += 1
-
-    sitk.WriteImage(copyInfo_3DImage(sitk.GetImageFromArray(
-        edge_mask.astype(int), isVector=False), mask_img), out_file)
-
-
 '''
 Prepare the subject data
 '''
 
 
-def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, mask_file_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
+def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
     temporal_info = {}
     spatial_info = {}
+    temporal_info['name_source'] = data_dict['name_source']
+    spatial_info['name_source'] = data_dict['name_source']
+    spatial_info['mask_file'] = data_dict['mask_file']
 
-    FD_trace = data_dict['FD_trace']
-    DVARS = data_dict['DVARS']
-    temporal_info['FD_trace'] = FD_trace
-    temporal_info['DVARS'] = DVARS
-    temporal_info['VE_temporal'] = data_dict['VE_temporal']
+    timeseries = data_dict['timeseries']
+    volume_indices = data_dict['volume_indices']
+    edge_idx = data_dict['edge_idx']
+    WM_idx = data_dict['WM_idx']
+    CSF_idx = data_dict['CSF_idx']
+    CR_data_dict = data_dict['CR_data_dict']
 
-    WM_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['WM_mask'])).astype(bool)
-    CSF_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['CSF_mask'])).astype(bool)
-    edge_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['edge_mask'])).astype(bool)
-    brain_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['brain_mask']))
-    volume_indices = brain_mask.astype(bool)
-    edge_idx = edge_mask[volume_indices]
-    WM_idx = WM_mask[volume_indices]
-    CSF_idx = CSF_mask[volume_indices]
     not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
 
-    data_img = sitk.ReadImage(bold_file)
-    data_array = sitk.GetArrayFromImage(data_img)
-    num_volumes = data_array.shape[0]
-    timeseries = np.zeros([num_volumes, volume_indices.sum()])
-    for i in range(num_volumes):
-        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+    FD_trace = CR_data_dict['FD_trace']
+    DVARS = CR_data_dict['DVARS']
+    temporal_info['FD_trace'] = FD_trace
+    temporal_info['DVARS'] = DVARS
+    temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
+
 
     '''Temporal Features'''
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
@@ -117,7 +85,7 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
     temporal_info['CSF_trace'] = CSF_trace
     temporal_info['edge_trace'] = edge_trace
     temporal_info['not_edge_trace'] = not_edge_trace
-    temporal_info['predicted_time'] = data_dict['predicted_time']
+    temporal_info['predicted_time'] = CR_data_dict['predicted_time']
 
     '''Spatial Features'''
     global_signal = timeseries.mean(axis=1)
@@ -134,29 +102,18 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
         prior_fit_out['C'] = C
 
-    all_IC_array = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['prior_maps']))
-    all_IC_vectors = np.zeros([all_IC_array.shape[0], volume_indices.sum()])
-    for i in range(all_IC_array.shape[0]):
-        all_IC_vectors[i, :] = (all_IC_array[i, :, :, :])[volume_indices]
-
-    spatial_info['prior_maps'] = all_IC_vectors[prior_bold_idx]
+    spatial_info['prior_maps'] = data_dict['prior_map_vectors'][prior_bold_idx]
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']
 
-    spatial_info['VE_spatial'] = sitk.GetArrayFromImage(
-        sitk.ReadImage(VE_file))[volume_indices]
-    spatial_info['temporal_std'] = sitk.GetArrayFromImage(
-        sitk.ReadImage(STD_file))[volume_indices]
-    spatial_info['predicted_std'] = sitk.GetArrayFromImage(
-        sitk.ReadImage(CR_STD_file))[volume_indices]
-    spatial_info['random_CR_std'] = sitk.GetArrayFromImage(
-        sitk.ReadImage(random_CR_STD_file))[volume_indices]
-    spatial_info['corrected_CR_std'] = sitk.GetArrayFromImage(
-        sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
+    spatial_info['VE_spatial'] = data_dict['VE_spatial']
+    spatial_info['temporal_std'] = data_dict['temporal_std']
+    spatial_info['predicted_std'] = data_dict['predicted_std']
+    spatial_info['random_CR_std'] = data_dict['random_CR_std']
+    spatial_info['corrected_CR_std'] = data_dict['corrected_CR_std']
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
@@ -169,13 +126,13 @@ def process_data(bold_file, data_dict, VE_file, STD_file, CR_STD_file, random_CR
     return temporal_info, spatial_info
 
 
-def temporal_external_formating(temporal_info, file_dict):
+def temporal_external_formating(temporal_info):
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
-    bold_file = file_dict['bold_file']
+
     filename_split = pathlib.Path(
-        bold_file).name.rsplit(".nii")
+        temporal_info['name_source']).name.rsplit(".nii")
 
     del temporal_info['DR_all'], temporal_info['NPR_time']
 
@@ -184,15 +141,15 @@ def temporal_external_formating(temporal_info, file_dict):
     return temporal_info_csv
 
 
-def spatial_external_formating(spatial_info, file_dict):
+def spatial_external_formating(spatial_info):
     import os
     import pathlib  # Better path manipulation
     import SimpleITK as sitk
-    from rabies.utils import recover_3D,recover_4D
-    mask_file = file_dict['mask_file']
-    bold_file = file_dict['bold_file']
+    from rabies.utils import recover_3D
+
+    mask_file = spatial_info['mask_file']
     filename_split = pathlib.Path(
-        bold_file).name.rsplit(".nii")
+        spatial_info['name_source']).name.rsplit(".nii")
 
     VE_filename = os.path.abspath(filename_split[0]+'_VE.nii.gz')
     sitk.WriteImage(recover_3D(
@@ -264,27 +221,18 @@ def grayplot_regional(timeseries_file, mask_file_dict, fig, ax):
     return im, slice_alt, region_mask_label
 
 
-def grayplot(timeseries_file, mask_file_dict, fig, ax):
-    brain_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['brain_mask'])).astype(bool)
-    volume_indices = brain_mask.astype(bool)
-
-    data_array = sitk.GetArrayFromImage(
-        sitk.ReadImage(timeseries_file))
-    timeseries = np.zeros([data_array.shape[0], volume_indices.sum()])
-    for i in range(data_array.shape[0]):
-        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
-
+def grayplot(timeseries, ax):
     grayplot_array = timeseries.T
-
     vmax = grayplot_array.std()
     im = ax.imshow(grayplot_array, cmap='gray',
                    vmax=vmax, vmin=-vmax, aspect='auto')
     return im
 
 
-def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_data_dict, regional_grayplot=False):
-    template_file = mask_file_dict['template_file']
+def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
+    timeseries = data_dict['timeseries']
+    template_file = data_dict['template_file']
+    CR_data_dict = data_dict['CR_data_dict']
     
     fig = plt.figure(figsize=(6, 18))
     #fig.suptitle(name, fontsize=30, color='white')
@@ -317,7 +265,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
         ax_label.axis('off')
 
     else:
-        im = grayplot(bold_file, mask_file_dict, fig, ax0)
+        im = grayplot(timeseries, ax0)
 
     ax0.set_ylabel('Voxels', fontsize=20)
     ax0.spines['right'].set_visible(False)
@@ -425,7 +373,7 @@ def scan_diagnosis(bold_file, mask_file_dict, temporal_info, spatial_info, CR_da
 
     dr_maps = spatial_info['DR_BOLD']
     NPR_maps = spatial_info['NPR_maps']
-    mask_file = mask_file_dict['brain_mask']
+    mask_file = data_dict['mask_file']
 
     nrows = 4+dr_maps.shape[0]+len(NPR_maps)
 

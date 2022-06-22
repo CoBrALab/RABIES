@@ -74,10 +74,7 @@ class PrepMasks(BaseInterface):
 
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    file_dict = traits.Dict(
-        desc="A dictionary regrouping the all required accompanying files.")
-    mask_file_dict = traits.Dict(
-        desc="A dictionary regrouping the all required accompanying files.")
+    dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
     analysis_dict = traits.Dict(
         desc="A dictionary regrouping relevant outputs from analysis.")
     prior_bold_idx = traits.List(
@@ -118,25 +115,22 @@ class ScanDiagnosis(BaseInterface):
     output_spec = ScanDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
+        import pickle
+        with open(self.inputs.dict_file, 'rb') as handle:
+            data_dict = pickle.load(handle)
+
         # convert to an integer list
-        bold_file = self.inputs.file_dict['bold_file']
-        CR_data_dict = self.inputs.file_dict['CR_data_dict']
-        VE_file = self.inputs.file_dict['VE_file']
-        STD_file = self.inputs.file_dict['STD_file']
-        CR_STD_file = self.inputs.file_dict['CR_STD_file']
-        random_CR_STD_file = self.inputs.file_dict['random_CR_STD_file']
-        corrected_CR_STD_file = self.inputs.file_dict['corrected_CR_STD_file']
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
         temporal_info, spatial_info = diagnosis_functions.process_data(
-            bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, self.inputs.mask_file_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=self.inputs.NPR_temporal_comp, NPR_spatial_comp=self.inputs.NPR_spatial_comp)
+            data_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=self.inputs.NPR_temporal_comp, NPR_spatial_comp=self.inputs.NPR_spatial_comp)
 
-        fig, fig2 = diagnosis_functions.scan_diagnosis(bold_file, self.inputs.mask_file_dict, temporal_info,
-                                   spatial_info, CR_data_dict, regional_grayplot=self.inputs.DSURQE_regions)
+        fig, fig2 = diagnosis_functions.scan_diagnosis(data_dict, temporal_info,
+                                   spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
-        filename_template = pathlib.Path(bold_file).name.rsplit(".nii")[0]
+        filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
         fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
         fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
@@ -160,8 +154,6 @@ class ScanDiagnosis(BaseInterface):
 class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
     scan_data_list = traits.List(
         exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying data per scan.")
-    mask_file_dict = traits.Dict(
-        exists=True, mandatory=True, desc="A dictionary regrouping the all required accompanying files.")
     seed_prior_maps = traits.List(
         exists=True, desc="A list of expected network map associated to each seed-FC.")
 
@@ -198,8 +190,8 @@ class DatasetDiagnosis(BaseInterface):
         out_dir_non_parametric = out_dir_global+'/non_parametric_stats/'
         os.makedirs(out_dir_non_parametric, exist_ok=True)
 
-        template_file = self.inputs.mask_file_dict['template_file']
-        mask_file = self.inputs.mask_file_dict['brain_mask']
+        template_file = merged[0]['template_file']
+        mask_file = merged[0]['mask_file']
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)
 
