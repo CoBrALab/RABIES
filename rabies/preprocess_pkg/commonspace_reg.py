@@ -73,10 +73,6 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             atlas_anat: the structural template in common space
             atlas_mask: the brain mask in common space
 
-        inputnode_iterable: this input node expects inputs from a upstream node which iterates over each MRI session,
-            which allows to associate back the outputs from unbiased template generation to each MRI session
-            iter_name: the file name from moving_image_list associated to a given MRI session
-
         outputs
             unbiased_template: the generated unbiased template
             native_mask: the atlas brain mask resampled to an associated MRI session in native space
@@ -97,16 +93,26 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
     """
 
     # this iterable node inherits the iterations from the main_wf, generating an iteration for each session to recover its outputs from commonspace registration
-    inputnode_iterable = pe.Node(niu.IdentityInterface(fields=['iter_name']),
-                                        name="inputnode_iterable")
-    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image_list', 'moving_mask_list', 'atlas_anat', 'atlas_mask']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask']),
                                         name="inputnode")
+
+    template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
+                                        name="template_inputnode")
     outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
                                                        'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
                                                        'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                                                        'commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
+
+
+    if opts.fast_commonspace:
+        # if fast commonspace, then the inputs iterables are not merged
+        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
+                                            name="fast_commonreg_buffer")
+        merged_join_common_reg = source_join_common_reg
+    else:
+        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg', num_inputs=2)
 
     atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
@@ -138,7 +144,11 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
     prep_commonspace_transform_node.inputs.fast_commonspace = opts.fast_commonspace
 
     workflow.connect([
-        (inputnode, atlas_reg, [
+        (inputnode, source_join_common_reg, [
+            ("moving_image", "file_list0"),
+            ("moving_mask", "file_list1"),
+            ]),
+        (template_inputnode, atlas_reg, [
             ("atlas_anat", "fixed_image"),
             ("atlas_mask", "fixed_mask"),
             ]),
@@ -171,16 +181,16 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
         PlotOverlap_Native2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Atlas/'
 
         workflow.connect([
-            (inputnode, atlas_reg, [
-                ("moving_image_list", "moving_image"),
+            (merged_join_common_reg, atlas_reg, [
+                ("file_list0", "moving_image"),
                 ]),
-            (inputnode, prep_commonspace_transform_node, [
-                ("moving_image_list", "native_ref"),
+            (merged_join_common_reg, prep_commonspace_transform_node, [
+                ("file_list0", "native_ref"),
                 ]),
-            (inputnode_iterable, PlotOverlap_Native2Atlas_node, [
-                ("iter_name", "name_source"),
+            (inputnode, PlotOverlap_Native2Atlas_node, [
+                ("moving_image", "name_source"),
                 ]),
-            (inputnode, PlotOverlap_Native2Atlas_node,[
+            (template_inputnode, PlotOverlap_Native2Atlas_node,[
                 ("atlas_anat", "fixed"),
                 ]),
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
@@ -194,8 +204,8 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             ])
         if opts.commonspace_masking:
             workflow.connect([
-                (inputnode, atlas_reg, [
-                    ("moving_mask_list", "moving_mask"),
+                (merged_join_common_reg, atlas_reg, [
+                    ("file_list1", "moving_mask"),
                     ]),
                 ])
 
@@ -238,21 +248,23 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ])
 
         workflow.connect([
-            (inputnode, generate_template, [
-                ("moving_image_list", "moving_image_list"),
+            (template_inputnode, generate_template, [
                 ("atlas_anat", "template_anat"),
                 ]),
-            (inputnode, commonspace_selectfiles, [
-                ("moving_image_list", "native_list"),
+            (merged_join_common_reg, generate_template, [
+                ("file_list0", "moving_image_list"),
                 ]),
-            (inputnode, PlotOverlap_Unbiased2Atlas_node,[
+            (merged_join_common_reg, commonspace_selectfiles, [
+                ("file_list0", "native_list"),
+                ]),
+            (template_inputnode, PlotOverlap_Unbiased2Atlas_node,[
                 ("atlas_anat", "fixed"),
                 ]),
-            (inputnode_iterable, commonspace_selectfiles, [
-                ("iter_name", "filename"),
+            (inputnode, commonspace_selectfiles, [
+                ("moving_image", "filename"),
                 ]),
-            (inputnode_iterable, PlotOverlap_Native2Unbiased_node, [
-                ("iter_name", "name_source"),
+            (inputnode, PlotOverlap_Native2Unbiased_node, [
+                ("moving_image", "name_source"),
                 ]),
             (generate_template, atlas_reg, [
                 ("unbiased_template", "moving_image"),
@@ -305,8 +317,8 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             ])
         if opts.commonspace_masking:
             workflow.connect([
-                (inputnode, generate_template, [
-                    ("moving_mask_list", "moving_mask_list"),
+                (merged_join_common_reg, generate_template, [
+                    ("file_list1", "moving_mask_list"),
                     ]),
                 (generate_template, atlas_reg, [
                     ("unbiased_mask", "moving_mask"),
@@ -314,6 +326,36 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ])
 
     return workflow
+
+
+def join_iterables(workflow, joinsource_list, node_prefix, num_inputs=1):
+
+    field_list=[]
+    for j in range(num_inputs):
+        field_list.append(f'file_list{j}')
+
+    i=0
+    for joinsource in joinsource_list:
+        joinnode = pe.JoinNode(niu.IdentityInterface(fields=field_list),
+                                            name=f"{node_prefix}_{joinsource}_joinnode",
+                                            joinsource=joinsource,
+                                            joinfield=field_list)
+        if i==0:
+            source_join = joinnode
+        else:
+            for field in field_list:
+                workflow.connect([
+                    (joinnode_prev, joinnode, [
+                        (field, field),
+                        ]),
+                    ])
+
+        joinnode_prev = joinnode
+        i+=1
+
+    merged_join = joinnode
+
+    return workflow, source_join, merged_join
 
 
 def select_commonspace_outputs(filename, native_list, affine_list, warp_list, inverse_warp_list, warped_native_list):

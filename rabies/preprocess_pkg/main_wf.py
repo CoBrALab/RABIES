@@ -194,14 +194,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    if opts.fast_commonspace:
-        # if fast commonspace, then the inputs iterables are not merged
-        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
-                                            name="fast_commonreg_buffer")
-        merged_join_common_reg = source_join_common_reg
-    else:
-        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg', num_inputs=2)
-
     commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, name='commonspace_reg_wf')
 
     bold_main_wf = init_bold_main_wf(opts=opts)
@@ -244,18 +236,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("resampled_template", "anat_template"),
             ]),
         (resample_template_node, commonspace_reg_wf, [
-            ("resampled_template", "inputnode.atlas_anat"),
-            ("resampled_mask", "inputnode.atlas_mask"),
+            ("resampled_template", "template_inputnode.atlas_anat"),
+            ("resampled_mask", "template_inputnode.atlas_mask"),
             ]),
         (resample_template_node, bold_main_wf, [
             ("resampled_template", "inputnode.commonspace_ref"),
             ]),
         (resample_template_node, outputnode, [
             ("resampled_template", "commonspace_resampled_template"),
-            ]),
-        (merged_join_common_reg, commonspace_reg_wf, [
-            ("file_list0", "inputnode.moving_image_list"),
-            ("file_list1", "inputnode.moving_mask_list"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
             ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
@@ -376,12 +364,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("EPI_template", "inputnode.inho_cor_anat"),
                 ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
-            (anat_inho_cor_wf, source_join_common_reg, [
-                ("outputnode.corrected", "file_list0"),
-                ("outputnode.denoise_mask", "file_list1"),
-                ]),
             (anat_inho_cor_wf, commonspace_reg_wf, [
-                ("outputnode.corrected", "inputnode_iterable.iter_name"),
+                ("outputnode.corrected", "inputnode.moving_image"),
+                ("outputnode.denoise_mask", "inputnode.moving_mask"),
                 ]),
             (anat_inho_cor_wf, EPI_target_buffer, [
                 ("outputnode.corrected", "EPI_template"),
@@ -430,12 +415,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ]),
-            (inho_cor_bold_main_wf, source_join_common_reg, [
-                ("transitionnode.corrected_EPI", "file_list0"),
-                ("transitionnode.denoise_mask", "file_list1"),
-                ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
-                ("transitionnode.corrected_EPI", "inputnode_iterable.iter_name"),
+                ("transitionnode.corrected_EPI", "inputnode.moving_image"),
+                ("transitionnode.denoise_mask", "inputnode.moving_mask"),
                 ]),
             (resample_template_node, EPI_target_buffer, [
                 ("resampled_template", "EPI_template"),
@@ -507,33 +489,3 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ])
 
     return workflow
-
-
-def join_iterables(workflow, joinsource_list, node_prefix, num_inputs=1):
-
-    field_list=[]
-    for j in range(num_inputs):
-        field_list.append(f'file_list{j}')
-
-    i=0
-    for joinsource in joinsource_list:
-        joinnode = pe.JoinNode(niu.IdentityInterface(fields=field_list),
-                                            name=f"{node_prefix}_{joinsource}_joinnode",
-                                            joinsource=joinsource,
-                                            joinfield=field_list)
-        if i==0:
-            source_join = joinnode
-        else:
-            for field in field_list:
-                workflow.connect([
-                    (joinnode_prev, joinnode, [
-                        (field, field),
-                        ]),
-                    ])
-
-        joinnode_prev = joinnode
-        i+=1
-
-    merged_join = joinnode
-
-    return workflow, source_join, merged_join
