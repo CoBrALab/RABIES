@@ -5,7 +5,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
+def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='inho_correction_wf'):
     """
     Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
     denoising (Manjón et al., 2010) followed by iterative correction for intensity inhomogeneities (Sled 
@@ -84,35 +84,90 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['target_img', 'anat_ref', 'anat_mask', 'name_source']), name='inputnode')
 
+    template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
+                                        name="template_inputnode")
+
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['corrected', 'denoise_mask', 'init_denoise']),
+            fields=['corrected', 'denoise_mask', 'init_denoise', 'buffer']),
         name='outputnode')
 
+    # connect the template_inputnode so that it exists in the workflow even if its inputs are not used
+    workflow.connect([
+        (template_inputnode, outputnode, [
+            ("atlas_anat", "buffer"),
+            ]),
+    ])
+
     multistage_otsu='false'
+    robust_inho_cor=False
     if image_type=='EPI':
         inho_cor_method=opts.bold_inho_cor_method
         otsu_threshold=opts.bold_inho_cor_otsu
         if opts.bold_multistage_otsu:
             multistage_otsu='true'
+        if opts.bold_robust_inho_cor:
+            robust_inho_cor=True
+            commonspace_wf_name='bold_robust_inho_cor_template'
     elif image_type=='structural':
         inho_cor_method=opts.anat_inho_cor_method
         otsu_threshold=opts.anat_inho_cor_otsu
         if opts.anat_multistage_otsu:
             multistage_otsu='true'
+        if opts.anat_robust_inho_cor:
+            robust_inho_cor=True
+            commonspace_wf_name='anat_robust_inho_cor_template'
     else:
         raise
-    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+
+    inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
+    if robust_inho_cor:
+        if opts.fast_commonspace:
+            raise ValueError("Using the --fast_commonspace option will prevent any improvement from using --anat_robust_inho_cor or --bold_robust_inho_cor. Do not use the two options together.")
+
+        init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+                            name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
+
+        from .commonspace_reg import init_commonspace_reg_wf
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, name=commonspace_wf_name)
+
+        workflow.connect([
+            (inputnode, init_inho_cor_node, [
+                ("target_img", "target_img"),
+                ("anat_ref", "anat_ref"),
+                ("anat_mask", "anat_mask"),
+                ("name_source", "name_source"),
+                ]),
+            (init_inho_cor_node, commonspace_reg_wf, [
+                ("corrected", "inputnode.moving_image"),
+                ("denoise_mask", "inputnode.moving_mask"),
+                ]),
+            (template_inputnode, commonspace_reg_wf, [
+                ("atlas_anat", "template_inputnode.atlas_anat"),
+                ("atlas_mask", "template_inputnode.atlas_mask"),
+                ]),
+            (commonspace_reg_wf, inho_cor_node, [
+                ("outputnode.unbiased_template", "anat_ref"),
+                ("outputnode.unbiased_mask", "anat_mask"),
+                ]),
+        ])
+
+    else:
+        workflow.connect([
+            (inputnode, inho_cor_node, [
+                ("anat_ref", "anat_ref"),
+                ("anat_mask", "anat_mask"),
+                ]),
+        ])
+
     workflow.connect([
-        (inputnode, anat_preproc, [
+        (inputnode, inho_cor_node, [
             ("target_img", "target_img"),
-            ("anat_ref", "anat_ref"),
-            ("anat_mask", "anat_mask"),
             ("name_source", "name_source"),
             ]),
-        (anat_preproc, outputnode, [
+        (inho_cor_node, outputnode, [
             ("corrected", "corrected"),
             ("init_denoise", "init_denoise"),
             ("denoise_mask", "denoise_mask"),

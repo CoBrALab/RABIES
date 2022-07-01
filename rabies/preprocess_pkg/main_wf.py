@@ -194,9 +194,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, name='commonspace_reg_wf')
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, name='commonspace_reg_wf')
 
-    bold_main_wf = init_bold_main_wf(opts=opts)
+    bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list)
 
     # organizing visual QC outputs
     template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir'],
@@ -333,7 +333,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ])
 
         # setting anat preprocessing nodes
-        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', name="anat_inho_cor_wf")
+        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', output_folder=output_folder, num_procs=num_procs, name="anat_inho_cor_wf")
 
         workflow.connect([
             (main_split, run_split, [
@@ -354,11 +354,17 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("resampled_template", "inputnode.anat_ref"),
                 ("resampled_mask", "inputnode.anat_mask"),
                 ]),
+            (resample_template_node, anat_inho_cor_wf, [
+                ("resampled_template", "template_inputnode.atlas_anat"),
+                ("resampled_mask", "template_inputnode.atlas_mask"),
+                ]),
             (anat_inho_cor_wf, bold_main_wf, [
                 ("outputnode.corrected", "inputnode.coreg_anat"),
                 ]),
             (commonspace_reg_wf, bold_main_wf, [
                 ("outputnode.native_mask", "inputnode.coreg_mask"),
+                ("outputnode.unbiased_template", "template_inputnode.atlas_anat"),
+                ("outputnode.unbiased_mask", "template_inputnode.atlas_mask"),
                 ]),
             (EPI_target_buffer, bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -398,9 +404,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     else:
         inho_cor_bold_main_wf = init_bold_main_wf(
-            inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
+            output_folder=output_folder, bold_scan_list=bold_scan_list, inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
 
         workflow.connect([
+            (resample_template_node, inho_cor_bold_main_wf, [
+                ("resampled_template", "template_inputnode.atlas_anat"),
+                ("resampled_mask", "template_inputnode.atlas_mask"),
+                ]),
             (format_bold_buffer, inho_cor_bold_main_wf, [
                 ("formatted_bold", "inputnode.bold"),
                 ]),

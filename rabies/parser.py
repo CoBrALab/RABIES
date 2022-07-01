@@ -223,6 +223,19 @@ def get_parser():
             "\n"
         )
     g_registration.add_argument(
+        '--anat_robust_inho_cor', dest='anat_robust_inho_cor', action='store_true',
+        help=
+            "With this option, inhomogeneity correction is executed twice to optimize outcomes. After \n"
+            "completing an initial inhomogeneity correction step, the corrected outputs are then paired \n"
+            "to conduct co-registration between the scans and generate an unbiased template from the images, \n"
+            "as would be conducted during normal commonspace registration. This template is then masked, \n"
+            "and is used as a new target for masking during a second iteration of inhomogeneity correction. \n"
+            "Using this dataset-specific template should improve the robustness of masking for inhomogeneity \n"
+            "correction.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
         '--anat_multistage_otsu', dest='anat_multistage_otsu', action='store_true',
         help=
             "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
@@ -247,6 +260,13 @@ def get_parser():
             "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
             "*** N4_reg: previous correction script prior to version 0.3.1.\n"
             "*** disable: disables the inhomogeneity correction.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        '--bold_robust_inho_cor', dest='bold_robust_inho_cor', action='store_true',
+        help=
+            "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
             "\n"
         )

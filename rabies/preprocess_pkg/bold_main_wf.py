@@ -11,7 +11,7 @@ from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 
-def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
+def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -141,8 +141,15 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                              name="transitionnode")
 
     if inho_cor_only or (not opts.bold_only):
+        template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
+                                            name="template_inputnode")
+
+
         bold_reference_wf = init_bold_reference_wf(opts=opts)
-        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', name="bold_inho_cor_wf")
+
+        num_scan = len(bold_scan_list)
+        num_procs = min(opts.local_threads, num_scan)
+        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -175,6 +182,10 @@ def init_bold_main_wf(opts, inho_cor_only=False, name='bold_main_wf'):
                 ('inho_cor_anat', 'inputnode.anat_ref'),
                 ('inho_cor_mask', 'inputnode.anat_mask'),
                 ('bold', 'inputnode.name_source'),
+                ]),
+            (template_inputnode, inho_cor_wf, [
+                ("atlas_anat", "template_inputnode.atlas_anat"),
+                ("atlas_mask", "template_inputnode.atlas_mask"),
                 ]),
             (boldbuffer, bold_reference_wf, [
                 ('bold_file', 'inputnode.bold_file'),

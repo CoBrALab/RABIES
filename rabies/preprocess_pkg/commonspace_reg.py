@@ -12,7 +12,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, output_datasinks, name='commonspace_reg_wf'):
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
     a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
@@ -98,7 +98,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
 
     template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
                                         name="template_inputnode")
-    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
+    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
                                                        'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
                                                        'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                                                        'commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
@@ -196,11 +196,6 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
-            (atlas_reg, transforms_datasink, [
-                ("affine", "native_to_atlas_affine"),
-                ("warp", "native_to_atlas_warp"),
-                ("inverse_warp", "native_to_atlas_inverse_warp"),
-                ]),
             ])
         if opts.commonspace_masking:
             workflow.connect([
@@ -208,11 +203,16 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                     ("file_list1", "moving_mask"),
                     ]),
                 ])
+        if output_datasinks:
+            workflow.connect([
+                (atlas_reg, transforms_datasink, [
+                    ("affine", "native_to_atlas_affine"),
+                    ("warp", "native_to_atlas_warp"),
+                    ("inverse_warp", "native_to_atlas_inverse_warp"),
+                    ]),
+                ])
 
     else:
-        unbiased_template_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                            container="unbiased_template_datasink"),
-                                    name="unbiased_template_datasink")
 
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
@@ -228,17 +228,38 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Native2Unbiased')
-        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Native2Unbiased/'
+        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Unbiased/'
         PlotOverlap_Unbiased2Atlas_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Unbiased2Atlas')
-        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Unbiased2Atlas'
+        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
+
+        def resample_unbiased_mask(unbiased_template, atlas_mask,to_atlas_affine,to_atlas_inverse_warp):
+            import os
+            import pathlib  # Better path manipulation
+            filename_split = pathlib.Path(
+                unbiased_template).name.rsplit(".nii")
+            unbiased_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
+            from rabies.utils import exec_applyTransforms
+            # resample the atlas brain mask to native space
+            transform_list=[to_atlas_affine,to_atlas_inverse_warp]
+            inverse_list=[1,0]
+            exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
+                input_image = atlas_mask, ref_image = unbiased_template, output_image = unbiased_mask, mask=True)
+            return unbiased_mask
+
+        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'atlas_mask','to_atlas_affine','to_atlas_inverse_warp'],
+                                                output_names=[
+                                                    'unbiased_mask'],
+                                                function=resample_unbiased_mask),
+                                        name='resample_unbiased_mask')
+        resample_unbiased_mask_node.inputs.atlas_mask = str(opts.brain_mask)
 
         if opts.brain_extraction and opts.commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
                                             function=template_masking),
                                     name='template_masking')
-            template_masking_node.inputs.out_dir = output_folder+'/preprocess_QC_report/unbiased_template_masking/'
+            template_masking_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.unbiased_template_masking/'
 
             workflow.connect([
                 (generate_template, template_masking_node, [
@@ -278,6 +299,16 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (generate_template, outputnode, [
                 ("unbiased_template", "unbiased_template"),
                 ]),
+            (generate_template, resample_unbiased_mask_node, [
+                ("unbiased_template", "unbiased_template"),
+                ]),
+            (atlas_reg, resample_unbiased_mask_node, [
+                ("affine", "to_atlas_affine"),
+                ("inverse_warp", "to_atlas_inverse_warp"),
+                ]),
+            (resample_unbiased_mask_node, outputnode, [
+                ("unbiased_mask", "unbiased_mask"),
+                ]),
             (commonspace_selectfiles, prep_commonspace_transform_node, [
                 ("native_ref", "native_ref"),
                 ("native_to_unbiased_affine", "native_to_unbiased_affine"),
@@ -298,23 +329,21 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (atlas_reg, PlotOverlap_Unbiased2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
-            (atlas_reg, transforms_datasink, [
-                ("affine", "unbiased_to_atlas_affine"),
-                ("warp", "unbiased_to_atlas_warp"),
-                ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, transforms_datasink, [
-                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
-                ]),
-            (outputnode, unbiased_template_datasink, [
-                ("unbiased_template", "unbiased_template"),
-                ]),
-            (atlas_reg, unbiased_template_datasink, [
-                ("warped_image", "warped_unbiased_template"),
-                ]),
             ])
+        if output_datasinks:
+            unbiased_template_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                                container="unbiased_template_datasink"),
+                                        name="unbiased_template_datasink")
+
+            workflow.connect([
+                (outputnode, unbiased_template_datasink, [
+                    ("unbiased_template", "unbiased_template"),
+                    ]),
+                (atlas_reg, unbiased_template_datasink, [
+                    ("warped_image", "warped_unbiased_template"),
+                    ]),
+                ])
+
         if opts.commonspace_masking:
             workflow.connect([
                 (merged_join_common_reg, generate_template, [
@@ -324,6 +353,21 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                     ("unbiased_mask", "moving_mask"),
                     ]),
                 ])
+
+        if output_datasinks:
+            workflow.connect([
+                (atlas_reg, transforms_datasink, [
+                    ("affine", "unbiased_to_atlas_affine"),
+                    ("warp", "unbiased_to_atlas_warp"),
+                    ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
+                    ]),
+                (commonspace_selectfiles, transforms_datasink, [
+                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ]),
+                ])
+
 
     return workflow
 
@@ -457,6 +501,8 @@ class GenerateTemplate(BaseInterface):
         import pandas as pd
         import pathlib
         import multiprocessing
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
@@ -482,8 +528,6 @@ class GenerateTemplate(BaseInterface):
             unbiased_mask='NULL'
 
         if len(merged) == 1:
-            from nipype import logging
-            log = logging.getLogger('nipype.workflow')
             log.info("Only a single scan was provided as input for commonspace registration. Commonspace registration "
                   "won't be run, and the output template will be the input scan.")
 
@@ -525,8 +569,15 @@ class GenerateTemplate(BaseInterface):
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
+        # when the initial target template has the filename of a previous modelbuild, it will be mistaken
+        # for an intermediate modelbuild step and include --close and --initial-transform to the registration.
+        # To avoid this, the template file is renamed to another generic filename. 
+        command = f'cp {self.inputs.template_anat} {template_folder}/modelbuild_starting_target.nii.gz'
+        rc = run_command(command)
+        log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
+
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,affine,nlin \
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine,nlin \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
         rc = run_command(command)
 
