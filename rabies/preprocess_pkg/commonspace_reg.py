@@ -12,7 +12,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, output_datasinks, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
     a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
@@ -112,7 +112,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                             name="fast_commonreg_buffer")
         merged_join_common_reg = source_join_common_reg
     else:
-        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='commonspace_reg', num_inputs=2)
+        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=joinsource_list, node_prefix='commonspace_reg', num_inputs=2)
 
     atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',

@@ -109,6 +109,11 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
         if opts.bold_robust_inho_cor:
             robust_inho_cor=True
             commonspace_wf_name='bold_robust_inho_cor_template'
+            if not opts.bold_only:
+                joinsource_list = ['run_split', 'main_split']
+            else:
+                joinsource_list = ['main_split']
+
     elif image_type=='structural':
         inho_cor_method=opts.anat_inho_cor_method
         otsu_threshold=opts.anat_inho_cor_otsu
@@ -117,6 +122,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
         if opts.anat_robust_inho_cor:
             robust_inho_cor=True
             commonspace_wf_name='anat_robust_inho_cor_template'
+            joinsource_list = ['main_split']
     else:
         raise
 
@@ -131,7 +137,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, name=commonspace_wf_name)
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([
             (inputnode, init_inho_cor_node, [
