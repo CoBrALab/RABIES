@@ -253,7 +253,6 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                                     'unbiased_mask'],
                                                 function=resample_unbiased_mask),
                                         name='resample_unbiased_mask')
-        resample_unbiased_mask_node.inputs.atlas_mask = str(opts.brain_mask)
 
         if opts.brain_extraction and opts.commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
@@ -301,6 +300,9 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ]),
             (generate_template, resample_unbiased_mask_node, [
                 ("unbiased_template", "unbiased_template"),
+                ]),
+            (template_inputnode, resample_unbiased_mask_node, [
+                ("atlas_mask", "atlas_mask"),
                 ]),
             (atlas_reg, resample_unbiased_mask_node, [
                 ("affine", "to_atlas_affine"),
