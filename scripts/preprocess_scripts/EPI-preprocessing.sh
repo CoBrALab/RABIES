@@ -40,7 +40,7 @@ levels=4
 cycles=3
 iters=100
 lambda=2e-6
-shrink=1.0
+shrink=4.0
 fwhm=0.1
 stop=1e-5
 
