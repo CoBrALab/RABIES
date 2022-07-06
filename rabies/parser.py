@@ -206,141 +206,124 @@ def get_parser():
         title='Registration Options', 
         description=
             "Customize registration operations and troubleshoot registration failures.\n"
+        )
+    g_registration.add_argument(
+        "--anat_inho_cor", type=str, 
+        default='method=SyN,otsu_thresh=2,multiotsu=false',
+        help=
+            "Select options for the inhomogeneity correction of the structural image.\n"
+            "* method: specify which registration strategy is employed for providing a brain mask.\n"
             "*** Rigid: conducts only rigid registration.\n"
             "*** Affine: conducts Rigid then Affine registration.\n"
             "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
             "*** no_reg: skip registration.\n"
-        )
-    g_registration.add_argument(
-        "--anat_inho_cor_method", type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
-        help=
-            "Select a registration type for masking during inhomogeneity correction of the structural \n"
-            "image. \n"
             "*** N4_reg: previous correction script prior to version 0.3.1.\n"
             "*** disable: disables the inhomogeneity correction.\n"
+            "* otsu_thresh: The inhomogeneity correction script necessitates an initial correction with a \n"
+            " Otsu masking strategy (prior to registration of an anatomical mask). This option sets the \n"
+            " Otsu threshold level to capture the right intensity distribution. \n"
+            "*** Specify an integer among [0,1,2,3,4]. \n"
+            "* multiotsu: Select this option to perform a staged inhomogeneity correction, where only \n"
+            " lower intensities are initially corrected, then higher intensities are iteratively \n"
+            " included to eventually correct the whole image. This technique may help with images with \n"
+            " particularly strong inhomogeneity gradients and very low intensities.\n"
+            "*** Specify 'true' or 'false'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--anat_robust_inho_cor', dest='anat_robust_inho_cor', action='store_true',
+        '--anat_robust_inho_cor', type=str,
+        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
         help=
-            "With this option, inhomogeneity correction is executed twice to optimize outcomes. After \n"
-            "completing an initial inhomogeneity correction step, the corrected outputs are then paired \n"
-            "to conduct co-registration between the scans and generate an unbiased template from the images, \n"
-            "as would be conducted during normal commonspace registration. This template is then masked, \n"
-            "and is used as a new target for masking during a second iteration of inhomogeneity correction. \n"
-            "Using this dataset-specific template should improve the robustness of masking for inhomogeneity \n"
-            "correction.\n"
+            "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
+            "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
+            "are co-registered to generate an unbiased template, using the same method as the commonspace \n"
+            "registration. This template is then masked, and is used as a new target for masking during a \n"
+            "second iteration of inhomogeneity correction. Using this dataset-specific template should \n"
+            "improve the robustness of masking for inhomogeneity correction.\n"
+            "* apply: select 'true' to apply this option. \n"
+            " *** Specify 'true' or 'false'. \n"
+            "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
+            " registration during the generation of the unbiased template, and then during template \n"            
+            " registration.\n"
+            " *** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to template registration based on the \n"
+            " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
+            " requires good quality masks. This should be selected along the 'masking' option.\n"
+            " *** Specify 'true' or 'false'. \n"
+            "* template_registration: Specify a registration script for the alignment of the \n"
+            " dataset-generated unbiased template to a reference template for masking.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--anat_multistage_otsu', dest='anat_multistage_otsu', action='store_true',
+        "--bold_inho_cor", type=str, 
+        default='method=Rigid,otsu_thresh=2,multiotsu=false',
         help=
-            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
-            "are initially corrected, then higher intensities are iteratively included to eventually \n"
-            "correct the whole image. This technique may help with images with particularly strong \n"
-            "inhomogeneity gradients and very low intensities. This option applies to the anatomical\n"
-            "image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--anat_inho_cor_otsu", type=int, default=2,
-        help=
-            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
-            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
-            "Otsu threshold level to capture the right intensity distribution.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
-        help=
-            "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
-            "*** N4_reg: previous correction script prior to version 0.3.1.\n"
-            "*** disable: disables the inhomogeneity correction.\n"
+            "Same as --anat_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--bold_robust_inho_cor', dest='bold_robust_inho_cor', action='store_true',
+        '--bold_robust_inho_cor', type=str,
+        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
         help=
             "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--bold_multistage_otsu', dest='bold_multistage_otsu', action='store_true',
+        '--commonspace_reg', type=str,
+        default='masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false',
         help=
-            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
-            "are initially corrected, then higher intensities are iteratively included to eventually \n"
-            "correct the whole image. This technique may help with images with particularly strong \n"
-            "inhomogeneity gradients and very low intensities. This option applies to the functional\n"
-            "image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
-        help=
-            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
-            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
-            "Otsu threshold level to capture the right intensity distribution.\n"
+            "Specify registration options for the commonspace registration.\n"
+            "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
+            " registration during the generation of the unbiased template, and then during template \n"            
+            " registration.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to template registration based on the \n"
+            " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
+            " requires good quality masks. This should be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* template_registration: Specify a registration script for the alignment of the \n"
+            " dataset-generated unbiased template to the commonspace atlas.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
+            "* fast_commonspace: Skip the generation of a dataset-generated unbiased template, and \n"
+            " instead, register each scan independently directly onto the commonspace atlas, using the \n"
+            " template_registration. This option can be faster, but may decrease the quality of \n"
+            " alignment between subjects. \n"
+            "*** Specify 'true' or 'false'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--atlas_reg_script', type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
-        help=
-            "Specify a registration script for alignment of the dataset-generated unbiased template \n"
-            "to the commonspace atlas.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--coreg_script", type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
+        "--bold2anat_coreg", type=str, 
+        default='masking=false,brain_extraction=false,registration=SyN',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
+            "* masking: With this option, the brain masks obtained from the EPI inhomogeneity correction \n"
+            " step are used to support registration.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to registration using the EPI masks from \n"
+            " inhomogeneity correction. This will enhance brain edge-matching, but requires good quality \n"
+            " masks. This should be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* registration: Specify a registration script.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
             "(default: %(default)s)\n"
             "\n"
-        )
-    g_registration.add_argument(
-        "--commonspace_masking", dest='commonspace_masking', action='store_true',
-        help=
-            "Combine masks derived from the inhomogeneity correction step to support registration \n"
-            "during the generation of the unbiased template, and then during atlas registration. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--coreg_masking", dest='coreg_masking', action='store_true',
-        help=
-            "Use the mask from the EPI inhomogeneity correction step to support registration to the\n"
-            "structural image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--brain_extraction", dest='brain_extraction', action='store_true',
-        help=
-            "If using --commonspace_masking and/or --coreg_masking, this option will conduct brain\n"
-            "extractions prior to registration based on the initial mask during inhomogeneity\n"
-            "correction. This will enhance brain edge-matching, but requires good quality masks.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--fast_commonspace", dest='fast_commonspace', action='store_true',
-        help=
-            "Skip the generation of a dataset-generated unbiased template, and instead, register each\n"
-            "anatomical scan independently directly onto the commonspace atlas, using the\n"
-            "--atlas_reg_script registration. This option can be faster, but may decrease the quality\n"
-            "of alignment between subjects."
-            "(default: %(default)s)\n"
-            "\n"
+
         )
 
     g_resampling = preprocess.add_argument_group(
@@ -854,3 +837,67 @@ def get_parser():
         )
 
     return parser
+
+
+def read_parser(parser):
+    opts = parser.parse_args()
+
+    if opts.rabies_stage == 'preprocess':
+        opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
+            key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']})
+
+        opts.bold_inho_cor = parse_argument(opt=opts.bold_inho_cor, 
+            key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']})
+
+        opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']})
+
+        opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+
+        opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+
+        opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+    elif opts.rabies_stage == 'confound_correction':
+        opts = opts
+    elif opts.rabies_stage == 'analysis':
+        opts = opts
+
+    return opts
+
+def parse_argument(opt, key_value_pairs):
+    key_list = list(key_value_pairs.keys())
+    l = opt.split(',')
+    opt_dict = {}
+    print(opt)
+    for e in l:
+        if not '=' in e:
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+        s = e.split('=')
+        if not len(s)==2:
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+        [key,value] = s
+        if not key in key_list:
+            raise ValueError(f"The provided key {key} is not part of the available options {key_list}.")
+        if not value in key_value_pairs[key]:
+            raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key}.")
+        if value=='true':
+            value=True
+        elif value=='false':
+            value=False
+        opt_dict[key]=value
+
+    for key in key_list:
+        if not key in list(opt_dict.keys()):
+            raise ValueError(f"The key {key} is missing from the necessary attributes for --bold_robust_inho_cor.")
+
+    print(opt_dict)
+    return opt_dict

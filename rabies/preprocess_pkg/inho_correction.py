@@ -102,11 +102,11 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
     multistage_otsu='false'
     robust_inho_cor=False
     if image_type=='EPI':
-        inho_cor_method=opts.bold_inho_cor_method
-        otsu_threshold=opts.bold_inho_cor_otsu
-        if opts.bold_multistage_otsu:
+        inho_cor_method=opts.bold_inho_cor['method']
+        otsu_threshold=int(opts.bold_inho_cor['otsu_thresh'])
+        if opts.bold_inho_cor['multiotsu']:
             multistage_otsu='true'
-        if opts.bold_robust_inho_cor:
+        if opts.bold_robust_inho_cor['apply']:
             robust_inho_cor=True
             commonspace_wf_name='bold_robust_inho_cor_template'
             if not opts.bold_only:
@@ -115,11 +115,11 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                 joinsource_list = ['main_split']
 
     elif image_type=='structural':
-        inho_cor_method=opts.anat_inho_cor_method
-        otsu_threshold=opts.anat_inho_cor_otsu
-        if opts.anat_multistage_otsu:
+        inho_cor_method=opts.anat_inho_cor['method']
+        otsu_threshold=int(opts.anat_inho_cor['otsu_thresh'])
+        if opts.anat_inho_cor['multiotsu']:
             multistage_otsu='true'
-        if opts.anat_robust_inho_cor:
+        if opts.anat_robust_inho_cor['apply']:
             robust_inho_cor=True
             commonspace_wf_name='anat_robust_inho_cor_template'
             joinsource_list = ['main_split']
@@ -130,14 +130,11 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
     if robust_inho_cor:
-        if opts.fast_commonspace:
-            raise ValueError("Using the --fast_commonspace option will prevent any improvement from using --anat_robust_inho_cor or --bold_robust_inho_cor. Do not use the two options together.")
-
         init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([
             (inputnode, init_inho_cor_node, [

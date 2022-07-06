@@ -194,7 +194,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, joinsource_list=['main_split'], name='commonspace_reg_wf')
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.commonspace_reg['masking'], brain_extraction=opts.commonspace_reg['brain_extraction'], template_reg=opts.commonspace_reg['template_registration'], fast_commonspace=opts.commonspace_reg['fast_commonspace'], output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, joinsource_list=['main_split'], name='commonspace_reg_wf')
 
     bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list)
 
@@ -382,7 +382,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             ])
 
-        if not opts.anat_inho_cor_method=='disable':
+        if not opts.anat_inho_cor['method']=='disable':
             anat_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
                                                function=preprocess_visual_QC.inho_cor_diagnosis),
                                       name='anat_inho_cor_diagnosis')

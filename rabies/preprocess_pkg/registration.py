@@ -72,18 +72,13 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
-    brain_extraction = opts.brain_extraction
-    if brain_extraction:
-        if not opts.coreg_masking:
-            brain_extraction=False
-
-    run_reg.inputs.reg_method = opts.coreg_script
-    run_reg.inputs.brain_extraction = brain_extraction
+    run_reg.inputs.reg_method = opts.bold2anat_coreg['registration']
+    run_reg.inputs.brain_extraction = opts.bold2anat_coreg['brain_extraction']
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
-    if opts.coreg_masking:
+    if opts.bold2anat_coreg['masking']:
         workflow.connect([
             (inputnode, run_reg, [
                 ('moving_mask', 'moving_mask')]),

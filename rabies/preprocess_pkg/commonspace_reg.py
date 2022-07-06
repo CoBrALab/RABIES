@@ -12,7 +12,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
     a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
@@ -106,7 +106,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
     workflow = pe.Workflow(name=name)
 
 
-    if opts.fast_commonspace:
+    if fast_commonspace:
         # if fast commonspace, then the inputs iterables are not merged
         source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
                                             name="fast_commonreg_buffer")
@@ -121,16 +121,15 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
-    brain_extraction = opts.brain_extraction
     if brain_extraction:
-        if not opts.commonspace_masking:
+        if not commonspace_masking:
             brain_extraction=False
 
     atlas_reg.inputs.brain_extraction = brain_extraction
     atlas_reg.inputs.rabies_data_type = opts.data_type
     atlas_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-    atlas_reg.inputs.reg_method = str(opts.atlas_reg_script)
+    atlas_reg.inputs.reg_method = template_reg
 
     prep_commonspace_transform_node = pe.Node(Function(input_names=['native_ref', 'atlas_mask', 'native_to_unbiased_affine',
                                                                'native_to_unbiased_warp','native_to_unbiased_inverse_warp',
@@ -141,7 +140,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                                function=prep_commonspace_transform),
                                       name='prep_commonspace_transform')
     prep_commonspace_transform_node.inputs.atlas_mask = str(opts.brain_mask)
-    prep_commonspace_transform_node.inputs.fast_commonspace = opts.fast_commonspace
+    prep_commonspace_transform_node.inputs.fast_commonspace = fast_commonspace
 
     workflow.connect([
         (inputnode, source_join_common_reg, [
@@ -171,7 +170,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             ]),
         ])
 
-    if opts.fast_commonspace:
+    if fast_commonspace:
         prep_commonspace_transform_node.inputs.native_to_unbiased_affine = None
         prep_commonspace_transform_node.inputs.native_to_unbiased_warp = None
         prep_commonspace_transform_node.inputs.native_to_unbiased_inverse_warp = None
@@ -197,7 +196,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ("warped_image", "moving"),
                 ]),
             ])
-        if opts.commonspace_masking:
+        if commonspace_masking:
             workflow.connect([
                 (merged_join_common_reg, atlas_reg, [
                     ("file_list1", "moving_mask"),
@@ -222,7 +221,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                           name='commonspace_selectfiles')
 
         generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-        generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
+        generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
                                               ),
                                       name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -254,7 +253,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                                 function=resample_unbiased_mask),
                                         name='resample_unbiased_mask')
 
-        if opts.brain_extraction and opts.commonspace_masking:
+        if brain_extraction and commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
                                             function=template_masking),
                                     name='template_masking')
@@ -346,7 +345,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                     ]),
                 ])
 
-        if opts.commonspace_masking:
+        if commonspace_masking:
             workflow.connect([
                 (merged_join_common_reg, generate_template, [
                     ("file_list1", "moving_mask_list"),
