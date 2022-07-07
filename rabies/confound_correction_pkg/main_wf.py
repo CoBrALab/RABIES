@@ -118,13 +118,13 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("figure_path", "plot_CR_overfit"),
             ]),
         ])
-    if cr_opts.run_aroma:
+    if cr_opts.ica_aroma['apply']:
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.aroma_out", "aroma_out"),
                 ]),
             ])
-    if cr_opts.DVARS_censoring or cr_opts.FD_censoring:
+    if cr_opts.frame_censoring['DVARS_censoring'] or cr_opts.frame_censoring['FD_censoring']:
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),

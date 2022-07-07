@@ -90,7 +90,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             ])
 
 
-    if opts.group_ICA:
+    if opts.group_ica['apply']:
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again without --nativespace_analysis.')
@@ -98,8 +98,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
                             name='group_ICA', mem_gb=1*opts.scale_min_memory)
-        group_ICA.inputs.dim = opts.dim
-        group_ICA.inputs.random_seed = opts.melodic_random_seed
+        group_ICA.inputs.dim = opts.group_ica['dim']
+        group_ICA.inputs.random_seed = opts.group_ica['random_seed']
 
         workflow.connect([
             (group_inputnode, group_ICA, [

@@ -535,11 +535,22 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--FD_censoring', dest='FD_censoring', action='store_true', default=False,
+        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,minimum_timepoint=3',
         help=
-            "Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).\n"
-            "The frames that exceed the given threshold, together with 1 back and 2 forward frames\n"
-            "will be masked out, as in Power et al. (2012, Neuroimage).\n"
+            "Censor frames that are highly corrupted (i.e. 'scrubbing'). \n"
+            "* FD_censoring: Apply frame censoring based on a framewise displacement threshold. The frames \n"
+            " that exceed the given threshold, together with 1 back and 2 forward frames will be masked \n"
+            " out, as in Power et al. (2012, Neuroimage).\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* FD_threshold: the FD threshold in mm. \n"
+            "* DVARS_censoring: Will remove timepoints that present outlier values on the DVARS metric \n"
+            " (temporal derivative of global signal). This method will censor timepoints until the \n" 
+            " distribution of DVARS values across time does not contain outliers values above or below 2.5 \n" 
+            " standard deviations.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* minimum_timepoint: Can set a minimum number of timepoints remaining after frame censoring. \n" 
+            " If the threshold is not met, an empty file is generated and the scan is not considered in \n" 
+            " further steps. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -583,31 +594,6 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--FD_threshold', type=float, default=0.05,
-        help=
-            "--FD_censoring threshold in mm.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
-        help=
-            "Whether to remove timepoints that present outlier values on the DVARS metric (temporal\n"
-            "derivative of global signal). This method will censor timepoints until the distribution\n" 
-            "of DVARS values across time does not contain outliers values above or below 2.5 standard\n" 
-            "deviations.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--minimum_timepoint', type=int,default=3,
-        help=
-            "Can set a minimum number of timepoints remaining after frame censoring. If the threshold\n" 
-            "is not met, an empty file is generated and the scan is not considered in further steps.\n" 
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
         '--match_number_timepoints', dest='match_number_timepoints', action='store_true', default=False,
         help=
             "With this option, only a subset of the timepoints are kept post-censoring to match the \n"
@@ -619,24 +605,15 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--run_aroma', dest='run_aroma', action='store_true', default=False,
+        '--ica_aroma', type=str, default='apply=false,dim=0,random_seed=1',
         help=
-            "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
-            "to incorporate rodent-adapted masks and classification hyperparameters.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_dim', type=int, default=0,
-        help=
-            "Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_random_seed', type=int, default=1,
-        help=
-            "For reproducibility, this option sets a fixed random seed for MELODIC.\n"
+            "Apply ICA-AROMA denoising (Pruim et al. 2015). The original classifier was modified to incorporate \n"
+            "rodent-adapted masks and classification hyperparameters.\n"
+            "* apply: apply the denoising.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
+            " estimator. \n"
+            "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -779,31 +756,16 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-    g_group_ICA = analysis.add_argument_group(
-        title='Group ICA', 
-        description=
-            "Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.\n"
+    analysis.add_argument(
+        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1',
+        help=
+            "Perform group-ICA using FSL's MELODIC on the whole dataset's cleaned timeseries.\n"
             "Note that confound correction must have been conducted on commonspace outputs.\n"
-        )
-    g_group_ICA.add_argument(
-        "--group_ICA", dest='group_ICA', action='store_true',
-        help=
-            "Perform group-ICA.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_group_ICA.add_argument(
-        '--dim', type=int, default=0,
-        help=
-            "Derive a fixed number of ICA components during group-ICA. The default uses an automatic \n"
-            "estimation.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_group_ICA.add_argument(
-        '--melodic_random_seed', type=int, default=1,
-        help=
-            "For reproducibility, can manually set a random seed for MELODIC. \n"
+            "* apply: compute group-ICA.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
+            " estimator. \n"
+            "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -845,35 +807,52 @@ def read_parser(parser):
     if opts.rabies_stage == 'preprocess':
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
-                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']})
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            name='anat_inho_cor')
 
         opts.bold_inho_cor = parse_argument(opt=opts.bold_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
-                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']})
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']})
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
+            name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
-                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']})
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='bold_robust_inho_cor')
+
     elif opts.rabies_stage == 'confound_correction':
-        opts = opts
+        opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
+            key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
+                'minimum_timepoint':int},
+            name='frame_censoring')
+
+        opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            name='ica_aroma')
+
     elif opts.rabies_stage == 'analysis':
-        opts = opts
+        opts.group_ica = parse_argument(opt=opts.group_ica, 
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            name='group_ica')
 
     return opts
 
-def parse_argument(opt, key_value_pairs):
+def parse_argument(opt, key_value_pairs, name):
     key_list = list(key_value_pairs.keys())
     l = opt.split(',')
     opt_dict = {}
@@ -887,17 +866,18 @@ def parse_argument(opt, key_value_pairs):
         [key,value] = s
         if not key in key_list:
             raise ValueError(f"The provided key {key} is not part of the available options {key_list}.")
-        if not value in key_value_pairs[key]:
-            raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key}.")
-        if value=='true':
-            value=True
-        elif value=='false':
-            value=False
+        if key_value_pairs[key] in [int,float]:
+            value = key_value_pairs[key](value)
+        else:
+            if not value in key_value_pairs[key]:
+                raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key}.")
+            if value=='true':
+                value=True
+            elif value=='false':
+                value=False
         opt_dict[key]=value
 
     for key in key_list:
         if not key in list(opt_dict.keys()):
-            raise ValueError(f"The key {key} is missing from the necessary attributes for --bold_robust_inho_cor.")
-
-    print(opt_dict)
+            raise ValueError(f"The key {key} is missing from the necessary attributes for --{name}.")
     return opt_dict

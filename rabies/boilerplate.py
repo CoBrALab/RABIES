@@ -177,15 +177,15 @@ def confound_correction_boilerplate(opts):
     methods+=f"  Confound correction was executed using the RABIES software (https://github.com/CoBrALab/RABIES)[{references[rabies_ref]}] on {EPI_space}. "
 
     # Frame censoring
-    if opts.FD_censoring or opts.DVARS_censoring:
+    if opts.frame_censoring['FD_censoring'] or opts.frame_censoring['DVARS_censoring']:
         references[power2012]=i
         i+=1
         methods+=f"First, frames with prominent corruption were censored (i.e. scrubbing [{references[power2012]}]). "
 
-        if opts.FD_censoring:
-            methods+=f"Framewise displacement [{references[power2012]}] was measured across time and each frame surpassing {opts.FD_threshold}mm of motion, together with 1 backward and 2 forward frames, were removed. "
+        if opts.frame_censoring['FD_censoring']:
+            methods+=f"Framewise displacement [{references[power2012]}] was measured across time and each frame surpassing {opts.frame_censoring['FD_threshold']}mm of motion, together with 1 backward and 2 forward frames, were removed. "
 
-        if opts.DVARS_censoring:
+        if opts.frame_censoring['DVARS_censoring']:
             if not power2012 in references.keys():
                 references[power2012]=i
                 i+=1
@@ -203,15 +203,15 @@ This was conducted by iteratively removing frames which present outlier DVARS va
     methods+=f"voxelwise detrending was applied to remove {order} drifts and the average image. "
 
     # ICA-AROMA
-    if opts.run_aroma:
+    if opts.ica_aroma['apply']:
         references[aroma]=i
         i+=1
         methods+=f"Then, motion sources were then automatically removed using a modified version of the ICA-AROMA classifier[{references[aroma]}], \
 where classifier parameters and anatomical masks are instead adapted for rodent images. "
-        if not opts.aroma_dim==0:
+        if not opts.ica_aroma['dim']==0:
             references[melodic]=i
             i+=1
-            methods+=f"Specifically {opts.aroma_dim} components were derived for each image independently using MELODIC-ICA algorithm[{melodic}] \
+            methods+=f"Specifically {opts.ica_aroma['dim']} components were derived for each image independently using MELODIC-ICA algorithm[{melodic}] \
 before classification. "
 
     # High/lowpass filtering
@@ -229,7 +229,7 @@ before classification. "
         elif lowpass:
             filter='lowpass'
             freq=opts.lowpass
-        if opts.FD_censoring or opts.DVARS_censoring:
+        if opts.frame_censoring['FD_censoring'] or opts.frame_censoring['DVARS_censoring']:
             references[power2014]=i
             i+=1
             references[mathias]=i
@@ -258,7 +258,7 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
             i+=1
             methods+=f"The nuisance regressors are also filtered to ensure orthogonality between the frequency filters and subsequent confound regression, which can otherwise re-introduce removed confounds [{references[Lindquist]}]."
 
-        if opts.FD_censoring or opts.DVARS_censoring:
+        if opts.frame_censoring['FD_censoring'] or opts.frame_censoring['DVARS_censoring']:
             methods+=f"After frequency filtering, the temporal masks are re-applied to remove the simulated timepoints. "
 
     # Confound Regression

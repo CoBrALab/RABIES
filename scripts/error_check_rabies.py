@@ -74,7 +74,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --run_aroma --FD_censoring --DVARS_censoring --nativespace_analysis"
+command = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --ica_aroma apply=true,dim=0,random_seed=1 --frame_censoring FD_censoring=true,FD_threshold=0.05,DVARS_censoring=true,minimum_timepoint=3 --nativespace_analysis"
 process = subprocess.run(
     command,
     check=True,

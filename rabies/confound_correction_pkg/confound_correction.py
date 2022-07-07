@@ -246,7 +246,7 @@ class Regress(BaseInterface):
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
         '''
         frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
-                cr_opts.FD_censoring, cr_opts.FD_threshold, cr_opts.DVARS_censoring, cr_opts.minimum_timepoint)
+                cr_opts.frame_censoring['FD_censoring'], cr_opts.frame_censoring['FD_threshold'], cr_opts.frame_censoring['DVARS_censoring'], cr_opts.frame_censoring['minimum_timepoint'])
         if frame_mask is None:
             return runtime
 
@@ -258,10 +258,10 @@ class Regress(BaseInterface):
                     frame_mask[:num_cut]=0
                     frame_mask[-num_cut:]=0
 
-                    if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+                    if frame_mask.sum()<int(cr_opts.frame_censoring['minimum_timepoint']):
                         from nipype import logging
                         log = logging.getLogger('nipype.workflow')
-                        log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+                        log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.frame_censoring['minimum_timepoint'])} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
                         return runtime
 
             # randomly shuffle indices that haven't been censored, then remove an extra subset above --minimum_timepoint
@@ -269,7 +269,7 @@ class Regress(BaseInterface):
             time_idx=np.array(range(num_timepoints))
             perm = np.random.permutation(time_idx[frame_mask])
             # selecting the subset of extra timepoints, and censoring them
-            subset_idx = perm[cr_opts.minimum_timepoint:]
+            subset_idx = perm[cr_opts.frame_censoring['minimum_timepoint']:]
             frame_mask[subset_idx]=0
             # keep track of the original number of timepoints for tDOF estimation, to evaluate latter if the correction was succesful
             number_extra_timepoints = len(subset_idx)
@@ -295,7 +295,7 @@ class Regress(BaseInterface):
         '''
         #3 - Apply ICA-AROMA.
         '''
-        if cr_opts.run_aroma:
+        if cr_opts.ica_aroma['apply']:
             # write intermediary output files for timeseries and 6 rigid body parameters
             timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
             inFile = f'{cr_out}/{filename_split[0]}_aroma_input.nii.gz'
@@ -308,7 +308,7 @@ class Regress(BaseInterface):
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
             df.to_csv(mc_file)
 
-            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.aroma_dim, random_seed=cr_opts.aroma_random_seed)
+            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.ica_aroma['dim'], random_seed=cr_opts.ica_aroma['random_seed'])
             # if AROMA failed, returns empty outputs
             if cleaned_file is None:
                 return runtime
@@ -361,10 +361,10 @@ class Regress(BaseInterface):
             timeseries = timeseries_filtered[frame_mask]
             confounds_array = confounds_filtered[frame_mask]
         
-        if frame_mask.sum()<int(cr_opts.minimum_timepoint):
+        if frame_mask.sum()<int(cr_opts.frame_censoring['minimum_timepoint']):
             from nipype import logging
             log = logging.getLogger('nipype.workflow')
-            log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(cr_opts.frame_censoring['minimum_timepoint'])} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             return runtime
 
         '''
@@ -474,7 +474,7 @@ class Regress(BaseInterface):
 
         # calculate temporal degrees of freedom left after confound correction
         num_timepoints = frame_mask.sum()
-        if cr_opts.run_aroma:
+        if cr_opts.ica_aroma['apply']:
             aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
         else:
             aroma_rm = 0
