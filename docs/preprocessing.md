@@ -29,36 +29,74 @@ References:
         intensity nonuniformity in MRI data. IEEE Transactions on Medical Imaging, 17(1), 87–97.            
 
 Command line interface parameters:
-    --anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
-                            Select a registration type for masking during inhomogeneity correction of the structural 
-                            image. 
+    --anat_inho_cor ANAT_INHO_COR
+                            Select options for the inhomogeneity correction of the structural image.
+                            * method: specify which registration strategy is employed for providing a brain mask.
+                            *** Rigid: conducts only rigid registration.
+                            *** Affine: conducts Rigid then Affine registration.
+                            *** SyN: conducts Rigid, Affine then non-linear registration.
+                            *** no_reg: skip registration.
                             *** N4_reg: previous correction script prior to version 0.3.1.
                             *** disable: disables the inhomogeneity correction.
-                            (default: SyN)
+                            * otsu_thresh: The inhomogeneity correction script necessitates an initial correction with a 
+                            Otsu masking strategy (prior to registration of an anatomical mask). This option sets the 
+                            Otsu threshold level to capture the right intensity distribution. 
+                            *** Specify an integer among [0,1,2,3,4]. 
+                            * multiotsu: Select this option to perform a staged inhomogeneity correction, where only 
+                            lower intensities are initially corrected, then higher intensities are iteratively 
+                            included to eventually correct the whole image. This technique may help with images with 
+                            particularly strong inhomogeneity gradients and very low intensities.
+                            *** Specify 'true' or 'false'. 
+                            (default: method=SyN,otsu_thresh=2,multiotsu=false)
                             
-    --bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
-                            Select a registration type for masking during inhomogeneity correction of the EPI.
-                            *** N4_reg: previous correction script prior to version 0.3.1.
-                            *** disable: disables the inhomogeneity correction.
-                            (default: Rigid)
+    --anat_robust_inho_cor ANAT_ROBUST_INHO_COR
+                            When selecting this option, inhomogeneity correction is executed twice to optimize 
+                            outcomes. After completing an initial inhomogeneity correction step, the corrected outputs 
+                            are co-registered to generate an unbiased template, using the same method as the commonspace 
+                            registration. This template is then masked, and is used as a new target for masking during a 
+                            second iteration of inhomogeneity correction. Using this dataset-specific template should 
+                            improve the robustness of masking for inhomogeneity correction.
+                            * apply: select 'true' to apply this option. 
+                            *** Specify 'true' or 'false'. 
+                            * masking: Combine masks derived from the inhomogeneity correction step to support 
+                            registration during the generation of the unbiased template, and then during template 
+                            registration.
+                            *** Specify 'true' or 'false'. 
+                            * brain_extraction: conducts brain extraction prior to template registration based on the 
+                            combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
+                            requires good quality masks. This should be selected along the 'masking' option.
+                            *** Specify 'true' or 'false'. 
+                            * template_registration: Specify a registration script for the alignment of the 
+                            dataset-generated unbiased template to a reference template for masking.
+                            *** Rigid: conducts only rigid registration.
+                            *** Affine: conducts Rigid then Affine registration.
+                            *** SyN: conducts Rigid, Affine then non-linear registration.
+                            *** no_reg: skip registration.
+                            (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
                             
-    --bold_inho_cor_otsu BOLD_INHO_COR_OTSU
-                            The inhomogeneity correction script necessitates an initial correction with a Otsu
-                            masking strategy (prior to registration of an anatomical mask). This option sets the 
-                            Otsu threshold level to capture the right intensity distribution.
-                            (default: 2)
-
+    --bold_inho_cor BOLD_INHO_COR
+                            Same as --anat_inho_cor, but for the EPI images.
+                            (default: method=Rigid,otsu_thresh=2,multiotsu=false)
+                            
+    --bold_robust_inho_cor BOLD_ROBUST_INHO_COR
+                            Same as --anat_robust_inho_cor, but for the EPI images.
+                            (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
+                            
 Workflow:
     parameters
         opts: command line interface parameters
         image_type: between 'EPI' and 'structural'. Defines which script to run depending on 
             image type
+        output_folder: specify a folder to execute the unbiased template generation and store important outputs
+        num_procs: set the maximum number of parallel threads to launch
 
     inputs
         target_img: the image to correct
         anat_ref: the registration target with a brain mask
         anat_mask: the brain mask of the registration target
         name_source: reference file for naming purpose
+        template_anat: the structural template in for robust inhomogeneity correction
+        template_mask: the brain mask for robust inhomogeneity correction
 
     outputs
         corrected: the output image after the final correction
@@ -94,53 +132,52 @@ References:
     of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.
 
 Command line interface parameters:
-    Registration Options:
-        Customize registration operations and troubleshoot registration failures.
-        *** Rigid: conducts only rigid registration.
-        *** Affine: conducts Rigid then Affine registration.
-        *** SyN: conducts Rigid, Affine then non-linear registration.
-        *** no_reg: skip registration.
-
-    --atlas_reg_script {Rigid,Affine,SyN,no_reg}
-                            Specify a registration script for alignment of the dataset-generated unbiased template 
-                            to the commonspace atlas.
-                            (default: SyN)
-                            
-    --commonspace_masking
-                            Combine masks derived from the inhomogeneity correction step to support registration 
-                            during the generation of the unbiased template, and then during atlas registration. 
-                            (default: False)
-                            
-    --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
-                            extractions prior to registration based on the initial mask during inhomogeneity
-                            correction. This will enhance brain edge-matching, but requires good quality masks.
-                            (default: False)
-                            
-    --fast_commonspace    Skip the generation of a dataset-generated unbiased template, and instead, register each
-                            anatomical scan independently directly onto the commonspace atlas, using the
-                            --atlas_reg_script registration. This option can be faster, but may decrease the quality
-                            of alignment between subjects.(default: False)
-
+    --commonspace_reg COMMONSPACE_REG
+                            Specify registration options for the commonspace registration.
+                            * masking: Combine masks derived from the inhomogeneity correction step to support 
+                            registration during the generation of the unbiased template, and then during template 
+                            registration.
+                            *** Specify 'true' or 'false'. 
+                            * brain_extraction: conducts brain extraction prior to template registration based on the 
+                            combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
+                            requires good quality masks. This should be selected along the 'masking' option.
+                            *** Specify 'true' or 'false'. 
+                            * template_registration: Specify a registration script for the alignment of the 
+                            dataset-generated unbiased template to the commonspace atlas.
+                            *** Rigid: conducts only rigid registration.
+                            *** Affine: conducts Rigid then Affine registration.
+                            *** SyN: conducts Rigid, Affine then non-linear registration.
+                            *** no_reg: skip registration.
+                            * fast_commonspace: Skip the generation of a dataset-generated unbiased template, and 
+                            instead, register each scan independently directly onto the commonspace atlas, using the 
+                            template_registration. This option can be faster, but may decrease the quality of 
+                            alignment between subjects. 
+                            *** Specify 'true' or 'false'. 
+                            (default: masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false)
+                    
 Workflow:
     parameters
         opts: command line interface parameters
+        commonspace_masking: whether masking is applied during template generation and registration
+        brain_extraction: whether brain extraction is applied for template registration
+        template_reg: registration method
+        fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
         output_folder: specify a folder to execute the workflow and store important outputs
         transforms_datasink: datasink node where the transforms are stored
         num_procs: set the maximum number of parallel threads to launch
+        output_datasinks: whether to generate a datasink from the outputs of the workflow
+        joinsource_list: names for the iterable nodes to join before unbiased template generation
 
     inputs
         moving_image_list: list of files corresponding to the images from different MRI sessions
         moving_mask_list: mask files overlapping with the moving images, inherited from the inhomogeneity 
             correction step. These masks are used for --commonspace_masking and --brain_extraction
-        atlas_anat: the structural template in common space
-        atlas_mask: the brain mask in common space
-
-    inputnode_iterable: this input node expects inputs from a upstream node which iterates over each MRI session,
-        which allows to associate back the outputs from unbiased template generation to each MRI session
-        iter_name: the file name from moving_image_list associated to a given MRI session
+        template_anat: the target structural template to register the unbiased template
+        template_mask: the brain mask of the structural template
 
     outputs
         unbiased_template: the generated unbiased template
+        unbiased_mask: brain mask resampled over the unbiased template
         native_mask: the atlas brain mask resampled to an associated MRI session in native space
         to_atlas_affine: affine transform for registration to the atlas
         to_atlas_warp: non-linear transform for registration to the atlas
@@ -254,27 +291,23 @@ References:
         Evaluation of Field Map and Nonlinear Registration Methods for Correction of Susceptibility Artifacts 
         in Diffusion MRI. Frontiers in Neuroinformatics, 11, 17.
 
-Command line interface parameters:
-    Registration Options:
-        Customize registration operations and troubleshoot registration failures.
-        *** Rigid: conducts only rigid registration.
-        *** Affine: conducts Rigid then Affine registration.
-        *** SyN: conducts Rigid, Affine then non-linear registration.
-        *** no_reg: skip registration.
-
-    --coreg_script {Rigid,Affine,SyN,no_reg}
+Command line interface parameters:                  
+    --bold2anat_coreg BOLD2ANAT_COREG
                         Specify the registration script for cross-modal alignment between the EPI and structural
                         images. This operation is responsible for correcting EPI susceptibility distortions.
-                        (default: SyN)
-                                                    
-    --coreg_masking       Use the mask from the EPI inhomogeneity correction step to support registration to the
-                        structural image.
-                        (default: False)
-                        
-    --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
-                        extractions prior to registration based on the initial mask during inhomogeneity
-                        correction. This will enhance brain edge-matching, but requires good quality masks.
-                        (default: False)
+                        * masking: With this option, the brain masks obtained from the EPI inhomogeneity correction 
+                        step are used to support registration.
+                        *** Specify 'true' or 'false'. 
+                        * brain_extraction: conducts brain extraction prior to registration using the EPI masks from 
+                        inhomogeneity correction. This will enhance brain edge-matching, but requires good quality 
+                        masks. This should be selected along the 'masking' option.
+                        *** Specify 'true' or 'false'. 
+                        * registration: Specify a registration script.
+                        *** Rigid: conducts only rigid registration.
+                        *** Affine: conducts Rigid then Affine registration.
+                        *** SyN: conducts Rigid, Affine then non-linear registration.
+                        *** no_reg: skip registration.
+                        (default: masking=false,brain_extraction=false,registration=SyN)
 
 Workflow:
     parameters

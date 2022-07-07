@@ -13,27 +13,23 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
             Evaluation of Field Map and Nonlinear Registration Methods for Correction of Susceptibility Artifacts 
             in Diffusion MRI. Frontiers in Neuroinformatics, 11, 17.
 
-    Command line interface parameters:
-        Registration Options:
-            Customize registration operations and troubleshoot registration failures.
-            *** Rigid: conducts only rigid registration.
-            *** Affine: conducts Rigid then Affine registration.
-            *** SyN: conducts Rigid, Affine then non-linear registration.
-            *** no_reg: skip registration.
-
-        --coreg_script {Rigid,Affine,SyN,no_reg}
+    Command line interface parameters:                  
+        --bold2anat_coreg BOLD2ANAT_COREG
                             Specify the registration script for cross-modal alignment between the EPI and structural
                             images. This operation is responsible for correcting EPI susceptibility distortions.
-                            (default: SyN)
-                                                        
-        --coreg_masking       Use the mask from the EPI inhomogeneity correction step to support registration to the
-                            structural image.
-                            (default: False)
-                            
-        --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
-                            extractions prior to registration based on the initial mask during inhomogeneity
-                            correction. This will enhance brain edge-matching, but requires good quality masks.
-                            (default: False)
+                            * masking: With this option, the brain masks obtained from the EPI inhomogeneity correction 
+                            step are used to support registration.
+                            *** Specify 'true' or 'false'. 
+                            * brain_extraction: conducts brain extraction prior to registration using the EPI masks from 
+                            inhomogeneity correction. This will enhance brain edge-matching, but requires good quality 
+                            masks. This should be selected along the 'masking' option.
+                            *** Specify 'true' or 'false'. 
+                            * registration: Specify a registration script.
+                            *** Rigid: conducts only rigid registration.
+                            *** Affine: conducts Rigid then Affine registration.
+                            *** SyN: conducts Rigid, Affine then non-linear registration.
+                            *** no_reg: skip registration.
+                            (default: masking=false,brain_extraction=false,registration=SyN)
 
     Workflow:
         parameters

@@ -12,18 +12,19 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
     orchestrated in line with recommendations from human litterature:   
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-    #2 - Linear detrending of fMRI timeseries and nuisance regressors
-    #3 - Apply ICA-AROMA.
-    #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+    #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+    #4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
+    #4 - Apply ICA-AROMA.
+    #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
          as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
-    #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+    #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
          to the temporal frequency filter.
-    #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
-    #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+    #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+    #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
          simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-    #8 - Apply confound regression using the selected nuisance regressors.
-    #9 - Standardize timeseries
-    #10 - Apply Gaussian spatial smoothing.
+    #9 - Apply confound regression using the selected nuisance regressors.
+    #10 - Scaling of timeseries variance.
+    #11 - Apply Gaussian spatial smoothing.
     
     References:
         Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic 
@@ -50,8 +51,13 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             VE_file: variance explained (R^2) from confound regression at each voxel
             STD_file: standard deviation on the cleaned EPI timeseries
             CR_STD_file: standard deviation on the confound timeseries modelled during confound regression
+            random_CR_STD_file_path: variance fitted by random regressors during confound regression
+            corrected_CR_STD_file_path: CR_STD_file after substracting the variance fitted by random
+                regressors.
             frame_mask_file: CSV file which records which frame were censored
             CR_data_dict: dictionary object storing extra data computed during confound correction
+            background_mask_fig: a figure showing the automatically-generated mask of the image background 
+                for --image_scaling background_noise.
     """
 
     workflow = pe.Workflow(name=name)
@@ -59,7 +65,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
-                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict', 'background_fig']), name='outputnode')
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict', 'background_mask_fig']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
@@ -94,7 +100,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
-            ("background_fig", "background_fig"),
+            ("background_mask_fig", "background_mask_fig"),
             ]),
         ])
 
@@ -134,7 +140,7 @@ class RegressOutputSpec(TraitedSpec):
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
-    background_fig = traits.Str(
+    background_mask_fig = traits.Str(
         desc="Figure to visualize the quality of background noise mapping.")
 
 class Regress(BaseInterface):
@@ -143,18 +149,19 @@ class Regress(BaseInterface):
     human litterature. 
     
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-    #2 - Linear detrending of fMRI timeseries and nuisance regressors
-    #3 - Apply ICA-AROMA.
-    #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+    #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+    #4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
+    #4 - Apply ICA-AROMA.
+    #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
          as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
-    #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+    #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
          to the temporal frequency filter.
-    #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
-    #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+    #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+    #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
          simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-    #8 - Apply confound regression using the selected nuisance regressors.
-    #9 - Standardize timeseries
-    #10 - Apply Gaussian spatial smoothing.
+    #9 - Apply confound regression using the selected nuisance regressors.
+    #10 - Scaling of timeseries variance.
+    #11 - Apply Gaussian spatial smoothing.
     
     References:
         
@@ -194,7 +201,7 @@ class Regress(BaseInterface):
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
-        setattr(self, 'background_fig', empty_file)
+        setattr(self, 'background_mask_fig', empty_file)
         ###
 
         bold_file = self.inputs.bold_file
@@ -233,13 +240,13 @@ class Regress(BaseInterface):
         scaling based on background noise
         '''
         if cr_opts.image_scaling=='background_noise':
-            background_mask, data_array, background_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
+            background_mask, data_array, background_mask_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
             # based on Gudbjartsson and Patz (1995, Magn Reson Med.), there's a linear relationship between the mean 
             # in the background noise and the scanner noise signal variability in the Fourrier domain
             scaling_factor = data_array[:,background_mask].flatten().mean() # we take the mean as a proxy for signal standard deviation in Fourier domain
             timeseries = timeseries/scaling_factor
         else:
-            background_fig_path = empty_file
+            background_mask_fig_path = empty_file
         
 
         '''
@@ -250,6 +257,9 @@ class Regress(BaseInterface):
         if frame_mask is None:
             return runtime
 
+        '''
+        #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+        '''
         if cr_opts.match_number_timepoints:
             if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
                 # if frequency filtering is applied, avoid selecting timepoints that would be removed with --edge_cutoff
@@ -280,7 +290,7 @@ class Regress(BaseInterface):
         confounds_array = confounds_array[frame_mask]
 
         '''
-        #2 - Linear detrending of fMRI timeseries and nuisance regressors
+        #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
         '''
         # apply detrending, after censoring
         if cr_opts.detrending_order=='linear':
@@ -293,7 +303,7 @@ class Regress(BaseInterface):
         confounds_array = remove_trend(confounds_array, frame_mask, second_order=second_order, keep_intercept=False)
 
         '''
-        #3 - Apply ICA-AROMA.
+        #4 - Apply ICA-AROMA.
         '''
         if cr_opts.ica_aroma['apply']:
             # write intermediary output files for timeseries and 6 rigid body parameters
@@ -323,21 +333,21 @@ class Regress(BaseInterface):
 
         if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
             '''
-            #4 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+            #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
                 as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
             '''
             timeseries_filled = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
             confounds_filled = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
 
             '''
-            #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+            #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
                 to the temporal filter.
             '''
             confounds_filtered = butterworth(confounds_filled, TR=TR,
                                     high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
             '''
-            #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+            #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
             '''
 
             timeseries_filtered = butterworth(timeseries_filled, TR=TR,
@@ -354,7 +364,7 @@ class Regress(BaseInterface):
 
 
             '''
-            #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+            #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
                 simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
             '''
             # re-apply the masks to take out simulated data points, and take off the edges
@@ -368,7 +378,7 @@ class Regress(BaseInterface):
             return runtime
 
         '''
-        #8 - Apply confound regression using the selected nuisance regressors.
+        #9 - Apply confound regression using the selected nuisance regressors.
         '''
         # voxels that have a NaN value are set to 0
         nan_voxels = np.isnan(timeseries).sum(axis=0)>1
@@ -404,7 +414,7 @@ class Regress(BaseInterface):
             timeseries = res
 
         '''
-        #8 - Standardize timeseries
+        #10 - Scaling of timeseries variance.
         '''
         if cr_opts.image_scaling=='global_variance':
             scaling_factor = timeseries.std()
@@ -447,7 +457,7 @@ class Regress(BaseInterface):
 
         if cr_opts.smoothing_filter is not None:
             '''
-            #9 - Apply Gaussian spatial smoothing.
+            #11 - Apply Gaussian spatial smoothing.
             '''
             import nibabel as nb
             affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
@@ -491,7 +501,7 @@ class Regress(BaseInterface):
         setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
-        setattr(self, 'background_fig', background_fig_path)
+        setattr(self, 'background_mask_fig', background_mask_fig_path)
 
         return runtime
 
@@ -505,5 +515,5 @@ class Regress(BaseInterface):
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),
-                'background_fig': getattr(self, 'background_fig'),
+                'background_mask_fig': getattr(self, 'background_mask_fig'),
                 }

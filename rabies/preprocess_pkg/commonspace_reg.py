@@ -32,49 +32,52 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
         of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.
 
     Command line interface parameters:
-        Registration Options:
-            Customize registration operations and troubleshoot registration failures.
-            *** Rigid: conducts only rigid registration.
-            *** Affine: conducts Rigid then Affine registration.
-            *** SyN: conducts Rigid, Affine then non-linear registration.
-            *** no_reg: skip registration.
-
-        --atlas_reg_script {Rigid,Affine,SyN,no_reg}
-                                Specify a registration script for alignment of the dataset-generated unbiased template 
-                                to the commonspace atlas.
-                                (default: SyN)
-                                
-        --commonspace_masking
-                                Combine masks derived from the inhomogeneity correction step to support registration 
-                                during the generation of the unbiased template, and then during atlas registration. 
-                                (default: False)
-                                
-        --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
-                                extractions prior to registration based on the initial mask during inhomogeneity
-                                correction. This will enhance brain edge-matching, but requires good quality masks.
-                                (default: False)
-                                
-        --fast_commonspace    Skip the generation of a dataset-generated unbiased template, and instead, register each
-                                anatomical scan independently directly onto the commonspace atlas, using the
-                                --atlas_reg_script registration. This option can be faster, but may decrease the quality
-                                of alignment between subjects.(default: False)
-
+        --commonspace_reg COMMONSPACE_REG
+                                Specify registration options for the commonspace registration.
+                                * masking: Combine masks derived from the inhomogeneity correction step to support 
+                                registration during the generation of the unbiased template, and then during template 
+                                registration.
+                                *** Specify 'true' or 'false'. 
+                                * brain_extraction: conducts brain extraction prior to template registration based on the 
+                                combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
+                                requires good quality masks. This should be selected along the 'masking' option.
+                                *** Specify 'true' or 'false'. 
+                                * template_registration: Specify a registration script for the alignment of the 
+                                dataset-generated unbiased template to the commonspace atlas.
+                                *** Rigid: conducts only rigid registration.
+                                *** Affine: conducts Rigid then Affine registration.
+                                *** SyN: conducts Rigid, Affine then non-linear registration.
+                                *** no_reg: skip registration.
+                                * fast_commonspace: Skip the generation of a dataset-generated unbiased template, and 
+                                instead, register each scan independently directly onto the commonspace atlas, using the 
+                                template_registration. This option can be faster, but may decrease the quality of 
+                                alignment between subjects. 
+                                *** Specify 'true' or 'false'. 
+                                (default: masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false)
+                        
     Workflow:
         parameters
             opts: command line interface parameters
+            commonspace_masking: whether masking is applied during template generation and registration
+            brain_extraction: whether brain extraction is applied for template registration
+            template_reg: registration method
+            fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
             output_folder: specify a folder to execute the workflow and store important outputs
             transforms_datasink: datasink node where the transforms are stored
             num_procs: set the maximum number of parallel threads to launch
+            output_datasinks: whether to generate a datasink from the outputs of the workflow
+            joinsource_list: names for the iterable nodes to join before unbiased template generation
 
         inputs
             moving_image_list: list of files corresponding to the images from different MRI sessions
             moving_mask_list: mask files overlapping with the moving images, inherited from the inhomogeneity 
                 correction step. These masks are used for --commonspace_masking and --brain_extraction
-            atlas_anat: the structural template in common space
-            atlas_mask: the brain mask in common space
+            template_anat: the target structural template to register the unbiased template
+            template_mask: the brain mask of the structural template
 
         outputs
             unbiased_template: the generated unbiased template
+            unbiased_mask: brain mask resampled over the unbiased template
             native_mask: the atlas brain mask resampled to an associated MRI session in native space
             to_atlas_affine: affine transform for registration to the atlas
             to_atlas_warp: non-linear transform for registration to the atlas
@@ -96,7 +99,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
     inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask']),
                                         name="inputnode")
 
-    template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
+    template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
                                         name="template_inputnode")
     outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
                                                        'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
@@ -148,8 +151,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
             ("moving_mask", "file_list1"),
             ]),
         (template_inputnode, atlas_reg, [
-            ("atlas_anat", "fixed_image"),
-            ("atlas_mask", "fixed_mask"),
+            ("template_anat", "fixed_image"),
+            ("template_mask", "fixed_mask"),
             ]),
         (atlas_reg, prep_commonspace_transform_node, [
             ("affine", "to_atlas_affine"),
@@ -190,7 +193,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                 ("moving_image", "name_source"),
                 ]),
             (template_inputnode, PlotOverlap_Native2Atlas_node,[
-                ("atlas_anat", "fixed"),
+                ("template_anat", "fixed"),
                 ]),
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
                 ("warped_image", "moving"),
@@ -233,7 +236,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
         PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
-        def resample_unbiased_mask(unbiased_template, atlas_mask,to_atlas_affine,to_atlas_inverse_warp):
+        def resample_unbiased_mask(unbiased_template, template_mask,to_atlas_affine,to_atlas_inverse_warp):
             import os
             import pathlib  # Better path manipulation
             filename_split = pathlib.Path(
@@ -244,10 +247,10 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
             transform_list=[to_atlas_affine,to_atlas_inverse_warp]
             inverse_list=[1,0]
             exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
-                input_image = atlas_mask, ref_image = unbiased_template, output_image = unbiased_mask, mask=True)
+                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, mask=True)
             return unbiased_mask
 
-        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'atlas_mask','to_atlas_affine','to_atlas_inverse_warp'],
+        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
                                                 output_names=[
                                                     'unbiased_mask'],
                                                 function=resample_unbiased_mask),
@@ -268,7 +271,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
 
         workflow.connect([
             (template_inputnode, generate_template, [
-                ("atlas_anat", "template_anat"),
+                ("template_anat", "template_anat"),
                 ]),
             (merged_join_common_reg, generate_template, [
                 ("file_list0", "moving_image_list"),
@@ -277,7 +280,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                 ("file_list0", "native_list"),
                 ]),
             (template_inputnode, PlotOverlap_Unbiased2Atlas_node,[
-                ("atlas_anat", "fixed"),
+                ("template_anat", "fixed"),
                 ]),
             (inputnode, commonspace_selectfiles, [
                 ("moving_image", "filename"),
@@ -301,7 +304,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                 ("unbiased_template", "unbiased_template"),
                 ]),
             (template_inputnode, resample_unbiased_mask_node, [
-                ("atlas_mask", "atlas_mask"),
+                ("template_mask", "template_mask"),
                 ]),
             (atlas_reg, resample_unbiased_mask_node, [
                 ("affine", "to_atlas_affine"),

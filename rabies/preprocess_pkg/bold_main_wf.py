@@ -141,7 +141,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                              name="transitionnode")
 
     if inho_cor_only or (not opts.bold_only):
-        template_inputnode = pe.Node(niu.IdentityInterface(fields=['atlas_anat', 'atlas_mask']),
+        template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
                                             name="template_inputnode")
 
 
@@ -184,8 +184,8 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                 ('bold', 'inputnode.name_source'),
                 ]),
             (template_inputnode, inho_cor_wf, [
-                ("atlas_anat", "template_inputnode.atlas_anat"),
-                ("atlas_mask", "template_inputnode.atlas_mask"),
+                ("template_anat", "template_inputnode.template_anat"),
+                ("template_mask", "template_inputnode.template_mask"),
                 ]),
             (boldbuffer, bold_reference_wf, [
                 ('bold_file', 'inputnode.bold_file'),

@@ -57,7 +57,9 @@ Important outputs from confound correction will be found in the *confound_correc
 - **confound_correction_datasink/**:
     - cleaned_timeseries: cleaned timeseries after the application of confound correction
     - frame_censoring_mask: contains CSV files each recording as a boolean vector which timepoints were censored if frame censoring was applied.
-    - aroma_out: if `--run_aroma` is selected, this folder contains outputs from running ICA-AROMA, which includes the MELODIC ICA outputs and the component classification results
+    - aroma_out: if `--ica_aroma` is applied, this folder contains outputs from running ICA-AROMA, which includes the MELODIC ICA outputs and the component classification results
+    - plot_CR_overfit: will contain figures illustrating the variance explained by random regressors during confound correction, and the variance explained by the real regressors after substrating the variance from random regressors.
+    - background_masking_fig: will illustrate the image background masks automatically generated if using `--image_scaling background_noise`
 
 
 ## Analysis Outputs
@@ -70,21 +72,22 @@ Outputs from analyses will be found in the *analysis_datasink/*, whereas outputs
     - seed_correlation_maps: nifti files for seed-based connectivity analysis, where each seed provided in `--seed_list` has an associated voxelwise correlation maps
     - dual_regression_nii: the spatial maps from dual regression, which correspond to the linear coefficients from the second regression. The list of 3D spatial maps obtained are concatenated into a 4D Nifti file, where the order of component is consistent with the priors provided in `--prior_maps`.
     - dual_regression_timecourse_csv: a CSV file which stores the outputs from the first linear regression during dual regression. This corresponds to a timecourse associated to each prior component from `--prior_maps`.
-    - dual_ICA_filename: spatial components fitted during Dual ICA
-    - dual_ICA_timecourse_csv: timecourses associated to each components fitted during Dual ICA
+    - NPR_prior_filename: spatial components fitted during NPR
+    - NPR_prior_timecourse_csv: timecourses associated to each components from NPR_prior_filename
+    - NPR_extra_filename: the extra spatial components fitted during NPR which were not part of priors
+    - NPR_extra_timecourse_csv: timecourses associated to each components from NPR_extra_filename
 - **data_diagnosis_datasink/**:
     - figure_temporal_diagnosis: PNG file which displays scan-level temporal features from `--data_diagnosis`
     - figure_spatial_diagnosis: PNG file which displays scan-level spatial features from `--data_diagnosis`
-    - dataset_diagnosis: group-level features of data quality from `--data_diagnosis`
+    - analysis_QC: group-level features of data quality from `--data_diagnosis`
         - DR{component #}_QC_maps.png: The _QC_maps.png files are PNGs displaying statistical maps relevant to analysis quality control. The DR refers to dual regression analysis, and the {component #} is relating the file to one of the BOLD components specified in `--prior_bold_idx`
         - DR{component #}_QC_stats.csv: a follow-up to _QC_maps.png which allows for the quantitative categorization of data quality outcomes in Desrosiers-Gregoire et al. (in prep.)
         - seed_FC{seed #}_QC_maps.png: same statistical maps as with DR{component #}_QC_maps.png, but for seed-based connectivity analysis
         - seed_FC{seed #}_QC_stats.csv: same measures as with DR{component #}_QC_maps.png, but for seed-based connectivity analysis
-        - spatial_crosscorrelations.png: a display of the group-level correlation between pairs of spatial features from figure_spatial_diagnosis
     - temporal_info_csv: CSV file containing the data plotted with figure_temporal_diagnosis
-    - spatial_VE_nii: Nifti file with the confound regression variance explained at each voxel
+    - spatial_VE_nii: Nifti file with the confound regression percentage variance explained (R^2) at each voxel
+    - CR_prediction_std_nii: Nifti file with the confound regression variance explained at each voxel
+    - random_CR_std_nii: Nifti file with the variance explained from random regressors at each voxel
+    - corrected_CR_std_nii: Nifti file with the confound regression variance explained at each voxel after removing the variance explained by random regressors
     - temporal_std_nii: the standard deviation at each voxel after confound correction
-    - GS_corr_nii: the correlation of each voxel with the global signal
-    - DVARS_corr_nii: the correlation of each voxel with DVARS
-    - FD_corr_nii:the correlation of each voxel with framewise displacement
-
+    - GS_cov_nii: the covariance of each voxel with the global signal

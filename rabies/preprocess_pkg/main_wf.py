@@ -236,8 +236,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("resampled_template", "anat_template"),
             ]),
         (resample_template_node, commonspace_reg_wf, [
-            ("resampled_template", "template_inputnode.atlas_anat"),
-            ("resampled_mask", "template_inputnode.atlas_mask"),
+            ("resampled_template", "template_inputnode.template_anat"),
+            ("resampled_mask", "template_inputnode.template_mask"),
             ]),
         (resample_template_node, bold_main_wf, [
             ("resampled_template", "inputnode.commonspace_ref"),
@@ -355,16 +355,16 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("resampled_mask", "inputnode.anat_mask"),
                 ]),
             (resample_template_node, anat_inho_cor_wf, [
-                ("resampled_template", "template_inputnode.atlas_anat"),
-                ("resampled_mask", "template_inputnode.atlas_mask"),
+                ("resampled_template", "template_inputnode.template_anat"),
+                ("resampled_mask", "template_inputnode.template_mask"),
                 ]),
             (anat_inho_cor_wf, bold_main_wf, [
                 ("outputnode.corrected", "inputnode.coreg_anat"),
                 ]),
             (commonspace_reg_wf, bold_main_wf, [
                 ("outputnode.native_mask", "inputnode.coreg_mask"),
-                ("outputnode.unbiased_template", "template_inputnode.atlas_anat"),
-                ("outputnode.unbiased_mask", "template_inputnode.atlas_mask"),
+                ("outputnode.unbiased_template", "template_inputnode.template_anat"),
+                ("outputnode.unbiased_mask", "template_inputnode.template_mask"),
                 ]),
             (EPI_target_buffer, bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -408,8 +408,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
         workflow.connect([
             (resample_template_node, inho_cor_bold_main_wf, [
-                ("resampled_template", "template_inputnode.atlas_anat"),
-                ("resampled_mask", "template_inputnode.atlas_mask"),
+                ("resampled_template", "template_inputnode.template_anat"),
+                ("resampled_mask", "template_inputnode.template_mask"),
                 ]),
             (format_bold_buffer, inho_cor_bold_main_wf, [
                 ("formatted_bold", "inputnode.bold"),
