@@ -858,7 +858,6 @@ def parse_argument(opt, key_value_pairs, name):
     key_list = list(key_value_pairs.keys())
     l = opt.split(',')
     opt_dict = {}
-    print(opt)
     for e in l:
         if not '=' in e:
             raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")

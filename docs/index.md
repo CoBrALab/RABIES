@@ -15,6 +15,7 @@ installation.md
 running_the_software.md
 preprocessing.md
 quality_control.md
+registration_troubleshoot.md
 confound_correction.md
 analysis.md
 outputs.md
