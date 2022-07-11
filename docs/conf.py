@@ -22,7 +22,7 @@ copyright = '2019, CoBrALab and Gabriel Desrosiers-Gregoire and Gabriel A. Deven
 author = 'CoBrALab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.3.5'
+release = '0.4.6'
 
 
 # -- General configuration ---------------------------------------------------
