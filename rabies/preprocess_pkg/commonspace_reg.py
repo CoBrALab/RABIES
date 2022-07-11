@@ -12,7 +12,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
     a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
@@ -32,53 +32,52 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
         of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.
 
     Command line interface parameters:
-        Registration Options:
-            Customize registration operations and troubleshoot registration failures.
-            *** Rigid: conducts only rigid registration.
-            *** Affine: conducts Rigid then Affine registration.
-            *** SyN: conducts Rigid, Affine then non-linear registration.
-            *** no_reg: skip registration.
-
-        --atlas_reg_script {Rigid,Affine,SyN,no_reg}
-                                Specify a registration script for alignment of the dataset-generated unbiased template 
-                                to the commonspace atlas.
-                                (default: SyN)
-                                
-        --commonspace_masking
-                                Combine masks derived from the inhomogeneity correction step to support registration 
-                                during the generation of the unbiased template, and then during atlas registration. 
-                                (default: False)
-                                
-        --brain_extraction    If using --commonspace_masking and/or --coreg_masking, this option will conduct brain
-                                extractions prior to registration based on the initial mask during inhomogeneity
-                                correction. This will enhance brain edge-matching, but requires good quality masks.
-                                (default: False)
-                                
-        --fast_commonspace    Skip the generation of a dataset-generated unbiased template, and instead, register each
-                                anatomical scan independently directly onto the commonspace atlas, using the
-                                --atlas_reg_script registration. This option can be faster, but may decrease the quality
-                                of alignment between subjects.(default: False)
-
+        --commonspace_reg COMMONSPACE_REG
+                                Specify registration options for the commonspace registration.
+                                * masking: Combine masks derived from the inhomogeneity correction step to support 
+                                registration during the generation of the unbiased template, and then during template 
+                                registration.
+                                *** Specify 'true' or 'false'. 
+                                * brain_extraction: conducts brain extraction prior to template registration based on the 
+                                combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
+                                requires good quality masks. This should be selected along the 'masking' option.
+                                *** Specify 'true' or 'false'. 
+                                * template_registration: Specify a registration script for the alignment of the 
+                                dataset-generated unbiased template to the commonspace atlas.
+                                *** Rigid: conducts only rigid registration.
+                                *** Affine: conducts Rigid then Affine registration.
+                                *** SyN: conducts Rigid, Affine then non-linear registration.
+                                *** no_reg: skip registration.
+                                * fast_commonspace: Skip the generation of a dataset-generated unbiased template, and 
+                                instead, register each scan independently directly onto the commonspace atlas, using the 
+                                template_registration. This option can be faster, but may decrease the quality of 
+                                alignment between subjects. 
+                                *** Specify 'true' or 'false'. 
+                                (default: masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false)
+                        
     Workflow:
         parameters
             opts: command line interface parameters
+            commonspace_masking: whether masking is applied during template generation and registration
+            brain_extraction: whether brain extraction is applied for template registration
+            template_reg: registration method
+            fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
             output_folder: specify a folder to execute the workflow and store important outputs
             transforms_datasink: datasink node where the transforms are stored
             num_procs: set the maximum number of parallel threads to launch
+            output_datasinks: whether to generate a datasink from the outputs of the workflow
+            joinsource_list: names for the iterable nodes to join before unbiased template generation
 
         inputs
             moving_image_list: list of files corresponding to the images from different MRI sessions
             moving_mask_list: mask files overlapping with the moving images, inherited from the inhomogeneity 
                 correction step. These masks are used for --commonspace_masking and --brain_extraction
-            atlas_anat: the structural template in common space
-            atlas_mask: the brain mask in common space
-
-        inputnode_iterable: this input node expects inputs from a upstream node which iterates over each MRI session,
-            which allows to associate back the outputs from unbiased template generation to each MRI session
-            iter_name: the file name from moving_image_list associated to a given MRI session
+            template_anat: the target structural template to register the unbiased template
+            template_mask: the brain mask of the structural template
 
         outputs
             unbiased_template: the generated unbiased template
+            unbiased_mask: brain mask resampled over the unbiased template
             native_mask: the atlas brain mask resampled to an associated MRI session in native space
             to_atlas_affine: affine transform for registration to the atlas
             to_atlas_warp: non-linear transform for registration to the atlas
@@ -97,16 +96,26 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
     """
 
     # this iterable node inherits the iterations from the main_wf, generating an iteration for each session to recover its outputs from commonspace registration
-    inputnode_iterable = pe.Node(niu.IdentityInterface(fields=['iter_name']),
-                                        name="inputnode_iterable")
-    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image_list', 'moving_mask_list', 'atlas_anat', 'atlas_mask']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask']),
                                         name="inputnode")
-    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
+
+    template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
+                                        name="template_inputnode")
+    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
                                                        'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
                                                        'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                                                        'commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
+
+
+    if fast_commonspace:
+        # if fast commonspace, then the inputs iterables are not merged
+        source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
+                                            name="fast_commonreg_buffer")
+        merged_join_common_reg = source_join_common_reg
+    else:
+        workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=joinsource_list, node_prefix='commonspace_reg', num_inputs=2)
 
     atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                     output_names=['affine', 'warp',
@@ -115,16 +124,15 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
-    brain_extraction = opts.brain_extraction
     if brain_extraction:
-        if not opts.commonspace_masking:
+        if not commonspace_masking:
             brain_extraction=False
 
     atlas_reg.inputs.brain_extraction = brain_extraction
     atlas_reg.inputs.rabies_data_type = opts.data_type
     atlas_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-    atlas_reg.inputs.reg_method = str(opts.atlas_reg_script)
+    atlas_reg.inputs.reg_method = template_reg
 
     prep_commonspace_transform_node = pe.Node(Function(input_names=['native_ref', 'atlas_mask', 'native_to_unbiased_affine',
                                                                'native_to_unbiased_warp','native_to_unbiased_inverse_warp',
@@ -135,12 +143,16 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                                function=prep_commonspace_transform),
                                       name='prep_commonspace_transform')
     prep_commonspace_transform_node.inputs.atlas_mask = str(opts.brain_mask)
-    prep_commonspace_transform_node.inputs.fast_commonspace = opts.fast_commonspace
+    prep_commonspace_transform_node.inputs.fast_commonspace = fast_commonspace
 
     workflow.connect([
-        (inputnode, atlas_reg, [
-            ("atlas_anat", "fixed_image"),
-            ("atlas_mask", "fixed_mask"),
+        (inputnode, source_join_common_reg, [
+            ("moving_image", "file_list0"),
+            ("moving_mask", "file_list1"),
+            ]),
+        (template_inputnode, atlas_reg, [
+            ("template_anat", "fixed_image"),
+            ("template_mask", "fixed_mask"),
             ]),
         (atlas_reg, prep_commonspace_transform_node, [
             ("affine", "to_atlas_affine"),
@@ -161,7 +173,7 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             ]),
         ])
 
-    if opts.fast_commonspace:
+    if fast_commonspace:
         prep_commonspace_transform_node.inputs.native_to_unbiased_affine = None
         prep_commonspace_transform_node.inputs.native_to_unbiased_warp = None
         prep_commonspace_transform_node.inputs.native_to_unbiased_inverse_warp = None
@@ -171,38 +183,38 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
         PlotOverlap_Native2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Atlas/'
 
         workflow.connect([
-            (inputnode, atlas_reg, [
-                ("moving_image_list", "moving_image"),
+            (merged_join_common_reg, atlas_reg, [
+                ("file_list0", "moving_image"),
                 ]),
-            (inputnode, prep_commonspace_transform_node, [
-                ("moving_image_list", "native_ref"),
+            (merged_join_common_reg, prep_commonspace_transform_node, [
+                ("file_list0", "native_ref"),
                 ]),
-            (inputnode_iterable, PlotOverlap_Native2Atlas_node, [
-                ("iter_name", "name_source"),
+            (inputnode, PlotOverlap_Native2Atlas_node, [
+                ("moving_image", "name_source"),
                 ]),
-            (inputnode, PlotOverlap_Native2Atlas_node,[
-                ("atlas_anat", "fixed"),
+            (template_inputnode, PlotOverlap_Native2Atlas_node,[
+                ("template_anat", "fixed"),
                 ]),
             (atlas_reg, PlotOverlap_Native2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
-            (atlas_reg, transforms_datasink, [
-                ("affine", "native_to_atlas_affine"),
-                ("warp", "native_to_atlas_warp"),
-                ("inverse_warp", "native_to_atlas_inverse_warp"),
-                ]),
             ])
-        if opts.commonspace_masking:
+        if commonspace_masking:
             workflow.connect([
-                (inputnode, atlas_reg, [
-                    ("moving_mask_list", "moving_mask"),
+                (merged_join_common_reg, atlas_reg, [
+                    ("file_list1", "moving_mask"),
+                    ]),
+                ])
+        if output_datasinks:
+            workflow.connect([
+                (atlas_reg, transforms_datasink, [
+                    ("affine", "native_to_atlas_affine"),
+                    ("warp", "native_to_atlas_warp"),
+                    ("inverse_warp", "native_to_atlas_inverse_warp"),
                     ]),
                 ])
 
     else:
-        unbiased_template_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                            container="unbiased_template_datasink"),
-                                    name="unbiased_template_datasink")
 
         # setup a node to select the proper files associated with a given input scan for commonspace registration
         commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
@@ -212,23 +224,43 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                                           name='commonspace_selectfiles')
 
         generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-        generate_template = pe.Node(GenerateTemplate(masking=opts.commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
+        generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
                                               ),
                                       name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Native2Unbiased')
-        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Native2Unbiased/'
+        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Unbiased/'
         PlotOverlap_Unbiased2Atlas_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Unbiased2Atlas')
-        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/Unbiased2Atlas'
+        PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
-        if opts.brain_extraction and opts.commonspace_masking:
+        def resample_unbiased_mask(unbiased_template, template_mask,to_atlas_affine,to_atlas_inverse_warp):
+            import os
+            import pathlib  # Better path manipulation
+            filename_split = pathlib.Path(
+                unbiased_template).name.rsplit(".nii")
+            unbiased_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
+            from rabies.utils import exec_applyTransforms
+            # resample the atlas brain mask to native space
+            transform_list=[to_atlas_affine,to_atlas_inverse_warp]
+            inverse_list=[1,0]
+            exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
+                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, mask=True)
+            return unbiased_mask
+
+        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
+                                                output_names=[
+                                                    'unbiased_mask'],
+                                                function=resample_unbiased_mask),
+                                        name='resample_unbiased_mask')
+
+        if brain_extraction and commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
                                             function=template_masking),
                                     name='template_masking')
-            template_masking_node.inputs.out_dir = output_folder+'/preprocess_QC_report/unbiased_template_masking/'
+            template_masking_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.unbiased_template_masking/'
 
             workflow.connect([
                 (generate_template, template_masking_node, [
@@ -238,21 +270,23 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ])
 
         workflow.connect([
-            (inputnode, generate_template, [
-                ("moving_image_list", "moving_image_list"),
-                ("atlas_anat", "template_anat"),
+            (template_inputnode, generate_template, [
+                ("template_anat", "template_anat"),
+                ]),
+            (merged_join_common_reg, generate_template, [
+                ("file_list0", "moving_image_list"),
+                ]),
+            (merged_join_common_reg, commonspace_selectfiles, [
+                ("file_list0", "native_list"),
+                ]),
+            (template_inputnode, PlotOverlap_Unbiased2Atlas_node,[
+                ("template_anat", "fixed"),
                 ]),
             (inputnode, commonspace_selectfiles, [
-                ("moving_image_list", "native_list"),
+                ("moving_image", "filename"),
                 ]),
-            (inputnode, PlotOverlap_Unbiased2Atlas_node,[
-                ("atlas_anat", "fixed"),
-                ]),
-            (inputnode_iterable, commonspace_selectfiles, [
-                ("iter_name", "filename"),
-                ]),
-            (inputnode_iterable, PlotOverlap_Native2Unbiased_node, [
-                ("iter_name", "name_source"),
+            (inputnode, PlotOverlap_Native2Unbiased_node, [
+                ("moving_image", "name_source"),
                 ]),
             (generate_template, atlas_reg, [
                 ("unbiased_template", "moving_image"),
@@ -265,6 +299,19 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
                 ]),
             (generate_template, outputnode, [
                 ("unbiased_template", "unbiased_template"),
+                ]),
+            (generate_template, resample_unbiased_mask_node, [
+                ("unbiased_template", "unbiased_template"),
+                ]),
+            (template_inputnode, resample_unbiased_mask_node, [
+                ("template_mask", "template_mask"),
+                ]),
+            (atlas_reg, resample_unbiased_mask_node, [
+                ("affine", "to_atlas_affine"),
+                ("inverse_warp", "to_atlas_inverse_warp"),
+                ]),
+            (resample_unbiased_mask_node, outputnode, [
+                ("unbiased_mask", "unbiased_mask"),
                 ]),
             (commonspace_selectfiles, prep_commonspace_transform_node, [
                 ("native_ref", "native_ref"),
@@ -286,34 +333,77 @@ def init_commonspace_reg_wf(opts, output_folder, transforms_datasink, num_procs,
             (atlas_reg, PlotOverlap_Unbiased2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
-            (atlas_reg, transforms_datasink, [
-                ("affine", "unbiased_to_atlas_affine"),
-                ("warp", "unbiased_to_atlas_warp"),
-                ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, transforms_datasink, [
-                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
-                ]),
-            (outputnode, unbiased_template_datasink, [
-                ("unbiased_template", "unbiased_template"),
-                ]),
-            (atlas_reg, unbiased_template_datasink, [
-                ("warped_image", "warped_unbiased_template"),
-                ]),
             ])
-        if opts.commonspace_masking:
+        if output_datasinks:
+            unbiased_template_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                                container="unbiased_template_datasink"),
+                                        name="unbiased_template_datasink")
+
             workflow.connect([
-                (inputnode, generate_template, [
-                    ("moving_mask_list", "moving_mask_list"),
+                (outputnode, unbiased_template_datasink, [
+                    ("unbiased_template", "unbiased_template"),
+                    ]),
+                (atlas_reg, unbiased_template_datasink, [
+                    ("warped_image", "warped_unbiased_template"),
+                    ]),
+                ])
+
+        if commonspace_masking:
+            workflow.connect([
+                (merged_join_common_reg, generate_template, [
+                    ("file_list1", "moving_mask_list"),
                     ]),
                 (generate_template, atlas_reg, [
                     ("unbiased_mask", "moving_mask"),
                     ]),
                 ])
 
+        if output_datasinks:
+            workflow.connect([
+                (atlas_reg, transforms_datasink, [
+                    ("affine", "unbiased_to_atlas_affine"),
+                    ("warp", "unbiased_to_atlas_warp"),
+                    ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
+                    ]),
+                (commonspace_selectfiles, transforms_datasink, [
+                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ]),
+                ])
+
+
     return workflow
+
+
+def join_iterables(workflow, joinsource_list, node_prefix, num_inputs=1):
+
+    field_list=[]
+    for j in range(num_inputs):
+        field_list.append(f'file_list{j}')
+
+    i=0
+    for joinsource in joinsource_list:
+        joinnode = pe.JoinNode(niu.IdentityInterface(fields=field_list),
+                                            name=f"{node_prefix}_{joinsource}_joinnode",
+                                            joinsource=joinsource,
+                                            joinfield=field_list)
+        if i==0:
+            source_join = joinnode
+        else:
+            for field in field_list:
+                workflow.connect([
+                    (joinnode_prev, joinnode, [
+                        (field, field),
+                        ]),
+                    ])
+
+        joinnode_prev = joinnode
+        i+=1
+
+    merged_join = joinnode
+
+    return workflow, source_join, merged_join
 
 
 def select_commonspace_outputs(filename, native_list, affine_list, warp_list, inverse_warp_list, warped_native_list):
@@ -415,6 +505,8 @@ class GenerateTemplate(BaseInterface):
         import pandas as pd
         import pathlib
         import multiprocessing
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
@@ -440,8 +532,6 @@ class GenerateTemplate(BaseInterface):
             unbiased_mask='NULL'
 
         if len(merged) == 1:
-            from nipype import logging
-            log = logging.getLogger('nipype.workflow')
             log.info("Only a single scan was provided as input for commonspace registration. Commonspace registration "
                   "won't be run, and the output template will be the input scan.")
 
@@ -483,8 +573,15 @@ class GenerateTemplate(BaseInterface):
         else:
             raise ValueError("Plugin option must correspond to one of 'local', 'sge', 'pbs' or 'slurm'")
 
+        # when the initial target template has the filename of a previous modelbuild, it will be mistaken
+        # for an intermediate modelbuild step and include --close and --initial-transform to the registration.
+        # To avoid this, the template file is renamed to another generic filename. 
+        command = f'cp {self.inputs.template_anat} {template_folder}/modelbuild_starting_target.nii.gz'
+        rc = run_command(command)
+        log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
+
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {self.inputs.template_anat} --stages rigid,affine,nlin \
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine,nlin \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
         rc = run_command(command)
 

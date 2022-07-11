@@ -87,11 +87,11 @@ for arg in vars(opts):
 log.info(args)
 
 
-if opts.rabies_step == 'preprocess':
+if opts.rabies_stage == 'preprocess':
     workflow = preprocess(opts, log)
-elif opts.rabies_step == 'confound_correction':
+elif opts.rabies_stage == 'confound_correction':
     workflow = confound_correction(opts, log)
-elif opts.rabies_step == 'analysis':
+elif opts.rabies_stage == 'analysis':
     workflow = analysis(opts, log)
 else:
     parser.print_help()

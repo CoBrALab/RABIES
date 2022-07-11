@@ -5,7 +5,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
+def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='inho_correction_wf'):
     """
     Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
     denoising (Manjón et al., 2010) followed by iterative correction for intensity inhomogeneities (Sled 
@@ -20,58 +20,74 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
             intensity nonuniformity in MRI data. IEEE Transactions on Medical Imaging, 17(1), 87–97.            
 
     Command line interface parameters:
-        --anat_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
-                                Select a registration type for masking during inhomogeneity correction of the structural 
-                                image. 
+        --anat_inho_cor ANAT_INHO_COR
+                                Select options for the inhomogeneity correction of the structural image.
+                                * method: specify which registration strategy is employed for providing a brain mask.
+                                *** Rigid: conducts only rigid registration.
+                                *** Affine: conducts Rigid then Affine registration.
+                                *** SyN: conducts Rigid, Affine then non-linear registration.
+                                *** no_reg: skip registration.
                                 *** N4_reg: previous correction script prior to version 0.3.1.
                                 *** disable: disables the inhomogeneity correction.
-                                (default: SyN)
+                                * otsu_thresh: The inhomogeneity correction script necessitates an initial correction with a 
+                                Otsu masking strategy (prior to registration of an anatomical mask). This option sets the 
+                                Otsu threshold level to capture the right intensity distribution. 
+                                *** Specify an integer among [0,1,2,3,4]. 
+                                * multiotsu: Select this option to perform a staged inhomogeneity correction, where only 
+                                lower intensities are initially corrected, then higher intensities are iteratively 
+                                included to eventually correct the whole image. This technique may help with images with 
+                                particularly strong inhomogeneity gradients and very low intensities.
+                                *** Specify 'true' or 'false'. 
+                                (default: method=SyN,otsu_thresh=2,multiotsu=false)
                                 
-        --anat_multistage_otsu
-                                Select this option perform a staged inhomogeneity correction, where only lower intensities 
-                                are initially corrected, then higher intensities are iteratively included to eventually 
-                                correct the whole image. This technique may help with images with particularly strong 
-                                inhomogeneity gradients and very low intensities. This option applies to the anatomical
-                                image.
-                                (default: False)
+        --anat_robust_inho_cor ANAT_ROBUST_INHO_COR
+                                When selecting this option, inhomogeneity correction is executed twice to optimize 
+                                outcomes. After completing an initial inhomogeneity correction step, the corrected outputs 
+                                are co-registered to generate an unbiased template, using the same method as the commonspace 
+                                registration. This template is then masked, and is used as a new target for masking during a 
+                                second iteration of inhomogeneity correction. Using this dataset-specific template should 
+                                improve the robustness of masking for inhomogeneity correction.
+                                * apply: select 'true' to apply this option. 
+                                *** Specify 'true' or 'false'. 
+                                * masking: Combine masks derived from the inhomogeneity correction step to support 
+                                registration during the generation of the unbiased template, and then during template 
+                                registration.
+                                *** Specify 'true' or 'false'. 
+                                * brain_extraction: conducts brain extraction prior to template registration based on the 
+                                combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
+                                requires good quality masks. This should be selected along the 'masking' option.
+                                *** Specify 'true' or 'false'. 
+                                * template_registration: Specify a registration script for the alignment of the 
+                                dataset-generated unbiased template to a reference template for masking.
+                                *** Rigid: conducts only rigid registration.
+                                *** Affine: conducts Rigid then Affine registration.
+                                *** SyN: conducts Rigid, Affine then non-linear registration.
+                                *** no_reg: skip registration.
+                                (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
                                 
-        --anat_inho_cor_otsu ANAT_INHO_COR_OTSU
-                                The inhomogeneity correction script necessitates an initial correction with a Otsu
-                                masking strategy (prior to registration of an anatomical mask). This option sets the 
-                                Otsu threshold level to capture the right intensity distribution.
-                                (default: 2)
+        --bold_inho_cor BOLD_INHO_COR
+                                Same as --anat_inho_cor, but for the EPI images.
+                                (default: method=Rigid,otsu_thresh=2,multiotsu=false)
                                 
-        --bold_inho_cor_method {Rigid,Affine,SyN,no_reg,N4_reg,disable}
-                                Select a registration type for masking during inhomogeneity correction of the EPI.
-                                *** N4_reg: previous correction script prior to version 0.3.1.
-                                *** disable: disables the inhomogeneity correction.
-                                (default: Rigid)
-                                
-        --bold_multistage_otsu
-                                Select this option perform a staged inhomogeneity correction, where only lower intensities 
-                                are initially corrected, then higher intensities are iteratively included to eventually 
-                                correct the whole image. This technique may help with images with particularly strong 
-                                inhomogeneity gradients and very low intensities. This option applies to the functional
-                                image.
-                                (default: False)
-
-        --bold_inho_cor_otsu BOLD_INHO_COR_OTSU
-                                The inhomogeneity correction script necessitates an initial correction with a Otsu
-                                masking strategy (prior to registration of an anatomical mask). This option sets the 
-                                Otsu threshold level to capture the right intensity distribution.
-                                (default: 2)
+        --bold_robust_inho_cor BOLD_ROBUST_INHO_COR
+                                Same as --anat_robust_inho_cor, but for the EPI images.
+                                (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
                                 
     Workflow:
         parameters
             opts: command line interface parameters
             image_type: between 'EPI' and 'structural'. Defines which script to run depending on 
                 image type
+            output_folder: specify a folder to execute the unbiased template generation and store important outputs
+            num_procs: set the maximum number of parallel threads to launch
 
         inputs
             target_img: the image to correct
             anat_ref: the registration target with a brain mask
             anat_mask: the brain mask of the registration target
             name_source: reference file for naming purpose
+            template_anat: the structural template in for robust inhomogeneity correction
+            template_mask: the brain mask for robust inhomogeneity correction
 
         outputs
             corrected: the output image after the final correction
@@ -84,35 +100,93 @@ def init_inho_correction_wf(opts, image_type, name='inho_correction_wf'):
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['target_img', 'anat_ref', 'anat_mask', 'name_source']), name='inputnode')
 
+    template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
+                                        name="template_inputnode")
+
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['corrected', 'denoise_mask', 'init_denoise']),
+            fields=['corrected', 'denoise_mask', 'init_denoise', 'buffer']),
         name='outputnode')
 
+    # connect the template_inputnode so that it exists in the workflow even if its inputs are not used
+    workflow.connect([
+        (template_inputnode, outputnode, [
+            ("template_anat", "buffer"),
+            ]),
+    ])
+
     multistage_otsu='false'
+    robust_inho_cor=False
     if image_type=='EPI':
-        inho_cor_method=opts.bold_inho_cor_method
-        otsu_threshold=opts.bold_inho_cor_otsu
-        if opts.bold_multistage_otsu:
+        inho_cor_method=opts.bold_inho_cor['method']
+        otsu_threshold=int(opts.bold_inho_cor['otsu_thresh'])
+        if opts.bold_inho_cor['multiotsu']:
             multistage_otsu='true'
+        if opts.bold_robust_inho_cor['apply']:
+            robust_inho_cor=True
+            commonspace_wf_name='bold_robust_inho_cor_template'
+            if not opts.bold_only:
+                joinsource_list = ['run_split', 'main_split']
+            else:
+                joinsource_list = ['main_split']
+
     elif image_type=='structural':
-        inho_cor_method=opts.anat_inho_cor_method
-        otsu_threshold=opts.anat_inho_cor_otsu
-        if opts.anat_multistage_otsu:
+        inho_cor_method=opts.anat_inho_cor['method']
+        otsu_threshold=int(opts.anat_inho_cor['otsu_thresh'])
+        if opts.anat_inho_cor['multiotsu']:
             multistage_otsu='true'
+        if opts.anat_robust_inho_cor['apply']:
+            robust_inho_cor=True
+            commonspace_wf_name='anat_robust_inho_cor_template'
+            joinsource_list = ['main_split']
     else:
         raise
-    anat_preproc = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+
+    inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
+    if robust_inho_cor:
+        init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+                            name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
+
+        from .commonspace_reg import init_commonspace_reg_wf
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
+
+        workflow.connect([
+            (inputnode, init_inho_cor_node, [
+                ("target_img", "target_img"),
+                ("anat_ref", "anat_ref"),
+                ("anat_mask", "anat_mask"),
+                ("name_source", "name_source"),
+                ]),
+            (init_inho_cor_node, commonspace_reg_wf, [
+                ("corrected", "inputnode.moving_image"),
+                ("denoise_mask", "inputnode.moving_mask"),
+                ]),
+            (template_inputnode, commonspace_reg_wf, [
+                ("template_anat", "template_inputnode.template_anat"),
+                ("template_mask", "template_inputnode.template_mask"),
+                ]),
+            (commonspace_reg_wf, inho_cor_node, [
+                ("outputnode.unbiased_template", "anat_ref"),
+                ("outputnode.unbiased_mask", "anat_mask"),
+                ]),
+        ])
+
+    else:
+        workflow.connect([
+            (inputnode, inho_cor_node, [
+                ("anat_ref", "anat_ref"),
+                ("anat_mask", "anat_mask"),
+                ]),
+        ])
+
     workflow.connect([
-        (inputnode, anat_preproc, [
+        (inputnode, inho_cor_node, [
             ("target_img", "target_img"),
-            ("anat_ref", "anat_ref"),
-            ("anat_mask", "anat_mask"),
             ("name_source", "name_source"),
             ]),
-        (anat_preproc, outputnode, [
+        (inho_cor_node, outputnode, [
             ("corrected", "corrected"),
             ("init_denoise", "init_denoise"),
             ("denoise_mask", "denoise_mask"),

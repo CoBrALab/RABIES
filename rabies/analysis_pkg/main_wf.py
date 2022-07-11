@@ -15,7 +15,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
-    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts, nativespace=cr_opts.nativespace_analysis)
+    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, nativespace=cr_opts.nativespace_analysis)
 
     # update split_name according to the --scan_list option
     split_name_list = get_iterable_scan_list(analysis_opts.scan_list, split_name_list)
@@ -198,7 +198,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.CR_prediction_std_nii", "CR_prediction_std_nii"),
                 ("outputnode.random_CR_std_nii", "random_CR_std_nii"),
                 ("outputnode.corrected_CR_std_nii", "corrected_CR_std_nii"),
-                ("outputnode.GS_corr_nii", "GS_corr_nii"),
                 ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ]),
             ])
@@ -315,7 +314,7 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
     return dict_file
 
 
-def read_confound_workflow(conf_output, cr_opts, nativespace=False):
+def read_confound_workflow(conf_output, nativespace=False):
 
     conf_workflow_file = f'{conf_output}/rabies_confound_correction_workflow.pkl'
 

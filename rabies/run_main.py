@@ -3,7 +3,7 @@ import pickle
 import SimpleITK as sitk
 from nipype import logging, config
 from .boilerplate import *
-from .parser import get_parser
+from .parser import get_parser,read_parser
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
@@ -14,7 +14,7 @@ else:
 def execute_workflow():
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
-    opts = parser.parse_args()
+    opts = read_parser(parser)
 
     try:
         output_folder = os.path.abspath(str(opts.output_dir))
@@ -171,11 +171,6 @@ def preprocess(opts, log):
     opts.CSF_mask = os.path.abspath(opts.CSF_mask)
     opts.vascular_mask = os.path.abspath(opts.vascular_mask)
     opts.labels = os.path.abspath(opts.labels)
-
-    # To use brain extraction, make sure either --commonspace_masking or --coreg_masking is used
-    if opts.brain_extraction:
-        if not (opts.commonspace_masking or opts.coreg_masking):
-            raise ValueError(f"To use --brain_extraction, you must select either --commonspace_masking or --coreg_masking.")
 
     # convert template files to RAS convention if they aren't already
     from rabies.preprocess_pkg.utils import convert_to_RAS

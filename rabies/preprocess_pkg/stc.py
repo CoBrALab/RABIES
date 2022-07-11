@@ -51,8 +51,6 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', 
 
         in_file
             BOLD series NIfTI file in RAS orientation.
-        ignore
-            Number of non-steady-state volumes detected at beginning of ``bold_file``
         tr
             TR of the BOLD image.
         tpattern

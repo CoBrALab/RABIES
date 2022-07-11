@@ -43,22 +43,24 @@ def get_parser():
             "from RABIES to derive cleaned timeseries. Various correction strategies, if selected, are\n"
             "applied in the following order, following best practices from human litterature:\n"
             "   #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)\n"
-            "   #2 - Linear detrending of fMRI timeseries and nuisance regressors\n"
-            "   #3 - Apply ICA-AROMA.\n"
-            "   #4 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
+            "   #2 - If --match_number_timepoints is selected, each scan is matched to the \n"
+            "       defined minimum_timepoint number of frames.\n"
+            "   #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors\n"
+            "   #4 - Apply ICA-AROMA.\n"
+            "   #5 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
             "       timepoints using the Lomb-Scargle periodogram, as suggested in Power et al. (2014, \n"
             "       Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.\n"
-            "   #5 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance \n"
+            "   #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance \n"
             "       regressors orthogonal to the temporal frequency filter.\n"
-            "   #6 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated \n"
+            "   #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated \n"
             "       timepoints).\n"
-            "   #7 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance \n"
+            "   #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance \n"
             "       regressors, taking out the simulated timepoints. Edge artefacts from frequency \n"
             "       filtering can also be removed as recommended in Power et al. (2014, Neuroimage).\n"
-            "   #8 - Apply confound regression using the selected nuisance regressors (see --conf_list\n" 
+            "   #9 - Apply confound regression using the selected nuisance regressors (see --conf_list\n" 
             "       options).\n"
-            "   #9 - Standardize timeseries\n"
-            "   #10 - Apply Gaussian spatial smoothing.\n"
+            "   #10 - Scaling of timeseries variance\n"
+            "   #11 - Apply Gaussian spatial smoothing.\n"
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
     analysis = subparsers.add_parser("analysis",
@@ -206,121 +208,124 @@ def get_parser():
         title='Registration Options', 
         description=
             "Customize registration operations and troubleshoot registration failures.\n"
+        )
+    g_registration.add_argument(
+        "--anat_inho_cor", type=str, 
+        default='method=SyN,otsu_thresh=2,multiotsu=false',
+        help=
+            "Select options for the inhomogeneity correction of the structural image.\n"
+            "* method: specify which registration strategy is employed for providing a brain mask.\n"
             "*** Rigid: conducts only rigid registration.\n"
             "*** Affine: conducts Rigid then Affine registration.\n"
             "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
             "*** no_reg: skip registration.\n"
-        )
-    g_registration.add_argument(
-        "--anat_inho_cor_method", type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
-        help=
-            "Select a registration type for masking during inhomogeneity correction of the structural \n"
-            "image. \n"
             "*** N4_reg: previous correction script prior to version 0.3.1.\n"
             "*** disable: disables the inhomogeneity correction.\n"
+            "* otsu_thresh: The inhomogeneity correction script necessitates an initial correction with a \n"
+            " Otsu masking strategy (prior to registration of an anatomical mask). This option sets the \n"
+            " Otsu threshold level to capture the right intensity distribution. \n"
+            "*** Specify an integer among [0,1,2,3,4]. \n"
+            "* multiotsu: Select this option to perform a staged inhomogeneity correction, where only \n"
+            " lower intensities are initially corrected, then higher intensities are iteratively \n"
+            " included to eventually correct the whole image. This technique may help with images with \n"
+            " particularly strong inhomogeneity gradients and very low intensities.\n"
+            "*** Specify 'true' or 'false'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--anat_multistage_otsu', dest='anat_multistage_otsu', action='store_true',
+        '--anat_robust_inho_cor', type=str,
+        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
         help=
-            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
-            "are initially corrected, then higher intensities are iteratively included to eventually \n"
-            "correct the whole image. This technique may help with images with particularly strong \n"
-            "inhomogeneity gradients and very low intensities. This option applies to the anatomical\n"
-            "image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--anat_inho_cor_otsu", type=int, default=2,
-        help=
-            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
-            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
-            "Otsu threshold level to capture the right intensity distribution.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--bold_inho_cor_method", type=str, default='Rigid',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'],
-        help=
-            "Select a registration type for masking during inhomogeneity correction of the EPI.\n"
-            "*** N4_reg: previous correction script prior to version 0.3.1.\n"
-            "*** disable: disables the inhomogeneity correction.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        '--bold_multistage_otsu', dest='bold_multistage_otsu', action='store_true',
-        help=
-            "Select this option perform a staged inhomogeneity correction, where only lower intensities \n"
-            "are initially corrected, then higher intensities are iteratively included to eventually \n"
-            "correct the whole image. This technique may help with images with particularly strong \n"
-            "inhomogeneity gradients and very low intensities. This option applies to the functional\n"
-            "image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument("--bold_inho_cor_otsu", type=int, default=2,
-        help=
-            "The inhomogeneity correction script necessitates an initial correction with a Otsu\n"
-            "masking strategy (prior to registration of an anatomical mask). This option sets the \n"
-            "Otsu threshold level to capture the right intensity distribution.\n"
+            "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
+            "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
+            "are co-registered to generate an unbiased template, using the same method as the commonspace \n"
+            "registration. This template is then masked, and is used as a new target for masking during a \n"
+            "second iteration of inhomogeneity correction. Using this dataset-specific template should \n"
+            "improve the robustness of masking for inhomogeneity correction.\n"
+            "* apply: select 'true' to apply this option. \n"
+            " *** Specify 'true' or 'false'. \n"
+            "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
+            " registration during the generation of the unbiased template, and then during template \n"            
+            " registration.\n"
+            " *** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to template registration based on the \n"
+            " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
+            " requires good quality masks. This should be selected along the 'masking' option.\n"
+            " *** Specify 'true' or 'false'. \n"
+            "* template_registration: Specify a registration script for the alignment of the \n"
+            " dataset-generated unbiased template to a reference template for masking.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        '--atlas_reg_script', type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
+        "--bold_inho_cor", type=str, 
+        default='method=Rigid,otsu_thresh=2,multiotsu=false',
         help=
-            "Specify a registration script for alignment of the dataset-generated unbiased template \n"
-            "to the commonspace atlas.\n"
+            "Same as --anat_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     g_registration.add_argument(
-        "--coreg_script", type=str, default='SyN',
-        choices=['Rigid', 'Affine', 'SyN', 'no_reg'],
+        '--bold_robust_inho_cor', type=str,
+        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
+        help=
+            "Same as --anat_robust_inho_cor, but for the EPI images.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        '--commonspace_reg', type=str,
+        default='masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false',
+        help=
+            "Specify registration options for the commonspace registration.\n"
+            "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
+            " registration during the generation of the unbiased template, and then during template \n"            
+            " registration.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to template registration based on the \n"
+            " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
+            " requires good quality masks. This should be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* template_registration: Specify a registration script for the alignment of the \n"
+            " dataset-generated unbiased template to the commonspace atlas.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
+            "* fast_commonspace: Skip the generation of a dataset-generated unbiased template, and \n"
+            " instead, register each scan independently directly onto the commonspace atlas, using the \n"
+            " template_registration. This option can be faster, but may decrease the quality of \n"
+            " alignment between subjects. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
+        "--bold2anat_coreg", type=str, 
+        default='masking=false,brain_extraction=false,registration=SyN',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
+            "* masking: With this option, the brain masks obtained from the EPI inhomogeneity correction \n"
+            " step are used to support registration.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* brain_extraction: conducts brain extraction prior to registration using the EPI masks from \n"
+            " inhomogeneity correction. This will enhance brain edge-matching, but requires good quality \n"
+            " masks. This should be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* registration: Specify a registration script.\n"
+            "*** Rigid: conducts only rigid registration.\n"
+            "*** Affine: conducts Rigid then Affine registration.\n"
+            "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
+            "*** no_reg: skip registration.\n"
             "(default: %(default)s)\n"
             "\n"
-        )
-    g_registration.add_argument(
-        "--commonspace_masking", dest='commonspace_masking', action='store_true',
-        help=
-            "Combine masks derived from the inhomogeneity correction step to support registration \n"
-            "during the generation of the unbiased template, and then during atlas registration. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--coreg_masking", dest='coreg_masking', action='store_true',
-        help=
-            "Use the mask from the EPI inhomogeneity correction step to support registration to the\n"
-            "structural image.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--brain_extraction", dest='brain_extraction', action='store_true',
-        help=
-            "If using --commonspace_masking and/or --coreg_masking, this option will conduct brain\n"
-            "extractions prior to registration based on the initial mask during inhomogeneity\n"
-            "correction. This will enhance brain edge-matching, but requires good quality masks.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_registration.add_argument(
-        "--fast_commonspace", dest='fast_commonspace', action='store_true',
-        help=
-            "Skip the generation of a dataset-generated unbiased template, and instead, register each\n"
-            "anatomical scan independently directly onto the commonspace atlas, using the\n"
-            "--atlas_reg_script registration. This option can be faster, but may decrease the quality\n"
-            "of alignment between subjects."
-            "(default: %(default)s)\n"
-            "\n"
+
         )
 
     g_resampling = preprocess.add_argument_group(
@@ -532,11 +537,22 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--FD_censoring', dest='FD_censoring', action='store_true', default=False,
+        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,minimum_timepoint=3',
         help=
-            "Apply frame censoring based on a framewise displacement threshold (i.e.scrubbing).\n"
-            "The frames that exceed the given threshold, together with 1 back and 2 forward frames\n"
-            "will be masked out, as in Power et al. (2012, Neuroimage).\n"
+            "Censor frames that are highly corrupted (i.e. 'scrubbing'). \n"
+            "* FD_censoring: Apply frame censoring based on a framewise displacement threshold. The frames \n"
+            " that exceed the given threshold, together with 1 back and 2 forward frames will be masked \n"
+            " out, as in Power et al. (2012, Neuroimage).\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* FD_threshold: the FD threshold in mm. \n"
+            "* DVARS_censoring: Will remove timepoints that present outlier values on the DVARS metric \n"
+            " (temporal derivative of global signal). This method will censor timepoints until the \n" 
+            " distribution of DVARS values across time does not contain outliers values above or below 2.5 \n" 
+            " standard deviations.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* minimum_timepoint: Can set a minimum number of timepoints remaining after frame censoring. \n" 
+            " If the threshold is not met, an empty file is generated and the scan is not considered in \n" 
+            " further steps. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -580,31 +596,6 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--FD_threshold', type=float, default=0.05,
-        help=
-            "--FD_censoring threshold in mm.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--DVARS_censoring', dest='DVARS_censoring', action='store_true',default=False,
-        help=
-            "Whether to remove timepoints that present outlier values on the DVARS metric (temporal\n"
-            "derivative of global signal). This method will censor timepoints until the distribution\n" 
-            "of DVARS values across time does not contain outliers values above or below 2.5 standard\n" 
-            "deviations.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--minimum_timepoint', type=int,default=3,
-        help=
-            "Can set a minimum number of timepoints remaining after frame censoring. If the threshold\n" 
-            "is not met, an empty file is generated and the scan is not considered in further steps.\n" 
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
         '--match_number_timepoints', dest='match_number_timepoints', action='store_true', default=False,
         help=
             "With this option, only a subset of the timepoints are kept post-censoring to match the \n"
@@ -616,24 +607,15 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--run_aroma', dest='run_aroma', action='store_true', default=False,
+        '--ica_aroma', type=str, default='apply=false,dim=0,random_seed=1',
         help=
-            "Whether to run ICA-AROMA or not. The original classifier (Pruim et al. 2015) was modified\n" 
-            "to incorporate rodent-adapted masks and classification hyperparameters.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_dim', type=int, default=0,
-        help=
-            "Specify a pre-determined number of MELODIC components to derive for ICA-AROMA.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    confound_correction.add_argument(
-        '--aroma_random_seed', type=int, default=1,
-        help=
-            "For reproducibility, this option sets a fixed random seed for MELODIC.\n"
+            "Apply ICA-AROMA denoising (Pruim et al. 2015). The original classifier was modified to incorporate \n"
+            "rodent-adapted masks and classification hyperparameters.\n"
+            "* apply: apply the denoising.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
+            " estimator. \n"
+            "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -776,31 +758,16 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-    g_group_ICA = analysis.add_argument_group(
-        title='Group ICA', 
-        description=
-            "Options for performing group-ICA using FSL's MELODIC on the whole dataset cleaned timeseries.\n"
+    analysis.add_argument(
+        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1',
+        help=
+            "Perform group-ICA using FSL's MELODIC on the whole dataset's cleaned timeseries.\n"
             "Note that confound correction must have been conducted on commonspace outputs.\n"
-        )
-    g_group_ICA.add_argument(
-        "--group_ICA", dest='group_ICA', action='store_true',
-        help=
-            "Perform group-ICA.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_group_ICA.add_argument(
-        '--dim', type=int, default=0,
-        help=
-            "Derive a fixed number of ICA components during group-ICA. The default uses an automatic \n"
-            "estimation.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_group_ICA.add_argument(
-        '--melodic_random_seed', type=int, default=1,
-        help=
-            "For reproducibility, can manually set a random seed for MELODIC. \n"
+            "* apply: compute group-ICA.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
+            " estimator. \n"
+            "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -834,3 +801,85 @@ def get_parser():
         )
 
     return parser
+
+
+def read_parser(parser):
+    opts = parser.parse_args()
+
+    if opts.rabies_stage == 'preprocess':
+        opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
+            key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            name='anat_inho_cor')
+
+        opts.bold_inho_cor = parse_argument(opt=opts.bold_inho_cor, 
+            key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            name='bold_inho_cor')
+
+        opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
+            name='commonspace_reg')
+
+        opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='bold2anat_coreg')
+
+        opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='anat_robust_inho_cor')
+
+        opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            name='bold_robust_inho_cor')
+
+    elif opts.rabies_stage == 'confound_correction':
+        opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
+            key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
+                'minimum_timepoint':int},
+            name='frame_censoring')
+
+        opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            name='ica_aroma')
+
+    elif opts.rabies_stage == 'analysis':
+        opts.group_ica = parse_argument(opt=opts.group_ica, 
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            name='group_ica')
+
+    return opts
+
+def parse_argument(opt, key_value_pairs, name):
+    key_list = list(key_value_pairs.keys())
+    l = opt.split(',')
+    opt_dict = {}
+    print(opt)
+    for e in l:
+        if not '=' in e:
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+        s = e.split('=')
+        if not len(s)==2:
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+        [key,value] = s
+        if not key in key_list:
+            raise ValueError(f"The provided key {key} is not part of the available options {key_list}.")
+        if key_value_pairs[key] in [int,float]:
+            value = key_value_pairs[key](value)
+        else:
+            if not value in key_value_pairs[key]:
+                raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key}.")
+            if value=='true':
+                value=True
+            elif value=='false':
+                value=False
+        opt_dict[key]=value
+
+    for key in key_list:
+        if not key in list(opt_dict.keys()):
+            raise ValueError(f"The key {key} is missing from the necessary attributes for --{name}.")
+    return opt_dict

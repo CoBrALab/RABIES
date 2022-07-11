@@ -15,7 +15,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
     if cr_opts.read_datasink:
-        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.fast_commonspace, atlas_reg_script=preprocess_opts.atlas_reg_script)
+        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'])
     else:
         split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
@@ -118,13 +118,13 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("figure_path", "plot_CR_overfit"),
             ]),
         ])
-    if cr_opts.run_aroma:
+    if cr_opts.ica_aroma['apply']:
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.aroma_out", "aroma_out"),
                 ]),
             ])
-    if cr_opts.DVARS_censoring or cr_opts.FD_censoring:
+    if cr_opts.frame_censoring['DVARS_censoring'] or cr_opts.frame_censoring['FD_censoring']:
         workflow.connect([
             (confound_correction_wf, confound_correction_datasink, [
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),
