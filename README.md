@@ -48,9 +48,9 @@ Simple resting-state connectivity analyses are made available after preprocessin
 
 ## Citation
 
-**Citing RABIES**: to cite the software, we currently ask to reference its [Github page](https://github.com/CoBrALab/RABIES).
+**Citing RABIES**: A [preprint introducing the software](https://doi.org/10.1101/2022.08.20.504597) is available on bioXriv, which should be cited accordingly when using RABIES.
 
-**Boilerplate**: a boilerplate summarizing the preprocessing and confound correction operations is automatically generated in the output folder. You can use the boilerplate as reference to described your methods, or reproduce it verbatim, in a paper.
+**Boilerplate**: a boilerplate summarizing the preprocessing and confound correction operations is automatically generated in the output folder. You can use the boilerplate to help describe your methods in a paper.
 
 ## License
 The [RABIES license](https://github.com/CoBrALab/RABIES/blob/master/LICENSE) allows for uses in academic and educational environments only. Commercial use requires a commercial license from CoBrALab <contact@cobralab.ca>, <http://cobralab.ca>

@@ -13,7 +13,7 @@ def preprocess_boilerplate(opts):
     i=1
 
     # define references
-    rabies_ref='Desrosiers-Gregoire et al., in preparation.'
+    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2022). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
     afni='Cox, R. W. (1996). AFNI: software for analysis and visualization of functional \
 magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-173.'
     avants_2011='Avants, B. B., Tustison, N. J., Song, G., Cook, P. A., Klein, A., & Gee, J. C. (2011). A reproducible evaluation of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.'
@@ -154,7 +154,7 @@ def confound_correction_boilerplate(opts):
     i=1
 
     # define references
-    rabies_ref='Desrosiers-Gregoire et al., in preparation.'
+    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2022). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
     aroma='Pruim, R. H., Mennes, M., van Rooij, D., Llera, A., Buitelaar, J. K., & Beckmann, C. F. (2015). ICA-AROMA: A robust ICA-based strategy for removing motion artifacts from fMRI data. Neuroimage, 112, 267-277.'
     Lindquist='Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce artifacts into fMRI data. Human Brain Mapping, 40(8), 2358–2376.'
     mathias='Mathias, A., Grond, F., Guardans, R., Seese, D., Canela, M., & Diebner, H. H. (2004). Algorithms for spectral analysis of irregularly sampled time series. Journal of Statistical Software, 11(1), 1–27.'
