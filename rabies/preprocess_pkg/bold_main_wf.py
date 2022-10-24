@@ -235,9 +235,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             raw_to_native_transform_list = [bold_to_anat_warp, bold_to_anat_affine]
             raw_to_native_inverse_list = [0, 0]
 
-        print(commonspace_to_raw_transform_list)
-        print(commonspace_to_raw_inverse_list)
-
         return to_commonspace_transform_list, to_commonspace_inverse_list, raw_to_native_transform_list, raw_to_native_inverse_list, commonspace_to_raw_transform_list, commonspace_to_raw_inverse_list
 
     prep_resampling_transforms_node = pe.Node(Function(input_names=['native_to_commonspace_transform_list','native_to_commonspace_inverse_list', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'bold_to_anat_affine', 
