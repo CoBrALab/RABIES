@@ -25,6 +25,7 @@ Multiple datasink folders are generated during preprocessing for different outpu
     - commonspace_resampled_template: the commonspace anatomical template, resampled to the EPI's dimensions
     - input_bold: the raw EPI scans provided as inputs in the BIDS data folder
     - initial_bold_ref: the initial volumetric 3D EPI average generated from the 4D *input_bold*
+    - raw_brain_mask: brain mask resampled onto the 4D *input_bold*
     - inho_cor_bold: the volumetric 3D EPI (*initial_bold_ref*) after inhomogeneity correction, which is later used for registration of the EPI
     - inho_cor_bold_warped2anat: inho_cor_bold after co-registration to the associated anatomical image (*anat_preproc*)
     - std_map_preprocess: the temporal standard deviation at each voxel on the *commonspace_bold*
