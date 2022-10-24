@@ -112,7 +112,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'confounds_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
         name='outputnode')
 
     # Datasink - creates output folder for important outputs
@@ -274,6 +274,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
+            ("outputnode.raw_brain_mask", "raw_brain_mask"),
             ]),
         (bold_main_wf, bold_inho_cor_diagnosis, [
             ("outputnode.bold_ref", "raw_img"),
@@ -483,6 +484,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("tSNR_filename", "tSNR_map_preprocess"),
             ("std_filename", "std_map_preprocess"),
             ("commonspace_resampled_template", "commonspace_resampled_template"),
+            ("raw_brain_mask", "raw_brain_mask"),
             ]),
         ])
 

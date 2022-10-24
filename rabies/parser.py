@@ -489,8 +489,9 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--image_scaling', type=str,
-        default="None",
-        choices=["None", "background_noise", "global_variance", "voxelwise_standardization"],
+        default="global_variance",
+        choices=["None", "background_noise", "global_variance", "voxelwise_standardization", 
+                 "grand_mean_scaling", "voxelwise_mean"],
         help=
             "Select an option for scaling the image variance to match the intensity profile of \n"
             "different scans and avoid biases in data variance and amplitude estimation during analysis.\n"
@@ -503,6 +504,11 @@ def get_parser():
             "   according to the total standard deviation of all voxels, to scale total variance to 1. \n"
             "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
             "   scaled to unit variance (z-scoring). \n"
+            "*** grand_mean_scaling: Timeseries are divided by the mean signal across voxel, and \n"
+            "   multiplied by 100 to obtain % BOLD fluctuations. \n"
+            "*** voxelwise_mean: each voxel is seperataly scaled according to its mean intensity, \n"
+            "   a method suggested with AFNI https://afni.nimh.nih.gov/afni/community/board/read.php?1,161862,161864. \n"
+            "   Timeseries are then multiplied by 100 to obtain % BOLD fluctuations. \n"
             "(default: %(default)s)\n"
             "\n"
         )

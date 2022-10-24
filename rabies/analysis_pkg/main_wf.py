@@ -392,7 +392,7 @@ def get_iterable_scan_list(scan_list, split_name):
     elif scan_list[0]=='all':
         updated_split_name = split_name
     else:
-        raise ValueError("The scan_list input had improper format.")
+        raise ValueError(f"The --scan_list {scan_list} input had improper format. It must the full path to a .txt or .nii files, or 'all' to keep all scans.")
     return updated_split_name
 
 

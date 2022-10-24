@@ -299,6 +299,12 @@ class Regress(BaseInterface):
             second_order=True
         else:
             raise ValueError(f"--detrending_order must be 'linear' or 'quadratic', not {cr_opts.detrending_order}")
+
+        # save grand mean prior to detrending
+        timeseries_ = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=True)
+        grand_mean = timeseries_.mean()
+        voxelwise_mean = timeseries_.mean(axis=0)
+
         timeseries = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=False)
         confounds_array = remove_trend(confounds_array, frame_mask, second_order=second_order, keep_intercept=False)
 
@@ -422,6 +428,13 @@ class Regress(BaseInterface):
             # we scale also the variance estimates from CR
             predicted = predicted/scaling_factor
             predicted_random = predicted_random/scaling_factor
+        elif cr_opts.image_scaling=='grand_mean_scaling':
+            scaling_factor = grand_mean
+            timeseries = timeseries/scaling_factor
+            timeseries *= 100 # we scale BOLD in % fluctuations
+            # we scale also the variance estimates from CR
+            predicted = predicted/scaling_factor
+            predicted_random = predicted_random/scaling_factor
         elif cr_opts.image_scaling=='voxelwise_standardization':
             # each voxel is scaled according to its STD
             temporal_std = timeseries.std(axis=0) 
@@ -433,6 +446,20 @@ class Regress(BaseInterface):
             nan_voxels = np.isnan(predicted).sum(axis=0)>1
             predicted[:,nan_voxels] = 0
             predicted_random = predicted_random/temporal_std
+            nan_voxels = np.isnan(predicted_random).sum(axis=0)>1
+            predicted_random[:,nan_voxels] = 0
+        elif cr_opts.image_scaling=='voxelwise_mean':
+            # each voxel is scaled according to its mean
+            timeseries = timeseries/voxelwise_mean
+            nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+            timeseries[:,nan_voxels] = 0
+            timeseries *= 100 # we scale BOLD in % fluctuations
+
+            # we scale also the variance estimates from CR
+            predicted = predicted/voxelwise_mean
+            nan_voxels = np.isnan(predicted).sum(axis=0)>1
+            predicted[:,nan_voxels] = 0
+            predicted_random = predicted_random/voxelwise_mean
             nan_voxels = np.isnan(predicted_random).sum(axis=0)>1
             predicted_random[:,nan_voxels] = 0
 
