@@ -10,7 +10,7 @@ from nipype.interfaces.base import (
 def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
 
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold', 'ref_bold', 'movpar_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask']),
+        fields=['bold', 'ref_bold', 'movpar_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'raw_bold', 'raw_brain_mask']),
         name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['confounds_csv', 'FD_csv', 'FD_voxelwise', 'pos_voxelwise']),
@@ -29,6 +29,8 @@ def init_bold_confs_wf(opts, aCompCor_method='50%', name="bold_confs_wf"):
             ('WM_mask', 'WM_mask'),
             ('CSF_mask', 'CSF_mask'),
             ('vascular_mask', 'vascular_mask'),
+            ('raw_bold', 'raw_bold'),
+            ('raw_brain_mask', 'raw_brain_mask'),
             ]),
         (inputnode, estimate_confounds, [
             ('bold', 'bold'),
@@ -58,6 +60,10 @@ class EstimateConfoundsInputSpec(BaseInterfaceInputSpec):
                          desc="EPI-formated vascular mask")
     aCompCor_method = traits.Str(
         desc="The type of evaluation for the number of aCompCor components: either '50%' or 'first_5'.")
+    raw_bold = File(exists=True, mandatory=True,
+                      desc="Raw EPI before resampling.")
+    raw_brain_mask = File(exists=True, mandatory=True,
+                      desc="Brain mask of the raw EPI.")
     rabies_data_type = traits.Int(mandatory=True,
         desc="Integer specifying SimpleITK data type.")
 
@@ -84,15 +90,15 @@ class EstimateConfounds(BaseInterface):
 
         # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         # first the voxelwise positioning map
-        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_pos_file.csv -x {self.inputs.brain_mask} \
-                    -d {self.inputs.bold} -s {filename_split[0]}_pos_voxelwise.nii.gz'
+        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_pos_file.csv -x {self.inputs.raw_brain_mask} \
+                    -d {self.inputs.raw_bold} -s {filename_split[0]}_pos_voxelwise.nii.gz'
         rc = run_command(command)
         pos_voxelwise = os.path.abspath(
             f"{filename_split[0]}_pos_file.nii.gz")
 
         # then the voxelwise framewise displacement map
-        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_FD_file.csv -x {self.inputs.brain_mask} \
-                    -d {self.inputs.bold} -s {filename_split[0]}_FD_voxelwise.nii.gz -f 1'
+        command = f'antsMotionCorrStats -m {self.inputs.movpar_file} -o {filename_split[0]}_FD_file.csv -x {self.inputs.raw_brain_mask} \
+                    -d {self.inputs.raw_bold} -s {filename_split[0]}_FD_voxelwise.nii.gz -f 1'
         rc = run_command(command)
 
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")

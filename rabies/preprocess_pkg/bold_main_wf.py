@@ -130,7 +130,8 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                         'output_warped_bold', 'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp',
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
                         'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
-                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels']),
+                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
+                        'raw_brain_mask']),
                 name='outputnode')
 
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
@@ -217,24 +218,33 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
 
     bold_confs_wf = init_bold_confs_wf(opts=opts, name="bold_confs_wf")
 
-    def prep_resampling_transforms(native_to_commonspace_transform_list,native_to_commonspace_inverse_list, bold_to_anat_warp, bold_to_anat_affine, bold_only=False):
+    def prep_resampling_transforms(native_to_commonspace_transform_list,native_to_commonspace_inverse_list, bold_to_anat_warp, bold_to_anat_inverse_warp, bold_to_anat_affine, 
+                                   commonspace_to_native_transform_list, commonspace_to_native_inverse_list, bold_only=False):
         if bold_only:
             to_commonspace_transform_list = native_to_commonspace_transform_list
             to_commonspace_inverse_list = native_to_commonspace_inverse_list
+            commonspace_to_raw_transform_list = commonspace_to_native_transform_list
+            commonspace_to_raw_inverse_list = commonspace_to_native_inverse_list
             raw_to_native_transform_list = None
             raw_to_native_inverse_list = None
         else:
             to_commonspace_transform_list = native_to_commonspace_transform_list+[bold_to_anat_warp, bold_to_anat_affine]
             to_commonspace_inverse_list = native_to_commonspace_inverse_list+[0,0]
-
+            commonspace_to_raw_transform_list = [bold_to_anat_affine, bold_to_anat_inverse_warp]+commonspace_to_native_transform_list
+            commonspace_to_raw_inverse_list = [1,0]+commonspace_to_native_inverse_list
             raw_to_native_transform_list = [bold_to_anat_warp, bold_to_anat_affine]
             raw_to_native_inverse_list = [0, 0]
 
-        return to_commonspace_transform_list, to_commonspace_inverse_list, raw_to_native_transform_list, raw_to_native_inverse_list
+        print(commonspace_to_raw_transform_list)
+        print(commonspace_to_raw_inverse_list)
 
-    prep_resampling_transforms_node = pe.Node(Function(input_names=['native_to_commonspace_transform_list','native_to_commonspace_inverse_list', 'bold_to_anat_warp', 'bold_to_anat_affine', 'bold_only'],
+        return to_commonspace_transform_list, to_commonspace_inverse_list, raw_to_native_transform_list, raw_to_native_inverse_list, commonspace_to_raw_transform_list, commonspace_to_raw_inverse_list
+
+    prep_resampling_transforms_node = pe.Node(Function(input_names=['native_to_commonspace_transform_list','native_to_commonspace_inverse_list', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'bold_to_anat_affine', 
+                                                                    'commonspace_to_native_transform_list', 'commonspace_to_native_inverse_list', 'bold_only'],
                                                     output_names=[
-                                                        'to_commonspace_transform_list','to_commonspace_inverse_list', 'raw_to_native_transform_list', 'raw_to_native_inverse_list'],
+                                                        'to_commonspace_transform_list','to_commonspace_inverse_list', 'raw_to_native_transform_list', 'raw_to_native_inverse_list',
+                                                        'commonspace_to_raw_transform_list', 'commonspace_to_raw_inverse_list'],
                                                     function=prep_resampling_transforms),
                                             name='prep_resampling_transforms')
     prep_resampling_transforms_node.inputs.bold_only = opts.bold_only
@@ -251,13 +261,8 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             (inputnode, bold_native_trans_wf, [
                 ('commonspace_to_native_transform_list', 'inputnode.mask_transforms_list'),
                 ('commonspace_to_native_inverse_list', 'inputnode.mask_inverses'),
-                #('commonspace_to_raw_transform_list', 'inputnode.to_raw_transforms_list'),
-                #('commonspace_to_raw_inverse_list', 'inputnode.to_raw_inverses'),
                 ('bold', 'inputnode.name_source'),
                 ]),
-            #(bold_reference_wf, bold_native_trans_wf, [
-            #    ('outputnode.ref_image', 'inputnode.raw_bold_ref'),
-            #    ]),
             (transitionnode, cross_modal_reg_wf, [
                 ('corrected_EPI', 'inputnode.ref_bold_brain'),
                 ('denoise_mask', 'inputnode.moving_mask'),
@@ -271,10 +276,16 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             (cross_modal_reg_wf, prep_resampling_transforms_node, [
                 ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
                 ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
             (prep_resampling_transforms_node, bold_native_trans_wf, [
                 ('raw_to_native_transform_list', 'inputnode.transforms_list'),
                 ('raw_to_native_inverse_list', 'inputnode.inverses'),
+                ('commonspace_to_raw_transform_list', 'inputnode.commonspace_to_raw_transform_list'),
+                ('commonspace_to_raw_inverse_list', 'inputnode.commonspace_to_raw_inverse_list'),
+                ]),
+            (transitionnode, bold_native_trans_wf, [
+                ('bold_ref', 'inputnode.raw_bold_ref'),
                 ]),
             (cross_modal_reg_wf, bold_native_trans_wf, [
                 ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
@@ -301,6 +312,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
 
     else:
         prep_resampling_transforms_node.inputs.bold_to_anat_warp = None
+        prep_resampling_transforms_node.inputs.bold_to_anat_inverse_warp = None
         prep_resampling_transforms_node.inputs.bold_to_anat_affine = None
 
         workflow.connect([
@@ -320,6 +332,8 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         (inputnode, prep_resampling_transforms_node, [
             ('native_to_commonspace_transform_list', 'native_to_commonspace_transform_list'),
             ('native_to_commonspace_inverse_list', 'native_to_commonspace_inverse_list'),
+            ('commonspace_to_native_transform_list', 'commonspace_to_native_transform_list'),
+            ('commonspace_to_native_inverse_list', 'commonspace_to_native_inverse_list'),
             ]),
         (transitionnode, bold_stc_wf, [
             ('bold_file', 'inputnode.bold_file'),
@@ -347,6 +361,17 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         (prep_resampling_transforms_node, bold_commonspace_trans_wf, [
             ('to_commonspace_transform_list', 'inputnode.transforms_list'),
             ('to_commonspace_inverse_list', 'inputnode.inverses'),
+            ('commonspace_to_raw_transform_list', 'inputnode.commonspace_to_raw_transform_list'),
+            ('commonspace_to_raw_inverse_list', 'inputnode.commonspace_to_raw_inverse_list'),
+            ]),
+        (transitionnode, bold_commonspace_trans_wf, [
+            ('bold_ref', 'inputnode.raw_bold_ref'),
+            ]),
+        (bold_commonspace_trans_wf, bold_confs_wf, [
+            ('outputnode.raw_brain_mask', 'inputnode.raw_brain_mask'),
+            ]),
+        (inputnode, bold_confs_wf, [
+            ('bold', 'inputnode.raw_bold'),
             ]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [
          ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
@@ -361,6 +386,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
             ('outputnode.vascular_mask', 'commonspace_vascular_mask'),
             ('outputnode.labels', 'commonspace_labels'),
+            ('outputnode.raw_brain_mask', 'raw_brain_mask'),
             ]),
         ])
 
