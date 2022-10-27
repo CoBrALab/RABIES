@@ -175,8 +175,9 @@ class DatasetDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         import pathlib
+        import matplotlib.pyplot as plt
         from rabies.utils import flatten_list
-        from .analysis_QC import analysis_QC
+        from .analysis_QC import analysis_QC,QC_distributions
 
         merged = flatten_list(list(self.inputs.scan_data_list))
         if len(merged) < 3:
@@ -189,6 +190,8 @@ class DatasetDiagnosis(BaseInterface):
         os.makedirs(out_dir_parametric, exist_ok=True)
         out_dir_non_parametric = out_dir_global+'/non_parametric_stats/'
         os.makedirs(out_dir_non_parametric, exist_ok=True)
+        out_dir_dist = out_dir_global+'/sample_distributions/'
+        os.makedirs(out_dir_dist, exist_ok=True)
 
         template_file = merged[0]['template_file']
         mask_file = merged[0]['mask_file']
@@ -229,11 +232,18 @@ class DatasetDiagnosis(BaseInterface):
         corr_variable = [BOLD_std_maps, CR_std_maps, np.array(mean_FD_list).reshape(-1,1)]
         variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
 
+        mean_FD_array = np.array(mean_FD_list)
+        outlier_threshold=3.5
+        CR_var = CR_std_maps.mean(axis=1)
+
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
             tdof = np.array(tdof_list).reshape(-1,1)
             corr_variable.append(tdof)
             variable_name.append('tDOF')
+            tdof_array = np.array(tdof_list).reshape(-1,1)
+        else:
+            tdof_array = mean_FD_array
 
         def change_columns(df):
             columns = list(df.columns)
@@ -253,6 +263,7 @@ class DatasetDiagnosis(BaseInterface):
             df.columns = columns
             return df
                         
+        '''
         for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
 
             prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
@@ -305,6 +316,65 @@ class DatasetDiagnosis(BaseInterface):
                     fig.savefig(fig_path, bbox_inches='tight')
                     fig_path = f'{out_dir}/seed_FC{i}_QC_maps_unthresholded.png'
                     fig_unthresholded.savefig(fig_path, bbox_inches='tight')
+
+        '''
+
+        def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
+
+            for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
+                df = pd.DataFrame(dataset_stats, index=[1])
+                df = change_columns(df)
+                df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps.png'
+                fig.savefig(fig_path, bbox_inches='tight')
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps_unthresholded.png'
+                fig_unthresholded.savefig(fig_path, bbox_inches='tight')
+
+                plt.close(fig)
+                plt.close(fig_unthresholded)
+
+        def distribution_network_i(i,prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix):
+            ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
+            fig,df = QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=outlier_threshold)
+            df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
+            fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.png'
+            fig.savefig(fig_path, bbox_inches='tight')
+            plt.close(fig)
+
+
+        prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+        num_priors = prior_maps.shape[0]
+
+        DR_maps_list=np.array(DR_maps_list)
+        for i in range(num_priors):
+            FC_maps = DR_maps_list[:,i,non_zero_voxels]
+            analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
+
+            network_var = FC_maps.mean(axis=1)
+            distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix='DR')
+
+        NPR_maps_list=np.array(NPR_maps_list)
+        if NPR_maps_list.shape[1]>0:
+            for i in range(num_priors):
+                FC_maps = NPR_maps_list[:,i,non_zero_voxels]
+                analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
+
+        # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
+        if len(self.inputs.seed_prior_maps)>0:
+            prior_maps=[]
+            for prior_map in self.inputs.seed_prior_maps:
+                # resample to match the subject
+                sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
+                prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
+
+            prior_maps = np.array(prior_maps)[:,non_zero_voxels]
+            num_priors = prior_maps.shape[0]
+            seed_maps_list=np.array(seed_maps_list)
+            for i in range(num_priors):
+                FC_maps = seed_maps_list[:,i,non_zero_voxels]
+                analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
+
 
         setattr(self, 'analysis_QC',
                 out_dir_global)

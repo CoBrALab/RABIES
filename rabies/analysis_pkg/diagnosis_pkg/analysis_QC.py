@@ -180,3 +180,194 @@ def masked_plot(fig,axes, img, scaled, mask_img, vmax=None):
     sitk_img = sitk.Resample(masked, scaled)
     cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
     return cbar_list
+
+
+
+###########################################
+# PLOTTING DISTRIBUTIONS TO DETECT OUTLIERS
+###########################################
+
+from scipy import stats
+import pandas as pd
+
+
+def plot_density_2D(x,y, cm, ax, xlim, ylim):
+    xmin, xmax = xlim
+    ymin, ymax = ylim
+
+    # Peform the kernel density estimate
+    xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+    positions = np.vstack([xx.ravel(), yy.ravel()])
+    values = np.vstack([x, y])
+    kernel = stats.gaussian_kde(values)
+    f = np.reshape(kernel(positions).T, xx.shape)
+    
+    f[f<f.max()*0.2] = np.nan
+
+    ax.contourf(xx, yy, f, cmap=cm)
+
+
+def set_bounds(v,edge=1.5):
+    half_range_=(v.max()-v.min())/2
+    center=v.min()+half_range_
+    min_ = center - (half_range_*edge)
+    max_ = center + (half_range_*edge)
+    return min_,max_
+
+
+def detect_outliers(v, threshold=3.5):
+    # taken from https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm
+    # v is a univariate vector for one variable
+    v_ = v-np.median(v)
+    mad = np.median(np.abs(v_))
+    modified_z = (v_*0.6745)/mad
+    return np.abs(modified_z)>threshold
+
+
+def plot_density(v, bounds, outliers, ax, axis='x'):
+    for outlier in [False,True]:
+        idx = outliers==outlier
+        if idx.sum()>0:
+            v_=v[idx]
+            if outlier:
+                if axis=='x':
+                    ax.bar(x=v_, height=ax.get_ylim()[1]*0.7, width=(bounds[1]-bounds[0])/70, color='orange')
+                elif axis=='y':
+                    ax.barh(y=v_, height=(bounds[1]-bounds[0])/70, width=ax.get_xlim()[1]*0.7, color='orange')
+                else:
+                    raise
+            else:
+                xs = np.linspace(bounds[0],bounds[1],200)
+                density = stats.gaussian_kde(v_)
+                if axis=='x':
+                    ax.plot(xs,density(xs))
+                    # here we append a 0 at each extreme to make sure the filling goes down to the axis at 0
+                    ax.fill_between(np.append(np.append(xs.min(),xs),xs.max()), 
+                                    np.append(np.append(0,density(xs)),0),
+                                    alpha=0.3)
+                    ax.set_ylim([0,set_bounds(density(xs),edge=1.2)[1]])
+                elif axis=='y':
+                    ax.plot(density(xs), xs)
+                    # here we append a 0 at each extreme to make sure the filling goes down to the axis at 0
+                    ax.fill_between(np.append(np.append(0,density(xs)),0),
+                                    np.append(np.append(xs.min(),xs),xs.max()), 
+                                    alpha=0.3)
+                    ax.set_xlim([0,set_bounds(density(xs),edge=1.2)[1]])
+                else:
+                    raise
+
+
+def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=3.5):
+    
+    fig = plt.figure(figsize=(20, 25))
+
+    ax1 = fig.add_subplot(4,3,4)
+    ax2 = fig.add_subplot(4,3,5)
+    ax3 = fig.add_subplot(4,3,7)
+    ax4 = fig.add_subplot(4,3,8)
+    ax5 = fig.add_subplot(4,3,10)
+    ax6 = fig.add_subplot(4,3,11)
+
+    ax_x_1 = fig.add_subplot(8,3,4)
+    ax_x_2 = fig.add_subplot(8,3,5)
+
+    ax_y_1 = fig.add_subplot(4,6,11)
+    ax_y_2 = fig.add_subplot(4,6,17)
+    ax_y_3 = fig.add_subplot(4,6,23)
+
+    axes = np.array([[ax1,ax2],[ax3,ax4],[ax5,ax6]])
+    axes_x = [ax_x_1,ax_x_2]
+    axes_y = [ax_y_1,ax_y_2,ax_y_3]
+
+    x_i=0
+    for x in [network_var,network_dice]:
+        x_outliers = detect_outliers(x, threshold=outlier_threshold)
+        x_bounds = list(set_bounds(x))
+
+        ax = axes_x[x_i]
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)    
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.set_xlim(x_bounds)
+        if len(x)>5:
+            plot_density(v=x, bounds=x_bounds, outliers=x_outliers, ax=ax, axis='x')
+
+        y_i=0
+        for y in [CR_var, mean_FD_array, tdof_array]:
+            y_bounds = list(set_bounds(y))
+            y_outliers = detect_outliers(y, threshold=outlier_threshold)
+
+
+            if x_i==0:
+                ax = axes_y[y_i]
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)    
+                plt.setp(ax.get_xticklabels(), visible=False)
+                plt.setp(ax.get_yticklabels(), visible=False)
+                ax.set_ylim(y_bounds)
+                if len(y)>5:
+                    plot_density(v=y, bounds=y_bounds, outliers=y_outliers, ax=ax, axis='y')
+
+            ax = axes[y_i,x_i]
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)    
+            plt.setp(ax.get_xticklabels(), fontsize=15)        
+            plt.setp(ax.get_yticklabels(), fontsize=15)        
+
+            ax.set_xlim(x_bounds)
+            ax.set_ylim(y_bounds)
+
+            union_outliers = x_outliers+y_outliers
+
+            for outlier in [False,True]:
+                idx = union_outliers==outlier
+                x_=x[idx]
+                y_=y[idx]
+                if not outlier:
+                    if len(x_)>5:
+                        plot_density_2D(x_,y_, cm='Blues', ax=ax, xlim=ax.get_xlim(), ylim=ax.get_ylim())
+                ax.scatter(x_,y_, s=30)
+            y_i+=1
+        x_i+=1
+
+    ax5.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
+    ax6.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
+    ax1.set_ylabel('CR variance', color='White', fontsize=25)
+    ax3.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
+    ax5.set_ylabel('Degrees of freedom', color='White', fontsize=25)
+    return fig
+
+
+def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=3.5):
+
+    threshold = percent_threshold(prior_map)
+    prior_mask=np.abs(prior_map)>=threshold # taking absolute values to include negative weights
+    dice_list=[]
+    for i in range(len(scan_name_list)):
+        threshold = percent_threshold(FC_maps[i,:])
+        fit_mask=np.abs(FC_maps[i,:])>=threshold # taking absolute values to include negative weights
+        dice = dice_coefficient(prior_mask,fit_mask)
+        dice_list.append(dice)
+
+
+    network_dice = np.array(dice_list)
+    fig = plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
+
+    data = np.array([
+        scan_name_list,
+        network_var,detect_outliers(network_var, threshold=outlier_threshold),
+        network_dice,detect_outliers(network_dice, threshold=outlier_threshold),
+        CR_var,detect_outliers(CR_var, threshold=outlier_threshold),
+        mean_FD_array,detect_outliers(mean_FD_array, threshold=outlier_threshold),
+        tdof_array,detect_outliers(tdof_array, threshold=outlier_threshold),
+        ]).T
+
+    df = pd.DataFrame(data=data, columns=[
+        'scan ID',
+        'Component variance', 'Component variance - outlier?', 
+        'Dice overlap', 'Dice overlap - outlier?', 
+        'CR variance', 'CR variance - outlier?', 
+        'mean FD', 'mean FD - outlier?', 
+        'tDOF', 'tDOF - outlier?'])
+    return fig,df
