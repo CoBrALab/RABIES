@@ -82,8 +82,12 @@ process = subprocess.run(
     )
 
 ### Add subjects for the group analysis to run
+array_4d += np.random.normal(0, array_4d.mean()
+                             / 100, array_4d.shape)  # add gaussian noise
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token2_bold.nii.gz')
+array_4d += np.random.normal(0, array_4d.mean()
+                             / 100, array_4d.shape)  # add gaussian noise
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token3_bold.nii.gz')
 
