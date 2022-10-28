@@ -49,6 +49,32 @@ def mse(X, Y, w):  # function that computes the Mean Square Error (MSE)
     return np.mean((Y-np.matmul(X, w))**2)
 
 
+def dual_regression(all_IC_vectors, timeseries):
+    ### compute dual regression
+    ### Here, we adopt an approach where the algorithm should explain the data
+    ### as a linear combination of spatial maps. The data itself, is only temporally
+    ### detrended, and not spatially centered, which could cause inconsistencies during
+    ### linear regression according to https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero
+    ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
+    ### this measure would be removing global signal variations which we are interested in.
+    ### Thus we prefer to avoid this step here, despite modelling limitations.
+    X = all_IC_vectors.T
+    Y = timeseries.T
+    # for one given volume, it's values can be expressed through a linear combination of the components
+    W = closed_form(X, Y, intercept=False).T
+    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
+
+    # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
+    C = closed_form(W, Y.T, intercept=False).T
+
+    S = np.sqrt((C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
+    C /= S # the spatial maps are variance normalized; the variance is stored in S
+
+    # we thus output a model of the timeseries of the form X = W.dot((S*C).T)
+    DR = {'C':C, 'W':W, 'S':S}
+    return DR
+
+
 '''
 Convergence through alternating minimization using OLS
 '''
@@ -144,26 +170,34 @@ def spatiotemporal_prior_fit(X, C_prior, num_W, num_C):
         W[:,-num_W:] = W_extra # add back W_prior
     W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
     C = closed_form(W, X).T
-        
+
+    S = np.sqrt((C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
+    C /= S # the spatial maps are variance normalized; the variance is stored in S
+
     # Fitted priors are at the first indices
     C_fitted_prior = C[:,:num_priors]
     W_fitted_prior = W[:,:num_priors]
+    S_fitted_prior = S[:num_priors]
         
     # temporal components are at the last indices
     C_temporal = C[:,num_priors+num_C:]
     W_temporal = W[:,num_priors+num_C:]
+    S_temporal = S[num_priors+num_C:]
 
     # spatial components are in the middle
     C_spatial = C[:,num_priors:num_priors+num_C]
     W_spatial = W[:,num_priors:num_priors+num_C]
+    S_spatial = S[num_priors:num_priors+num_C]
 
     corr_list=[]
     for i in range(num_priors):
         corr = np.corrcoef(C_fitted_prior[:,i].T, C_prior[:,i].T)[0,1]
         corr_list.append(corr)
 
+    # we thus output a model of the timeseries of the form X = W.dot((S*C).T)
     return {'C_fitted_prior':C_fitted_prior, 'C_spatial':C_spatial, 'C_temporal':C_temporal, 
             'W_fitted_prior':W_fitted_prior, 'W_spatial':W_spatial, 'W_temporal':W_temporal, 
+            'S_fitted_prior':S_fitted_prior, 'S_spatial':S_spatial, 'S_temporal':S_temporal, 
             'corr_list':corr_list}
 
 '''

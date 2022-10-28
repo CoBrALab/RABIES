@@ -127,6 +127,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
         DatasetDiagnosis_node.inputs.outlier_threshold = analysis_opts.outlier_threshold
+        DatasetDiagnosis_node.inputs.network_weighting = analysis_opts.network_weighting
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [

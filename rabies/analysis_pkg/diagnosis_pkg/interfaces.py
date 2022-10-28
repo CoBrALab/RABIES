@@ -158,6 +158,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         exists=True, desc="A list of expected network map associated to each seed-FC.")
     outlier_threshold = traits.Float(
         desc="The threshold for modified Z-score to classify outliers.")
+    network_weighting = traits.Str(
+        desc="Whether network maps are absolute or relative.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -297,7 +299,11 @@ class DatasetDiagnosis(BaseInterface):
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
             analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
-            network_var = FC_maps.mean(axis=1)
+            # we don't apply the non_zero_voxels mask as it changes the original variance estimate
+            network_var = np.sqrt((DR_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
+            if self.inputs.network_weighting=='relative':
+                network_var=None
+
             distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='DR')
 
         NPR_maps_list=np.array(NPR_maps_list)
@@ -306,7 +312,11 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                 analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
-                network_var = FC_maps.mean(axis=1)
+                # we don't apply the non_zero_voxels mask as it changes the original variance estimate
+                network_var = np.sqrt((NPR_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
+                if self.inputs.network_weighting=='relative':
+                    network_var=None
+
                 distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
 
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds

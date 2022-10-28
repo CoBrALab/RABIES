@@ -813,6 +813,16 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        "--network_weighting", type=str, default='absolute',
+        choices=['absolute', 'relative'],
+        help=
+            "Whether to derive absolute or relative (variance-normalized) network maps, representing \n"
+            "respectively network amplitude + shape or network shape only. This option applies to both \n"
+            "dual regression (DR) and Neural Prior Recovery (NPR) analyses. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     return parser
 
