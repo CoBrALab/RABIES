@@ -505,10 +505,10 @@ def get_parser():
             "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
             "   scaled to unit variance (z-scoring). \n"
             "*** grand_mean_scaling: Timeseries are divided by the mean signal across voxel, and \n"
-            "   multiplied by 100 to obtain % BOLD fluctuations. \n"
+            "   multiplied by 100 to obtain percent BOLD fluctuations. \n"
             "*** voxelwise_mean: each voxel is seperataly scaled according to its mean intensity, \n"
             "   a method suggested with AFNI https://afni.nimh.nih.gov/afni/community/board/read.php?1,161862,161864. \n"
-            "   Timeseries are then multiplied by 100 to obtain % BOLD fluctuations. \n"
+            "   Timeseries are then multiplied by 100 to obtain percent BOLD fluctuations. \n"
             "(default: %(default)s)\n"
             "\n"
         )
