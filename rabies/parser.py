@@ -717,6 +717,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--outlier_threshold', type=float, default=3.5,
+        help=
+            "The modified Z-score threshold for detecting outliers during dataset QC when using \n"
+            "--data_diagnosis. The default of 3.5 is recommended in https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     analysis.add_argument(
         '--seed_list', type=str,

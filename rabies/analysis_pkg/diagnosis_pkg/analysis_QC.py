@@ -350,7 +350,6 @@ def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_a
         dice = dice_coefficient(prior_mask,fit_mask)
         dice_list.append(dice)
 
-
     network_dice = np.array(dice_list)
     fig = plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
 
