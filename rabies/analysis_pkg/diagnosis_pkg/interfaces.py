@@ -242,7 +242,7 @@ class DatasetDiagnosis(BaseInterface):
             tdof = np.array(tdof_list).reshape(-1,1)
             corr_variable.append(tdof)
             variable_name.append('tDOF')
-            tdof_array = np.array(tdof_list).reshape(-1,1)
+            tdof_array = np.array(tdof_list)
         else:
             tdof_array = None
 
