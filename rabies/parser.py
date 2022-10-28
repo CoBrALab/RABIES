@@ -505,10 +505,10 @@ def get_parser():
             "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
             "   scaled to unit variance (z-scoring). \n"
             "*** grand_mean_scaling: Timeseries are divided by the mean signal across voxel, and \n"
-            "   multiplied by 100 to obtain % BOLD fluctuations. \n"
+            "   multiplied by 100 to obtain percent BOLD fluctuations. \n"
             "*** voxelwise_mean: each voxel is seperataly scaled according to its mean intensity, \n"
             "   a method suggested with AFNI https://afni.nimh.nih.gov/afni/community/board/read.php?1,161862,161864. \n"
-            "   Timeseries are then multiplied by 100 to obtain % BOLD fluctuations. \n"
+            "   Timeseries are then multiplied by 100 to obtain percent BOLD fluctuations. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -717,6 +717,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--outlier_threshold', type=float, default=3.5,
+        help=
+            "The modified Z-score threshold for detecting outliers during dataset QC when using \n"
+            "--data_diagnosis. The default of 3.5 is recommended in https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     analysis.add_argument(
         '--seed_list', type=str,
@@ -802,6 +810,16 @@ def get_parser():
         help=
             "Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are \n"
             "additioned to the temporal components).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        "--network_weighting", type=str, default='absolute',
+        choices=['absolute', 'relative'],
+        help=
+            "Whether to derive absolute or relative (variance-normalized) network maps, representing \n"
+            "respectively network amplitude + shape or network shape only. This option applies to both \n"
+            "dual regression (DR) and Neural Prior Recovery (NPR) analyses. \n"
             "(default: %(default)s)\n"
             "\n"
         )

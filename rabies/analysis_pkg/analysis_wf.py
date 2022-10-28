@@ -74,10 +74,11 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
     if opts.DR_ICA or opts.data_diagnosis:
 
-        DR_ICA = pe.Node(Function(input_names=['dict_file'],
+        DR_ICA = pe.Node(Function(input_names=['dict_file', 'network_weighting'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],
                                   function=run_DR_ICA),
                          name='DR_ICA', mem_gb=1*opts.scale_min_memory)
+        DR_ICA.inputs.network_weighting = opts.network_weighting
 
         workflow.connect([
             (subject_inputnode, DR_ICA, [
@@ -118,7 +119,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         NPR_node = pe.Node(NeuralPriorRecovery(
                             NPR_temporal_comp=opts.NPR_temporal_comp, 
                             NPR_spatial_comp=opts.NPR_spatial_comp, 
-                            prior_bold_idx = opts.prior_bold_idx),
+                            prior_bold_idx = opts.prior_bold_idx,
+                            network_weighting=opts.network_weighting),
                             name='NPR_node', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([

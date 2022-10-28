@@ -137,13 +137,13 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
     return out_dir, IC_file
 
 
-def run_DR_ICA(dict_file):
+def run_DR_ICA(dict_file,network_weighting):
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
     import SimpleITK as sitk
     from rabies.utils import recover_4D
-    from rabies.analysis_pkg.analysis_functions import dual_regression
+    from rabies.analysis_pkg.analysis_math import dual_regression
 
     import pickle
     with open(dict_file, 'rb') as handle:
@@ -157,33 +157,22 @@ def run_DR_ICA(dict_file):
 
     DR = dual_regression(prior_map_vectors, timeseries)
 
+    if network_weighting=='absolute':
+        DR_C = DR['C']*DR['S']
+    elif network_weighting=='relative':
+        DR_C = DR['C']
+    else:
+        raise 
+    import numpy as np
+    network_var = np.sqrt((DR_C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
+
     dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
     pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
 
     # save the subjects' IC maps as .nii file
     DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    sitk.WriteImage(recover_4D(mask_file, DR['C'], bold_file), DR_maps_filename)
+    sitk.WriteImage(recover_4D(mask_file, DR_C.T, bold_file), DR_maps_filename)
     return DR_maps_filename, dual_regression_timecourse_csv
-
-
-def dual_regression(all_IC_vectors, timeseries):
-    ### compute dual regression
-    ### Here, we adopt an approach where the algorithm should explain the data
-    ### as a linear combination of spatial maps. The data itself, is only temporally
-    ### detrended, and not spatially centered, which could cause inconsistencies during
-    ### linear regression according to https://mandymejia.com/2018/03/29/the-role-of-centering-in-dual-regression/#:~:text=Dual%20regression%20requires%20centering%20across%20time%20and%20space&text=time%20points.,each%20time%20course%20at%20zero
-    ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
-    ### this measure would be removing global signal variations which we are interested in.
-    ### Thus we prefer to avoid this step here, despite modelling limitations.
-    X = all_IC_vectors.T
-    Y = timeseries.T
-    # for one given volume, it's values can be expressed through a linear combination of the components
-    W = closed_form(X, Y, intercept=False).T
-    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
-    # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
-    C = closed_form(W, Y.T, intercept=False)
-    DR = {'C':C, 'W':W}
-    return DR
 
 
 from nipype.interfaces.base import (
@@ -198,6 +187,8 @@ class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
         desc="number of data-driven temporal components to compute.")
     NPR_spatial_comp = traits.Int(
         desc="number of data-driven spatial components to compute.")
+    network_weighting = traits.Str(
+        desc="Whether to derive absolute or relative (variance-normalized) network maps.")
 
 class NeuralPriorRecoveryOutputSpec(TraitedSpec):
     NPR_prior_timecourse_csv = File(
@@ -233,6 +224,7 @@ class NeuralPriorRecovery(BaseInterface):
         mask_file = data_dict['mask_file']
         timeseries = data_dict['timeseries']
         prior_map_vectors = data_dict['prior_map_vectors']
+        network_weighting=self.inputs.network_weighting
 
         filename_split = pathlib.Path(
             bold_file).name.rsplit(".nii")
@@ -246,9 +238,19 @@ class NeuralPriorRecovery(BaseInterface):
             NPR_spatial_comp=0
         modeling = spatiotemporal_prior_fit(timeseries, C_prior, num_W=NPR_temporal_comp, num_C=NPR_spatial_comp)
 
-        # put together the spatial and temporal extra componentsZ
+        # put together the spatial and temporal extra components
         W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
-        C_extra = np.concatenate((modeling['C_spatial'],modeling['C_temporal']), axis=1)
+
+        if network_weighting=='absolute':
+            C_extra = np.concatenate((modeling['C_spatial']*modeling['S_spatial'],
+                modeling['C_temporal']*modeling['S_temporal']), axis=1)
+            C_fit = modeling['C_fitted_prior']*modeling['S_fitted_prior']
+        elif network_weighting=='relative':
+            C_extra = np.concatenate((modeling['C_spatial'],
+                modeling['C_temporal']), axis=1)
+            C_fit = modeling['C_fitted_prior']
+        else:
+            raise 
 
         NPR_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_prior_timecourse.csv')
         pd.DataFrame(modeling['W_fitted_prior']).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
@@ -257,7 +259,7 @@ class NeuralPriorRecovery(BaseInterface):
         pd.DataFrame(W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
 
         NPR_prior_filename = os.path.abspath(filename_split[0]+'_NPR_prior.nii.gz')
-        sitk.WriteImage(recover_4D(mask_file,modeling['C_fitted_prior'].T, bold_file), NPR_prior_filename)
+        sitk.WriteImage(recover_4D(mask_file,C_fit.T, bold_file), NPR_prior_filename)
 
         if (self.inputs.NPR_temporal_comp+self.inputs.NPR_spatial_comp)>0:
             NPR_extra_filename = os.path.abspath(filename_split[0]+'_NPR_extra.nii.gz')
