@@ -244,7 +244,7 @@ class DatasetDiagnosis(BaseInterface):
             variable_name.append('tDOF')
             tdof_array = np.array(tdof_list).reshape(-1,1)
         else:
-            tdof_array = mean_FD_array
+            tdof_array = None
 
         def change_columns(df):
             columns = list(df.columns)
@@ -306,6 +306,9 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                 analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
+                network_var = FC_maps.mean(axis=1)
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
+
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
         if len(self.inputs.seed_prior_maps)>0:
             prior_maps=[]
@@ -321,6 +324,8 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
                 analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
+                network_var = None
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='seed_FC')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)
