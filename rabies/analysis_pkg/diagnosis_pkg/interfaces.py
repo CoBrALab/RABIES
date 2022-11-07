@@ -210,6 +210,7 @@ class DatasetDiagnosis(BaseInterface):
         NPR_maps_list=[]
         tdof_list=[]
         mean_FD_list=[]
+        CR_global_std_list=[]
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
@@ -220,6 +221,7 @@ class DatasetDiagnosis(BaseInterface):
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
             seed_maps_list.append(scan_data['seed_list'])
+            CR_global_std_list.append(scan_data['CR_global_std'])
 
         # save the list of the scan names that were included in the group statistics
         pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/analysis_QC_scanlist.txt', index=None, header=False)
@@ -237,7 +239,7 @@ class DatasetDiagnosis(BaseInterface):
         variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_var = CR_std_maps.mean(axis=1)
+        CR_var = np.array(CR_global_std_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:

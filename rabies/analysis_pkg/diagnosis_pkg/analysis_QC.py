@@ -322,8 +322,13 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
         plt.setp(ax.get_xticklabels(), visible=False)
         plt.setp(ax.get_yticklabels(), visible=False)
         ax.set_xlim(x_bounds)
-        if len(x)>5:
+
+        try:
             plot_density(v=x, bounds=x_bounds, outliers=x_outliers, ax=ax, axis='x')
+        except:
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
         y_i=0
         for y in [CR_var, mean_FD_array, tdof_array]:
@@ -341,8 +346,12 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
                 plt.setp(ax.get_xticklabels(), visible=False)
                 plt.setp(ax.get_yticklabels(), visible=False)
                 ax.set_ylim(y_bounds)
-                if len(y)>5:
+                try:
                     plot_density(v=y, bounds=y_bounds, outliers=y_outliers, ax=ax, axis='y')
+                except:
+                    from nipype import logging
+                    log = logging.getLogger('nipype.workflow')
+                    log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
             ax = axes[y_i,x_i]
             ax.spines['right'].set_visible(False)
@@ -360,8 +369,13 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
                 x_=x[idx]
                 y_=y[idx]
                 if not outlier:
-                    if len(x_)>5:
+                    try:
                         plot_density_2D(x_,y_, cm='Blues', ax=ax, xlim=ax.get_xlim(), ylim=ax.get_ylim())
+                    except:
+                        from nipype import logging
+                        log = logging.getLogger('nipype.workflow')
+                        log.warning("Singular matrix error when computing KDE. Density won't be shown.")
+
                 ax.scatter(x_,y_, s=30)
             y_i+=1
         x_i+=1
