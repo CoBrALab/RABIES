@@ -15,7 +15,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
-                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'joined_corr_map_file', 
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 
                                                        'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
                                                        'NPR_prior_filename', 'NPR_extra_filename']), name='outputnode')
 
@@ -34,7 +34,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again without --nativespace_analysis.')
         seed_based_FC_node = pe.Node(Function(input_names=['dict_file', 'seed_dict', 'seed_name'],
-                                              output_names=['corr_map_file'],
+                                              output_names=['corr_map_file', 'seed_timecourse_csv'],
                                               function=seed_based_FC),
                                      name='seed_based_FC', mem_gb=1*opts.scale_min_memory)
         seed_dict = {}
@@ -63,6 +63,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             (seed_based_FC_node, outputnode, [
                 ("corr_map_file", "corr_map_file"),
+                ("seed_timecourse_csv", "seed_timecourse_csv"),
                 ]),
             (seed_based_FC_node, seed_FC_joinnode, [
                 ("corr_map_file", "joined_corr_map_file"),
