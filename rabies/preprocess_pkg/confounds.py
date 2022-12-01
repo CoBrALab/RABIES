@@ -132,11 +132,10 @@ class EstimateConfounds(BaseInterface):
             self.inputs.bold, self.inputs.brain_mask)
         confounds.append(global_signal)
         csv_columns += ['global_signal']
-        motion_24 = motion_24_params(self.inputs.movpar_file)
+        motion_24,motion_24_header = motion_24_params(self.inputs.movpar_file)
         for param in range(motion_24.shape[1]):
             confounds.append(motion_24[:, param])
-        csv_columns += ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der',
-                        'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
+        csv_columns += motion_24_header
 
         confounds_csv = write_confound_csv(np.transpose(
             np.asarray(confounds)), csv_columns, filename_split[0])
@@ -216,8 +215,12 @@ def motion_24_params(movpar_csv):
     '''
     import numpy as np
     rigid_params = extract_rigid_movpar(movpar_csv)
+    rotations = rigid_params[:,:3] # rotations are listed first
+    translations = rigid_params[:,3:] # translations are last
+
     movpar = np.zeros([np.size(rigid_params, 0), 24])
-    movpar[:, :6] = rigid_params
+    movpar[:, :3] = translations # add rotations first
+    movpar[:, 3:6] = rotations # rotations second
     for i in range(6):
         # Compute temporal derivative as difference between two neighboring points
         movpar[0, 6+i] = 0
@@ -225,7 +228,11 @@ def motion_24_params(movpar_csv):
         # add the squared coefficients
         movpar[:, 12+i] = movpar[:, i]**2
         movpar[:, 18+i] = movpar[:, 6+i]**2
-    return movpar
+
+    motion_24_header = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der',
+                    'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
+
+    return movpar,motion_24_header
 
 
 def extract_rigid_movpar(movpar_csv):
