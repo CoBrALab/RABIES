@@ -154,6 +154,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
+            ("outputnode.seed_timecourse_csv", "seed_timecourse_csv"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
             ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),

@@ -41,7 +41,14 @@ def seed_based_FC(dict_file, seed_dict, seed_name):
         filename_split+'_'+seed_name+'_corr_map.nii.gz')
     
     sitk.WriteImage(corr_map_img, corr_map_file)
-    return corr_map_file
+
+    # also save the seed timecourse
+    import pandas as pd
+    seed_timecourse_csv = os.path.abspath(
+        filename_split+'_'+seed_name+'_timecourse.csv')
+    pd.DataFrame(seed_timeseries).to_csv(seed_timecourse_csv, header=False, index=False)
+
+    return corr_map_file,seed_timecourse_csv
 
 
 '''
@@ -163,8 +170,6 @@ def run_DR_ICA(dict_file,network_weighting):
         DR_C = DR['C']
     else:
         raise 
-    import numpy as np
-    network_var = np.sqrt((DR_C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
 
     dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
     pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
