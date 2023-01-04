@@ -174,6 +174,10 @@ class antsMotionCorr(BaseInterface):
         elif (moreaccurate == 0):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+        
+        elif (moreaccurate == "intraSubjectBOLDLatest"):
+            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s 0.14710685100747165x0.0mm -f 2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
         else:
             raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
