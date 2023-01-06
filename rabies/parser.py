@@ -169,8 +169,8 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--HMC_option", type=str, default='intraSubjectBOLD',
-        choices=['intraSubjectBOLD', '0', '1', '2', '3'],
+        "--HMC_option", type=str, default='intraSubjectBOLDLatest',
+        choices=['intraSubjectBOLDLatest', '0', '1', '2', '3'],
         help=
             "Select an option for head motion realignment among the pre-built options from\n"
             "https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.\n"
