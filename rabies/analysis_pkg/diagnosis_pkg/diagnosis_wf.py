@@ -81,7 +81,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
 
             scan_data={}
 
-            dict_keys = ['temporal_std', 'predicted_std', 'corrected_CR_std', 'random_CR_std', 'GS_corr', 'GS_cov',
+            dict_keys = ['temporal_std', 'VE_spatial', 'predicted_std', 'corrected_CR_std', 'random_CR_std', 'GS_corr', 'GS_cov',
                             'DR_BOLD', 'NPR_maps', 'prior_maps' ]
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]

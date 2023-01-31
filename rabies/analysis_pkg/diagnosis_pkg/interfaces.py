@@ -204,7 +204,7 @@ class DatasetDiagnosis(BaseInterface):
 
         scan_name_list=[]
         std_maps=[]
-        CR_std_maps=[]
+        CR_VE_maps=[]
         DR_maps_list=[]
         seed_maps_list=[]
         NPR_maps_list=[]
@@ -215,7 +215,7 @@ class DatasetDiagnosis(BaseInterface):
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
             std_maps.append(scan_data['temporal_std'])
-            CR_std_maps.append(scan_data['predicted_std'])
+            CR_VE_maps.append(scan_data['VE_spatial'])
             DR_maps_list.append(scan_data['DR_BOLD'])
             NPR_maps_list.append(scan_data['NPR_maps'])
             tdof_list.append(scan_data['tDOF'])
@@ -233,10 +233,10 @@ class DatasetDiagnosis(BaseInterface):
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
-        CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
+        CR_VE_maps=np.array(CR_VE_maps)[:,non_zero_voxels]
 
-        corr_variable = [BOLD_std_maps, CR_std_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
+        corr_variable = [BOLD_std_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
         CR_var = np.array(CR_global_std_list)
@@ -254,11 +254,11 @@ class DatasetDiagnosis(BaseInterface):
             columns = list(df.columns)
             i=0
             for column in columns:
-                if '$\mathregular{CR_{SD}}$' in column:
+                if 'CR $\mathregular{R^2}$' in column:
                     if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - CRsd'
+                        columns[i] = 'Overlap: Prior - CR R^2'
                     if 'Avg.:' in column:
-                        columns[i] = 'Avg.: CRsd'
+                        columns[i] = 'Avg.: CR R^2'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
