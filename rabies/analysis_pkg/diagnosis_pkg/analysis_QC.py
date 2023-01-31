@@ -257,7 +257,7 @@ def plot_density(v, bounds, outliers, ax, axis='x'):
                     raise
 
 
-def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=3.5):
+def plot_QC_distributions(network_var,network_dice,CR_VE, mean_FD_array, tdof_array, outlier_threshold=3.5):
     
     fig = plt.figure(figsize=(20, 25))
 
@@ -280,7 +280,7 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
         ax_x_1 = fig.add_subplot(8,3,4)
         ax1 = fig.add_subplot(4,3,4)
         ax3 = fig.add_subplot(4,3,7)
-        ax1.set_ylabel('CR variance', color='White', fontsize=25)
+        ax1.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
         ax3.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
@@ -296,7 +296,7 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
         ax1 = None
         ax3 = None
         ax5 = None
-        ax2.set_ylabel('CR variance', color='White', fontsize=25)
+        ax2.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
         ax4.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
@@ -331,7 +331,7 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
         y_i=0
-        for y in [CR_var, mean_FD_array, tdof_array]:
+        for y in [CR_VE, mean_FD_array, tdof_array]:
             if y is None:
                 y_i+=1
                 continue
@@ -383,7 +383,7 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
     return fig
 
 
-def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=3.5):
+def QC_distributions(prior_map,FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=3.5):
 
     threshold = percent_threshold(prior_map)
     prior_mask=np.abs(prior_map)>=threshold # taking absolute values to include negative weights
@@ -395,13 +395,13 @@ def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_a
         dice_list.append(dice)
 
     network_dice = np.array(dice_list)
-    fig = plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
+    fig = plot_QC_distributions(network_var,network_dice,CR_VE, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
 
     data = [scan_name_list]
     columns=['scan ID']
     for feature,name in zip(
-            [network_var,network_dice,CR_var, mean_FD_array, tdof_array],
-            ['Component variance','Dice overlap','CR variance','mean FD','tDOF']):
+            [network_var,network_dice,CR_VE, mean_FD_array, tdof_array],
+            ['Component variance','Dice overlap','CR $\mathregular{R^2}$','mean FD','tDOF']):
         if feature is None:
             continue
         data.append(feature)

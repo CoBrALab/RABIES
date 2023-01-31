@@ -210,7 +210,7 @@ class DatasetDiagnosis(BaseInterface):
         NPR_maps_list=[]
         tdof_list=[]
         mean_FD_list=[]
-        CR_global_std_list=[]
+        VE_total_ratio_list=[]
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
@@ -221,7 +221,7 @@ class DatasetDiagnosis(BaseInterface):
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
             seed_maps_list.append(scan_data['seed_list'])
-            CR_global_std_list.append(scan_data['CR_global_std'])
+            VE_total_ratio_list.append(scan_data['VE_total_ratio'])
 
         # save the list of the scan names that were included in the group statistics
         pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/analysis_QC_scanlist.txt', index=None, header=False)
@@ -239,7 +239,7 @@ class DatasetDiagnosis(BaseInterface):
         variable_name = ['$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_var = np.array(CR_global_std_list)
+        CR_VE = np.array(VE_total_ratio_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -284,9 +284,9 @@ class DatasetDiagnosis(BaseInterface):
                 plt.close(fig)
                 plt.close(fig_unthresholded)
 
-        def distribution_network_i(i,prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix):
+        def distribution_network_i(i,prior_map,FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df = QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=outlier_threshold)
+            fig,df = QC_distributions(prior_map,FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=outlier_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.png'
             fig.savefig(fig_path, bbox_inches='tight')
@@ -306,7 +306,7 @@ class DatasetDiagnosis(BaseInterface):
             if self.inputs.network_weighting=='relative':
                 network_var=None
 
-            distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='DR')
+            distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='DR')
 
         NPR_maps_list=np.array(NPR_maps_list)
         if NPR_maps_list.shape[1]>0:
@@ -319,7 +319,7 @@ class DatasetDiagnosis(BaseInterface):
                 if self.inputs.network_weighting=='relative':
                     network_var=None
 
-                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
 
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
         if len(self.inputs.seed_prior_maps)>0:
@@ -337,7 +337,7 @@ class DatasetDiagnosis(BaseInterface):
                 analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
                 network_var = None
-                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='seed_FC')
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='seed_FC')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)

@@ -406,6 +406,7 @@ class Regress(BaseInterface):
 
             return runtime
 
+        VE_total_ratio = 1-(res.var()/Y.var())
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
@@ -519,7 +520,7 @@ class Regress(BaseInterface):
         num_regressors = confounds_array.shape[1]
         tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std}
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)

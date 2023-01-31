@@ -89,6 +89,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             scan_data['FD_trace'] = data_dict['CR_data_dict']['FD_trace']
             scan_data['tDOF'] = data_dict['CR_data_dict']['tDOF']
             scan_data['CR_global_std'] = data_dict['CR_data_dict']['CR_global_std']
+            scan_data['VE_total_ratio'] = data_dict['CR_data_dict']['VE_total_ratio']
 
             import numpy as np
             import SimpleITK as sitk
