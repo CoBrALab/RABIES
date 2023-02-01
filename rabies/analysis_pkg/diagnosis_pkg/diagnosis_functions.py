@@ -88,11 +88,6 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
     temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
-    signal_trace = np.abs(DR_W[:, prior_bold_idx]).mean(axis=1)
-    noise_trace = np.abs(DR_W[:, prior_confound_idx]).mean(axis=1)
-    temporal_info['signal_trace'] = signal_trace
-    temporal_info['noise_trace'] = noise_trace
-
     '''Temporal Features'''
     # take regional timecourse from L2-norm
     WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
@@ -134,12 +129,6 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     spatial_info['corrected_CR_std'] = data_dict['corrected_CR_std']
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
-
-    if len(prior_fit_out['W'])>0:
-        NPR_prior_W = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
-        NPR_extra_W = np.array(pd.read_csv(analysis_dict['NPR_extra_timecourse_csv'], header=None))
-        temporal_info['NPR_prior_trace'] = np.abs(NPR_prior_W).mean(axis=1)
-        temporal_info['NPR_noise_trace'] = np.abs(NPR_extra_W).mean(axis=1)
 
     return temporal_info, spatial_info
 
@@ -364,20 +353,35 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
     ax3_.set_ylim([0,1])
 
-    y = temporal_info['signal_trace']
-    ax4.plot(x,y)
-    ax4.plot(x,temporal_info['noise_trace'])
-    if len(spatial_info['NPR_maps'])>0:
-        ax4.plot(x,temporal_info['NPR_prior_trace'])
-        ax4.plot(x,temporal_info['NPR_noise_trace'])
+    # we take the mean of the timecourse amplitude (absolute values) to summarized across all components
+    import matplotlib.cm as cm
+    Greens_colors = cm.Greens(np.linspace(0.5, 0.8, 2))
+    Blues_colors = cm.Blues(np.linspace(0.5, 0.8, 2))
+    YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
+    legend=[]
+    scaler = 0
+    for network_time,name,color in zip(
+            [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['NPR_time']],
+            ['DR confounds', 'DR networks','SBC networks','NPR networks'],
+            [YlOrRd_colors[2], Blues_colors[1],Blues_colors[0],Greens_colors[1]]):
+        if len(network_time)>0:
+            # make sure the timecourses are normalized
+            network_time = network_time.copy()
+            #network_time /= np.sqrt((network_time ** 2).sum(axis=0))
+            network_time /= network_time.std(axis=0)
+            network_time_avg = np.abs(network_time).mean(axis=1)
+            # we introduce a scaler to prevent overlap of timecourses
+            network_time_avg += scaler
+            scaler -= 2
+            ax4.plot(x,network_time_avg, color=color, alpha=0.8)
+            legend.append(name)
 
-    ax4.legend(['DR BOLD components', 'DR Confound components',
-                'NPR priors', 'NPR confounds',
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
+    ax4.legend(legend, loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
     ax4.set_xlabel('Timepoint', fontsize=25)
-    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=20)
+    ax4.set_ylabel('Mean amplitude', fontsize=20)
+    ax4.yaxis.set_ticklabels([])
     plt.setp(ax4.get_xticklabels(), fontsize=15)
 
     plt.setp(ax1.get_yticklabels(), fontsize=15)
