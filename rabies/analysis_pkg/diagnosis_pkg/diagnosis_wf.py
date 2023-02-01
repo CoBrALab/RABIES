@@ -74,7 +74,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
 
     if (commonspace_bold or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
-        def prep_scan_data(dict_file, analysis_dict, spatial_info):
+        def prep_scan_data(dict_file, analysis_dict, spatial_info, temporal_info):
             import pickle
             with open(dict_file, 'rb') as handle:
                 data_dict = pickle.load(handle)
@@ -82,34 +82,27 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             scan_data={}
 
             dict_keys = ['temporal_std', 'VE_spatial', 'predicted_std', 'corrected_CR_std', 'random_CR_std', 'GS_corr', 'GS_cov',
-                            'DR_BOLD', 'NPR_maps', 'prior_maps' ]
+                            'DR_BOLD', 'NPR_maps', 'prior_maps', 'seed_map_list']
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
+
+            # prepare the network and confound timecourses
+            scan_data['DR_confound_time'] = temporal_info['DR_confound']
+            scan_data['DR_network_time'] = temporal_info['DR_bold']
+            scan_data['NPR_network_time'] = temporal_info['NPR_time']
+            scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
             scan_data['FD_trace'] = data_dict['CR_data_dict']['FD_trace']
             scan_data['tDOF'] = data_dict['CR_data_dict']['tDOF']
             scan_data['CR_global_std'] = data_dict['CR_data_dict']['CR_global_std']
             scan_data['VE_total_ratio'] = data_dict['CR_data_dict']['VE_total_ratio']
 
-            import numpy as np
-            import SimpleITK as sitk
-            mask_file = data_dict['mask_file']
-            mask_img = sitk.ReadImage(mask_file)
-            brain_mask = sitk.GetArrayFromImage(mask_img)
-            volume_indices = brain_mask.astype(bool)            
-
-            seed_list=[]
-            for seed_map in analysis_dict['seed_map_files']:
-                seed_list.append(np.asarray(
-                    sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
-            scan_data['seed_list'] = seed_list
-
             scan_data['name_source'] = data_dict['name_source']
             scan_data['template_file'] = data_dict['template_file']
             scan_data['mask_file'] = data_dict['mask_file']
             return scan_data
 
-        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'analysis_dict', 'spatial_info'],
+        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'analysis_dict', 'spatial_info', 'temporal_info'],
                                             output_names=['scan_data'],
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
@@ -138,6 +131,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
                 ]),
             (ScanDiagnosis_node, prep_scan_data_node, [
                 ("spatial_info", "spatial_info"),
+                ("temporal_info", "temporal_info"),
                 ]),
             (prep_scan_data_node, data_diagnosis_split_joinnode, [
                 ("scan_data", "scan_data_list"),

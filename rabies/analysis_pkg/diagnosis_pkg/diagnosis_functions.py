@@ -61,7 +61,22 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
 
 
-    '''Temporal Features'''
+    ### SBC analysis
+    if len(analysis_dict['seed_map_files'])>0:
+        seed_list=[]
+        for seed_map in analysis_dict['seed_map_files']:
+            seed_list.append(np.asarray(
+                sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
+        spatial_info['seed_map_list'] = seed_list
+        time_list=[]
+        for time_csv in analysis_dict['seed_timecourse_csv']:
+            time_list.append(np.array(pd.read_csv(time_csv, header=None)).flatten())
+        temporal_info['SBC_time'] = np.array(time_list).T # convert to time by network matrix
+    else:
+        spatial_info['seed_map_list'] = []
+        temporal_info['SBC_time'] = []
+
+    ### SBC analysis
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = sitk.GetArrayFromImage(
         sitk.ReadImage(analysis_dict['dual_regression_nii']))
@@ -70,12 +85,15 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
         DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
 
     temporal_info['DR_all'] = DR_W
+    temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
+    temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
     signal_trace = np.abs(DR_W[:, prior_bold_idx]).mean(axis=1)
     noise_trace = np.abs(DR_W[:, prior_confound_idx]).mean(axis=1)
     temporal_info['signal_trace'] = signal_trace
     temporal_info['noise_trace'] = noise_trace
 
+    '''Temporal Features'''
     # take regional timecourse from L2-norm
     WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
     CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
@@ -134,7 +152,7 @@ def temporal_external_formating(temporal_info):
     filename_split = pathlib.Path(
         temporal_info['name_source']).name.rsplit(".nii")
 
-    del temporal_info['DR_all'], temporal_info['NPR_time']
+    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['NPR_time'],temporal_info['SBC_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
