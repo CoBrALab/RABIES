@@ -103,9 +103,8 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
 class ScanDiagnosis(BaseInterface):
     """
     Extracts several spatial and temporal features on the target scan.
-    Spatial features include tSTD, CR-R^2 (variance explained from confound regression),
-    correlation maps with global signal/DVARS/FD, and network maps from specified
-    BOLD priors at the indices of prior_bold_idx.
+    Spatial features include tSTD, CRsd (variance fitted from confound regression), CR-R^2,
+    and network maps from specified BOLD priors at the indices of prior_bold_idx.
     Temporal features include grayplot, 6 motion parameters, framewise displacement,
     DVARS, WM/CSV/edge mask timecourses, CR-R^2, and the average amplitude of BOLD and
     confound components seperately.
@@ -203,6 +202,7 @@ class DatasetDiagnosis(BaseInterface):
         volume_indices = brain_mask.astype(bool)
 
         scan_name_list=[]
+        mean_maps=[]
         std_maps=[]
         CR_VE_maps=[]
         tdof_list=[]
@@ -222,6 +222,7 @@ class DatasetDiagnosis(BaseInterface):
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
+            mean_maps.append(scan_data['voxelwise_mean'])            
             std_maps.append(scan_data['temporal_std'])
             CR_VE_maps.append(scan_data['VE_spatial'])            
             tdof_list.append(scan_data['tDOF'])
@@ -251,11 +252,12 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
+        mean_maps=np.array(mean_maps)[:,non_zero_voxels]
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
         CR_VE_maps=np.array(CR_VE_maps)[:,non_zero_voxels]
 
-        corr_variable = [BOLD_std_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
+        corr_variable = [mean_maps,BOLD_std_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
         CR_VE = np.array(VE_total_ratio_list)
