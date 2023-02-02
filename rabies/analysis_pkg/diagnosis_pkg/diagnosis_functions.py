@@ -394,10 +394,11 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
 
 
     dr_maps = spatial_info['DR_BOLD']
+    SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
     mask_file = data_dict['mask_file']
 
-    nrows = 4+dr_maps.shape[0]+len(NPR_maps)
+    nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -496,10 +497,28 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
+            ax.set_title(f'DR network {i}', fontsize=30, color='white')
+
+    for i in range(len(SBC_maps)):
+        axes = axes2[i+4+dr_maps.shape[0], :]
+
+        map = SBC_maps[i]
+        threshold = percent_threshold(map)
+        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
+        mask_img = recover_3D(mask_file,mask)        
+        sitk_img = recover_3D(
+            mask_file, map)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
+
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label("Pearson r", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
+        for ax in axes:
+            ax.set_title(f'SBC network {i}', fontsize=30, color='white')
 
     for i in range(len(NPR_maps)):
-        axes = axes2[i+4+dr_maps.shape[0], :]
+        axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
 
         map = NPR_maps[i, :]
         threshold = percent_threshold(map)
@@ -514,7 +533,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'NPR component {i}', fontsize=30, color='white')
+            ax.set_title(f'NPR network {i}', fontsize=30, color='white')
 
     return fig, fig2
 
