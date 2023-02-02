@@ -257,64 +257,71 @@ def plot_density(v, bounds, outliers, ax, axis='x'):
                     raise
 
 
-def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=3.5):
+def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, outlier_threshold=3.5):
     
-    fig = plt.figure(figsize=(20, 25))
+    fig = plt.figure(figsize=(20, 30))
 
-    ax_x_2 = fig.add_subplot(8,3,5)
-    ax_y_1 = fig.add_subplot(4,6,11)
-    ax_y_2 = fig.add_subplot(4,6,17)
+    ax_x_2 = fig.add_subplot(10,3,5)
+    ax_y_1 = fig.add_subplot(5,6,11)
+    ax_y_2 = fig.add_subplot(5,6,17)
+    ax_y_3 = fig.add_subplot(5,6,23)
 
-    ax2 = fig.add_subplot(4,3,5)
-    ax4 = fig.add_subplot(4,3,8)
+    ax2 = fig.add_subplot(5,3,5)
+    ax4 = fig.add_subplot(5,3,8)
+    ax6 = fig.add_subplot(5,3,11)
     if not tdof_array is None:
-        ax6 = fig.add_subplot(4,3,11)
-        ax_y_3 = fig.add_subplot(4,6,23)
-        ax6.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
+        ax8 = fig.add_subplot(5,3,14)
+        ax_y_4 = fig.add_subplot(5,6,29)
+        ax8.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
     else:
-        ax6=None
-        ax_y_3=None
-        ax4.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
+        ax8=None
+        ax_y_4=None
+        ax6.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
 
     if not network_var is None:
-        ax_x_1 = fig.add_subplot(8,3,4)
-        ax1 = fig.add_subplot(4,3,4)
-        ax3 = fig.add_subplot(4,3,7)
-        ax1.set_ylabel('CR variance', color='White', fontsize=25)
-        ax3.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
+        ax_x_1 = fig.add_subplot(10,3,4)
+        ax1 = fig.add_subplot(5,3,4)
+        ax3 = fig.add_subplot(5,3,7)
+        ax5 = fig.add_subplot(5,3,10)
+        ax1.set_ylabel('DR confound corr.', color='White', fontsize=25)
+        ax3.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
+        ax5.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
-            ax5 = fig.add_subplot(4,3,10)
-            ax5.set_ylabel('Degrees of freedom', color='White', fontsize=25)
-            ax5.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
+            ax7 = fig.add_subplot(5,3,13)
+            ax7.set_ylabel('Degrees of freedom', color='White', fontsize=25)
+            ax7.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
         else:
-            ax5 = None
-            ax3.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
+            ax7 = None
+            ax5.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
 
     else:
         ax_x_1 = None
         ax1 = None
         ax3 = None
         ax5 = None
-        ax2.set_ylabel('CR variance', color='White', fontsize=25)
-        ax4.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
+        ax7 = None
+        ax2.set_ylabel('Confound temporal correlation', color='White', fontsize=25)
+        ax4.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
+        ax6.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
-            ax6.set_ylabel('Degrees of freedom', color='White', fontsize=25)
+            ax8.set_ylabel('Degrees of freedom', color='White', fontsize=25)
 
 
-    axes = np.array([[ax1,ax2],[ax3,ax4],[ax5,ax6]])
+    axes = np.array([[ax1,ax2],[ax3,ax4],[ax5,ax6],[ax7,ax8]])
     axes_x = [ax_x_1,ax_x_2]
-    axes_y = [ax_y_1,ax_y_2,ax_y_3]
+    axes_y = [ax_y_1,ax_y_2,ax_y_3,ax_y_4]
 
     x_i=0
-    for x in [network_var,network_dice]:
+    for x,x_bounds in zip([network_var,network_dice],[None,[0,1]]):
         if x is None:
             x_i+=1
             continue
 
         x_outliers = detect_outliers(x, threshold=outlier_threshold)
-        x_bounds = list(set_bounds(x))
+        if x_bounds is None:
+            x_bounds = list(set_bounds(x))
 
         ax = axes_x[x_i]
         ax.spines['right'].set_visible(False)
@@ -331,11 +338,12 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
         y_i=0
-        for y in [CR_var, mean_FD_array, tdof_array]:
+        for y,y_bounds in zip([DR_conf_corr,CR_VE, mean_FD_array, tdof_array],[[0,1],[0,1],None,None]):
             if y is None:
                 y_i+=1
                 continue
-            y_bounds = list(set_bounds(y))
+            if y_bounds is None:
+                y_bounds = list(set_bounds(y))
             y_outliers = detect_outliers(y, threshold=outlier_threshold)
 
 
@@ -383,7 +391,7 @@ def plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_a
     return fig
 
 
-def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=3.5):
+def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=3.5):
 
     threshold = percent_threshold(prior_map)
     prior_mask=np.abs(prior_map)>=threshold # taking absolute values to include negative weights
@@ -395,18 +403,21 @@ def QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_a
         dice_list.append(dice)
 
     network_dice = np.array(dice_list)
-    fig = plot_QC_distributions(network_var,network_dice,CR_var, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
+    fig = plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, outlier_threshold=outlier_threshold)
 
     data = [scan_name_list]
     columns=['scan ID']
     for feature,name in zip(
-            [network_var,network_dice,CR_var, mean_FD_array, tdof_array],
-            ['Component variance','Dice overlap','CR variance','mean FD','tDOF']):
+            [network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array],
+            ['Component variance','Dice overlap','DR confound corr.','CR $\mathregular{R^2}$','mean FD','tDOF']):
         if feature is None:
             continue
         data.append(feature)
-        columns.append(name)
         data.append(detect_outliers(feature, threshold=outlier_threshold))
+
+        if name=='CR $\mathregular{R^2}$':
+            name='CR R^2'
+        columns.append(name)
         columns.append(name+' - outlier?')
 
     df = pd.DataFrame(data=np.array(data).T, columns=columns)

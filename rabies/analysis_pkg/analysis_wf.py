@@ -15,7 +15,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     group_inputnode = pe.Node(niu.IdentityInterface(
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
-                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 
+                                                       'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 'joined_seed_timecourse_csv',
                                                        'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
                                                        'NPR_prior_filename', 'NPR_extra_filename']), name='outputnode')
 
@@ -51,10 +51,10 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         seed_based_FC_node.inputs.seed_dict = seed_dict
 
         # create a joinnode to provide also combined seed maps
-        seed_FC_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['joined_corr_map_file']),
+        seed_FC_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['joined_corr_map_file', 'joined_seed_timecourse_csv']),
                                                 name='seed_FC_joinnode',
                                                 joinsource='seed_based_FC',
-                                                joinfield=['joined_corr_map_file'])
+                                                joinfield=['joined_corr_map_file', 'joined_seed_timecourse_csv'])
 
 
         workflow.connect([
@@ -67,9 +67,11 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             (seed_based_FC_node, seed_FC_joinnode, [
                 ("corr_map_file", "joined_corr_map_file"),
+                ("seed_timecourse_csv", "joined_seed_timecourse_csv"),
                 ]),
             (seed_FC_joinnode, outputnode, [
                 ("joined_corr_map_file", "joined_corr_map_file"),
+                ("joined_seed_timecourse_csv", "joined_seed_timecourse_csv"),
                 ]),
             ])
 

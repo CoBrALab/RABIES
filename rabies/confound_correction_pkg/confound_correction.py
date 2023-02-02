@@ -56,8 +56,6 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                 regressors.
             frame_mask_file: CSV file which records which frame were censored
             CR_data_dict: dictionary object storing extra data computed during confound correction
-            background_mask_fig: a figure showing the automatically-generated mask of the image background 
-                for --image_scaling background_noise.
     """
 
     workflow = pe.Workflow(name=name)
@@ -65,7 +63,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                         'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
-                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict', 'background_mask_fig']), name='outputnode')
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
@@ -100,7 +98,6 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
-            ("background_mask_fig", "background_mask_fig"),
             ]),
         ])
 
@@ -140,8 +137,6 @@ class RegressOutputSpec(TraitedSpec):
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
-    background_mask_fig = traits.Str(
-        desc="Figure to visualize the quality of background noise mapping.")
 
 class Regress(BaseInterface):
     '''
@@ -184,7 +179,7 @@ class Regress(BaseInterface):
         import pandas as pd
         import SimpleITK as sitk
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend, get_background_mask
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -201,7 +196,6 @@ class Regress(BaseInterface):
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
-        setattr(self, 'background_mask_fig', empty_file)
         ###
 
         bold_file = self.inputs.bold_file
@@ -235,19 +229,6 @@ class Regress(BaseInterface):
             TR = float(data_img.GetSpacing()[3])
         else:
             TR = float(cr_opts.TR)
-
-        '''
-        scaling based on background noise
-        '''
-        if cr_opts.image_scaling=='background_noise':
-            background_mask, data_array, background_mask_fig_path = get_background_mask(self.inputs.raw_input_file, plotting=True)
-            # based on Gudbjartsson and Patz (1995, Magn Reson Med.), there's a linear relationship between the mean 
-            # in the background noise and the scanner noise signal variability in the Fourrier domain
-            scaling_factor = data_array[:,background_mask].flatten().mean() # we take the mean as a proxy for signal standard deviation in Fourier domain
-            timeseries = timeseries/scaling_factor
-        else:
-            background_mask_fig_path = empty_file
-        
 
         '''
         #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
@@ -406,6 +387,7 @@ class Regress(BaseInterface):
 
             return runtime
 
+        VE_total_ratio = 1-(res.var()/Y.var())
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
@@ -519,7 +501,7 @@ class Regress(BaseInterface):
         num_regressors = confounds_array.shape[1]
         tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std}
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)
@@ -529,7 +511,6 @@ class Regress(BaseInterface):
         setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
         setattr(self, 'frame_mask_file', frame_mask_file)
         setattr(self, 'data_dict', data_dict)
-        setattr(self, 'background_mask_fig', background_mask_fig_path)
 
         return runtime
 
@@ -543,5 +524,4 @@ class Regress(BaseInterface):
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),
-                'background_mask_fig': getattr(self, 'background_mask_fig'),
                 }

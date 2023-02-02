@@ -103,9 +103,8 @@ class ScanDiagnosisOutputSpec(TraitedSpec):
 class ScanDiagnosis(BaseInterface):
     """
     Extracts several spatial and temporal features on the target scan.
-    Spatial features include tSTD, CR-R^2 (variance explained from confound regression),
-    correlation maps with global signal/DVARS/FD, and network maps from specified
-    BOLD priors at the indices of prior_bold_idx.
+    Spatial features include tSTD, CRsd (variance fitted from confound regression), CR-R^2,
+    and network maps from specified BOLD priors at the indices of prior_bold_idx.
     Temporal features include grayplot, 6 motion parameters, framewise displacement,
     DVARS, WM/CSV/edge mask timecourses, CR-R^2, and the average amplitude of BOLD and
     confound components seperately.
@@ -203,26 +202,47 @@ class DatasetDiagnosis(BaseInterface):
         volume_indices = brain_mask.astype(bool)
 
         scan_name_list=[]
+        mean_maps=[]
         std_maps=[]
-        CR_std_maps=[]
-        DR_maps_list=[]
-        seed_maps_list=[]
-        NPR_maps_list=[]
+        CR_VE_maps=[]
         tdof_list=[]
         mean_FD_list=[]
-        CR_global_std_list=[]
+        VE_total_ratio_list=[]
+
+        FC_maps_dict={}
+        FC_maps_dict['DR']=[]
+        FC_maps_dict['NPR']=[]
+        FC_maps_dict['SBC']=[]
+        
+        DR_conf_corr_dict={}
+        DR_conf_corr_dict['DR']=[]
+        DR_conf_corr_dict['NPR']=[]
+        DR_conf_corr_dict['SBC']=[]
+
         for scan_data in merged:
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
+            mean_maps.append(scan_data['voxelwise_mean'])            
             std_maps.append(scan_data['temporal_std'])
-            CR_std_maps.append(scan_data['predicted_std'])
-            DR_maps_list.append(scan_data['DR_BOLD'])
-            NPR_maps_list.append(scan_data['NPR_maps'])
+            CR_VE_maps.append(scan_data['VE_spatial'])            
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
-            seed_maps_list.append(scan_data['seed_list'])
-            CR_global_std_list.append(scan_data['CR_global_std'])
+            VE_total_ratio_list.append(scan_data['VE_total_ratio'])
 
+            FC_maps_dict['DR'].append(scan_data['DR_BOLD'])
+            FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
+            FC_maps_dict['SBC'].append(scan_data['seed_map_list'])
+
+            # computing the temporal correlation between network and confound timecourses
+            DR_confound_time = scan_data['DR_confound_time']
+            for network_time,key in zip(
+                [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
+                ['DR','NPR','SBC']):
+                if len(network_time)>0:
+                    # for each network, compute its confound correlation as mean across all DR confound components
+                    corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
+                    DR_conf_corr_dict[key].append(corr_list)
+ 
         # save the list of the scan names that were included in the group statistics
         pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/analysis_QC_scanlist.txt', index=None, header=False)
 
@@ -232,14 +252,15 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
+        mean_maps=np.array(mean_maps)[:,non_zero_voxels]
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
-        CR_std_maps=np.array(CR_std_maps)[:,non_zero_voxels]
+        CR_VE_maps=np.array(CR_VE_maps)[:,non_zero_voxels]
 
-        corr_variable = [BOLD_std_maps, CR_std_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
+        corr_variable = [mean_maps,BOLD_std_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_var = np.array(CR_global_std_list)
+        CR_VE = np.array(VE_total_ratio_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -254,11 +275,11 @@ class DatasetDiagnosis(BaseInterface):
             columns = list(df.columns)
             i=0
             for column in columns:
-                if '$\mathregular{CR_{SD}}$' in column:
+                if 'CR $\mathregular{R^2}$' in column:
                     if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - CRsd'
+                        columns[i] = 'Overlap: Prior - CR R^2'
                     if 'Avg.:' in column:
-                        columns[i] = 'Avg.: CRsd'
+                        columns[i] = 'Avg.: CR R^2'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
@@ -284,9 +305,9 @@ class DatasetDiagnosis(BaseInterface):
                 plt.close(fig)
                 plt.close(fig_unthresholded)
 
-        def distribution_network_i(i,prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix):
+        def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df = QC_distributions(prior_map,FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=outlier_threshold)
+            fig,df = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold=outlier_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.png'
             fig.savefig(fig_path, bbox_inches='tight')
@@ -296,7 +317,7 @@ class DatasetDiagnosis(BaseInterface):
         prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
         num_priors = prior_maps.shape[0]
 
-        DR_maps_list=np.array(DR_maps_list)
+        DR_maps_list=np.array(FC_maps_dict['DR'])
         for i in range(num_priors):
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
             analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
@@ -306,9 +327,9 @@ class DatasetDiagnosis(BaseInterface):
             if self.inputs.network_weighting=='relative':
                 network_var=None
 
-            distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='DR')
+            distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='DR')
 
-        NPR_maps_list=np.array(NPR_maps_list)
+        NPR_maps_list=np.array(FC_maps_dict['NPR'])
         if NPR_maps_list.shape[1]>0:
             for i in range(num_priors):
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
@@ -319,7 +340,7 @@ class DatasetDiagnosis(BaseInterface):
                 if self.inputs.network_weighting=='relative':
                     network_var=None
 
-                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='NPR')
 
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
         if len(self.inputs.seed_prior_maps)>0:
@@ -331,13 +352,13 @@ class DatasetDiagnosis(BaseInterface):
 
             prior_maps = np.array(prior_maps)[:,non_zero_voxels]
             num_priors = prior_maps.shape[0]
-            seed_maps_list=np.array(seed_maps_list)
+            seed_maps_list=np.array(FC_maps_dict['SBC'])
             for i in range(num_priors):
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
                 analysis_QC_network_i(i,FC_maps,prior_maps[i,:],non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
                 network_var = None
-                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,CR_var, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='seed_FC')
+                distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,analysis_prefix='seed_FC')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)

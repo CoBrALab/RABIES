@@ -489,8 +489,8 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--image_scaling', type=str,
-        default="global_variance",
-        choices=["None", "background_noise", "global_variance", "voxelwise_standardization", 
+        default="grand_mean_scaling",
+        choices=["None", "global_variance", "voxelwise_standardization", 
                  "grand_mean_scaling", "voxelwise_mean"],
         help=
             "Select an option for scaling the image variance to match the intensity profile of \n"
@@ -498,8 +498,6 @@ def get_parser():
             "The variance explained from confound regression is also scaled accordingly for later use with \n"
             "--data_diagnosis. \n"
             "*** None: No scaling is applied, only detrending.\n"
-            "*** background_noise: a mask is derived to map background noise, and scale the image \n"
-            "   intensity relative to the noise standard deviation. \n"
             "*** global_variance: After applying confound correction, the cleaned timeseries are scaled \n"
             "   according to the total standard deviation of all voxels, to scale total variance to 1. \n"
             "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
