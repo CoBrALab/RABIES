@@ -388,11 +388,12 @@ def get_parser():
         )
     g_stc.add_argument(
         '--tpattern', type=str, default='alt-z',
-        choices=['alt-z', 'seq-z', 'alt+z', 'seq+z'],
+        choices=['alt-z', 'alt-z2', 'seq-z', 'alt+z', 'alt+z2', 'seq+z'],
         help=
             "Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which \n"
             "direction (- or +) to apply the correction. If slices were acquired from front to back, \n"
-            "the correction should be in the negative (-) direction. Refer to this discussion on the \n"
+            "the correction should be in the negative (-) direction. If slices were collected in an interleaved \n"
+            "order starting with the second or (second-to-last) slice, use 'alt+z2' or 'alt-z2'. Refer to this discussion on the \n"
             "topic for more information https://github.com/CoBrALab/RABIES/discussions/217.\n"
             "(default: %(default)s)\n"
             "\n"
@@ -406,7 +407,17 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-
+    g_stc.add_argument(
+        '--interp_method', type=str, default='quintic',
+        choices=['linear', 'cubic', 'quintic', 'heptic', 'wsinc5', 'wsinc9', 'fourier'],
+        help=
+            "Can specify the interpolation method used for STC. Polynomial methods (e.g., linear, cubic, etc.) \n"
+            "will introduce greater autocorrelation to the interpolated timeseries, while wsinc and fourier methods \n"
+            "will introduce less (or none). Refer to this discussion on the topic for more information \n"
+            "https://github.com/CoBrALab/RABIES/discussions/267. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_atlas = preprocess.add_argument_group(
         title='Template Files', 
         description=

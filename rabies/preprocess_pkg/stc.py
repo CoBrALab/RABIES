@@ -12,7 +12,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
         fields=['stc_file']), name='outputnode')
 
     if opts.apply_STC:
-        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'stc_axis', 'rabies_data_type'],
+        slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'stc_axis', 'interp_method', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],
                                                         function=slice_timing_correction),
@@ -20,6 +20,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
         slice_timing_correction_node.inputs.tr = opts.TR
         slice_timing_correction_node.inputs.tpattern = opts.tpattern
         slice_timing_correction_node.inputs.stc_axis = opts.stc_axis
+        slice_timing_correction_node.inputs.interp_method = opts.interp_method
         slice_timing_correction_node.inputs.rabies_data_type = opts.data_type
         slice_timing_correction_node.plugin_args = {
             'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -37,7 +38,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     return workflow
 
 
-def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', rabies_data_type=8):
+def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', interp_method = 'quintic', rabies_data_type=8):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation
@@ -59,6 +60,8 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', 
             interleaved.
         stc_axis
             Can specify over which axis between X,Y and Z slices were acquired
+        interp_method
+            Input to AFNI's 3dTshift that specifies the interpolation method to be used.
 
     **Outputs**
 
@@ -97,7 +100,7 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', 
         image_out = sitk.GetImageFromArray(new_array, isVector=False)
         sitk.WriteImage(image_out, target_file)
 
-    command = f'3dTshift -quintic -prefix temp_tshift.nii.gz -tpattern {tpattern} -TR {tr} {target_file}'
+    command = f'3dTshift -{interp_method} -prefix temp_tshift.nii.gz -tpattern {tpattern} -TR {tr} {target_file}'
     from rabies.utils import run_command
     rc = run_command(command)
 

@@ -165,7 +165,9 @@ usage: rabies preprocess [-h] [--bold_only] [--anat_autobox] [--bold_autobox] [-
                          [--anat_robust_inho_cor ANAT_ROBUST_INHO_COR] [--bold_inho_cor BOLD_INHO_COR] [--bold_robust_inho_cor BOLD_ROBUST_INHO_COR]
                          [--commonspace_reg COMMONSPACE_REG] [--bold2anat_coreg BOLD2ANAT_COREG] [--nativespace_resampling NATIVESPACE_RESAMPLING]
                          [--commonspace_resampling COMMONSPACE_RESAMPLING] [--anatomical_resampling ANATOMICAL_RESAMPLING] [--apply_STC] [--TR TR]
-                         [--tpattern {alt-z,seq-z,alt+z,seq+z}] [--stc_axis {X,Y,Z}] [--anat_template ANAT_TEMPLATE] [--brain_mask BRAIN_MASK]
+                         [--tpattern {alt-z,alt-z2,seq-z,alt+z,alt+z2,seq+z}] [--stc_axis {X,Y,Z}] [--anat_template ANAT_TEMPLATE] 
+                         [--interp_method {linear,cubic,quintic,heptic,wsinc5,wsinc9,fourier}]
+                         [--brain_mask BRAIN_MASK]
                          [--WM_mask WM_MASK] [--CSF_mask CSF_MASK] [--vascular_mask VASCULAR_MASK] [--labels LABELS]
                          bids_dir output_dir
 
@@ -347,17 +349,26 @@ STC Options:
   --TR TR               Specify repetition time (TR) in seconds. (e.g. --TR 1.2)
                         (default: auto)
                         
-  --tpattern {alt-z,seq-z,alt+z,seq+z}
+  --tpattern {alt-z,alt-z2,seq-z,alt+z,alt+z2,seq+z}
                         Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which 
                         direction (- or +) to apply the correction. If slices were acquired from front to back, 
-                        the correction should be in the negative (-) direction. Refer to this discussion on the 
-                        topic for more information https://github.com/CoBrALab/RABIES/discussions/217.
+                        the correction should be in the negative (-) direction. If slices were collected in an interleaved
+                        order starting with the second or (second-to-last) slice, use 'alt+z2' or 'alt-z2'.
+                        Refer to this discussion on the topic for more information https://github.com/CoBrALab/RABIES/discussions/217.
                         (default: alt-z)
                         
   --stc_axis {X,Y,Z}    Can specify over which axis of the image the STC must be applied. Generally, the correction 
                         should be over the Y axis, which corresponds to the anteroposterior axis in RAS convention. 
                         (default: Y)
-                        
+
+  --interp_method {linear,cubic,quintic,heptic,wsinc5,wsinc9,fourier}
+                        Can specify the interpolation method used for STC. Polynomial methods (e.g., linear, cubic, etc.)
+                        will introduce greater autocorrelation to the interpolated timeseries, while wsinc and fourier methods
+                        will introduce less (or none). Refer to this discussion on the topic for more information
+                        https://github.com/CoBrALab/RABIES/discussions/267.
+                        (default: quintic) 
+            
+
 
 Template Files:
   Specify commonspace template and associated mask/label files. By default, RABIES
