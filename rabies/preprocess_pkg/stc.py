@@ -38,7 +38,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     return workflow
 
 
-def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', interp_method = 'quintic', rabies_data_type=8):
+def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', interp_method = 'fourier', rabies_data_type=8):
     '''
     This functions applies slice-timing correction on the anterior-posterior
     slice acquisition direction. The input image, assumed to be in RAS orientation

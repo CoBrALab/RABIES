@@ -408,7 +408,7 @@ def get_parser():
             "\n"
         )
     g_stc.add_argument(
-        '--interp_method', type=str, default='quintic',
+        '--interp_method', type=str, default='fourier',
         choices=['linear', 'cubic', 'quintic', 'heptic', 'wsinc5', 'wsinc9', 'fourier'],
         help=
             "Can specify the interpolation method used for STC. Polynomial methods (e.g., linear, cubic, etc.) \n"

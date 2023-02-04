@@ -366,7 +366,7 @@ STC Options:
                         will introduce greater autocorrelation to the interpolated timeseries, while wsinc and fourier methods
                         will introduce less (or none). Refer to this discussion on the topic for more information
                         https://github.com/CoBrALab/RABIES/discussions/267.
-                        (default: quintic) 
+                        (default: fourier) 
             
 
 
