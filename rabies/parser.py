@@ -706,7 +706,7 @@ def get_parser():
     analysis.add_argument(
         '--prior_confound_idx', type=int,
         nargs="*",  # 0 or more values expected => creates a list
-        default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
+        default=[0, 2, 6, 7, 8, 9, 10, 11,
                     13, 14, 21, 22, 24, 26, 28, 29],
         help=
             "Specify the indices for the confound components from --prior_maps. This is pertinent for the\n" 
