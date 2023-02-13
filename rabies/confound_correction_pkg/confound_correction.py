@@ -404,6 +404,20 @@ class Regress(BaseInterface):
         '''
         #10 - Scaling of timeseries variance.
         '''
+
+        if cr_opts.scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
+            if cr_opts.image_scaling=='voxelwise_standardization' or cr_opts.image_scaling=='voxelwise_mean':
+                raise ValueError(f"Can't select --scale_variance_voxelwise with --image_scaling {cr_opts.image_scaling}.")
+            else:
+                # homogenize variance across voxels
+                temporal_std = timeseries.std(axis=0) 
+                total_std = timeseries.std()
+                timeseries /= temporal_std
+                nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+                timeseries[:,nan_voxels] = 0
+                # rescale to preserve total variance
+                timeseries = (timeseries/timeseries.std())*total_std
+
         if cr_opts.image_scaling=='global_variance':
             scaling_factor = timeseries.std()
             timeseries = timeseries/scaling_factor

@@ -511,6 +511,16 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
+        '--scale_variance_voxelwise', dest='scale_variance_voxelwise', action='store_true', default=False,
+        help=
+            "\n"
+            "If scaling was not applied voxelwise with voxelwise_standardization or voxelwise_mean, this option \n"
+            "standardize the variance at each voxel to be equal, while preserving to total variance of the \n"
+            "4D timeseries (i.e. voxels have same variance, but not unit variance).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
         '--detrending_order', type=str,
         default="linear",
         choices=["linear", "quadratic"],
