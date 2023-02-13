@@ -367,12 +367,11 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
         if len(network_time)>0:
             # make sure the timecourses are normalized
             network_time = network_time.copy()
-            #network_time /= np.sqrt((network_time ** 2).sum(axis=0))
-            network_time /= network_time.std(axis=0)
+            network_time /= np.sqrt((network_time ** 2).mean(axis=0))
             network_time_avg = np.abs(network_time).mean(axis=1)
             # we introduce a scaler to prevent overlap of timecourses
             network_time_avg += scaler
-            scaler -= 2
+            scaler -= 1
             ax4.plot(x,network_time_avg, color=color, alpha=0.8)
             legend.append(name)
 
