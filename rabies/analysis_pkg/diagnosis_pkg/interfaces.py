@@ -204,6 +204,8 @@ class DatasetDiagnosis(BaseInterface):
         scan_name_list=[]
         mean_maps=[]
         std_maps=[]
+        std_scaled_maps=[]
+        CRsd_scaled_maps=[]
         CR_VE_maps=[]
         tdof_list=[]
         mean_FD_list=[]
@@ -223,7 +225,12 @@ class DatasetDiagnosis(BaseInterface):
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
             mean_maps.append(scan_data['voxelwise_mean'])            
-            std_maps.append(scan_data['temporal_std'])
+            temporal_std = scan_data['temporal_std']
+            std_maps.append(temporal_std)
+            std_scaled_maps.append(temporal_std/np.median(temporal_std))
+            CRsd = scan_data['predicted_std']
+            scaled_CRsd = CRsd/np.median(CRsd) # we are scaling relative to central distribution
+            CRsd_scaled_maps.append(scaled_CRsd)
             CR_VE_maps.append(scan_data['VE_spatial'])            
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
@@ -254,10 +261,12 @@ class DatasetDiagnosis(BaseInterface):
 
         mean_maps=np.array(mean_maps)[:,non_zero_voxels]
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
+        scaled_std_maps=np.array(std_scaled_maps)[:,non_zero_voxels]
+        CRsd_scaled_maps=np.array(CRsd_scaled_maps)[:,non_zero_voxels]
         CR_VE_maps=np.array(CR_VE_maps)[:,non_zero_voxels]
 
-        corr_variable = [mean_maps,BOLD_std_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
+        corr_variable = [mean_maps,BOLD_std_maps, scaled_std_maps, CRsd_scaled_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', 'Scaled $\mathregular{BOLD_{SD}}$', 'Scaled $\mathregular{CR_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
         CR_VE = np.array(VE_total_ratio_list)
@@ -280,6 +289,16 @@ class DatasetDiagnosis(BaseInterface):
                         columns[i] = 'Overlap: Prior - CR R^2'
                     if 'Avg.:' in column:
                         columns[i] = 'Avg.: CR R^2'
+                elif 'Scaled $\mathregular{BOLD_{SD}}$' in column:
+                    if 'Overlap:' in column:
+                        columns[i] = 'Overlap: Prior - Scaled BOLDsd'
+                    if 'Avg.:' in column:
+                        columns[i] = 'Avg.: Scaled BOLDsd'
+                elif 'Scaled $\mathregular{CR_{SD}}$' in column:
+                    if 'Overlap:' in column:
+                        columns[i] = 'Overlap: Prior - Scaled CRsd'
+                    if 'Avg.:' in column:
+                        columns[i] = 'Avg.: Scaled CRsd'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
