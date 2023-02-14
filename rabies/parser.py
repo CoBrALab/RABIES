@@ -726,6 +726,28 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        '--scan_QC_thresholds', type=str, default="'{DR:{Dice:[],Conf:[],Amp:false},SBC:{}}'",
+        help=
+            "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"
+            "This can be specified for a given set of network analyses among DR (dual regression), SBC (seed \n"
+            "connectivity), or NPR. For each analysis, the following QC parameters can be specified: \n"
+            "* Dice: Threshold for the minimum network detectability computed as Dice overlap with the prior. \n"
+            "*** Specify a list of thresholds between 0 and 1. The order of thresholds provided within the list \n"
+            "    will be matched to the list of networks for the corresponding analysis (for DR/NPR, this \n"
+            "    will be matched to the --prior_bold_idx list, and for SBC it will be matched to --seed_list). \n"
+            "    If the list is empty, no thresholding is applied, otherwise, the length of the lists for the  \n"
+            "    thresholds and networks must match. \n"
+            "* Conf: Threshold for the maximum temporal correlation with DR confound timecourses. \n"
+            "*** Specify a list of thresholds between 0 and 1. The same rules as Dice are followed for specifying \n"
+            "    the order of thresholds within the list. \n"
+            "* Amp: Whether to automatically remove outliers from the network amplitude measure. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "The expression for the parameter must follow a dictionary syntax as exemplified by the default. \n"
+            "Note that the expression must be written within ' '.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         '--outlier_threshold', type=float, default=3.5,
         help=
             "The modified Z-score threshold for detecting outliers during dataset QC when using \n"
@@ -883,6 +905,7 @@ def read_parser(parser):
         opts.group_ica = parse_argument(opt=opts.group_ica, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             name='group_ica')
+        opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts
 
@@ -913,4 +936,51 @@ def parse_argument(opt, key_value_pairs, name):
     for key in key_list:
         if not key in list(opt_dict.keys()):
             raise ValueError(f"The key {key} is missing from the necessary attributes for --{name}.")
+    return opt_dict
+
+def parse_scan_QC_thresholds(opt):
+
+    # we must add "" around each key manually, as they are not encoded from the parser
+    for key in ['SBC','DR','NPR','Dice','Conf','Amp']:
+        s=''
+        for s_ in opt.split(key):
+            s+=s_+f'"{key}"'
+        opt=s[:-len(f'"{key}"')] # remove the extra addition at the end
+
+    # must convert false/true syntax to proper python format
+    for key,replace in zip(['true','false'],['True','False']):
+        s=''
+        for s_ in opt.split(key):
+            s+=s_+f'{replace}'
+        opt=s[:-len(f'{replace}')] # remove the extra addition at the end
+
+    import ast
+    # using ast.literal_eval()
+    # convert dictionary string to dictionary
+    try:
+        opt_dict = ast.literal_eval(opt)
+    except Exception as err:
+        raise ValueError(f"Error in parsing dictionary for --scan_QC_thresholds {opt} : {err=}, {type(err)=}")
+
+    keys = list(opt_dict.keys())
+    for key in keys:
+        if not key in ['SBC','DR','NPR']:
+            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR','NPR'.")
+        sub_dict = opt_dict[key]
+        if not type(sub_dict) is dict:
+            raise ValueError(f"The specification '{sub_dict}' for key '{key}' is not a valid dictionary.")
+        sub_keys = list(sub_dict.keys())
+        for sub_key in sub_keys:
+            if not sub_key in ['Dice','Conf','Amp']:
+                raise ValueError(f"The key '{sub_key}' from --scan_QC_thresholds is invalid. Must be among 'Dice','Conf','Amp'.")
+            if sub_key=='Amp':
+                if not type(sub_dict[sub_key]) is bool:
+                    raise ValueError(f"'{sub_dict[sub_key]}' from {opt} must be True or False.")
+            if sub_key in ['Dice','Conf']:
+                if not type(sub_dict[sub_key]) is list:
+                    raise ValueError(f"'{sub_dict[sub_key]}' from {opt} must be a list.")
+                for e in sub_dict[sub_key]:
+                    if not type(e) is float:
+                        raise ValueError(f"Element {e} from {sub_dict[sub_key]} must be a float.")
+
     return opt_dict
