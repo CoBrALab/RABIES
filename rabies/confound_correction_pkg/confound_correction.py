@@ -409,14 +409,27 @@ class Regress(BaseInterface):
             if cr_opts.image_scaling=='voxelwise_standardization' or cr_opts.image_scaling=='voxelwise_mean':
                 raise ValueError(f"Can't select --scale_variance_voxelwise with --image_scaling {cr_opts.image_scaling}.")
             else:
-                # homogenize variance across voxels
-                temporal_std = timeseries.std(axis=0) 
+                temporal_std = timeseries.std(axis=0)
                 total_std = timeseries.std()
+
+                # homogenize variance across voxels
                 timeseries /= temporal_std
                 nan_voxels = np.isnan(timeseries).sum(axis=0)>1
                 timeseries[:,nan_voxels] = 0
+                scaled_total_std = timeseries.std()
                 # rescale to preserve total variance
-                timeseries = (timeseries/timeseries.std())*total_std
+                timeseries = (timeseries/scaled_total_std)*total_std
+
+                # the same scaling estimated from BOLD is applied to CR estimates to preserve accurate ratios of variance explained per voxel
+                scaled_list = []
+                for scaled_timeseries in [predicted,predicted_random]:
+                    scaled_timeseries /= temporal_std
+                    nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
+                    scaled_timeseries[:,nan_voxels] = 0
+                    scaled_timeseries = (scaled_timeseries/scaled_total_std)*total_std
+                    scaled_list.append(scaled_timeseries)
+                [predicted,predicted_random] = scaled_list
+
 
         if cr_opts.image_scaling=='global_variance':
             scaling_factor = timeseries.std()
@@ -432,11 +445,11 @@ class Regress(BaseInterface):
 
         # scale fMRI timeseries, as well as the CR prediction to keep consistent scaling
         scaled_list = []
-        for temp_timeseries in [timeseries,predicted,predicted_random]:
-            temp_timeseries /= scaling_factor
-            nan_voxels = np.isnan(temp_timeseries).sum(axis=0)>1
-            temp_timeseries[:,nan_voxels] = 0
-            scaled_list.append(temp_timeseries)
+        for scaled_timeseries in [timeseries,predicted,predicted_random]:
+            scaled_timeseries /= scaling_factor
+            nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
+            scaled_timeseries[:,nan_voxels] = 0
+            scaled_list.append(scaled_timeseries)
         [timeseries,predicted,predicted_random] = scaled_list
 
         # after variance scaling, compute the variability estimates
