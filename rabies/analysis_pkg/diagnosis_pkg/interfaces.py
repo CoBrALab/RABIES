@@ -184,11 +184,6 @@ class DatasetDiagnosis(BaseInterface):
         from rabies.utils import flatten_list
         from .analysis_QC import analysis_QC,QC_distributions
 
-        merged = flatten_list(list(self.inputs.scan_data_list))
-        if len(merged) < 3:
-            raise ValueError(
-                "Cannot run statistics on a sample size smaller than 3, so an empty figure is generated.")
-
         out_dir_global = os.path.abspath('analysis_QC/')
         os.makedirs(out_dir_global, exist_ok=True)
         out_dir_parametric = out_dir_global+'/parametric_stats/'
@@ -197,6 +192,16 @@ class DatasetDiagnosis(BaseInterface):
         os.makedirs(out_dir_non_parametric, exist_ok=True)
         out_dir_dist = out_dir_global+'/sample_distributions/'
         os.makedirs(out_dir_dist, exist_ok=True)
+
+        merged = flatten_list(list(self.inputs.scan_data_list))
+        if len(merged) < 3:
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.warning(
+                "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
+            setattr(self, 'analysis_QC',
+                    out_dir_global)
+            return runtime
 
         template_file = merged[0]['template_file']
         mask_file = merged[0]['mask_file']
@@ -380,11 +385,13 @@ class DatasetDiagnosis(BaseInterface):
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
             QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
 
-            # apply QC inclusion
-            FC_maps_ = FC_maps[QC_inclusion,:]
-            corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
+            # compute group stats only if there is at least 3 scans
+            if QC_inclusion.sum()>2:
+                # apply QC inclusion
+                FC_maps_ = FC_maps[QC_inclusion,:]
+                corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-            analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
+                analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
 
         NPR_maps_list=np.array(FC_maps_dict['NPR'])
@@ -401,11 +408,13 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
                 QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
 
-                # apply QC inclusion
-                FC_maps_ = FC_maps[QC_inclusion,:]
-                corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
+                # compute group stats only if there is at least 3 scans
+                if QC_inclusion.sum()>2:
+                    # apply QC inclusion
+                    FC_maps_ = FC_maps[QC_inclusion,:]
+                    corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
+                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
         # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
         if len(self.inputs.seed_prior_maps)>0:
@@ -426,11 +435,13 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
                 QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
 
-                # apply QC inclusion
-                FC_maps_ = FC_maps[QC_inclusion,:]
-                corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
+                # compute group stats only if there is at least 3 scans
+                if QC_inclusion.sum()>2:
+                    # apply QC inclusion
+                    FC_maps_ = FC_maps[QC_inclusion,:]
+                    corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
+                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
         setattr(self, 'analysis_QC',
                 out_dir_global)
