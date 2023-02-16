@@ -982,5 +982,11 @@ def parse_scan_QC_thresholds(opt):
                 for e in sub_dict[sub_key]:
                     if not type(e) is float:
                         raise ValueError(f"Element {e} from {sub_dict[sub_key]} must be a float.")
+    
+    # network amplitude is not computed with SBC
+    if 'SBC' in keys:
+        if 'Amp' in list(opt_dict['SBC'].keys()):
+            raise ValueError(f"Amplitude is not computed with SBC. Do not specify 'Amp' for 'SBC' with --scan_QC_thresholds.")
+
 
     return opt_dict
