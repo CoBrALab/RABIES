@@ -15,10 +15,10 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
         
     smoothing=True
     if non_parametric:
-        name_list = ['Prior network', 'Dataset Median', 'Dataset MAD']+variable_name
+        name_list = ['Prior network', 'Dataset average', 'Cross-scan variability']+variable_name
         measure_list = ["Median", "Median Absolute \nDeviation", "Spearman rho"]
     else:
-        name_list = ['Prior network', 'Dataset Mean', 'Dataset STD']+variable_name
+        name_list = ['Prior network', 'Dataset average', 'Cross-scan variability']+variable_name
         measure_list = ["Mean", "Standard \nDeviation", "Pearson r"]
     
     maps = get_maps(consensus_network, FC_maps, corr_variable, mask_file, smoothing, non_parametric=non_parametric)
@@ -272,28 +272,28 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
     if not tdof_array is None:
         ax8 = fig.add_subplot(5,3,14)
         ax_y_4 = fig.add_subplot(5,6,29)
-        ax8.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
+        ax8.set_xlabel('Network specificity (Dice)', color='White', fontsize=25)
     else:
         ax8=None
         ax_y_4=None
-        ax6.set_xlabel('Dice overlap \n(network shape)', color='White', fontsize=25)
+        ax6.set_xlabel('Network specificity (Dice)', color='White', fontsize=25)
 
     if not network_var is None:
         ax_x_1 = fig.add_subplot(10,3,4)
         ax1 = fig.add_subplot(5,3,4)
         ax3 = fig.add_subplot(5,3,7)
         ax5 = fig.add_subplot(5,3,10)
-        ax1.set_ylabel('DR confound corr.', color='White', fontsize=25)
-        ax3.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
+        ax1.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
+        ax3.set_ylabel('CR VE (scaled)', color='White', fontsize=25)
         ax5.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
             ax7 = fig.add_subplot(5,3,13)
             ax7.set_ylabel('Degrees of freedom', color='White', fontsize=25)
-            ax7.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
+            ax7.set_xlabel('Network amplitude', color='White', fontsize=25)
         else:
             ax7 = None
-            ax5.set_xlabel('Component variance \n(network amplitude)', color='White', fontsize=25)
+            ax5.set_xlabel('Network amplitude', color='White', fontsize=25)
 
     else:
         ax_x_1 = None
@@ -301,8 +301,8 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
         ax3 = None
         ax5 = None
         ax7 = None
-        ax2.set_ylabel('Confound temporal correlation', color='White', fontsize=25)
-        ax4.set_ylabel('CR $\mathregular{R^2}$', color='White', fontsize=25)
+        ax2.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
+        ax4.set_ylabel('CR VE (scaled)', color='White', fontsize=25)
         ax6.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
@@ -357,7 +357,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
         y_i=0
-        for y,y_bounds in zip([DR_conf_corr,CR_VE, mean_FD_array, tdof_array],[[0,1],[0,1],None,None]):
+        for y,y_bounds in zip([DR_conf_corr,CR_VE, mean_FD_array, tdof_array],[[0,1],None,None,None]):
             if y is None:
                 y_i+=1
                 continue

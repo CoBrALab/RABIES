@@ -211,12 +211,10 @@ class DatasetDiagnosis(BaseInterface):
         scan_name_list=[]
         mean_maps=[]
         std_maps=[]
-        std_scaled_maps=[]
         CRsd_scaled_maps=[]
-        CR_VE_maps=[]
         tdof_list=[]
         mean_FD_list=[]
-        VE_total_ratio_list=[]
+        CR_VE_scaled_list=[]
 
         FC_maps_dict={}
         FC_maps_dict['DR']=[]
@@ -234,14 +232,12 @@ class DatasetDiagnosis(BaseInterface):
             mean_maps.append(scan_data['voxelwise_mean'])            
             temporal_std = scan_data['temporal_std']
             std_maps.append(temporal_std)
-            std_scaled_maps.append(temporal_std/np.median(temporal_std))
             CRsd = scan_data['predicted_std']
             scaled_CRsd = CRsd/np.median(CRsd) # we are scaling relative to central distribution
             CRsd_scaled_maps.append(scaled_CRsd)
-            CR_VE_maps.append(scan_data['VE_spatial'])            
+            CR_VE_scaled_list.append(scan_data['CR_global_std']/np.median(CRsd)) # scaling total var by same factor as the spatial map
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
-            VE_total_ratio_list.append(scan_data['VE_total_ratio'])
 
             FC_maps_dict['DR'].append(scan_data['DR_BOLD'])
             FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
@@ -268,15 +264,13 @@ class DatasetDiagnosis(BaseInterface):
 
         mean_maps=np.array(mean_maps)[:,non_zero_voxels]
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
-        scaled_std_maps=np.array(std_scaled_maps)[:,non_zero_voxels]
         CRsd_scaled_maps=np.array(CRsd_scaled_maps)[:,non_zero_voxels]
-        CR_VE_maps=np.array(CR_VE_maps)[:,non_zero_voxels]
 
-        corr_variable = [mean_maps,BOLD_std_maps, scaled_std_maps, CRsd_scaled_maps, CR_VE_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', 'Scaled $\mathregular{BOLD_{SD}}$', 'Scaled $\mathregular{CR_{SD}}$', 'CR $\mathregular{R^2}$', 'Mean FD']
+        corr_variable = [mean_maps,BOLD_std_maps, CRsd_scaled_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$ (scaled)', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_VE = np.array(VE_total_ratio_list)
+        CR_VE = np.array(CR_VE_scaled_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -291,21 +285,11 @@ class DatasetDiagnosis(BaseInterface):
             columns = list(df.columns)
             i=0
             for column in columns:
-                if 'CR $\mathregular{R^2}$' in column:
+                if '$\mathregular{CR_{SD}}$ (scaled)' in column:
                     if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - CR R^2'
+                        columns[i] = 'Overlap: Prior - CRsd (scaled)'
                     if 'Avg.:' in column:
-                        columns[i] = 'Avg.: CR R^2'
-                elif 'Scaled $\mathregular{BOLD_{SD}}$' in column:
-                    if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - Scaled BOLDsd'
-                    if 'Avg.:' in column:
-                        columns[i] = 'Avg.: Scaled BOLDsd'
-                elif 'Scaled $\mathregular{CR_{SD}}$' in column:
-                    if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - Scaled CRsd'
-                    if 'Avg.:' in column:
-                        columns[i] = 'Avg.: Scaled CRsd'
+                        columns[i] = 'Avg.: CRsd (scaled)'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
