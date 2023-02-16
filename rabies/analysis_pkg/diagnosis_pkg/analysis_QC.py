@@ -334,7 +334,6 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
             x_i+=1
             continue
 
-        x_outliers = detect_outliers(x, threshold=outlier_threshold)
         if x_bounds is None:
             x_bounds = list(set_bounds(x))
 
@@ -347,10 +346,10 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
         
         # don't include removed scans in side plots
         x_in = x[QC_inclusion]
-        x_outliers_in = x_outliers[QC_inclusion]
+        x_outliers = detect_outliers(x_in, threshold=outlier_threshold)
 
         try:
-            plot_density(v=x_in, bounds=x_bounds, outliers=x_outliers_in, ax=ax, axis='x')
+            plot_density(v=x_in, bounds=x_bounds, outliers=x_outliers, ax=ax, axis='x')
         except:
             from nipype import logging
             log = logging.getLogger('nipype.workflow')
@@ -363,9 +362,11 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
                 continue
             if y_bounds is None:
                 y_bounds = list(set_bounds(y))
-            y_outliers = detect_outliers(y, threshold=outlier_threshold)
 
-
+            # don't include removed scans in side plots
+            y_in = y[QC_inclusion]
+            y_outliers = detect_outliers(y_in, threshold=outlier_threshold)
+            
             if x_i==1:
                 ax = axes_y[y_i]
                 ax.spines['right'].set_visible(False)
@@ -373,13 +374,9 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
                 plt.setp(ax.get_xticklabels(), visible=False)
                 plt.setp(ax.get_yticklabels(), visible=False)
                 ax.set_ylim(y_bounds)
-                
-                # don't include removed scans in side plots
-                y_in = y[QC_inclusion]
-                y_outliers_in = y_outliers[QC_inclusion]
-                
+                                
                 try:
-                    plot_density(v=y_in, bounds=y_bounds, outliers=y_outliers_in, ax=ax, axis='y')
+                    plot_density(v=y_in, bounds=y_bounds, outliers=y_outliers, ax=ax, axis='y')
                 except:
                     from nipype import logging
                     log = logging.getLogger('nipype.workflow')
@@ -397,9 +394,9 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
             union_outliers = x_outliers+y_outliers
 
             for outlier in [False,True]:
-                idx = (union_outliers==outlier)*QC_inclusion # multiply by QC inclusion to remove discarded scans
-                x_=x[idx]
-                y_=y[idx]
+                idx = (union_outliers==outlier)
+                x_=x_in[idx]
+                y_=y_in[idx]
                 if not outlier:
                     try:
                         plot_density_2D(x_,y_, cm='Blues', ax=ax, xlim=ax.get_xlim(), ylim=ax.get_ylim())
@@ -410,7 +407,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
                 
                 ax.scatter(x_,y_, s=30, edgecolor='black')
                 
-            # show outliers in gray
+            # show removed scans in gray
             ax.scatter(x[QC_inclusion==False],y[QC_inclusion==False], s=30, color='lightgray', edgecolor='black')
             y_i+=1
         x_i+=1
@@ -434,29 +431,36 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, CR_VE, mean_FD_
 
     # apply QC thresholds
     QC_inclusion = np.ones(len(scan_name_list)).astype(bool)
-    if scan_QC_thresholds['Amp']:
-        QC_inclusion *= (detect_outliers(network_var, threshold=outlier_threshold)==0)
     if not scan_QC_thresholds['Dice'] is None:
         QC_inclusion *= (scan_QC_thresholds['Dice']<network_dice)
     if not scan_QC_thresholds['Conf'] is None:
         QC_inclusion *= (scan_QC_thresholds['Conf']>DR_conf_corr)
+    if scan_QC_thresholds['Amp']:
+        while(True): # this is done iteratively, as new outliers may appear in the new distribution after removing a first set
+            # we apply previous Dice/conf filters so removed scans don't contribute to estimating outliers
+            Amp_QC = detect_outliers(network_var[QC_inclusion], threshold=outlier_threshold)==0
+            if (Amp_QC==0).sum()==0: # if there are no more outliers, break from the loop
+                break
+            QC_inclusion[QC_inclusion] = Amp_QC
     
     fig = plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=outlier_threshold)
 
-    data = [scan_name_list, QC_inclusion]
-    columns=['scan ID', 'QC inclusion?']
+    df = pd.DataFrame(data=np.array([scan_name_list, QC_inclusion]).T, columns=['scan ID', 'QC inclusion?'])
+
     for feature,name in zip(
             [network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array],
-            ['Component variance','Dice overlap','DR confound corr.','CR $\mathregular{R^2}$','mean FD','tDOF']):
+            ['Component variance','Dice overlap','DR confound corr.','CR VE (scaled)','mean FD','tDOF']):
         if feature is None:
             continue
-        data.append(feature)
-        data.append(detect_outliers(feature, threshold=outlier_threshold))
+        df[name] = feature
 
-        if name=='CR $\mathregular{R^2}$':
-            name='CR R^2'
-        columns.append(name)
-        columns.append(name+' - outlier?')
+        outliers = np.empty(len(QC_inclusion))
+        outliers[QC_inclusion] = detect_outliers(feature[QC_inclusion], threshold=outlier_threshold)
+        
+        outliers = outliers.astype(object) # convert to object to handle strings
+        outliers[QC_inclusion==0]=''
+        outliers[outliers==1]=True
+        outliers[outliers==0]=False
+        df[name+' - outlier?'] = outliers
 
-    df = pd.DataFrame(data=np.array(data).T, columns=columns)
     return fig,df,QC_inclusion
