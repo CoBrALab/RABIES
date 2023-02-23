@@ -110,7 +110,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'confounds_csv',
-                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
+                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                 'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
         name='outputnode')
@@ -257,6 +257,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.native_brain_mask", "native_brain_mask"),
             ("outputnode.native_WM_mask", "native_WM_mask"),
             ("outputnode.native_CSF_mask", "native_CSF_mask"),
+            ("outputnode.native_vascular_mask", "native_vascular_mask"),
             ("outputnode.native_labels", "native_labels"),
             ("outputnode.confounds_csv", "confounds_csv"),
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
@@ -467,6 +468,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("native_brain_mask", "native_brain_mask"),  # get the EPI labels
             ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
             ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
+            ("native_vascular_mask", "native_vascular_mask"),  # get the EPI labels
             ("native_labels", "native_labels"),  # get the EPI labels
             # warped EPI to anat
             ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),

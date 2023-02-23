@@ -39,7 +39,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, confounds_csv=None,
         FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, 
-        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_labels=None,
+        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
         anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None):
         return
     buffer_outputnode_node = pe.Node(Function(input_names=target_list,
@@ -87,7 +87,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             (preproc_outputnode, confound_correction_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
-                ("native_CSF_mask", "inputnode.csf_mask"),
+                ("native_WM_mask", "inputnode.WM_mask"),
+                ("native_CSF_mask", "inputnode.CSF_mask"),
+                ("native_vascular_mask", "inputnode.vascular_mask"),
                 ]),
             (preproc_outputnode, plot_CR_overfit_node, [
                 ("native_brain_mask", "mask_file"),
@@ -98,7 +100,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             (preproc_outputnode, confound_correction_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
-                ("commonspace_CSF_mask", "inputnode.csf_mask"),
+                ("commonspace_WM_mask", "inputnode.WM_mask"),
+                ("commonspace_CSF_mask", "inputnode.CSF_mask"),
+                ("commonspace_vascular_mask", "inputnode.vascular_mask"),
                 ]),
             (preproc_outputnode, plot_CR_overfit_node, [
                 ("commonspace_mask", "mask_file"),
@@ -162,7 +166,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
 
     if nativespace:
         directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'],
-            ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_labels']]
+            ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_vascular_mask'], ['bold_datasink','native_labels']]
 
     target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
@@ -301,6 +305,7 @@ def read_preproc_workflow(preproc_output, nativespace=False):
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.Brain_mask_EPI', 'EPI_mask'],
                         'native_WM_mask':['main_wf.bold_main_wf.bold_native_trans_wf.WM_mask_EPI', 'EPI_mask'],
                         'native_CSF_mask':['main_wf.bold_main_wf.bold_native_trans_wf.CSF_mask_EPI', 'EPI_mask'],
+                        'native_vascular_mask':['main_wf.bold_main_wf.bold_native_trans_wf.vascular_mask_EPI', 'EPI_mask'],
                         'native_labels':['main_wf.bold_main_wf.bold_native_trans_wf.prop_labels_EPI', 'EPI_mask'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],

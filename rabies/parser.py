@@ -534,7 +534,7 @@ def get_parser():
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         choices=["WM_signal", "CSF_signal", "vascular_signal",
-                "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
+                "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24", "mean_FD"],
         help=
             "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
             "regression.\n"
@@ -543,9 +543,10 @@ def get_parser():
             "*** mot_6: 6 rigid head motion correction parameters.\n"
             "*** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in \n"
             "   Friston et al. (1996, Magnetic Resonance in Medicine).\n"
-            "*** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
+            "*** aCompCor_percent: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
             "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
             "   Components adding up to 50 percent of the variance are included.\n"
+            "*** aCompCor_5: aCompCor method, but taking 5 first principal components. \n"
             "*** mean_FD: the mean framewise displacement timecourse.\n"
             "(default: %(default)s)\n"
             "\n"
@@ -726,7 +727,7 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--scan_QC_thresholds', type=str, default="'{DR:{Dice:[],Conf:[],Amp:false},SBC:{}}'",
+        '--scan_QC_thresholds', type=str, default="{}",
         help=
             "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"
             "This can be specified for a given set of network analyses among DR (dual regression), SBC (seed \n"
@@ -742,7 +743,8 @@ def get_parser():
             "    the order of thresholds within the list. \n"
             "* Amp: Whether to automatically remove outliers from the network amplitude measure. \n"
             "*** Specify 'true' or 'false'. \n"
-            "The expression for the parameter must follow a dictionary syntax as exemplified by the default. \n"
+            "The expression for the parameters must follow a dictionary syntax, as with this example:  \n"
+            "'{DR:{Dice:[0.3],Conf:[0.25],Amp:false},SBC:{Dice:[0.3]}}'. \n"
             "Note that the expression must be written within ' '.\n"
             "(default: %(default)s)\n"
             "\n"

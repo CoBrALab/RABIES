@@ -60,14 +60,14 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-                        'bold_file', 'brain_mask', 'csf_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
+                        'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
                            name='regress', mem_gb=1*cr_opts.scale_min_memory)
 
-    prep_CR_node = pe.Node(Function(input_names=['bold_file', 'confounds_file', 'FD_file', 'cr_opts'],
+    prep_CR_node = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],
                                               function=prep_CR),
                                      name='prep_CR', mem_gb=1)
@@ -76,13 +76,15 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     workflow.connect([
         (inputnode, prep_CR_node, [
             ("bold_file", "bold_file"),
-            ("confounds_file", "confounds_file"),
+            ("confounds_file", "motion_params_csv"),
             ("FD_file", "FD_file"),
             ]),
         (inputnode, regress_node, [
             ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
-            ("csf_mask", "CSF_mask_file"),
+            ("WM_mask", "WM_mask_file"),
+            ("CSF_mask", "CSF_mask_file"),
+            ("vascular_mask", "vascular_mask_file"),
             ("raw_input_file", "raw_input_file"),
             ]),
         (prep_CR_node, regress_node, [
@@ -113,8 +115,12 @@ class RegressInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Dictionary with extra inputs.")
     brain_mask_file = File(exists=True, mandatory=True,
                       desc="Brain mask.")
+    WM_mask_file = File(exists=True, mandatory=True,
+                      desc="WM mask.")
     CSF_mask_file = File(exists=True, mandatory=True,
                       desc="CSF mask.")
+    vascular_mask_file = File(exists=True, mandatory=True,
+                      desc="vascular mask.")
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")
 
@@ -154,9 +160,11 @@ class Regress(BaseInterface):
     #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
     #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
          simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-    #9 - Apply confound regression using the selected nuisance regressors.
-    #10 - Scaling of timeseries variance.
-    #11 - Apply Gaussian spatial smoothing.
+    #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
+         minimize re-introduction of previously corrected signal fluctuations.
+    #10 - Apply confound regression using the selected nuisance regressors.
+    #11 - Scaling of timeseries.
+    #12 - Apply Gaussian spatial smoothing.
     
     References:
         
@@ -179,7 +187,7 @@ class Regress(BaseInterface):
         import pandas as pd
         import SimpleITK as sitk
         from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend
+        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors
         from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
@@ -206,7 +214,7 @@ class Regress(BaseInterface):
 
         FD_trace=data_dict['FD_trace']
         confounds_array=data_dict['confounds_array']
-        confounds_file=data_dict['confounds_csv']
+        confounds_file=data_dict['motion_params_csv']
         time_range=data_dict['time_range']
         confounds_6rigid_array=data_dict['confounds_6rigid_array']
 
@@ -365,7 +373,14 @@ class Regress(BaseInterface):
             return runtime
 
         '''
-        #9 - Apply confound regression using the selected nuisance regressors.
+        #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
+            minimize re-introduction of previously corrected signal fluctuations.
+        '''    
+        regressors_array = compute_signal_regressors(timeseries,volume_indices, cr_opts.conf_list,self.inputs.brain_mask_file,self.inputs.WM_mask_file,self.inputs.CSF_mask_file,self.inputs.vascular_mask_file)
+        confounds_array = np.append(confounds_array,regressors_array,axis=1)
+
+        '''
+        #10 - Apply confound regression using the selected nuisance regressors.
         '''
         # voxels that have a NaN value are set to 0
         nan_voxels = np.isnan(timeseries).sum(axis=0)>1
@@ -402,7 +417,7 @@ class Regress(BaseInterface):
             timeseries = res
 
         '''
-        #10 - Scaling of timeseries variance.
+        #11 - Scaling of timeseries.
         '''
 
         if cr_opts.scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
@@ -474,7 +489,7 @@ class Regress(BaseInterface):
 
         if cr_opts.smoothing_filter is not None:
             '''
-            #11 - Apply Gaussian spatial smoothing.
+            #12 - Apply Gaussian spatial smoothing.
             '''
             import nibabel as nb
             affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
