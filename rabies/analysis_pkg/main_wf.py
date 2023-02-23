@@ -331,7 +331,7 @@ def read_confound_workflow(conf_output, nativespace=False):
                     'commonspace_CSF_mask':[preproc_outputnode_name, 'commonspace_CSF_mask'],
                     'commonspace_vascular_mask':[preproc_outputnode_name, 'commonspace_vascular_mask'],
                     'commonspace_labels':[preproc_outputnode_name, 'commonspace_labels'],
-                    'confounds_csv':[preproc_outputnode_name, 'confounds_csv'],
+                    'motion_params_csv':[preproc_outputnode_name, 'motion_params_csv'],
                     'FD_csv':[preproc_outputnode_name, 'FD_csv'],
                     'commonspace_resampled_template':[preproc_outputnode_name, 'commonspace_resampled_template'],
                     'cleaned_path':['confound_correction_main_wf.confound_correction_wf.regress', 'cleaned_path'],

@@ -1,13 +1,12 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu, afni
 
-from .hmc import init_bold_hmc_wf
+from .hmc import init_bold_hmc_wf,EstimateMotionParams
 from .bold_ref import init_bold_reference_wf
 from .resampling import init_bold_preproc_trans_wf
 from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
-from .confounds import init_bold_confs_wf
 from nipype.interfaces.utility import Function
 
 
@@ -78,11 +77,10 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             anatomical image
         resampled_ref_bold
             3D median EPI volume from the resampled native BOLD timeseries
-        confounds_csv
-            .csv file with measured confound timecourses, including global signal,
-            WM signal, CSF signal, 6 rigid body motion parameters + their first
-            temporal derivate + the 12 parameters squared (24 motion parameters),
-            and aCompCorr timecourses
+        motion_params_csv
+            .csv file with measured motion timecourses, used as regressors for confound
+            correction: 6 rigid body motion parameters + their first temporal derivate 
+            + the 12 parameters squared (24 motion parameters)
         FD_voxelwise
             Voxelwise framewise displacement (FD) measures that can be integrated
             to future confound regression.
@@ -129,7 +127,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                 fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
                         'output_warped_bold', 'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp',
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
-                        'confounds_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
+                        'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
                         'raw_brain_mask']),
                 name='outputnode')
@@ -216,7 +214,11 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
     bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
     bold_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
 
-    bold_confs_wf = init_bold_confs_wf(opts=opts, name="bold_confs_wf")
+    estimate_motion_node = pe.Node(EstimateMotionParams(),
+                                name='estimate_motion_node', mem_gb=2.3*opts.scale_min_memory)
+    estimate_motion_node.plugin_args = {
+        'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
+
 
     def prep_resampling_transforms(native_to_commonspace_transform_list,native_to_commonspace_inverse_list, bold_to_anat_warp, bold_to_anat_inverse_warp, bold_to_anat_affine, 
                                    commonspace_to_native_transform_list, commonspace_to_native_inverse_list, bold_only=False):
@@ -288,14 +290,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                 ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
             (bold_hmc_wf, bold_native_trans_wf, [
              ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
-            (bold_native_trans_wf, bold_confs_wf, [
-                ('outputnode.bold', 'inputnode.bold'),
-                ('outputnode.bold_ref','inputnode.ref_bold'),
-                ('outputnode.brain_mask', 'inputnode.brain_mask'),
-                ('outputnode.WM_mask', 'inputnode.WM_mask'),
-                ('outputnode.CSF_mask', 'inputnode.CSF_mask'),
-                ('outputnode.vascular_mask', 'inputnode.vascular_mask'),
-                ]),
             (bold_native_trans_wf, outputnode, [
                 ('outputnode.bold', 'native_bold'),
                 ('outputnode.bold_ref','native_bold_ref'),
@@ -311,18 +305,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         prep_resampling_transforms_node.inputs.bold_to_anat_warp = None
         prep_resampling_transforms_node.inputs.bold_to_anat_inverse_warp = None
         prep_resampling_transforms_node.inputs.bold_to_anat_affine = None
-
-        workflow.connect([
-            (bold_commonspace_trans_wf, bold_confs_wf, [
-                ('outputnode.bold', 'inputnode.bold'),
-                ('outputnode.bold_ref','inputnode.ref_bold'),
-                ('outputnode.brain_mask', 'inputnode.brain_mask'),
-                ('outputnode.WM_mask', 'inputnode.WM_mask'),
-                ('outputnode.CSF_mask', 'inputnode.CSF_mask'),
-                ('outputnode.vascular_mask', 'inputnode.vascular_mask'),
-                ]),
-            ])
-
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
@@ -346,14 +328,14 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
             ]),
-        (bold_hmc_wf, bold_confs_wf, [
-            ('outputnode.motcorr_params', 'inputnode.movpar_file'),
+        (bold_hmc_wf, estimate_motion_node, [
+            ('outputnode.motcorr_params', 'motcorr_params'),
             ]),
-        (bold_confs_wf, outputnode, [
-            ('outputnode.confounds_csv', 'confounds_csv'),
-            ('outputnode.FD_csv', 'FD_csv'),
-            ('outputnode.FD_voxelwise', 'FD_voxelwise'),
-            ('outputnode.pos_voxelwise', 'pos_voxelwise'),
+        (estimate_motion_node, outputnode, [
+            ('motion_params_csv', 'motion_params_csv'),
+            ('FD_csv', 'FD_csv'),
+            ('FD_voxelwise', 'FD_voxelwise'),
+            ('pos_voxelwise', 'pos_voxelwise'),
             ]),
         (prep_resampling_transforms_node, bold_commonspace_trans_wf, [
             ('to_commonspace_transform_list', 'inputnode.transforms_list'),
@@ -364,11 +346,11 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         (transitionnode, bold_commonspace_trans_wf, [
             ('bold_ref', 'inputnode.raw_bold_ref'),
             ]),
-        (bold_commonspace_trans_wf, bold_confs_wf, [
-            ('outputnode.raw_brain_mask', 'inputnode.raw_brain_mask'),
+        (bold_commonspace_trans_wf, estimate_motion_node, [
+            ('outputnode.raw_brain_mask', 'raw_brain_mask'),
             ]),
-        (inputnode, bold_confs_wf, [
-            ('bold', 'inputnode.raw_bold'),
+        (inputnode, estimate_motion_node, [
+            ('bold', 'raw_bold'),
             ]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [
          ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),

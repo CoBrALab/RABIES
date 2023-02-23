@@ -293,10 +293,10 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax4.set_xlim([0, len(y)-1])
 
     # plot the motion timecourses
-    confounds_csv = CR_data_dict['confounds_csv']
+    motion_params_csv = CR_data_dict['motion_params_csv']
     time_range = CR_data_dict['time_range']
     frame_mask = CR_data_dict['frame_mask']
-    df = pd.read_csv(confounds_csv)
+    df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
     ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
     ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])

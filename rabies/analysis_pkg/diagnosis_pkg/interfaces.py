@@ -227,12 +227,15 @@ class DatasetDiagnosis(BaseInterface):
         DR_conf_corr_dict['SBC']=[]
 
         for scan_data in merged:
+            temporal_std = scan_data['temporal_std']
+            CRsd = scan_data['predicted_std']
+            if np.median(CRsd)==0:
+                # exclude scans with a majority of 0s; indicates misregistration
+                continue
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
             mean_maps.append(scan_data['voxelwise_mean'])            
-            temporal_std = scan_data['temporal_std']
             std_maps.append(temporal_std)
-            CRsd = scan_data['predicted_std']
             scaled_CRsd = CRsd/np.median(CRsd) # we are scaling relative to central distribution
             CRsd_scaled_maps.append(scaled_CRsd)
             CR_VE_scaled_list.append(scan_data['CR_global_std']/np.median(CRsd)) # scaling total var by same factor as the spatial map

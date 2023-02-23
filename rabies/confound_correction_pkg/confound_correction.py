@@ -42,7 +42,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             bold_file: preprocessed EPI timeseries
             brain_mask: brain mask overlapping with EPI timeseries
             csf_mask: CSF mask overlapping with EPI timeseries
-            confounds_file: CSV file with nuisance timecourses
+            motion_params_csv: CSV file with motion regressors
             FD_file: CSV file with the framewise displacement
 
         outputs
@@ -60,7 +60,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-                        'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'confounds_file', 'FD_file', 'raw_input_file']), name='inputnode')
+                        'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'motion_params_csv', 'FD_file', 'raw_input_file']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
@@ -76,7 +76,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     workflow.connect([
         (inputnode, prep_CR_node, [
             ("bold_file", "bold_file"),
-            ("confounds_file", "motion_params_csv"),
+            ("motion_params_csv", "motion_params_csv"),
             ("FD_file", "FD_file"),
             ]),
         (inputnode, regress_node, [
@@ -214,7 +214,7 @@ class Regress(BaseInterface):
 
         FD_trace=data_dict['FD_trace']
         confounds_array=data_dict['confounds_array']
-        confounds_file=data_dict['motion_params_csv']
+        motion_params_csv=data_dict['motion_params_csv']
         time_range=data_dict['time_range']
         confounds_6rigid_array=data_dict['confounds_6rigid_array']
 
@@ -523,7 +523,7 @@ class Regress(BaseInterface):
         num_regressors = confounds_array.shape[1]
         tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
-        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'confounds_csv':confounds_file, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean}
+        data_dict = {'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean}
 
         setattr(self, 'cleaned_path', cleaned_path)
         setattr(self, 'VE_file_path', VE_file_path)
