@@ -74,7 +74,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
 
     if (commonspace_bold or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
-        def prep_scan_data(dict_file, analysis_dict, spatial_info, temporal_info):
+        def prep_scan_data(dict_file, spatial_info, temporal_info):
             import pickle
             with open(dict_file, 'rb') as handle:
                 data_dict = pickle.load(handle)
@@ -103,7 +103,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             scan_data['mask_file'] = data_dict['mask_file']
             return scan_data
 
-        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'analysis_dict', 'spatial_info', 'temporal_info'],
+        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'spatial_info', 'temporal_info'],
                                             output_names=['scan_data'],
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
@@ -124,11 +124,11 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
         DatasetDiagnosis_node.inputs.outlier_threshold = analysis_opts.outlier_threshold
         DatasetDiagnosis_node.inputs.network_weighting = analysis_opts.network_weighting
+        DatasetDiagnosis_node.inputs.scan_QC_thresholds = analysis_opts.scan_QC_thresholds
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [
                 ("dict_file", "dict_file"),
-                ("analysis_dict", "analysis_dict"),
                 ]),
             (ScanDiagnosis_node, prep_scan_data_node, [
                 ("spatial_info", "spatial_info"),
