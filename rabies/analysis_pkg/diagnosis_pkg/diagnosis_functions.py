@@ -236,20 +236,46 @@ def grayplot(timeseries, ax):
     return im
 
 
+def plot_freqs(ax,timeseries, TR):
+    freqs = np.fft.fftfreq(timeseries.shape[0], TR)
+    idx = np.argsort(freqs)
+    pos_idx = idx[freqs[idx]>0]
+
+    ps = np.abs(np.fft.fft(timeseries.T))**2
+    ps_mean = ps.mean(axis=0)
+    ps_std = ps.std(axis=0)
+
+    y_max = ps_mean[freqs>0.01].max()*1.5
+
+    ax.plot(freqs[pos_idx], ps_mean[pos_idx])
+    ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
+    ax.set_ylim([0,y_max])
+    ax.set_xlim([0,freqs.max()])
+    xticks = np.arange(0,freqs.max(),0.05)
+    ax.set_xticks(xticks)    
+
+
 def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
     timeseries = data_dict['timeseries']
     template_file = data_dict['template_file']
     CR_data_dict = data_dict['CR_data_dict']
     
-    fig = plt.figure(figsize=(6, 18))
-    #fig.suptitle(name, fontsize=30, color='white')
-    
-    ax0 = fig.add_subplot(3,1,1)
-    ax1 = fig.add_subplot(12,1,5)
-    ax1_ = fig.add_subplot(12,1,6)
-    ax2 = fig.add_subplot(6,1,4)
-    ax3 = fig.add_subplot(6,1,5)
-    ax4 = fig.add_subplot(6,1,6)
+    fig = plt.figure(figsize=(12, 24))
+
+    ax0 = fig.add_subplot(4,2,3)
+    ax0_f = fig.add_subplot(9,2,3) # plot frequencies
+
+    ax1 = fig.add_subplot(16,2,17)
+    ax1_ = fig.add_subplot(16,2,19)
+    ax2 = fig.add_subplot(8,2,11)
+    ax3 = fig.add_subplot(8,2,13)
+    ax4 = fig.add_subplot(8,2,15)
+
+    plot_freqs(ax0_f,timeseries, CR_data_dict['TR'])
+    plt.setp(ax0_f.get_yticklabels(), visible=False)
+    plt.setp(ax0_f.get_xticklabels(), fontsize=12)
+    ax0_f.set_xlabel('Frequency (Hz)', fontsize=15)
+    ax0_f.set_ylabel('Power (a.u.)', fontsize=15)
 
     # disable function
     regional_grayplot=False
