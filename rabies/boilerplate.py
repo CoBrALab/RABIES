@@ -270,7 +270,11 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
             references[friston24]=i
             i+=1
             str_list.append(f'24 motion parameters (the 6 rigid motion parameters, their temporal derivative, together with all 12 parameters squared[{references[friston24]}])')
-        if 'aCompCor' in opts.conf_list:
+        if 'aCompCor_5' in opts.conf_list:
+            references[aCompCor]=i
+            i+=1
+            str_list.append(f'the timecourses from the first 5 principal components derived from the voxels combining the WM and CSF masks (aCompCor)[{references[aCompCor]}]')
+        if 'aCompCor_percent' in opts.conf_list:
             references[aCompCor]=i
             i+=1
             str_list.append(f'the timecourses from principal components explaining 50% of the variance among the voxels from the combined WM and CSF masks (aCompCor)[{references[aCompCor]}]')

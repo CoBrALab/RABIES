@@ -196,6 +196,9 @@ def select_motion_regressors(conf_list,motion_params_csv,FD_file):
 
 def compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file):
 
+    # make sure there are no NaN voxels
+    timeseries[np.isnan(timeseries)] = 0
+
     regressors_array = np.empty([timeseries.shape[0],0])
     for conf,mask_file in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
                                 [WM_mask_file,CSF_mask_file,vascular_mask_file,brain_mask_file]):
