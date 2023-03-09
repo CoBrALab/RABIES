@@ -61,7 +61,22 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
 
 
-    '''Temporal Features'''
+    ### SBC analysis
+    if len(analysis_dict['seed_map_files'])>0:
+        seed_list=[]
+        for seed_map in analysis_dict['seed_map_files']:
+            seed_list.append(np.asarray(
+                sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
+        spatial_info['seed_map_list'] = seed_list
+        time_list=[]
+        for time_csv in analysis_dict['seed_timecourse_csv']:
+            time_list.append(np.array(pd.read_csv(time_csv, header=None)).flatten())
+        temporal_info['SBC_time'] = np.array(time_list).T # convert to time by network matrix
+    else:
+        spatial_info['seed_map_list'] = []
+        temporal_info['SBC_time'] = []
+
+    ### SBC analysis
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = sitk.GetArrayFromImage(
         sitk.ReadImage(analysis_dict['dual_regression_nii']))
@@ -70,12 +85,10 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
         DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
 
     temporal_info['DR_all'] = DR_W
+    temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
+    temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
-    signal_trace = np.abs(DR_W[:, prior_bold_idx]).mean(axis=1)
-    noise_trace = np.abs(DR_W[:, prior_confound_idx]).mean(axis=1)
-    temporal_info['signal_trace'] = signal_trace
-    temporal_info['noise_trace'] = noise_trace
-
+    '''Temporal Features'''
     # take regional timecourse from L2-norm
     WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
     CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
@@ -117,12 +130,6 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
-    if len(prior_fit_out['W'])>0:
-        NPR_prior_W = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
-        NPR_extra_W = np.array(pd.read_csv(analysis_dict['NPR_extra_timecourse_csv'], header=None))
-        temporal_info['NPR_prior_trace'] = np.abs(NPR_prior_W).mean(axis=1)
-        temporal_info['NPR_noise_trace'] = np.abs(NPR_extra_W).mean(axis=1)
-
     return temporal_info, spatial_info
 
 
@@ -134,7 +141,7 @@ def temporal_external_formating(temporal_info):
     filename_split = pathlib.Path(
         temporal_info['name_source']).name.rsplit(".nii")
 
-    del temporal_info['DR_all'], temporal_info['NPR_time']
+    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['NPR_time'],temporal_info['SBC_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
@@ -229,20 +236,46 @@ def grayplot(timeseries, ax):
     return im
 
 
+def plot_freqs(ax,timeseries, TR):
+    freqs = np.fft.fftfreq(timeseries.shape[0], TR)
+    idx = np.argsort(freqs)
+    pos_idx = idx[freqs[idx]>0]
+
+    ps = np.abs(np.fft.fft(timeseries.T))**2
+    ps_mean = ps.mean(axis=0)
+    ps_std = ps.std(axis=0)
+
+    y_max = ps_mean[freqs>0.01].max()*1.5
+
+    ax.plot(freqs[pos_idx], ps_mean[pos_idx])
+    ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
+    ax.set_ylim([0,y_max])
+    ax.set_xlim([0,freqs.max()])
+    xticks = np.arange(0,freqs.max(),0.05)
+    ax.set_xticks(xticks)    
+
+
 def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
     timeseries = data_dict['timeseries']
     template_file = data_dict['template_file']
     CR_data_dict = data_dict['CR_data_dict']
     
-    fig = plt.figure(figsize=(6, 18))
-    #fig.suptitle(name, fontsize=30, color='white')
-    
-    ax0 = fig.add_subplot(3,1,1)
-    ax1 = fig.add_subplot(12,1,5)
-    ax1_ = fig.add_subplot(12,1,6)
-    ax2 = fig.add_subplot(6,1,4)
-    ax3 = fig.add_subplot(6,1,5)
-    ax4 = fig.add_subplot(6,1,6)
+    fig = plt.figure(figsize=(12, 24))
+
+    ax0 = fig.add_subplot(4,2,3)
+    ax0_f = fig.add_subplot(9,2,3) # plot frequencies
+
+    ax1 = fig.add_subplot(16,2,17)
+    ax1_ = fig.add_subplot(16,2,19)
+    ax2 = fig.add_subplot(8,2,11)
+    ax3 = fig.add_subplot(8,2,13)
+    ax4 = fig.add_subplot(8,2,15)
+
+    plot_freqs(ax0_f,timeseries, CR_data_dict['TR'])
+    plt.setp(ax0_f.get_yticklabels(), visible=False)
+    plt.setp(ax0_f.get_xticklabels(), fontsize=12)
+    ax0_f.set_xlabel('Frequency (Hz)', fontsize=15)
+    ax0_f.set_ylabel('Power (a.u.)', fontsize=15)
 
     # disable function
     regional_grayplot=False
@@ -286,10 +319,10 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax4.set_xlim([0, len(y)-1])
 
     # plot the motion timecourses
-    confounds_csv = CR_data_dict['confounds_csv']
+    motion_params_csv = CR_data_dict['motion_params_csv']
     time_range = CR_data_dict['time_range']
     frame_mask = CR_data_dict['frame_mask']
-    df = pd.read_csv(confounds_csv)
+    df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
     ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
     ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])
@@ -346,20 +379,34 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
     ax3_.set_ylim([0,1])
 
-    y = temporal_info['signal_trace']
-    ax4.plot(x,y)
-    ax4.plot(x,temporal_info['noise_trace'])
-    if len(spatial_info['NPR_maps'])>0:
-        ax4.plot(x,temporal_info['NPR_prior_trace'])
-        ax4.plot(x,temporal_info['NPR_noise_trace'])
+    # we take the mean of the timecourse amplitude (absolute values) to summarized across all components
+    import matplotlib.cm as cm
+    Greens_colors = cm.Greens(np.linspace(0.5, 0.8, 2))
+    Blues_colors = cm.Blues(np.linspace(0.5, 0.8, 2))
+    YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
+    legend=[]
+    scaler = 0
+    for network_time,name,color in zip(
+            [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['NPR_time']],
+            ['DR confounds', 'DR networks','SBC networks','NPR networks'],
+            [YlOrRd_colors[2], Blues_colors[1],Blues_colors[0],Greens_colors[1]]):
+        if len(network_time)>0:
+            # make sure the timecourses are normalized
+            network_time = network_time.copy()
+            network_time /= np.sqrt((network_time ** 2).mean(axis=0))
+            network_time_avg = np.abs(network_time).mean(axis=1)
+            # we introduce a scaler to prevent overlap of timecourses
+            network_time_avg += scaler
+            scaler -= 1
+            ax4.plot(x,network_time_avg, color=color, alpha=0.8)
+            legend.append(name)
 
-    ax4.legend(['DR BOLD components', 'DR Confound components',
-                'NPR priors', 'NPR confounds',
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
+    ax4.legend(legend, loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
     ax4.set_xlabel('Timepoint', fontsize=25)
-    ax4.set_ylabel('Abs. Beta \ncoefficients (Avg.)', fontsize=20)
+    ax4.set_ylabel('Mean amplitude', fontsize=20)
+    ax4.yaxis.set_ticklabels([])
     plt.setp(ax4.get_xticklabels(), fontsize=15)
 
     plt.setp(ax1.get_yticklabels(), fontsize=15)
@@ -372,10 +419,11 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
 
 
     dr_maps = spatial_info['DR_BOLD']
+    SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
     mask_file = data_dict['mask_file']
 
-    nrows = 4+dr_maps.shape[0]+len(NPR_maps)
+    nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -474,10 +522,28 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'DR BOLD component {i}', fontsize=30, color='white')
+            ax.set_title(f'DR network {i}', fontsize=30, color='white')
+
+    for i in range(len(SBC_maps)):
+        axes = axes2[i+4+dr_maps.shape[0], :]
+
+        map = SBC_maps[i]
+        threshold = percent_threshold(map)
+        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
+        mask_img = recover_3D(mask_file,mask)        
+        sitk_img = recover_3D(
+            mask_file, map)
+        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
+
+        for cbar in cbar_list:
+            cbar.ax.get_yaxis().labelpad = 35
+            cbar.set_label("Pearson r", fontsize=17, rotation=270, color='white')
+            cbar.ax.tick_params(labelsize=15)
+        for ax in axes:
+            ax.set_title(f'SBC network {i}', fontsize=30, color='white')
 
     for i in range(len(NPR_maps)):
-        axes = axes2[i+4+dr_maps.shape[0], :]
+        axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
 
         map = NPR_maps[i, :]
         threshold = percent_threshold(map)
@@ -492,7 +558,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'NPR component {i}', fontsize=30, color='white')
+            ax.set_title(f'NPR network {i}', fontsize=30, color='white')
 
     return fig, fig2
 

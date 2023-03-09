@@ -62,12 +62,12 @@ def dual_regression(all_IC_vectors, timeseries):
     Y = timeseries.T
     # for one given volume, it's values can be expressed through a linear combination of the components
     W = closed_form(X, Y, intercept=False).T
-    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
+    W /= np.sqrt((W ** 2).mean(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
 
     # for a given voxel timeseries, it's signal can be explained a linear combination of the component timecourses
     C = closed_form(W, Y.T, intercept=False).T
 
-    S = np.sqrt((C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
+    S = np.sqrt((C ** 2).mean(axis=0)) # the component variance/scaling is taken from the spatial maps
     C /= S # the spatial maps are variance normalized; the variance is stored in S
 
     # we thus output a model of the timeseries of the form X = W.dot((S*C).T)
@@ -168,10 +168,10 @@ def spatiotemporal_prior_fit(X, C_prior, num_W, num_C):
     W = closed_form(C, X.T).T
     if num_W>0:
         W[:,-num_W:] = W_extra # add back W_prior
-    W /= np.sqrt((W ** 2).sum(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
+    W /= np.sqrt((W ** 2).mean(axis=0)) # the temporal domain is variance-normalized so that the weights are contained in the spatial maps
     C = closed_form(W, X).T
 
-    S = np.sqrt((C ** 2).sum(axis=0)) # the component variance/scaling is taken from the spatial maps
+    S = np.sqrt((C ** 2).mean(axis=0)) # the component variance/scaling is taken from the spatial maps
     C /= S # the spatial maps are variance normalized; the variance is stored in S
 
     # Fitted priors are at the first indices

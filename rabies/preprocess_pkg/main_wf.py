@@ -62,11 +62,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             susceptibility distortion correction
         corrected_bold_ref
             3D ref EPI volume from the native EPI timeseries
-        confounds_csv
-            .csv file with measured confound timecourses, including global signal,
-            WM signal, CSF signal, 6 rigid body motion parameters + their first
-            temporal derivate + the 12 parameters squared (24 motion parameters),
-            and aCompCorr timecourses
+        motion_params_csv
+            .csv file with measured motion timecourses, used as regressors for confound
+            correction: 6 rigid body motion parameters + their first temporal derivate 
+            + the 12 parameters squared (24 motion parameters)
         FD_voxelwise
             Voxelwise framewise displacement (FD) measures that can be integrated
             to future confound regression.
@@ -109,8 +108,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
-                'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'confounds_csv',
-                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_labels',
+                'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
+                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                 'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
         name='outputnode')
@@ -128,9 +127,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                            container="transforms_datasink"),
                                   name="transforms_datasink")
 
-    confounds_datasink = pe.Node(DataSink(base_directory=output_folder,
-                                          container="confounds_datasink"),
-                                 name="confounds_datasink")
+    motion_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                          container="motion_datasink"),
+                                 name="motion_datasink")
 
     import bids
     bids.config.set_option('extension_initial_dot', True)
@@ -210,7 +209,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                               name='bold_inho_cor_diagnosis')
     bold_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/bold_inho_cor/'
 
-    temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'confounds_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
+    temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
                                           output_names=[
                                             'std_filename', 'tSNR_filename'],
                                        function=preprocess_visual_QC.temporal_features),
@@ -257,8 +256,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.native_brain_mask", "native_brain_mask"),
             ("outputnode.native_WM_mask", "native_WM_mask"),
             ("outputnode.native_CSF_mask", "native_CSF_mask"),
+            ("outputnode.native_vascular_mask", "native_vascular_mask"),
             ("outputnode.native_labels", "native_labels"),
-            ("outputnode.confounds_csv", "confounds_csv"),
+            ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
             ("outputnode.pos_voxelwise", "pos_voxelwise"),
             ("outputnode.FD_csv", "FD_csv"),
@@ -286,7 +286,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
          [("out_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
             ("outputnode.commonspace_bold", "bold_file"),
-            ("outputnode.confounds_csv", "confounds_csv"),
+            ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),
         (bold_selectfiles, temporal_diagnosis,
@@ -455,8 +455,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         (bold_selectfiles, bold_datasink, [
             ("out_file", "input_bold"),
             ]),
-        (outputnode, confounds_datasink, [
-            ("confounds_csv", "confounds_csv"),  # confounds file
+        (outputnode, motion_datasink, [
+            ("motion_params_csv", "motion_params_csv"),  # confounds file
             ("FD_voxelwise", "FD_voxelwise"),
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
@@ -467,6 +467,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("native_brain_mask", "native_brain_mask"),  # get the EPI labels
             ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
             ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
+            ("native_vascular_mask", "native_vascular_mask"),  # get the EPI labels
             ("native_labels", "native_labels"),  # get the EPI labels
             # warped EPI to anat
             ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),

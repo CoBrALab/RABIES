@@ -151,7 +151,7 @@ class antsMotionCorr(BaseInterface):
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 2):
             # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
@@ -161,19 +161,19 @@ class antsMotionCorr(BaseInterface):
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == "intraSubjectBOLD"):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.2 ] -t {txtype}[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.2 ] -t {txtype}[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 1):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100 -s 0 -f 1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100 -s 0 -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 0):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         
         elif (moreaccurate == "intraSubjectBOLDLatest"):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
@@ -312,3 +312,112 @@ class SliceMotionCorrection(BaseInterface):
 
     def _list_outputs(self):
         return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold')}
+
+
+class EstimateMotionParamsInputSpec(BaseInterfaceInputSpec):
+    motcorr_params = File(exists=True, mandatory=True,
+                       desc="CSV file with the 6 rigid body parameters")
+    raw_bold = File(exists=True, mandatory=True,
+                      desc="Raw EPI before resampling.")
+    raw_brain_mask = File(exists=True, mandatory=True,
+                      desc="Brain mask of the raw EPI.")
+
+
+class EstimateMotionParamsOutputSpec(TraitedSpec):
+    motion_params_csv = traits.File(desc="CSV file of motion parameters")
+    FD_csv = traits.File(desc="CSV file with global framewise displacement.")
+    FD_voxelwise = traits.File(
+        desc=".nii file with voxelwise framewise displacement.")
+    pos_voxelwise = traits.File(desc=".nii file with voxelwise Positioning.")
+
+
+class EstimateMotionParams(BaseInterface):
+
+    input_spec = EstimateMotionParamsInputSpec
+    output_spec = EstimateMotionParamsOutputSpec
+
+    def _run_interface(self, runtime):
+        import numpy as np
+        import os
+        from rabies.utils import run_command
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.raw_bold).name.rsplit(".nii")
+
+        # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
+        # first the voxelwise positioning map
+        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.raw_brain_mask} \
+                    -d {self.inputs.raw_bold} -s {filename_split[0]}_pos_voxelwise.nii.gz'
+        rc = run_command(command)
+        pos_voxelwise = os.path.abspath(
+            f"{filename_split[0]}_pos_file.nii.gz")
+
+        # then the voxelwise framewise displacement map
+        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.raw_brain_mask} \
+                    -d {self.inputs.raw_bold} -s {filename_split[0]}_FD_voxelwise.nii.gz -f 1'
+        rc = run_command(command)
+
+        FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
+        FD_voxelwise = os.path.abspath(f"{filename_split[0]}_FD_file.nii.gz")
+
+        motion_24,motion_24_header = motion_24_params(self.inputs.motcorr_params)
+        # write into a .csv
+        import pandas as pd
+        df = pd.DataFrame(motion_24)
+        df.columns = motion_24_header
+        motion_params_csv = os.path.abspath(f"{filename_split[0]}_motion_params.csv")
+        df.to_csv(motion_params_csv)
+
+        setattr(self, 'FD_csv', FD_csv)
+        setattr(self, 'FD_voxelwise', FD_voxelwise)
+        setattr(self, 'pos_voxelwise', pos_voxelwise)
+        setattr(self, 'motion_params_csv', motion_params_csv)
+        return runtime
+
+    def _list_outputs(self):
+        return {'motion_params_csv': getattr(self, 'motion_params_csv'),
+                'FD_csv': getattr(self, 'FD_csv'),
+                'pos_voxelwise': getattr(self, 'pos_voxelwise'),
+                'FD_voxelwise': getattr(self, 'FD_voxelwise')}
+
+
+def motion_24_params(movpar_csv):
+    '''
+    motioncorr_24params: 6 head motion parameters, their temporal derivative, and the 12 corresponding squared items (Friston et al. 1996, Magn. Reson. Med.)
+    '''
+    import numpy as np
+    rigid_params = extract_rigid_movpar(movpar_csv)
+    rotations = rigid_params[:,:3] # rotations are listed first
+    translations = rigid_params[:,3:] # translations are last
+
+    movpar = np.zeros([np.size(rigid_params, 0), 24])
+    movpar[:, :3] = translations # add rotations first
+    movpar[:, 3:6] = rotations # rotations second
+    for i in range(6):
+        # Compute temporal derivative as difference between two neighboring points
+        movpar[0, 6+i] = 0
+        movpar[1:, 6+i] = movpar[1:, i]-movpar[:-1, i]
+        # add the squared coefficients
+        movpar[:, 12+i] = movpar[:, i]**2
+        movpar[:, 18+i] = movpar[:, 6+i]**2
+
+    motion_24_header = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3', 'mov1_der', 'mov2_der', 'mov3_der', 'rot1_der', 'rot2_der', 'rot3_der',
+                    'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
+
+    return movpar,motion_24_header
+
+
+def extract_rigid_movpar(movpar_csv):
+    import numpy as np
+    import csv
+    temp = []
+    with open(movpar_csv) as csvfile:
+        motcorr = csv.reader(csvfile, delimiter=',', quotechar='|')
+        for row in motcorr:
+            temp.append(row)
+    movpar = np.zeros([(len(temp)-1), 6])
+    j = 0
+    for row in temp[1:]:
+        for i in range(2, len(row)):
+            movpar[j, i-2] = float(row[i])
+        j = j+1
+    return movpar

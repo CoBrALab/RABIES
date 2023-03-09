@@ -184,7 +184,7 @@ def template_masking(template, mask, out_dir):
     plt.tight_layout()
     fig.savefig(out_dir+'/template_masking.png', bbox_inches='tight')
 
-def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_source, out_dir):
+def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, name_source, out_dir):
     import os
     import pathlib
     filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
@@ -200,7 +200,7 @@ def temporal_features(bold_file, confounds_csv, FD_csv, rabies_data_type, name_s
     fig,axes = plt.subplots(nrows=3, ncols=3, figsize=(20,5))
     # plot the motion timecourses
     import pandas as pd
-    df = pd.read_csv(confounds_csv)
+    df = pd.read_csv(motion_params_csv)
     ax = axes[0,0]
     ax.plot(df['mov1'])
     ax.plot(df['mov2'])

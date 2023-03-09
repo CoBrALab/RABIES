@@ -166,11 +166,11 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(seed_map_files, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
-            return {'seed_map_files':seed_map_files, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
+        def prep_analysis_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
+            return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
                     'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
                     'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -221,10 +221,12 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.joined_corr_map_file", "seed_map_files"),
+                    ("outputnode.joined_seed_timecourse_csv", "seed_timecourse_csv"),
                     ]),
                 ])
         else:
             prep_analysis_dict_node.inputs.seed_map_files = []
+            prep_analysis_dict_node.inputs.seed_timecourse_csv = None
 
     return workflow
 
@@ -329,7 +331,7 @@ def read_confound_workflow(conf_output, nativespace=False):
                     'commonspace_CSF_mask':[preproc_outputnode_name, 'commonspace_CSF_mask'],
                     'commonspace_vascular_mask':[preproc_outputnode_name, 'commonspace_vascular_mask'],
                     'commonspace_labels':[preproc_outputnode_name, 'commonspace_labels'],
-                    'confounds_csv':[preproc_outputnode_name, 'confounds_csv'],
+                    'motion_params_csv':[preproc_outputnode_name, 'motion_params_csv'],
                     'FD_csv':[preproc_outputnode_name, 'FD_csv'],
                     'commonspace_resampled_template':[preproc_outputnode_name, 'commonspace_resampled_template'],
                     'cleaned_path':['confound_correction_main_wf.confound_correction_wf.regress', 'cleaned_path'],

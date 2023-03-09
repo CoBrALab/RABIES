@@ -388,11 +388,12 @@ def get_parser():
         )
     g_stc.add_argument(
         '--tpattern', type=str, default='alt-z',
-        choices=['alt-z', 'seq-z', 'alt+z', 'seq+z'],
+        choices=['alt-z', 'alt-z2', 'seq-z', 'alt+z', 'alt+z2', 'seq+z'],
         help=
             "Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which \n"
             "direction (- or +) to apply the correction. If slices were acquired from front to back, \n"
-            "the correction should be in the negative (-) direction. Refer to this discussion on the \n"
+            "the correction should be in the negative (-) direction. If slices were collected in an interleaved \n"
+            "order starting with the second or (second-to-last) slice, use 'alt+z2' or 'alt-z2'. Refer to this discussion on the \n"
             "topic for more information https://github.com/CoBrALab/RABIES/discussions/217.\n"
             "(default: %(default)s)\n"
             "\n"
@@ -406,7 +407,17 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-
+    g_stc.add_argument(
+        '--interp_method', type=str, default='fourier',
+        choices=['linear', 'cubic', 'quintic', 'heptic', 'wsinc5', 'wsinc9', 'fourier'],
+        help=
+            "Can specify the interpolation method used for STC. Polynomial methods (e.g., linear, cubic, etc.) \n"
+            "will introduce greater autocorrelation to the interpolated timeseries, while wsinc and fourier methods \n"
+            "will introduce less (or none). Refer to this discussion on the topic for more information \n"
+            "https://github.com/CoBrALab/RABIES/discussions/267. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_atlas = preprocess.add_argument_group(
         title='Template Files', 
         description=
@@ -489,8 +500,8 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--image_scaling', type=str,
-        default="global_variance",
-        choices=["None", "background_noise", "global_variance", "voxelwise_standardization", 
+        default="grand_mean_scaling",
+        choices=["None", "global_variance", "voxelwise_standardization", 
                  "grand_mean_scaling", "voxelwise_mean"],
         help=
             "Select an option for scaling the image variance to match the intensity profile of \n"
@@ -498,8 +509,6 @@ def get_parser():
             "The variance explained from confound regression is also scaled accordingly for later use with \n"
             "--data_diagnosis. \n"
             "*** None: No scaling is applied, only detrending.\n"
-            "*** background_noise: a mask is derived to map background noise, and scale the image \n"
-            "   intensity relative to the noise standard deviation. \n"
             "*** global_variance: After applying confound correction, the cleaned timeseries are scaled \n"
             "   according to the total standard deviation of all voxels, to scale total variance to 1. \n"
             "*** voxelwise_standardization: After applying confound correction, each voxel is separately \n"
@@ -509,6 +518,16 @@ def get_parser():
             "*** voxelwise_mean: each voxel is seperataly scaled according to its mean intensity, \n"
             "   a method suggested with AFNI https://afni.nimh.nih.gov/afni/community/board/read.php?1,161862,161864. \n"
             "   Timeseries are then multiplied by 100 to obtain percent BOLD fluctuations. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--scale_variance_voxelwise', dest='scale_variance_voxelwise', action='store_true', default=False,
+        help=
+            "\n"
+            "If scaling was not applied voxelwise with voxelwise_standardization or voxelwise_mean, this option \n"
+            "standardize the variance at each voxel to be equal, while preserving to total variance of the \n"
+            "4D timeseries (i.e. voxels have same variance, but not unit variance).\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -526,7 +545,7 @@ def get_parser():
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         choices=["WM_signal", "CSF_signal", "vascular_signal",
-                "global_signal", "aCompCor", "mot_6", "mot_24", "mean_FD"],
+                "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24", "mean_FD"],
         help=
             "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
             "regression.\n"
@@ -535,9 +554,10 @@ def get_parser():
             "*** mot_6: 6 rigid head motion correction parameters.\n"
             "*** mot_24: mot_6 + their temporal derivative, then all 12 parameters squared, as in \n"
             "   Friston et al. (1996, Magnetic Resonance in Medicine).\n"
-            "*** aCompCor: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
+            "*** aCompCor_percent: method from Muschelli et al. (2014, Neuroimage), where component timeseries\n"
             "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
             "   Components adding up to 50 percent of the variance are included.\n"
+            "*** aCompCor_5: aCompCor method, but taking 5 first principal components. \n"
             "*** mean_FD: the mean framewise displacement timecourse.\n"
             "(default: %(default)s)\n"
             "\n"
@@ -698,7 +718,7 @@ def get_parser():
     analysis.add_argument(
         '--prior_confound_idx', type=int,
         nargs="*",  # 0 or more values expected => creates a list
-        default=[0, 1, 2, 6, 7, 8, 9, 10, 11,
+        default=[0, 2, 6, 7, 8, 9, 10, 11,
                     13, 14, 21, 22, 24, 26, 28, 29],
         help=
             "Specify the indices for the confound components from --prior_maps. This is pertinent for the\n" 
@@ -714,6 +734,29 @@ def get_parser():
             "level, allowing the identification of sources of confounds and data quality issues. We recommend \n"
             "using this data diagnosis workflow, more detailed in the publication, to improve the control for \n"
             "data quality issues and prevent the corruptions of analysis outputs.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
+        '--scan_QC_thresholds', type=str, default="{}",
+        help=
+            "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"
+            "This can be specified for a given set of network analyses among DR (dual regression), SBC (seed \n"
+            "connectivity), or NPR. For each analysis, the following QC parameters can be specified: \n"
+            "* Dice: Threshold for the minimum network detectability computed as Dice overlap with the prior. \n"
+            "*** Specify a list of thresholds between 0 and 1. The order of thresholds provided within the list \n"
+            "    will be matched to the list of networks for the corresponding analysis (for DR/NPR, this \n"
+            "    will be matched to the --prior_bold_idx list, and for SBC it will be matched to --seed_list). \n"
+            "    If the list is empty, no thresholding is applied, otherwise, the length of the lists for the  \n"
+            "    thresholds and networks must match. \n"
+            "* Conf: Threshold for the maximum temporal correlation with DR confound timecourses. \n"
+            "*** Specify a list of thresholds between 0 and 1. The same rules as Dice are followed for specifying \n"
+            "    the order of thresholds within the list. \n"
+            "* Amp: Whether to automatically remove outliers from the network amplitude measure. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "The expression for the parameters must follow a dictionary syntax, as with this example:  \n"
+            "'{DR:{Dice:[0.3],Conf:[0.25],Amp:false},SBC:{Dice:[0.3]}}'. \n"
+            "Note that the expression must be written within ' '.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -875,6 +918,7 @@ def read_parser(parser):
         opts.group_ica = parse_argument(opt=opts.group_ica, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             name='group_ica')
+        opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts
 
@@ -905,4 +949,57 @@ def parse_argument(opt, key_value_pairs, name):
     for key in key_list:
         if not key in list(opt_dict.keys()):
             raise ValueError(f"The key {key} is missing from the necessary attributes for --{name}.")
+    return opt_dict
+
+def parse_scan_QC_thresholds(opt):
+
+    # we must add "" around each key manually, as they are not encoded from the parser
+    for key in ['SBC','DR','NPR','Dice','Conf','Amp']:
+        s=''
+        for s_ in opt.split(key):
+            s+=s_+f'"{key}"'
+        opt=s[:-len(f'"{key}"')] # remove the extra addition at the end
+
+    # must convert false/true syntax to proper python format
+    for key,replace in zip(['true','false'],['True','False']):
+        s=''
+        for s_ in opt.split(key):
+            s+=s_+f'{replace}'
+        opt=s[:-len(f'{replace}')] # remove the extra addition at the end
+
+    import ast
+    # using ast.literal_eval()
+    # convert dictionary string to dictionary
+    try:
+        opt_dict = ast.literal_eval(opt)
+    except Exception as err:
+        raise ValueError(f"Error in parsing dictionary for --scan_QC_thresholds {opt} : {err=}, {type(err)=}")
+
+    keys = list(opt_dict.keys())
+    for key in keys:
+        if not key in ['SBC','DR','NPR']:
+            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR','NPR'.")
+        sub_dict = opt_dict[key]
+        if not type(sub_dict) is dict:
+            raise ValueError(f"The specification '{sub_dict}' for key '{key}' is not a valid dictionary.")
+        sub_keys = list(sub_dict.keys())
+        for sub_key in sub_keys:
+            if not sub_key in ['Dice','Conf','Amp']:
+                raise ValueError(f"The key '{sub_key}' from --scan_QC_thresholds is invalid. Must be among 'Dice','Conf','Amp'.")
+            if sub_key=='Amp':
+                if not type(sub_dict[sub_key]) is bool:
+                    raise ValueError(f"'{sub_dict[sub_key]}' from {opt} must be True or False.")
+            if sub_key in ['Dice','Conf']:
+                if not type(sub_dict[sub_key]) is list:
+                    raise ValueError(f"'{sub_dict[sub_key]}' from {opt} must be a list.")
+                for e in sub_dict[sub_key]:
+                    if not type(e) is float:
+                        raise ValueError(f"Element {e} from {sub_dict[sub_key]} must be a float.")
+    
+    # network amplitude is not computed with SBC
+    if 'SBC' in keys:
+        if 'Amp' in list(opt_dict['SBC'].keys()):
+            raise ValueError(f"Amplitude is not computed with SBC. Do not specify 'Amp' for 'SBC' with --scan_QC_thresholds.")
+
+
     return opt_dict

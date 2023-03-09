@@ -37,9 +37,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     # need to set a buffer function which will be holding the preproc_outputnode outputs, 
     # so that it is saved in the workflow graph and can be read later during analysis
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
-        commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, confounds_csv=None,
+        commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
         FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, 
-        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_labels=None,
+        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
         anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None):
         return
     buffer_outputnode_node = pe.Node(Function(input_names=target_list,
@@ -66,7 +66,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("split_name", "split_name"),
             ]),
         (preproc_outputnode, confound_correction_wf, [
-            ("confounds_csv", "inputnode.confounds_file"),  # confounds file
+            ("motion_params_csv", "inputnode.motion_params_csv"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
             ("input_bold", "inputnode.raw_input_file"),
             ]),
@@ -87,7 +87,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             (preproc_outputnode, confound_correction_wf, [
                 ("native_bold", "inputnode.bold_file"),
                 ("native_brain_mask", "inputnode.brain_mask"),
-                ("native_CSF_mask", "inputnode.csf_mask"),
+                ("native_WM_mask", "inputnode.WM_mask"),
+                ("native_CSF_mask", "inputnode.CSF_mask"),
+                ("native_vascular_mask", "inputnode.vascular_mask"),
                 ]),
             (preproc_outputnode, plot_CR_overfit_node, [
                 ("native_brain_mask", "mask_file"),
@@ -98,7 +100,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             (preproc_outputnode, confound_correction_wf, [
                 ("commonspace_bold", "inputnode.bold_file"),
                 ("commonspace_mask", "inputnode.brain_mask"),
-                ("commonspace_CSF_mask", "inputnode.csf_mask"),
+                ("commonspace_WM_mask", "inputnode.WM_mask"),
+                ("commonspace_CSF_mask", "inputnode.CSF_mask"),
+                ("commonspace_vascular_mask", "inputnode.vascular_mask"),
                 ]),
             (preproc_outputnode, plot_CR_overfit_node, [
                 ("commonspace_mask", "mask_file"),
@@ -130,12 +134,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),
                 ]),
             ])
-    if cr_opts.image_scaling=='background_noise':
-        workflow.connect([
-            (confound_correction_wf, confound_correction_datasink, [
-                ("outputnode.background_fig", "background_masking_fig"),
-                ]),
-            ])
 
     return workflow
 
@@ -164,11 +162,11 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
     directory_list = [['bold_datasink','input_bold'],
         ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],
         ['bold_datasink','commonspace_CSF_mask'], ['bold_datasink','commonspace_vascular_mask'], ['bold_datasink','commonspace_labels'],
-        ['confounds_datasink','confounds_csv'], ['confounds_datasink','FD_voxelwise'], ['confounds_datasink','pos_voxelwise'], ['confounds_datasink','FD_csv']]
+        ['motion_datasink','motion_params_csv'], ['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise'], ['motion_datasink','FD_csv']]
 
     if nativespace:
         directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'],
-            ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_labels']]
+            ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_vascular_mask'], ['bold_datasink','native_labels']]
 
     target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
@@ -296,10 +294,10 @@ def read_preproc_workflow(preproc_output, nativespace=False):
                     'commonspace_CSF_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.CSF_mask_EPI', 'EPI_mask'],
                     'commonspace_vascular_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.vascular_mask_EPI', 'EPI_mask'],
                     'commonspace_labels':['main_wf.bold_main_wf.bold_commonspace_trans_wf.prop_labels_EPI', 'EPI_mask'],
-                    'confounds_csv':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'confounds_csv'],
-                    'FD_voxelwise':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'FD_voxelwise'],
-                    'pos_voxelwise':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'pos_voxelwise'],
-                    'FD_csv':['main_wf.bold_main_wf.bold_confs_wf.estimate_confounds', 'FD_csv'],
+                    'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
+                    'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
+                    'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
+                    'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],
                     'commonspace_resampled_template':['main_wf.resample_template', 'resampled_template'],
                     }
     if nativespace:
@@ -307,6 +305,7 @@ def read_preproc_workflow(preproc_output, nativespace=False):
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.Brain_mask_EPI', 'EPI_mask'],
                         'native_WM_mask':['main_wf.bold_main_wf.bold_native_trans_wf.WM_mask_EPI', 'EPI_mask'],
                         'native_CSF_mask':['main_wf.bold_main_wf.bold_native_trans_wf.CSF_mask_EPI', 'EPI_mask'],
+                        'native_vascular_mask':['main_wf.bold_main_wf.bold_native_trans_wf.vascular_mask_EPI', 'EPI_mask'],
                         'native_labels':['main_wf.bold_main_wf.bold_native_trans_wf.prop_labels_EPI', 'EPI_mask'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
