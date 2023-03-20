@@ -133,7 +133,7 @@ class antsMotionCorr(BaseInterface):
 
         if txtype not in ['Rigid', 'Affine']:
             raise ValueError("Wrong transform type provided.")
-        if not (moreaccurate=="intraSubjectBOLD" or moreaccurate=="intraSubjectBOLDLatest"):
+        if not (moreaccurate=="intraSubjectBOLD" or moreaccurate=="optim"):
             moreaccurate=int(moreaccurate)
             if moreaccurate not in [0, 1, 2, 3]:
                 raise ValueError("Wrong pre-built option provided.")
@@ -175,7 +175,7 @@ class antsMotionCorr(BaseInterface):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         
-        elif (moreaccurate == "intraSubjectBOLDLatest"):
+        elif (moreaccurate == "optim"):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s 0.14710685100747165x0.0mm -f 2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         else:
