@@ -183,6 +183,9 @@ class antsMotionCorr(BaseInterface):
 
             command=f'ants_generate_iterations.py --min {low_dim} --max {largest_dim}'
             import subprocess
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.debug('Running: '+command)
             try:
                 process = subprocess.run(
                     command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -193,11 +196,19 @@ class antsMotionCorr(BaseInterface):
                 log.warning(e.output.decode("utf-8"))
                 raise
             out = process.stdout.decode("utf-8")
+            log.debug(out)
+
             s = out.split('--smoothing-sigmas ')[-1].split('mm')[0].split('x')[-2:] # taking the last 2 smoothing sigmas
             f = out.split('--shrink-factors ')[-1].split(' ')[0].split('x')[-2:] # taking shrink factors
 
-            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]}mm -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+            if len(s)==1:
+                command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 20 -s 0.0mm -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+            elif len(s)>1:
+                command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]}mm -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+            else:
+                raise ValueError("No smoothing coefficient was found.")
         else:
             raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
