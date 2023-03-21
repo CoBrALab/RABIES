@@ -176,8 +176,28 @@ class antsMotionCorr(BaseInterface):
                 {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         
         elif (moreaccurate == "optim"):
+
+            # generate sensible smoothing coefficients based on image dimensions
+            low_dim = np.asarray(img.GetSpacing()[:3]).min()
+            largest_dim = (np.array(img.GetSize()[:3])*np.array(img.GetSpacing()[:3])).max()
+
+            command=f'ants_generate_iterations.py --min {low_dim} --max {largest_dim}'
+            import subprocess
+            try:
+                process = subprocess.run(
+                    command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    check=True,
+                    shell=True,
+                    )
+            except Exception as e:
+                log.warning(e.output.decode("utf-8"))
+                raise
+            out = process.stdout.decode("utf-8")
+            s = out.split('--smoothing-sigmas ')[-1].split('mm')[0].split('x')[-2:] # taking the last 2 smoothing sigmas
+            f = out.split('--shrink-factors ')[-1].split(' ')[0].split('x')[-2:] # taking shrink factors
+
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s 0.14710685100747165x0.0mm -f 2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]}mm -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         else:
             raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
