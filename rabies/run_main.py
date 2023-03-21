@@ -92,7 +92,7 @@ def prep_logging(opts, output_folder):
         level="WARNING"
     elif opts.verbose==1:
         level="INFO"
-    elif opts.verbose<=2:
+    elif opts.verbose>=2:
         level="DEBUG"
         config.enable_debug_mode()
     else:
