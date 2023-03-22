@@ -14,9 +14,10 @@ caption: Content
 installation.md
 running_the_software.md
 preprocessing.md
-quality_control.md
-registration_troubleshoot.md
+preproc_QC.md
 confound_correction.md
 analysis.md
+analysis_QC.md
 outputs.md
+metrics.md
 bibliography.md

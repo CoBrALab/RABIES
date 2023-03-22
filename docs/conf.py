@@ -36,7 +36,7 @@ extensions = [
     "sphinx_rtd_dark_mode",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.todo",
-    'sphinxcontrib.bibtex'
+    'sphinxcontrib.bibtex',
 ]
 # to get bibliography
 bibtex_bibfiles = ['_static/refs.bib']
@@ -46,10 +46,13 @@ todo_include_todos = False
 
 # Set MyST specific extensions
 myst_enable_extensions = [
-    "tasklist"
+    "tasklist",
+    "amsmath",
+    "dollarmath",
 ]
 
-
+# enable equation rendering inline
+myst_dmath_double_inline = True
 
 # Make sure the target is unique
 autosectionlabel_prefix_document = True

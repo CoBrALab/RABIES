@@ -16,3 +16,12 @@ Several registration operations during preprocessing are prone to fail in accura
 ![](pics/template_files.png)
 - **temporal_features/**: includes the timecourse of the head motion realignment parameters together with framewise displacement, to observe subject motion. Also includes a spatial map of the signal variability at each voxel and then the temporal signal-to-noise ratio (tSNR).
 ![](pics/example_temporal_features.png)
+
+
+
+```{toctree}
+---
+maxdepth: 3
+caption: Content
+---
+registration_troubleshoot.md
