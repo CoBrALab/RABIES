@@ -196,6 +196,7 @@ Workflow:
 """
 ```
 
+(3D_EPI_target)=
 ## 3D EPI generation
 [[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/bold_ref.py)]; **Ref.:** {cite}`Manjon2010-hu`
 ```python

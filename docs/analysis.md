@@ -1,4 +1,4 @@
-# Analysis
+# Connectivity Analysis
 
 Following the completion of the confound correction workflow, RABIES allows the estimation of resting-state connectivity using standard analyses: seed-based connectivity, whole-brain connectivity, group independent component analysis (ICA) and dual regression (DR). For each analysis (except for group-ICA), RABIES will compute individualized connectivity maps for each scan separately, which can then be exported for relevant statistical analyses (e.g. group comparison) conducted outside of RABIES.
 

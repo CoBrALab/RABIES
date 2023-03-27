@@ -14,7 +14,9 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     """
     This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
     target reference image with a rigid registration using ANTs' antsMotionCorr algorithm (Avants et al., 2009). 
-    The resulting 3 translation and 3 rotation realignment parameters are saved for all frames into an output CSV file.
+    This results in the measurement of 3 Euler angles in radians and 3 translations in mm (from ITK's 
+    Euler3DTransform https://itk.org/Doxygen/html/classitk_1_1Euler3DTransform.html) at each time frame, which are 
+    then stored into an output CSV file.
 
     References:
         Avants, B. B., Tustison, N., & Song, G. (2009). Advanced normalization tools (ANTS). The Insight Journal, 2, 1–35.
@@ -363,6 +365,20 @@ class EstimateMotionParamsOutputSpec(TraitedSpec):
 
 
 class EstimateMotionParams(BaseInterface):
+    """
+    This interface generates estimations of absolute displacement and framewise displacement, together 
+    the expansion of the 6 motion parameters to include derivatives and squared parameters (Friston 24).
+    Absolute and framewise displacement are computed within antsMotionCorrStats as follows:
+        1. For each timepoint, the 3 Euler rotations and translations are converted to an affine matrix
+        2. For each voxel within a brain mask representing the referential space post-motion realignment,
+           the inverse transform is applied to generate a point pre-motion realignment.
+        3. Absolute displacement is computed as the distance between the referential point post-correction 
+           and the point pre-correction generated from the affine. For framewise displacement, the 
+           distance is measured between the pre-correction points generated from the current and the 
+           next timeframes. Distance is measured in mm with the Euclidean distance.
+        4. From the distance measurements, voxelwise 4D timeseries are generated, and for framewise
+           displacement, the mean and max displacement at each timeframe is stored in a CSV file.
+    """
 
     input_spec = EstimateMotionParamsInputSpec
     output_spec = EstimateMotionParamsOutputSpec

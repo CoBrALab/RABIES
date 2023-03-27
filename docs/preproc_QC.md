@@ -22,6 +22,5 @@ Several registration operations during preprocessing are prone to fail in accura
 ```{toctree}
 ---
 maxdepth: 3
-caption: Content
 ---
-registration_troubleshoot.md
+nested_docs/registration_troubleshoot.md
