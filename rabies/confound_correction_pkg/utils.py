@@ -113,12 +113,12 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
     from rabies.confound_correction_pkg.utils import select_motion_regressors
 
     # save specifically the 6 rigid parameters for AROMA
-    confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv,FD_file)
+    confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv)
 
     if len(cr_opts.conf_list)==0:
         confounds_array = confounds_6rigid_array
     else:
-        confounds_array = select_motion_regressors(cr_opts.conf_list,motion_params_csv,FD_file)
+        confounds_array = select_motion_regressors(cr_opts.conf_list,motion_params_csv)
 
     FD_trace = pd.read_csv(FD_file).get('Mean')
 
@@ -171,7 +171,7 @@ def temporal_censoring(timeseries, FD_trace,
     return frame_mask,FD_trace,DVARS
 
 
-def select_motion_regressors(conf_list,motion_params_csv,FD_file):
+def select_motion_regressors(conf_list,motion_params_csv):
     import pandas as pd
     if ('mot_6' in conf_list) and ('mot_24' in conf_list):
         raise ValueError(
@@ -186,10 +186,6 @@ def select_motion_regressors(conf_list,motion_params_csv,FD_file):
             conf_keys += ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
         elif conf == 'mot_24':
             conf_keys += [s for s in keys if "rot" in s or "mov" in s]
-        elif conf == 'mean_FD':
-            mean_FD = pd.read_csv(FD_file).get('Mean')
-            confounds['mean_FD'] = mean_FD
-            conf_keys += [conf]
 
     return np.asarray(confounds[conf_keys])
 

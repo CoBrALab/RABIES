@@ -546,7 +546,7 @@ def get_parser():
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         choices=["WM_signal", "CSF_signal", "vascular_signal",
-                "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24", "mean_FD"],
+                "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24"],
         help=
             "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
             "regression.\n"
@@ -559,7 +559,6 @@ def get_parser():
             "   are obtained using PCA, conducted on the combined WM and CSF masks voxel timeseries. \n"
             "   Components adding up to 50 percent of the variance are included.\n"
             "*** aCompCor_5: aCompCor method, but taking 5 first principal components. \n"
-            "*** mean_FD: the mean framewise displacement timecourse.\n"
             "(default: %(default)s)\n"
             "\n"
         )
