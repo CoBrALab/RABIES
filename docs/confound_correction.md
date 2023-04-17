@@ -42,10 +42,11 @@ $$ \hat{Y} = Y - Y_{CR} $$
 where $Y$ is the timeseries, $X$ is the set of nuisance timecourses and $Y_{CR}$ is the confound timeseries predicted from the model at each voxel ($Y_{CR}$ is a time by voxel 2D matrix).
 
 6. **Intensity scaling** (`--image_scaling`): Voxel intensity values should be scaled to improve comparability between scans/datasets. The following options are provided:
-    * Grand mean: Timeseries are divided by the mean intensity across the brain, and then multiplied by 100 to obtain percent BOLD deviations from the mean. The mean intensity of each voxel is derived from the $\beta$ coefficient from the intercept computed during **Detrending**.
+    * Grand mean (**recommended**): Timeseries are divided by the mean intensity across the brain, and then multiplied by 100 to obtain percent BOLD deviations from the mean. The mean intensity of each voxel is derived from the $\beta$ coefficient from the intercept computed during **Detrending**.
     * Voxelwise mean: Same as grand mean, but each voxel is independently scaled by its own mean signal.
     * Global standard deviation: Timeseries are divided by the total standard deviation across all voxel timeseries.
     * Voxelwise standardization: Each voxel is divided by its standard deviation.
+    * Homogenize variance voxelwise: if no scaling was already applied voxelwise (voxelwise mean or standardization), by selecting the option `--scale_variance_voxelwise`, timeseries are first scaled voxelwise by their standard deviation (yielding homogeneous variance distribution across voxels), and then re-scaled to preserve the original total standard deviation of the entire 4D timeseries (i.e. the global standard deviation does not change). Inhomogeneous variability distribution can be a [confound signature](quality_marker_target), thus this option may downscale their impact. `--scale_variance_voxelwise` can be applied in combination with grand mean scaling.
 
 7. **Smoothing** (`--smoothing_filter`): Timeseries are spatially smoothed using a Gaussian smoothing filter ([nilearn.image.smooth_img](https://nilearn.github.io/dev/modules/generated/nilearn.image.smooth_img.html)). 
 

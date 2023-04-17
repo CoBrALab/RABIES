@@ -233,12 +233,12 @@ def preprocess(opts, log):
 
 def confound_correction(opts, log):
 
-    if opts.edge_cutoff == 0 and ((opts.highpass is not None) or (opts.lowpass is not None)):
+    if opts.edge_cutoff == 0 and (opts.highpass is not None):
         log.warning(
             "\n############################################# WARNING\n"
-            "Highpass and/or lowpass filtering will be applied without removing timepoints "
-            "at the edge of acquisition. This may introduce edge artefacts not accounted for, and "
-            "not recommended. We recommend removing ~30sec at both end of the acquisition."
+            "Highpass filtering will be applied without removing timepoints at each edge "
+            "of acquisition. This may introduce edge artefacts. We recommend removing "
+            "~30sec at both end of the acquisition for a filter of 0.01Hz."
             "\n############################################# WARNING\n")
 
     cli_file = f'{opts.preprocess_out}/rabies_preprocess.pkl'
