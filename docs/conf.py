@@ -37,7 +37,9 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.todo",
     'sphinxcontrib.bibtex',
+    'sphinxcontrib.programoutput',
 ]
+
 # to get bibliography
 bibtex_bibfiles = ['_static/refs.bib']
 
