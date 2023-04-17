@@ -14,6 +14,8 @@ $$
 DVARS_t = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(Y_{i,t}-Y_{i,t-1})^2}
 $$
 where $Y_{i,t}$ corresponds to the BOLD signal in brain voxel $i$ at timepoint $t$. The first timepoint is set to 0 (has no previous timepoint).
+(tDOF_target)=
+* **Temporal degrees of freedom (tDOF)**: The remaining degrees of freedom post-confound correction are calculated as *tDOF = Original number of timepoints - Number of censored timepoints - Number of AROMA components removed - Number of regressors*. 
 
 (regressor_target)=
 ## Nuisance regressors for confound regression

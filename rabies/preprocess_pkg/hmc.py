@@ -367,8 +367,9 @@ class EstimateMotionParamsOutputSpec(TraitedSpec):
 
 
 class EstimateMotionParams(BaseInterface):
+    # motion_param_head_start
     """
-    This interface generates estimations of absolute displacement and framewise displacement, together 
+    This interface generates estimations of absolute displacement and framewise displacement, together with
     the expansion of the 6 motion parameters to include derivatives and squared parameters (Friston 24).
     Absolute and framewise displacement are computed within antsMotionCorrStats as follows:
         1. For each timepoint, the 3 Euler rotations and translations are converted to an affine matrix
@@ -381,6 +382,7 @@ class EstimateMotionParams(BaseInterface):
         4. From the distance measurements, voxelwise 4D timeseries are generated, and for framewise
            displacement, the mean and max displacement at each timeframe is stored in a CSV file.
     """
+    # motion_param_head_end
 
     input_spec = EstimateMotionParamsInputSpec
     output_spec = EstimateMotionParamsOutputSpec

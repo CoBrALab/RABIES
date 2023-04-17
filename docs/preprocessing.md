@@ -52,6 +52,13 @@ The workflow of the RABIES preprocessing pipeline is summarized in the diagram a
 :end-before: hmc_wf_head_end
 ```
 
+### rabies.preprocess_pkg.hmc.EstimateMotionParams [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/hmc.py)]
+
+```{literalinclude} ../rabies/preprocess_pkg/hmc.py
+:start-after: motion_param_head_start
+:end-before: motion_param_head_end
+```
+
 ## Functional inhomogeneity correction
 ![](pics/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold_inho_cor.png)
 **Figure:** displays steps of inhomogeneity correction for the volumetric EPI.
