@@ -4,6 +4,7 @@ from nipype import Function
 
 
 def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
+    # cross_modal_reg_head_start
     """
     The input volumetric EPI image is registered non-linearly to an associated structural MRI image.
     The non-linear transform estimates the correction for EPI susceptibility distortions (Wang et al., 2017).
@@ -47,6 +48,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
             bold_to_anat_inverse_warp: inverse non-linear transform from the EPI to the anatomical image
             output_warped_bold: the EPI image warped onto the structural image
     """
+    # cross_modal_reg_head_end
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(

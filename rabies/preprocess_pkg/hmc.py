@@ -11,6 +11,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
+    # hmc_wf_head_start
     """
     This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
     target reference image with a rigid registration using ANTs' antsMotionCorr algorithm (Avants et al., 2009). 
@@ -46,6 +47,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
             slice_corrected_bold: if using the experimental method --apply_slice_mc, these are the EPI frames 
                 after both rigid and then slice-specific realignment
     """
+    # hmc_wf_head_end
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),

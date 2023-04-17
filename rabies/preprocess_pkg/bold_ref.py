@@ -12,6 +12,7 @@ from rabies.utils import copyInfo_4DImage, copyInfo_3DImage, run_command
 from .hmc import antsMotionCorr
 
 def init_bold_reference_wf(opts, name='gen_bold_ref'):
+    # gen_bold_ref_head_start
     """
     The 4D raw EPI file is used to generate a representative volumetric 3D EPI. This volume later becomes the target for 
     motion realignment and the estimation of susceptibility distortions through registration to the structural image. 
@@ -40,6 +41,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
             ref_image: the reference EPI volume
             bold_file: the input EPI timeseries, but after removing dummy volumes if --detect_dummy is selected
     """
+    # gen_bold_ref_head_end
 
     workflow = pe.Workflow(name=name)
 

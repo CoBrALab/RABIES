@@ -8,6 +8,7 @@ from nipype.interfaces.base import (
 )
 
 def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
+    # confound_wf_head_start
     """
     This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
     orchestrated in line with recommendations from human litterature:   
@@ -57,6 +58,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             frame_mask_file: CSV file which records which frame were censored
             CR_data_dict: dictionary object storing extra data computed during confound correction
     """
+    # confound_wf_head_end
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[

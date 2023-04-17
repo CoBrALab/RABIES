@@ -13,6 +13,7 @@ from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
 def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+    # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
     a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
@@ -94,6 +95,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
             commonspace_to_native_inverse_list: list defining whether the inverse of affine transforms should
                 be applied for commonspace_to_native_transform_list
     """
+    # commonspace_wf_head_end
 
     # this iterable node inherits the iterations from the main_wf, generating an iteration for each session to recover its outputs from commonspace registration
     inputnode = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask']),

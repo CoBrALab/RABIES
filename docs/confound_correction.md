@@ -50,57 +50,9 @@ where $Y$ is the timeseries, $X$ is the set of nuisance timecourses and $Y_{CR}$
 7. **Smoothing** (`--smoothing_filter`): Timeseries are spatially smoothed using a Gaussian smoothing filter ([nilearn.image.smooth_img](https://nilearn.github.io/dev/modules/generated/nilearn.image.smooth_img.html)). 
 
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]; **Ref.:** {cite}`Power2012-ji,Power2014-yf,Lindquist2019-lq`
-```python
-"""
-This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
-orchestrated in line with recommendations from human litterature:   
-#1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-#2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
-#4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
-#4 - Apply ICA-AROMA.
-#5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
-        as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
-#6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
-        to the temporal frequency filter.
-#7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
-#8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
-        simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-#9 - Apply confound regression using the selected nuisance regressors.
-#10 - Scaling of timeseries variance.
-#11 - Apply Gaussian spatial smoothing.
+### rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
 
-References:
-    Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic 
-        correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
-    Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, 
-        characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
-    Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce 
-        artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
-
-Workflow:
-    parameters
-        cr_opts: command line interface parameters from confound_correction
-
-    inputs
-        bold_file: preprocessed EPI timeseries
-        brain_mask: brain mask overlapping with EPI timeseries
-        csf_mask: CSF mask overlapping with EPI timeseries
-        confounds_file: CSV file with nuisance timecourses
-        FD_file: CSV file with the framewise displacement
-
-    outputs
-        cleaned_path: the cleaned EPI timeseries
-        aroma_out: folder with outputs from ICA-AROMA
-        VE_file: variance explained (R^2) from confound regression at each voxel
-        STD_file: standard deviation on the cleaned EPI timeseries
-        CR_STD_file: standard deviation on the confound timeseries modelled during confound regression
-        random_CR_STD_file_path: variance fitted by random regressors during confound regression
-        corrected_CR_STD_file_path: CR_STD_file after substracting the variance fitted by random
-            regressors.
-        frame_mask_file: CSV file which records which frame were censored
-        CR_data_dict: dictionary object storing extra data computed during confound correction
-        background_mask_fig: a figure showing the automatically-generated mask of the image background 
-            for --image_scaling background_noise.
-"""
+```{literalinclude} ../rabies/confound_correction_pkg/confound_correction.py
+:start-after: confound_wf_head_start
+:end-before: confound_wf_head_end
 ```
