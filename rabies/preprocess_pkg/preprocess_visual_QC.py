@@ -206,18 +206,22 @@ def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, na
     ax.plot(df['mov2'])
     ax.plot(df['mov3'])
     ax.legend(['mov1','mov2','mov3'])
-    ax.set_title('Translation parameters', fontsize=30, color='white')
+    ax.set_title('Translation parameters', fontsize=25, color='white')
+    ax.set_ylabel('mm', fontsize=15)
+    
     ax = axes[1,0]
     ax.plot(df['rot1'])
     ax.plot(df['rot2'])
     ax.plot(df['rot3'])
     ax.legend(['rot1','rot2','rot3'])
-    ax.set_title('Rotation parameters', fontsize=30, color='white')
+    ax.set_title('Rotation parameters', fontsize=25, color='white')
+    ax.set_ylabel('Euler angle\n (radians)', fontsize=15)
 
     df = pd.read_csv(FD_csv)
     ax=axes[2,0]
     ax.plot(df['Mean'], color='r')
-    ax.set_title('Framewise Displacement', fontsize=30, color='white')
+    ax.set_title('Framewise displacement', fontsize=25, color='white')
+    ax.set_ylabel('mm', fontsize=15)
 
     plt.tight_layout()
 
@@ -238,12 +242,12 @@ def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, na
         sitk.GetImageFromArray(tSNR, isVector=False), img)
     sitk.WriteImage(tSNR_image, tSNR_filename)
 
-    axes[0,1].set_title('Temporal STD', fontsize=30, color='white')
+    axes[0,1].set_title('Temporal standard deviation', fontsize=25, color='white')
     std=std.flatten()
     std.sort()
     std_vmax = std[int(len(std)*0.95)]
     plot_3d(axes[:,1],std_image,fig=fig,vmin=0,vmax=std_vmax,cmap='inferno', cbar=True)
-    axes[0,2].set_title('Temporal SNR', fontsize=30, color='white')
+    axes[0,2].set_title('Temporal SNR', fontsize=25, color='white')
     plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
     fig.savefig(f'{prefix}_temporal_features.png', bbox_inches='tight')

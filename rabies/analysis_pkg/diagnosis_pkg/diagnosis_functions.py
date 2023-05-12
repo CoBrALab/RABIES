@@ -274,8 +274,8 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     plot_freqs(ax0_f,timeseries, CR_data_dict['TR'])
     plt.setp(ax0_f.get_yticklabels(), visible=False)
     plt.setp(ax0_f.get_xticklabels(), fontsize=12)
-    ax0_f.set_xlabel('Frequency (Hz)', fontsize=15)
-    ax0_f.set_ylabel('Power (a.u.)', fontsize=15)
+    ax0_f.set_xlabel('Frequency (Hz)', fontsize=20)
+    ax0_f.set_ylabel('Power (a.u.)', fontsize=20)
 
     # disable function
     regional_grayplot=False
@@ -329,6 +329,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax1.plot(x,df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
+    ax1.set_ylabel('mm', fontsize=20)
     ax1.spines['right'].set_visible(False)
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
@@ -336,15 +337,16 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax1_.plot(x,df['rot1'].to_numpy()[time_range][frame_mask])
     ax1_.plot(x,df['rot2'].to_numpy()[time_range][frame_mask])
     ax1_.plot(x,df['rot3'].to_numpy()[time_range][frame_mask])
-    ax1_.legend(['rotation 1', 'rotation 2', 'rotation 3'],
+    ax1_.legend(['Euler angle 1', 'Euler angle 2', 'Euler angle 3'],
                 loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
+    ax1_.set_ylabel('radians', fontsize=20)
     plt.setp(ax1_.get_xticklabels(), visible=False)
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
     y = temporal_info['FD_trace'].to_numpy()
     ax2.plot(x,y, 'r')
-    ax2.set_ylabel('FD in mm', fontsize=20)
+    ax2.set_ylabel('FD (mm)', fontsize=20)
     DVARS = temporal_info['DVARS']
     DVARS[0] = None
     ax2_ = ax2.twinx()
@@ -365,7 +367,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
     ax3.plot(x,temporal_info['predicted_time'])
-    ax3.set_ylabel('Mask L2-norm', fontsize=20)
+    ax3.set_ylabel('Amplitude \n(L2-norm)', fontsize=20)
     ax3_ = ax3.twinx()
     ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
     ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
@@ -373,7 +375,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3_.spines['top'].set_visible(False)
     plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
-    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', 'CR prediction'
+    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax3_.legend(['CR $\mathregular{R^2}$'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
@@ -383,29 +385,29 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     import matplotlib.cm as cm
     Greens_colors = cm.Greens(np.linspace(0.5, 0.8, 2))
     Blues_colors = cm.Blues(np.linspace(0.5, 0.8, 2))
+    Purples_colors = cm.Purples(np.linspace(0.5, 0.8, 3))
     YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
     legend=[]
-    scaler = 0
-    for network_time,name,color in zip(
+    for network_time,name,color,scaler in zip(
             [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['NPR_time']],
             ['DR confounds', 'DR networks','SBC networks','NPR networks'],
-            [YlOrRd_colors[2], Blues_colors[1],Blues_colors[0],Greens_colors[1]]):
+            [YlOrRd_colors[2], Blues_colors[1],Purples_colors[1],Greens_colors[1]],
+            [0,-1,-1,-1]):
         if len(network_time)>0:
             # make sure the timecourses are normalized
             network_time = network_time.copy()
             network_time /= np.sqrt((network_time ** 2).mean(axis=0))
             network_time_avg = np.abs(network_time).mean(axis=1)
-            # we introduce a scaler to prevent overlap of timecourses
+            # we introduce a scaler to prevent overlap of confound with network timecourses
             network_time_avg += scaler
-            scaler -= 1
-            ax4.plot(x,network_time_avg, color=color, alpha=0.8)
+            ax4.plot(x,network_time_avg, color=color, alpha=0.6)
             legend.append(name)
 
     ax4.legend(legend, loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax4.spines['right'].set_visible(False)
     ax4.spines['top'].set_visible(False)
     ax4.set_xlabel('Timepoint', fontsize=25)
-    ax4.set_ylabel('Mean amplitude', fontsize=20)
+    ax4.set_ylabel('Mean amplitude \n(a.u.)', fontsize=20)
     ax4.yaxis.set_ticklabels([])
     plt.setp(ax4.get_xticklabels(), fontsize=15)
 
