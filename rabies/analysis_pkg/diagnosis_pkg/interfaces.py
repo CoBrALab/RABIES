@@ -211,10 +211,10 @@ class DatasetDiagnosis(BaseInterface):
         scan_name_list=[]
         mean_maps=[]
         std_maps=[]
-        CRsd_scaled_maps=[]
+        CRsd_maps=[]
         tdof_list=[]
         mean_FD_list=[]
-        CR_VE_scaled_list=[]
+        CR_VE_list=[]
 
         FC_maps_dict={}
         FC_maps_dict['DR']=[]
@@ -236,9 +236,8 @@ class DatasetDiagnosis(BaseInterface):
             scan_name_list.append(scan_name)
             mean_maps.append(scan_data['voxelwise_mean'])            
             std_maps.append(temporal_std)
-            scaled_CRsd = CRsd/np.median(CRsd) # we are scaling relative to central distribution
-            CRsd_scaled_maps.append(scaled_CRsd)
-            CR_VE_scaled_list.append(scan_data['CR_global_std']/np.median(CRsd)) # scaling total var by same factor as the spatial map
+            CRsd_maps.append(CRsd)
+            CR_VE_list.append(scan_data['CR_global_std'])
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
@@ -267,13 +266,13 @@ class DatasetDiagnosis(BaseInterface):
 
         mean_maps=np.array(mean_maps)[:,non_zero_voxels]
         BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
-        CRsd_scaled_maps=np.array(CRsd_scaled_maps)[:,non_zero_voxels]
+        CRsd_maps=np.array(CRsd_maps)[:,non_zero_voxels]
 
-        corr_variable = [mean_maps,BOLD_std_maps, CRsd_scaled_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$ (scaled)', 'Mean FD']
+        corr_variable = [mean_maps,BOLD_std_maps, CRsd_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_VE = np.array(CR_VE_scaled_list)
+        CR_VE = np.array(CR_VE_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -288,11 +287,11 @@ class DatasetDiagnosis(BaseInterface):
             columns = list(df.columns)
             i=0
             for column in columns:
-                if '$\mathregular{CR_{SD}}$ (scaled)' in column:
+                if '$\mathregular{CR_{SD}}$' in column:
                     if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - CRsd (scaled)'
+                        columns[i] = 'Overlap: Prior - CRsd'
                     if 'Avg.:' in column:
-                        columns[i] = 'Avg.: CRsd (scaled)'
+                        columns[i] = 'Avg.: CRsd'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
