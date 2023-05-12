@@ -259,10 +259,11 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                                         name='resample_unbiased_mask')
 
         if brain_extraction and commonspace_masking:
-            template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir'],
+            template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir', 'figure_format'],
                                             function=template_masking),
                                     name='template_masking')
             template_masking_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.unbiased_template_masking/'
+            template_masking_node.inputs.figure_format = opts.figure_format
 
             workflow.connect([
                 (generate_template, template_masking_node, [

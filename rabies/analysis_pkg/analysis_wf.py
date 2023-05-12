@@ -140,11 +140,12 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
 
     if opts.FC_matrix:
-        FC_matrix = pe.Node(Function(input_names=['dict_file', 'roi_type'],
+        FC_matrix = pe.Node(Function(input_names=['dict_file', 'figure_format', 'roi_type'],
                                      output_names=['data_file', 'figname'],
                                      function=run_FC_matrix),
                             name='FC_matrix', mem_gb=1*opts.scale_min_memory)
         FC_matrix.inputs.roi_type = opts.ROI_type
+        FC_matrix.inputs.figure_format = opts.figure_format
 
         workflow.connect([
             (subject_inputnode, FC_matrix, [

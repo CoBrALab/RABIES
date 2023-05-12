@@ -87,6 +87,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="number of data-driven spatial components to compute.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
+    figure_format = traits.Str(
+        desc="Select file format for figures.")
 
 
 class ScanDiagnosisOutputSpec(TraitedSpec):
@@ -118,6 +120,8 @@ class ScanDiagnosis(BaseInterface):
         with open(self.inputs.dict_file, 'rb') as handle:
             data_dict = pickle.load(handle)
 
+        figure_format = self.inputs.figure_format
+
         # convert to an integer list
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
@@ -131,13 +135,13 @@ class ScanDiagnosis(BaseInterface):
         import pathlib
         filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
-        fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
-        fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
+        fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
+        fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
 
         setattr(self, 'figure_temporal_diagnosis',
-                figure_path+'_temporal_diagnosis.png')
+                figure_path+f'_temporal_diagnosis.{figure_format}')
         setattr(self, 'figure_spatial_diagnosis',
-                figure_path+'_spatial_diagnosis.png')
+                figure_path+f'_spatial_diagnosis.{figure_format}')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
 
@@ -161,6 +165,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Whether network maps are absolute or relative.")
     scan_QC_thresholds = traits.Dict(
         desc="Specifications for scan-level QC thresholds.")
+    figure_format = traits.Str(
+        desc="Select file format for figures.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -183,6 +189,8 @@ class DatasetDiagnosis(BaseInterface):
         import matplotlib.pyplot as plt
         from rabies.utils import flatten_list
         from .analysis_QC import analysis_QC,QC_distributions
+
+        figure_format = self.inputs.figure_format
 
         out_dir_global = os.path.abspath('analysis_QC/')
         os.makedirs(out_dir_global, exist_ok=True)
@@ -309,9 +317,9 @@ class DatasetDiagnosis(BaseInterface):
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
-                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps.png'
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps.{figure_format}'
                 fig.savefig(fig_path, bbox_inches='tight')
-                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps_unthresholded.png'
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps_unthresholded.{figure_format}'
                 fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
                 plt.close(fig)
@@ -321,7 +329,7 @@ class DatasetDiagnosis(BaseInterface):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
             fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,CR_VE, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
-            fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.png'
+            fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')
             plt.close(fig)
             return QC_inclusion
