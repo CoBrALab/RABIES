@@ -14,6 +14,10 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
+    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
+        raise ValueError(
+            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
+
     if cr_opts.read_datasink:
         split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'])
     else:
@@ -77,10 +81,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("outputnode.corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ]),
         ])
-
-    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
-        raise ValueError(
-            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.nativespace_analysis:
         workflow.connect([

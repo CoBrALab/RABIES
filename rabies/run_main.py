@@ -16,16 +16,16 @@ def execute_workflow():
     parser = get_parser()
     opts = read_parser(parser)
 
-    try:
-        output_folder = os.path.abspath(str(opts.output_dir))
+    try: # convert the output path to absolute if not already the case
+        opts.output_dir = os.path.abspath(str(opts.output_dir))
     except:
         parser.print_help()
         return
 
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
+    if not os.path.isdir(opts.output_dir):
+        os.makedirs(opts.output_dir)
 
-    log = prep_logging(opts, output_folder)
+    log = prep_logging(opts, opts.output_dir)
 
     # verify default template installation
     install_DSURQE(log)
@@ -48,8 +48,12 @@ def execute_workflow():
         workflow = analysis(opts, log)
     else:
         parser.print_help()
-    workflow.base_dir = output_folder
+    workflow.base_dir = opts.output_dir
 
+    # the cli parameters are saved after workflow has been prepared, since they have to be modified during workflow preparation
+    cli_file = f'{opts.output_dir}/rabies_{opts.rabies_stage}.pkl'
+    with open(cli_file, 'wb') as handle:
+        pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
@@ -57,7 +61,7 @@ def execute_workflow():
         graph_out = workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
                                                       'n_procs': opts.local_threads, 'qsub_args': f'-pe smp {str(opts.min_proc)}'})
         # save the workflow execution
-        workflow_file = f'{output_folder}/rabies_{opts.rabies_stage}_workflow.pkl'
+        workflow_file = f'{opts.output_dir}/rabies_{opts.rabies_stage}_workflow.pkl'
         with open(workflow_file, 'wb') as handle:
             pickle.dump(graph_out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
@@ -75,9 +79,6 @@ def prep_logging(opts, output_folder):
             To prevent this, you are required to manually remove {cli_file}, and we 
             recommend also removing previous datasinks from the {opts.rabies_stage} RABIES step.
             """)
-
-    with open(cli_file, 'wb') as handle:
-        pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # remove old versions of the log if already existing
     log_path = f'{output_folder}/rabies_{opts.rabies_stage}.log'
@@ -115,14 +116,14 @@ def prep_logging(opts, output_folder):
 
 
 def preprocess(opts, log):
-    # Verify input and output directories
-    data_dir_path = os.path.abspath(str(opts.bids_dir))
-    output_folder = os.path.abspath(str(opts.output_dir))
-    if not os.path.isdir(data_dir_path):
+    # convert the input path to absolute if not already the case
+    opts.bids_dir = os.path.abspath(str(opts.bids_dir))
+
+    if not os.path.isdir(opts.bids_dir):
         raise ValueError("The provided BIDS data path doesn't exists.")
     else:
         # print the input data directory tree
-        log.info("INPUT BIDS DATASET:  \n" + list_files(data_dir_path))
+        log.info("INPUT BIDS DATASET:  \n" + list_files(opts.bids_dir))
 
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
@@ -177,40 +178,40 @@ def preprocess(opts, log):
     if not os.path.isfile(opts.anat_template):
         raise ValueError(f"--anat_template file {opts.anat_template} doesn't exists.")
     opts.anat_template = convert_to_RAS(
-        str(opts.anat_template), output_folder+'/template_files')
+        str(opts.anat_template), opts.output_dir+'/template_files')
 
     if not os.path.isfile(opts.brain_mask):
         raise ValueError(f"--brain_mask file {opts.brain_mask} doesn't exists.")
     check_binary_masks(opts.brain_mask)
     opts.brain_mask = convert_to_RAS(
-        str(opts.brain_mask), output_folder+'/template_files')
+        str(opts.brain_mask), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.brain_mask)
 
     if not os.path.isfile(opts.WM_mask):
         raise ValueError(f"--WM_mask file {opts.WM_mask} doesn't exists.")
     check_binary_masks(opts.WM_mask)
     opts.WM_mask = convert_to_RAS(
-        str(opts.WM_mask), output_folder+'/template_files')
+        str(opts.WM_mask), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.WM_mask)
 
     if not os.path.isfile(opts.CSF_mask):
         raise ValueError(f"--CSF_mask file {opts.CSF_mask} doesn't exists.")
     check_binary_masks(opts.CSF_mask)
     opts.CSF_mask = convert_to_RAS(
-        str(opts.CSF_mask), output_folder+'/template_files')
+        str(opts.CSF_mask), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.CSF_mask)
 
     if not os.path.isfile(opts.vascular_mask):
         raise ValueError(f"--vascular_mask file {opts.vascular_mask} doesn't exists.")
     check_binary_masks(opts.vascular_mask)
     opts.vascular_mask = convert_to_RAS(
-        str(opts.vascular_mask), output_folder+'/template_files')
+        str(opts.vascular_mask), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.vascular_mask)
 
     if not os.path.isfile(opts.labels):
         raise ValueError(f"--labels file {opts.labels} doesn't exists.")
     opts.labels = convert_to_RAS(
-        str(opts.labels), output_folder+'/template_files')
+        str(opts.labels), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.labels)
 
     check_resampling_syntax(opts.nativespace_resampling)
@@ -218,7 +219,7 @@ def preprocess(opts, log):
     check_resampling_syntax(opts.anatomical_resampling)
 
     # write boilerplate
-    boilerplate_file = f'{output_folder}/boilerplate.txt'
+    boilerplate_file = f'{opts.output_dir}/boilerplate.txt'
 
     methods,ref_string = preprocess_boilerplate(opts)
     txt_boilerplate="#######PREPROCESSING\n\n"+methods+ref_string+'\n\n'
@@ -226,7 +227,7 @@ def preprocess(opts, log):
         text_file.write(txt_boilerplate)
 
     from rabies.preprocess_pkg.main_wf import init_main_wf
-    workflow = init_main_wf(data_dir_path, output_folder, opts)
+    workflow = init_main_wf(opts.bids_dir, opts.output_dir, opts)
 
     return workflow
 
