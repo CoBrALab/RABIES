@@ -11,10 +11,13 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
+    # hmc_wf_head_start
     """
     This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
     target reference image with a rigid registration using ANTs' antsMotionCorr algorithm (Avants et al., 2009). 
-    The resulting 3 translation and 3 rotation realignment parameters are saved for all frames into an output CSV file.
+    This results in the measurement of 3 Euler angles in radians and 3 translations in mm (from ITK's 
+    Euler3DTransform https://itk.org/Doxygen/html/classitk_1_1Euler3DTransform.html) at each time frame, which are 
+    then stored into an output CSV file.
 
     References:
         Avants, B. B., Tustison, N., & Song, G. (2009). Advanced normalization tools (ANTS). The Insight Journal, 2, 1–35.
@@ -44,6 +47,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
             slice_corrected_bold: if using the experimental method --apply_slice_mc, these are the EPI frames 
                 after both rigid and then slice-specific realignment
     """
+    # hmc_wf_head_end
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
@@ -133,7 +137,7 @@ class antsMotionCorr(BaseInterface):
 
         if txtype not in ['Rigid', 'Affine']:
             raise ValueError("Wrong transform type provided.")
-        if not moreaccurate=="intraSubjectBOLD":
+        if not (moreaccurate=="intraSubjectBOLD" or moreaccurate=="optim"):
             moreaccurate=int(moreaccurate)
             if moreaccurate not in [0, 1, 2, 3]:
                 raise ValueError("Wrong pre-built option provided.")
@@ -151,7 +155,7 @@ class antsMotionCorr(BaseInterface):
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0mm -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 2):
             # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
@@ -161,11 +165,11 @@ class antsMotionCorr(BaseInterface):
             if shrinking_factor > int(low_dim/4):
                 shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0 -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0mm -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == "intraSubjectBOLD"):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , regular, 0.2 ] -t {txtype}[ 0.25 ] -i 50x20 -s 1x0 -f 2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+                {moving} , 1 , {str(mibins)} , regular, 0.2 ] -t {txtype}[ 0.25 ] -i 50x20 -s 1x0mm -f 2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 1):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
@@ -175,9 +179,40 @@ class antsMotionCorr(BaseInterface):
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} , regular, 0.02 ] -t {txtype}[ 0.1 ] -i 3 -s 0 -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
         
-        elif (moreaccurate == "intraSubjectBOLDLatest"):
-            command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s 0.14710685100747165x0.0mm -f 2x1 -u 1 -e 1 -l 1 -n {str(n)} -v {str(verbose)}"
+        elif (moreaccurate == "optim"):
+
+            # generate sensible smoothing coefficients based on image dimensions
+            low_dim = np.asarray(img.GetSpacing()[:3]).min()
+            largest_dim = (np.array(img.GetSize()[:3])*np.array(img.GetSpacing()[:3])).max()
+
+            command=f'ants_generate_iterations.py --min {low_dim} --max {largest_dim}'
+            import subprocess
+            from nipype import logging
+            log = logging.getLogger('nipype.workflow')
+            log.debug('Running: '+command)
+            try:
+                process = subprocess.run(
+                    command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    check=True,
+                    shell=True,
+                    )
+            except Exception as e:
+                log.warning(e.output.decode("utf-8"))
+                raise
+            out = process.stdout.decode("utf-8")
+            log.debug(out)
+
+            s = out.split('--smoothing-sigmas ')[-1].split('mm')[0].split('x')[-2:] # taking the last 2 smoothing sigmas
+            f = out.split('--shrink-factors ')[-1].split(' ')[0].split('x')[-2:] # taking shrink factors
+
+            if len(s)==1:
+                command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 20 -s 0.0mm -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+            elif len(s)>1:
+                command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
+                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]}mm -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+            else:
+                raise ValueError("No smoothing coefficient was found.")
         else:
             raise ValueError("Wrong moreaccurate provided.")
         rc = run_command(command)
@@ -332,6 +367,22 @@ class EstimateMotionParamsOutputSpec(TraitedSpec):
 
 
 class EstimateMotionParams(BaseInterface):
+    # motion_param_head_start
+    """
+    This interface generates estimations of absolute displacement and framewise displacement, together with
+    the expansion of the 6 motion parameters to include derivatives and squared parameters (Friston 24).
+    Absolute and framewise displacement are computed within antsMotionCorrStats as follows:
+        1. For each timepoint, the 3 Euler rotations and translations are converted to an affine matrix
+        2. For each voxel within a brain mask representing the referential space post-motion realignment,
+           the inverse transform is applied to generate a point pre-motion realignment.
+        3. Absolute displacement is computed as the distance between the referential point post-correction 
+           and the point pre-correction generated from the affine. For framewise displacement, the 
+           distance is measured between the pre-correction points generated from the current and the 
+           next timeframes. Distance is measured in mm with the Euclidean distance.
+        4. From the distance measurements, voxelwise 4D timeseries are generated, and for framewise
+           displacement, the mean and max displacement at each timeframe is stored in a CSV file.
+    """
+    # motion_param_head_end
 
     input_spec = EstimateMotionParamsInputSpec
     output_spec = EstimateMotionParamsOutputSpec

@@ -5,7 +5,7 @@ The software is available on [PyPi](https://pypi.org/project/rabies/), which mak
 ```
 pip install rabies
 ```
-However, this does not account for non-python dependencies found in *dependencies.txt*.
+However, this does not account for non-python dependencies found in `dependencies.txt`.
 
 ## Container (Singularity/Docker)
 For most uses, we recommend instead using a containerized installation with [Singularity](https://singularity.lbl.gov) or [Docker](https://www.docker.com). Containers allow to build entire computing environments, grouping all dependencies required to run the software. This in turn reduces the burden of installing dependencies manually and ensures reproducible behavior of the software. Singularity is generally preferred over Docker since it requires less permission, and can thus be imported from most computing environment (e.g. high performance computing clusters such as Compute Canada.)

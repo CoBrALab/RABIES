@@ -15,10 +15,10 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
         
     smoothing=True
     if non_parametric:
-        name_list = ['Prior network', 'Dataset average', 'Cross-scan variability']+variable_name
+        name_list = ['Prior network', 'Group average', 'Cross-scan variability']+variable_name
         measure_list = ["Median", "Median Absolute \nDeviation", "Spearman rho"]
     else:
-        name_list = ['Prior network', 'Dataset average', 'Cross-scan variability']+variable_name
+        name_list = ['Prior network', 'Group average', 'Cross-scan variability']+variable_name
         measure_list = ["Mean", "Standard \nDeviation", "Pearson r"]
     
     maps = get_maps(consensus_network, FC_maps, corr_variable, mask_file, smoothing, non_parametric=non_parametric)
@@ -257,7 +257,7 @@ def plot_density(v, bounds, outliers, ax, axis='x'):
                     raise
 
 
-def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=3.5):
+def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=3.5):
     
     fig = plt.figure(figsize=(20, 30))
 
@@ -284,7 +284,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
         ax3 = fig.add_subplot(5,3,7)
         ax5 = fig.add_subplot(5,3,10)
         ax1.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
-        ax3.set_ylabel('CR VE (scaled)', color='White', fontsize=25)
+        ax3.set_ylabel('$CR_{SD}$', color='White', fontsize=25)
         ax5.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
@@ -302,7 +302,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
         ax5 = None
         ax7 = None
         ax2.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
-        ax4.set_ylabel('CR VE (scaled)', color='White', fontsize=25)
+        ax4.set_ylabel('$CR_{SD}$', color='White', fontsize=25)
         ax6.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
         if not tdof_array is None:
@@ -318,7 +318,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
     # plot thresholds for Dice
     if not scan_QC_thresholds['Dice'] is None:
         ax2.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], [0,1.0], color='lightgray', linestyle='--')
-        ax4.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(CR_VE)), color='lightgray', linestyle='--')
+        ax4.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(total_CRsd)), color='lightgray', linestyle='--')
         ax6.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(mean_FD_array)), color='lightgray', linestyle='--')
         if not tdof_array is None:
             ax8.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(tdof_array)), color='lightgray', linestyle='--')
@@ -356,7 +356,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
         y_i=0
-        for y,y_bounds in zip([DR_conf_corr,CR_VE, mean_FD_array, tdof_array],[[0,1],None,None,None]):
+        for y,y_bounds in zip([DR_conf_corr,total_CRsd, mean_FD_array, tdof_array],[[0,1],None,None,None]):
             if y is None:
                 y_i+=1
                 continue
@@ -415,7 +415,7 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_
     return fig
 
 
-def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, 
+def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, 
                      scan_name_list, scan_QC_thresholds, outlier_threshold=3.5):
 
     threshold = percent_threshold(prior_map)
@@ -443,13 +443,13 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, CR_VE, mean_FD_
                 break
             QC_inclusion[QC_inclusion] = Amp_QC
     
-    fig = plot_QC_distributions(network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=outlier_threshold)
+    fig = plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=outlier_threshold)
 
     df = pd.DataFrame(data=np.array([scan_name_list, QC_inclusion]).T, columns=['scan ID', 'QC inclusion?'])
 
     for feature,name in zip(
-            [network_var,network_dice,DR_conf_corr, CR_VE, mean_FD_array, tdof_array],
-            ['Component variance','Dice overlap','DR confound corr.','CR VE (scaled)','mean FD','tDOF']):
+            [network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array],
+            ['Component variance','Dice overlap','DR confound corr.','$CR_{SD}$','mean FD','tDOF']):
         if feature is None:
             continue
         df[name] = feature

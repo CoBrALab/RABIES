@@ -56,7 +56,7 @@ FC matrix
 '''
 
 
-def run_FC_matrix(dict_file, roi_type='parcellated'):
+def run_FC_matrix(dict_file, figure_format, roi_type='parcellated'):
     import os
     import pandas as pd
     import SimpleITK as sitk
@@ -71,7 +71,7 @@ def run_FC_matrix(dict_file, roi_type='parcellated'):
 
     bold_file = data_dict['bold_file']
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    figname = os.path.abspath(filename_split[0]+'_FC_matrix.png')
+    figname = os.path.abspath(filename_split[0]+f'_FC_matrix.{figure_format}')
     
     timeseries = data_dict['timeseries']
     atlas_idx = data_dict['atlas_idx']

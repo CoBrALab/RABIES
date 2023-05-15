@@ -25,7 +25,9 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
         prior_confound_idx=analysis_opts.prior_confound_idx,
             NPR_temporal_comp=analysis_opts.NPR_temporal_comp, 
             NPR_spatial_comp=analysis_opts.NPR_spatial_comp, 
-            DSURQE_regions=DSURQE_regions),
+            DSURQE_regions=DSURQE_regions,
+            figure_format=analysis_opts.figure_format, 
+            ),
         name='ScanDiagnosis')
 
     temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'dict_file'],
@@ -125,6 +127,8 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
         DatasetDiagnosis_node.inputs.outlier_threshold = analysis_opts.outlier_threshold
         DatasetDiagnosis_node.inputs.network_weighting = analysis_opts.network_weighting
         DatasetDiagnosis_node.inputs.scan_QC_thresholds = analysis_opts.scan_QC_thresholds
+        DatasetDiagnosis_node.inputs.figure_format = analysis_opts.figure_format
+        DatasetDiagnosis_node.inputs.extended_QC = analysis_opts.extended_QC
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [

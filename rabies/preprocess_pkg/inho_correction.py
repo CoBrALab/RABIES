@@ -6,11 +6,13 @@ from nipype.interfaces.base import (
 )
 
 def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='inho_correction_wf'):
+    # inho_correction_head_start
     """
     Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
-    denoising (Manjón et al., 2010) followed by iterative correction for intensity inhomogeneities (Sled 
-    et al., 1998). Initial masking is achieved via intensity thresholding, giving an initial correction of 
-    the image, and a registration is then conducted to register a brain mask for a final round of correction.
+    denoising (Manjón et al., 2010) (for EPIs, denoising was carried beforehand during 3D EPI generation) 
+    followed by iterative correction for intensity inhomogeneities (Sled et al., 1998). Initial masking 
+    is achieved via intensity thresholding, giving an initial correction of the image, and a registration is 
+    then conducted to register a brain mask for a final round of correction.
 
     References:
         Manjón, J. V., Coupé, P., Martí-Bonmatí, L., Collins, D. L., & Robles, M. (2010). Adaptive non-local means 
@@ -94,6 +96,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
             denoise_mask: the brain mask resampled on the corrected image
             init_denoise: the image after a first round of correction
     """
+    # inho_correction_head_end
 
     workflow = pe.Workflow(name=name)
 

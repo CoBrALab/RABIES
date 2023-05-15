@@ -1,71 +1,59 @@
 # Confound Correction pipeline
 
+(confound_pipeline_target)=
+
 ![Processing Schema](pics/confound_correction.png)
 
-The workflow for confound correction is structured following best practices found in human litterature, largely based on recommendations from Power and colleagues{cite}`Power2014-yf`. 
-1. `--frame_censoring` : First, spike censoring temporal masks are derived from FD and/or DVARS thresholds. The temporal masking is applied on both BOLD timeseries and nuisance regressors before any other correction step to exclude motion spikes which may bias downstream corrections, in particular, detrending, frequency filtering and confound regression{cite}`Power2014-yf`. 
-2. `--match_number_timepoints` : If spike censoring was applied in 1), all scans in the dataset can be set to retain the same final number of frames to account for downstream analysis biases due to unequal tDOF. To do so, a pre-set final number of frames is defined, and the number of extra frames is calculated after the application of spike censoring and taking into account potential edge removal in 5). A corresponding set of extra frames is then randomly selected and removed.
-3. `--detrending_order` : Then, linear/quadratic detrending is applied to both BOLD timeseries and nuisance regressors. 
-4. `--ica_aroma`: This is followed, if desired, with the cleaning of motion-related sources using ICA-AROMA{cite}`Pruim2015-nm`. The original code for the algorithm (https://github.com/maartenmennes/ICA-AROMA) was adapted to function without the hard-coded human priors for anatomical masking and linear coefficients for classification. ICA-AROMA is applied prior to frequency filtering to remove further effects of motion than can result in ringing after filtering{cite}`Carp2013-uf,Pruim2015-nm`. 
-5. `--TR`/`--highpass`/`--lowpass` : Next, frequency filtering requires particular considerations when applied after temporal censoring, which results in missing timepoints. Conventional filters cannot account for missing data, and to address this issue, Power and colleagues introduced a method for simulating missing timepoints{cite}`Power2014-yf`. This method relies on an adaptation of the Lomb-Scargle periodogram, which allows estimating the frequency composition of timeseries with missing data points, and from that estimation, missing timepoints can be simulated while preserving the frequency profile {cite}`Mathias2004-rt`. Missing data is thereby simulated with preserved frequency properties for both BOLD timeseries and nuisance regressors prior to frequency filtering. 
-6. `--TR`/`--highpass`/`--lowpass`/`--edge_cutoff` : Following the simulation, frequency filtering (highpass, lowpass or bandpass) is applied using a 3rd-order Butterworth filter, and 30 seconds is removed at each edge of the timeseries to account for edge artefacts following filtering{cite}`Power2014-yf`. The removal of 30 seconds and the use of a 3rd order filter was selected based on the visualization of edge artefacts with simulated data. The nuisance regressors are also filtered to ensure orthogonality between the frequency filters and subsequent confound regression, which can otherwise re-introduce removed confounds{cite}`Lindquist2019-lq`. After frequency filtering, the temporal masks are re-applied to remove the simulated timepoints. 
-7. `--conf_list` : After frequency filtering, remaining confound effects are modelled and removed using ordinary least squares (OLS) linear regression of the nuisance regressors onto the BOLD timeseries (i.e. confound regression). 
-8. `--image_scaling` : After previous confound correction steps, timeseries can be scaled according to one of three options: 1) based on background noise variance, 2) the global standard deviation calculated by including all voxels, or 3) by applying voxelwise standardization (each voxel is separately scaled to unit variance).
-9. `--smoothing_filter` : Timeseries are spatially smoothed using a Gaussian smoothing filter. 
 
-Importantly, each confound correction step (with the exception of linear detrending) is optional when using RABIES. Currently, there are no generalizable confound correction workflow, and rather, the optimal confound correction strategy may well be largely study-specific. The issue of confound correction for resting-state fMRI remains largely unresolved among human literature, and is only beginning to be studied in rodents. Thus, a flexible workflow remains crucial, despite concerns regarding reproducibility.
+```{toctree}
+---
+maxdepth: 3
+---
+nested_docs/confound_metrics.md
+```
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]; **Ref.:** {cite}`Power2012-ji,Power2014-yf,Lindquist2019-lq`
-```python
-"""
-This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
-orchestrated in line with recommendations from human litterature:   
-#1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-#2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
-#4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
-#4 - Apply ICA-AROMA.
-#5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
-        as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
-#6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
-        to the temporal frequency filter.
-#7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
-#8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
-        simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-#9 - Apply confound regression using the selected nuisance regressors.
-#10 - Scaling of timeseries variance.
-#11 - Apply Gaussian spatial smoothing.
+The workflow for confound correction regroups a broad set of standard tools from the human litterature. The implementation of each step is structured to follow best practices and prevent re-introduction of confounds, as recommended in {cite}`Power2014-yf` and {cite}`Lindquist2019-lq`. Importantly, each operation is optional (except detrending), and a set of operations can be selected to design a customized workflow. Optimal correction strategy can be dataset-specific, and ideally, should be tuned to address relevant quality issues identified within the dataset (see section on [data quality assessment](analysis_QC_target)).
 
-References:
-    Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic 
-        correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
-    Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, 
-        characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
-    Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce 
-        artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
+1. **Frame censoring** (`--frame_censoring`): Frame censoring temporal masks are derived from FD and/or DVARS thresholds, and applied first on both BOLD timeseries before any other correction step to exclude signal spikes which may bias downstream corrections, in particular, detrending, frequency filtering and confound regression{cite}`Power2014-yf`. 
+    * Censoring with framewise displacement (see [definition](FD_target)): Apply frame censoring based on a framewise displacement threshold. The frames that exceed the given threshold, together with 1 back and 2 forward frames will be masked out{cite}`Power2012-ji`.
+    * Censoring with DVARS (see [definition](DVARS_target)): The DVARS values are z-scored ($DVARS_Z = \frac{DVARS-\mu}{\sigma}$, where $\mu$ is the mean DVARS across time, and $\sigma$ the standard deviation), and frames with $|DVARS_Z|>2.5$ (i.e. above 2.5 standard deviations from the mean) are removed. Z-scoring and outlier detection is repeated within the remaining frames, iteratively, until no more outlier is detected, to obtained a final set of frames post-censoring.
+    * `--match_number_timepoints` : This option can be selected to constrain each scan to retain the same final number of frames, to account for downstream impacts from unequal temporal degrees of freedom (tDOF) on analysis. To do so, a pre-set final number of frames is defined with `minimum_timepoint`, and a number of extra frames remaining post-censoring (taking into account edge removal in 5) ) is randomly selected and removed from the set.
 
-Workflow:
-    parameters
-        cr_opts: command line interface parameters from confound_correction
+2. **Detrending** (`--detrending_order`): Linear (or quadratic) trends are removed from timeseries. Detrended timeseries $\hat{Y}$ are obtained by preforming ordinary-least square (OLS) linear regression, 
+$$ 
+\beta = OLS(X,Y) 
+$$
+$$ 
+\hat{Y} = Y - X\beta 
+$$
+where Y is the timeseries and the predictors are $X = [intercept, time, time^2]$ ($time^2$ is included if removing quadratic trends).
 
-    inputs
-        bold_file: preprocessed EPI timeseries
-        brain_mask: brain mask overlapping with EPI timeseries
-        csf_mask: CSF mask overlapping with EPI timeseries
-        confounds_file: CSV file with nuisance timecourses
-        FD_file: CSV file with the framewise displacement
+3. **ICA-AROMA** (`--ica_aroma`): Cleaning of motion-related sources using the ICA-AROMA{cite}`Pruim2015-nm` classifier. The hard-coded human priors for anatomical masking and the linear coefficients for classification were adapted from the [original code](https://github.com/maartenmennes/ICA-AROMA) to function with rodent images. ICA-AROMA is applied prior to frequency filtering to remove further effects of motion than can result in ringing after filtering{cite}`Carp2013-uf,Pruim2015-nm`. 
 
-    outputs
-        cleaned_path: the cleaned EPI timeseries
-        aroma_out: folder with outputs from ICA-AROMA
-        VE_file: variance explained (R^2) from confound regression at each voxel
-        STD_file: standard deviation on the cleaned EPI timeseries
-        CR_STD_file: standard deviation on the confound timeseries modelled during confound regression
-        random_CR_STD_file_path: variance fitted by random regressors during confound regression
-        corrected_CR_STD_file_path: CR_STD_file after substracting the variance fitted by random
-            regressors.
-        frame_mask_file: CSV file which records which frame were censored
-        CR_data_dict: dictionary object storing extra data computed during confound correction
-        background_mask_fig: a figure showing the automatically-generated mask of the image background 
-            for --image_scaling background_noise.
-"""
+4. **Frequency filtering** (`--TR`/`--highpass`/`--lowpass`/`--edge_cutoff`):
+    1. Simulating censored timepoints: frequency filtering requires particular considerations when applied after frame censoring, since conventional filters cannot handle missing data (censoring results in missing timepoints). To address this issue, we implemented a method described in {cite}`Power2014-yf` allowing the simulation of data points while preserving the frequency composition of the data. This method relies on an adaptation of the Lomb-Scargle periodogram, which allows estimating the frequency composition of the timeseries despite missing data points, and from that estimation, missing timepoints can be simulated while preserving the frequency profile {cite}`Mathias2004-rt`.
+    2. Butterworth filter: Following the simulation, frequency filtering (highpass and/or lowpass) is applied using a 3rd-order Butterworth filter ([scipy.signal.butter](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html)). If applying highpass, it is recommended to remove 30 seconds at each end of the timeseries using `--edge_cutoff` to account for edge artefacts following filtering{cite}`Power2014-yf`. After frequency filtering, the temporal mask from censoring is re-applied to remove simulated timepoints.
+
+(CR_target)=
+5. **Confound regression** (`--conf_list`): For each voxel timeseries, a selected set of nuissance regressors (see [regressor options](regressor_target)) are modelled using OLS linear regression and their modelled contribution to the signal is removed. Regressed timeseries $\hat{Y}$ are obtained with 
+$$\beta = OLS(X,Y)$$
+$$ Y_{CR} = X\beta $$ 
+$$ \hat{Y} = Y - Y_{CR} $$ 
+where $Y$ is the timeseries, $X$ is the set of nuisance timecourses and $Y_{CR}$ is the confound timeseries predicted from the model at each voxel ($Y_{CR}$ is a time by voxel 2D matrix).
+
+6. **Intensity scaling** (`--image_scaling`): Voxel intensity values should be scaled to improve comparability between scans/datasets. The following options are provided:
+    * Grand mean (**recommended**): Timeseries are divided by the mean intensity across the brain, and then multiplied by 100 to obtain percent BOLD deviations from the mean. The mean intensity of each voxel is derived from the $\beta$ coefficient from the intercept computed during **Detrending**.
+    * Voxelwise mean: Same as grand mean, but each voxel is independently scaled by its own mean signal.
+    * Global standard deviation: Timeseries are divided by the total standard deviation across all voxel timeseries.
+    * Voxelwise standardization: Each voxel is divided by its standard deviation.
+    * Homogenize variance voxelwise: if no scaling was already applied voxelwise (voxelwise mean or standardization), by selecting the option `--scale_variance_voxelwise`, timeseries are first scaled voxelwise by their standard deviation (yielding homogeneous variance distribution across voxels), and then re-scaled to preserve the original total standard deviation of the entire 4D timeseries (i.e. the global standard deviation does not change). Inhomogeneous variability distribution can be a [confound signature](quality_marker_target), thus this option may downscale their impact. `--scale_variance_voxelwise` can be applied in combination with grand mean scaling.
+
+7. **Smoothing** (`--smoothing_filter`): Timeseries are spatially smoothed using a Gaussian smoothing filter ([nilearn.image.smooth_img](https://nilearn.github.io/dev/modules/generated/nilearn.image.smooth_img.html)). 
+
+
+### rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
+
+```{literalinclude} ../rabies/confound_correction_pkg/confound_correction.py
+:start-after: confound_wf_head_start
+:end-before: confound_wf_head_end
 ```

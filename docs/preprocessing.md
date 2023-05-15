@@ -13,96 +13,11 @@ The workflow of the RABIES preprocessing pipeline is summarized in the diagram a
 ![](pics/sub-MFC067_ses-1_acq-FLASH_T1w_inho_cor.png)
 **Figure:** displays steps of inhomogeneity correction for the structural image.
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/inho_correction.py)]; **Ref.:** {cite}`Manjon2010-hu,Sled1998-da`
-```python
-"""
-Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
-denoising (Manjón et al., 2010) followed by iterative correction for intensity inhomogeneities (Sled 
-et al., 1998). Initial masking is achieved via intensity thresholding, giving an initial correction of 
-the image, and a registration is then conducted to register a brain mask for a final round of correction.
+### rabies.preprocess_pkg.inho_correction.init_inho_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/inho_correction.py)]
 
-References:
-    Manjón, J. V., Coupé, P., Martí-Bonmatí, L., Collins, D. L., & Robles, M. (2010). Adaptive non-local means 
-        denoising of MR images with spatially varying noise levels. Journal of Magnetic Resonance Imaging: 
-        JMRI, 31(1), 192–203.
-    Sled, J. G., Zijdenbos, A. P., & Evans, A. C. (1998). A nonparametric method for automatic correction of 
-        intensity nonuniformity in MRI data. IEEE Transactions on Medical Imaging, 17(1), 87–97.            
-
-Command line interface parameters:
-    --anat_inho_cor ANAT_INHO_COR
-                            Select options for the inhomogeneity correction of the structural image.
-                            * method: specify which registration strategy is employed for providing a brain mask.
-                            *** Rigid: conducts only rigid registration.
-                            *** Affine: conducts Rigid then Affine registration.
-                            *** SyN: conducts Rigid, Affine then non-linear registration.
-                            *** no_reg: skip registration.
-                            *** N4_reg: previous correction script prior to version 0.3.1.
-                            *** disable: disables the inhomogeneity correction.
-                            * otsu_thresh: The inhomogeneity correction script necessitates an initial correction with a 
-                            Otsu masking strategy (prior to registration of an anatomical mask). This option sets the 
-                            Otsu threshold level to capture the right intensity distribution. 
-                            *** Specify an integer among [0,1,2,3,4]. 
-                            * multiotsu: Select this option to perform a staged inhomogeneity correction, where only 
-                            lower intensities are initially corrected, then higher intensities are iteratively 
-                            included to eventually correct the whole image. This technique may help with images with 
-                            particularly strong inhomogeneity gradients and very low intensities.
-                            *** Specify 'true' or 'false'. 
-                            (default: method=SyN,otsu_thresh=2,multiotsu=false)
-                            
-    --anat_robust_inho_cor ANAT_ROBUST_INHO_COR
-                            When selecting this option, inhomogeneity correction is executed twice to optimize 
-                            outcomes. After completing an initial inhomogeneity correction step, the corrected outputs 
-                            are co-registered to generate an unbiased template, using the same method as the commonspace 
-                            registration. This template is then masked, and is used as a new target for masking during a 
-                            second iteration of inhomogeneity correction. Using this dataset-specific template should 
-                            improve the robustness of masking for inhomogeneity correction.
-                            * apply: select 'true' to apply this option. 
-                            *** Specify 'true' or 'false'. 
-                            * masking: Combine masks derived from the inhomogeneity correction step to support 
-                            registration during the generation of the unbiased template, and then during template 
-                            registration.
-                            *** Specify 'true' or 'false'. 
-                            * brain_extraction: conducts brain extraction prior to template registration based on the 
-                            combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
-                            requires good quality masks. This should be selected along the 'masking' option.
-                            *** Specify 'true' or 'false'. 
-                            * template_registration: Specify a registration script for the alignment of the 
-                            dataset-generated unbiased template to a reference template for masking.
-                            *** Rigid: conducts only rigid registration.
-                            *** Affine: conducts Rigid then Affine registration.
-                            *** SyN: conducts Rigid, Affine then non-linear registration.
-                            *** no_reg: skip registration.
-                            (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
-                            
-    --bold_inho_cor BOLD_INHO_COR
-                            Same as --anat_inho_cor, but for the EPI images.
-                            (default: method=Rigid,otsu_thresh=2,multiotsu=false)
-                            
-    --bold_robust_inho_cor BOLD_ROBUST_INHO_COR
-                            Same as --anat_robust_inho_cor, but for the EPI images.
-                            (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
-                            
-Workflow:
-    parameters
-        opts: command line interface parameters
-        image_type: between 'EPI' and 'structural'. Defines which script to run depending on 
-            image type
-        output_folder: specify a folder to execute the unbiased template generation and store important outputs
-        num_procs: set the maximum number of parallel threads to launch
-
-    inputs
-        target_img: the image to correct
-        anat_ref: the registration target with a brain mask
-        anat_mask: the brain mask of the registration target
-        name_source: reference file for naming purpose
-        template_anat: the structural template in for robust inhomogeneity correction
-        template_mask: the brain mask for robust inhomogeneity correction
-
-    outputs
-        corrected: the output image after the final correction
-        denoise_mask: the brain mask resampled on the corrected image
-        init_denoise: the image after a first round of correction
-"""
+```{literalinclude} ../rabies/preprocess_pkg/inho_correction.py
+:start-after: inho_correction_head_start
+:end-before: inho_correction_head_end
 ```
 
 ## Common space alignment (i.e. Unbiased template generation + Atlas registration)
@@ -111,163 +26,37 @@ Workflow:
 ![](pics/atlas_registration.png)
 **Figure:** displays the overlap between the unbiased template (top) and the reference atlas template (bottom).
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/commonspace_reg.py)]; **Ref.:** {cite}`Avants2011-av`
-```python
-"""
-This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
-a dataset-specific unbiased template from the input structural images, thereby aligning the different MRI 
-sessions. Through a set of iterations, images are registered to a consensus average generated from the overlap 
-of all scans at the previous iteration. Registrations are increasingly stringent, executing 2 iterations each 
-for a rigid, then affine and finally non-linear template generation. The final iteration provides the individual 
-transforms to align each scan to the unbiased template. This template generation process creates a robust target 
-for the alignment of MRI sessions sharing the same acquisition properties, which will minimize registration 
-inconsistencies between sessions, as opposed to the direct registration to an external template. The algorithm is 
-implemented in https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction.
-After generating the unbiased template, the template itself is registered with a non-linear registration to the
-reference atlas in common space, providing transforms to common space and the associated brain parcellations.
-
-
-References:
-    Avants, B. B., Tustison, N. J., Song, G., Cook, P. A., Klein, A., & Gee, J. C. (2011). A reproducible evaluation 
-    of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.
-
-Command line interface parameters:
-    --commonspace_reg COMMONSPACE_REG
-                            Specify registration options for the commonspace registration.
-                            * masking: Combine masks derived from the inhomogeneity correction step to support 
-                            registration during the generation of the unbiased template, and then during template 
-                            registration.
-                            *** Specify 'true' or 'false'. 
-                            * brain_extraction: conducts brain extraction prior to template registration based on the 
-                            combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
-                            requires good quality masks. This should be selected along the 'masking' option.
-                            *** Specify 'true' or 'false'. 
-                            * template_registration: Specify a registration script for the alignment of the 
-                            dataset-generated unbiased template to the commonspace atlas.
-                            *** Rigid: conducts only rigid registration.
-                            *** Affine: conducts Rigid then Affine registration.
-                            *** SyN: conducts Rigid, Affine then non-linear registration.
-                            *** no_reg: skip registration.
-                            * fast_commonspace: Skip the generation of a dataset-generated unbiased template, and 
-                            instead, register each scan independently directly onto the commonspace atlas, using the 
-                            template_registration. This option can be faster, but may decrease the quality of 
-                            alignment between subjects. 
-                            *** Specify 'true' or 'false'. 
-                            (default: masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false)
-                    
-Workflow:
-    parameters
-        opts: command line interface parameters
-        commonspace_masking: whether masking is applied during template generation and registration
-        brain_extraction: whether brain extraction is applied for template registration
-        template_reg: registration method
-        fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
-        output_folder: specify a folder to execute the workflow and store important outputs
-        transforms_datasink: datasink node where the transforms are stored
-        num_procs: set the maximum number of parallel threads to launch
-        output_datasinks: whether to generate a datasink from the outputs of the workflow
-        joinsource_list: names for the iterable nodes to join before unbiased template generation
-
-    inputs
-        moving_image_list: list of files corresponding to the images from different MRI sessions
-        moving_mask_list: mask files overlapping with the moving images, inherited from the inhomogeneity 
-            correction step. These masks are used for --commonspace_masking and --brain_extraction
-        template_anat: the target structural template to register the unbiased template
-        template_mask: the brain mask of the structural template
-
-    outputs
-        unbiased_template: the generated unbiased template
-        unbiased_mask: brain mask resampled over the unbiased template
-        native_mask: the atlas brain mask resampled to an associated MRI session in native space
-        to_atlas_affine: affine transform for registration to the atlas
-        to_atlas_warp: non-linear transform for registration to the atlas
-        to_atlas_inverse_warp: inverse of the non-linear transform for registration to the atlas
-        native_to_unbiased_affine: affine transform from native space to the unbiased template
-        native_to_unbiased_warp: non-linear transform from native space to the unbiased template
-        native_to_unbiased_inverse_warp: inverse of the non-linear transform from native space to the unbiased template
-        native_to_commonspace_transform_list: ordered list of the transforms to apply to move from the
-            native space to the common space
-        native_to_commonspace_inverse_list: list defining whether the inverse of affine transforms should
-            be applied for native_to_commonspace_transform_list
-        commonspace_to_native_transform_list: ordered list of the transforms to apply to move from the
-            common space to the natiev space
-        commonspace_to_native_inverse_list: list defining whether the inverse of affine transforms should
-            be applied for commonspace_to_native_transform_list
-"""
+### rabies.preprocess_pkg.commonspace_reg.init_commonspace_reg_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/commonspace_reg.py)]
+```{literalinclude} ../rabies/preprocess_pkg/commonspace_reg.py
+:start-after: commonspace_wf_head_start
+:end-before: commonspace_wf_head_end
 ```
 
+(3D_EPI_target)=
 ## 3D EPI generation
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/bold_ref.py)]; **Ref.:** {cite}`Manjon2010-hu`
-```python
-"""
-The 4D raw EPI file is used to generate a representative volumetric 3D EPI. This volume later becomes the target for 
-motion realignment and the estimation of susceptibility distortions through registration to the structural image. 
-Two iterations of motion realignment to an initial median of the volumes are conducted, then a trimmed mean is 
-computed on the realignment volumes, ignoring 5% extreme, and this average becomes the reference image. The final
-image is then corrected using non-local means denoising (Manjón et al., 2010).
+### rabies.preprocess_pkg.bold_ref.init_bold_reference_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/bold_ref.py)]
 
-References:
-    Manjón, J. V., Coupé, P., Martí-Bonmatí, L., Collins, D. L., & Robles, M. (2010). Adaptive non-local means 
-        denoising of MR images with spatially varying noise levels. Journal of Magnetic Resonance Imaging: 
-        JMRI, 31(1), 192–203.
-
-Command line interface parameters:
-    --detect_dummy        Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on
-                        these volumes if detected. Dummy volumes will be removed from the output preprocessed EPI.
-                        (default: False)
-
-Workflow:
-    parameters
-        opts: command line interface parameters
-
-    inputs
-        bold_file: Nifti file with EPI timeseries
-
-    outputs
-        ref_image: the reference EPI volume
-        bold_file: the input EPI timeseries, but after removing dummy volumes if --detect_dummy is selected
-"""
+```{literalinclude} ../rabies/preprocess_pkg/bold_ref.py
+:start-after: gen_bold_ref_head_start
+:end-before: gen_bold_ref_head_end
 ```
 
 ## Head motion estimation
 ![](pics/example_motion_parameters.png)
 **Figure:** example of the 6 motion parameters.
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/hmc.py)]; **Ref.:** {cite}`Avants2009-mn`
-```python
-"""
-This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
-target reference image with a rigid registration using ANTs' antsMotionCorr algorithm (Avants et al., 2009). 
-The resulting 3 translation and 3 rotation realignment parameters are saved for all frames into an output CSV file.
+### rabies.preprocess_pkg.hmc.init_bold_hmc_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/hmc.py)]
 
-References:
-    Avants, B. B., Tustison, N., & Song, G. (2009). Advanced normalization tools (ANTS). The Insight Journal, 2, 1–35.
+```{literalinclude} ../rabies/preprocess_pkg/hmc.py
+:start-after: hmc_wf_head_start
+:end-before: hmc_wf_head_end
+```
 
-Command line interface parameters:
-    --HMC_option {intraSubjectBOLD,0,1,2,3}
-                            Select an option for head motion realignment among the pre-built options from
-                            https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.
-                            (default: intraSubjectBOLD)
-                            
-    --apply_slice_mc      Whether to apply a slice-specific motion correction after initial volumetric HMC. This can 
-                            correct for interslice misalignment resulting from within-TR motion. With this option, 
-                            motion corrections and the subsequent resampling from registration are applied sequentially
-                            since the 2D slice registrations cannot be concatenate with 3D transforms. 
-                            (default: False)
+### rabies.preprocess_pkg.hmc.EstimateMotionParams [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/hmc.py)]
 
-Workflow:
-    parameters
-        opts: command line interface parameters
-
-    inputs
-        bold_file: Nifti file with EPI timeseries to realign
-        ref_image: the 3D image target for realignment
-
-    outputs
-        motcorr_params: CSV file which contains all translation and rotation parameters
-        slice_corrected_bold: if using the experimental method --apply_slice_mc, these are the EPI frames 
-            after both rigid and then slice-specific realignment
-"""
+```{literalinclude} ../rabies/preprocess_pkg/hmc.py
+:start-after: motion_param_head_start
+:end-before: motion_param_head_end
 ```
 
 ## Functional inhomogeneity correction
@@ -280,111 +69,20 @@ The workflow is the same as the **structural inhomogeneity correction**.
 ![](pics/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold_registration.png)
 **Figure:** displays the overlap between the volumetric EPI (top) and structural image (bottom).
 
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/registration.py)]; **Ref.:** {cite}`Wang2017-ci`
-```python
-"""
-The input volumetric EPI image is registered non-linearly to an associated structural MRI image.
-The non-linear transform estimates the correction for EPI susceptibility distortions (Wang et al., 2017).
+### rabies.preprocess_pkg.registration.init_cross_modal_reg_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/registration.py)]
 
-References:
-    Wang, S., Peterson, D. J., Gatenby, J. C., Li, W., Grabowski, T. J., & Madhyastha, T. M. (2017). 
-        Evaluation of Field Map and Nonlinear Registration Methods for Correction of Susceptibility Artifacts 
-        in Diffusion MRI. Frontiers in Neuroinformatics, 11, 17.
-
-Command line interface parameters:                  
-    --bold2anat_coreg BOLD2ANAT_COREG
-                        Specify the registration script for cross-modal alignment between the EPI and structural
-                        images. This operation is responsible for correcting EPI susceptibility distortions.
-                        * masking: With this option, the brain masks obtained from the EPI inhomogeneity correction 
-                        step are used to support registration.
-                        *** Specify 'true' or 'false'. 
-                        * brain_extraction: conducts brain extraction prior to registration using the EPI masks from 
-                        inhomogeneity correction. This will enhance brain edge-matching, but requires good quality 
-                        masks. This should be selected along the 'masking' option.
-                        *** Specify 'true' or 'false'. 
-                        * registration: Specify a registration script.
-                        *** Rigid: conducts only rigid registration.
-                        *** Affine: conducts Rigid then Affine registration.
-                        *** SyN: conducts Rigid, Affine then non-linear registration.
-                        *** no_reg: skip registration.
-                        (default: masking=false,brain_extraction=false,registration=SyN)
-
-Workflow:
-    parameters
-        opts: command line interface parameters
-
-    inputs
-        ref_bold_brain: volumetric EPI image to register
-        anat_ref: the target structural image
-        anat_mask: the brain mask of the structural image
-        moving_mask: a EPI mask inherited from inhomogeneity correction
-
-    outputs
-        bold_to_anat_affine: affine transform from the EPI to the anatomical image
-        bold_to_anat_warp: non-linear transform from the EPI to the anatomical image
-        bold_to_anat_inverse_warp: inverse non-linear transform from the EPI to the anatomical image
-        output_warped_bold: the EPI image warped onto the structural image
-"""
+```{literalinclude} ../rabies/preprocess_pkg/registration.py
+:start-after: cross_modal_reg_head_start
+:end-before: cross_modal_reg_head_end
 ```
 
 ## Frame-wise resampling
-[[workflow source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
-```python
-"""
-This workflow carries out the resampling of the original EPI timeseries into preprocessed timeseries.
-This is accomplished by applying at each frame a combined transform which accounts for previously estimated 
-motion correction and susceptibility distortion correction, together with the alignment to common space if
-the outputs are desired in common space. All transforms are concatenated into a single resampling operation
-to mitigate interpolation effects from repeated resampling.
-This workflow also carries the resampling of brain masks and labels from the reference atlas onto the 
-preprocessed EPI timeseries.
 
-Command line interface parameters:
-    Resampling Options:
-        The following options allow to resample the voxel dimensions for the preprocessed EPIs
-        or for the anatomical images during registration.
-        The resampling syntax must be 'dim1xdim2xdim3' (in mm), follwing the RAS axis convention
-        (dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior). If 'inputs_defined'
-        is provided instead of axis dimensions, the original dimensions are preserved.
+### rabies.preprocess_pkg.resampling.init_bold_preproc_trans_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
 
-    --nativespace_resampling NATIVESPACE_RESAMPLING
-                        Can specify a resampling dimension for the nativespace fMRI outputs.
-                        (default: inputs_defined)
-                        
-    --commonspace_resampling COMMONSPACE_RESAMPLING
-                        Can specify a resampling dimension for the commonspace fMRI outputs.
-                        (default: inputs_defined)
-
-Workflow:
-    parameters
-        opts: command line interface parameters
-        resampling_dim: specify the desired output voxel dimensions after resampling
-
-    inputs
-        name_source: a reference file for naming the output
-        bold_file: the EPI timeseries to resample
-        motcorr_params: the motion correction parameters
-        transforms_list: a list of transforms to apply onto EPI timeseries, including 
-            susceptibility distortion correction and resampling to common space
-        inverses: a list specifying whether the inverse affine transforms should be 
-            applied in transforms_list
-        ref_file: a reference image in the targetted space for resampling. Should be the structural 
-            image from the same session if outputs are in native space, or the atlas template for
-            outputs in common space
-        mask_transforms_list: the list of transforms to apply onto the atlas parcellations
-            to overlap with the EPI
-        mask_inverses: a list specifying whether the inverse affine transforms should be 
-            applied in mask_transforms_list
-
-    outputs
-        bold: the preprocessed EPI timeseries
-        bold_ref: a volumetric 3D EPI generated from the preprocessed timeseries
-        brain_mask: the brain mask resampled onto preprocessed EPI timeseries
-        WM_mask: the WM mask resampled onto preprocessed EPI timeseries
-        CSF_mask: the CSF mask resampled onto preprocessed EPI timeseries
-        vascular_mask: the vascular mask resampled onto preprocessed EPI timeseries
-        labels: the atlas labels resampled onto preprocessed EPI timeseries
-"""
+```{literalinclude} ../rabies/preprocess_pkg/resampling.py
+:start-after: resampling_head_start
+:end-before: resampling_head_end
 ```
 
 ## Adapted workflow without structural scans (i.e. --bold_only)

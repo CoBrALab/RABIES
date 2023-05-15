@@ -87,6 +87,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="number of data-driven spatial components to compute.")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
+    figure_format = traits.Str(
+        desc="Select file format for figures.")
 
 
 class ScanDiagnosisOutputSpec(TraitedSpec):
@@ -118,6 +120,8 @@ class ScanDiagnosis(BaseInterface):
         with open(self.inputs.dict_file, 'rb') as handle:
             data_dict = pickle.load(handle)
 
+        figure_format = self.inputs.figure_format
+
         # convert to an integer list
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
@@ -131,13 +135,13 @@ class ScanDiagnosis(BaseInterface):
         import pathlib
         filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
-        fig.savefig(figure_path+'_temporal_diagnosis.png', bbox_inches='tight')
-        fig2.savefig(figure_path+'_spatial_diagnosis.png', bbox_inches='tight')
+        fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
+        fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
 
         setattr(self, 'figure_temporal_diagnosis',
-                figure_path+'_temporal_diagnosis.png')
+                figure_path+f'_temporal_diagnosis.{figure_format}')
         setattr(self, 'figure_spatial_diagnosis',
-                figure_path+'_spatial_diagnosis.png')
+                figure_path+f'_spatial_diagnosis.{figure_format}')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
 
@@ -161,6 +165,10 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Whether network maps are absolute or relative.")
     scan_QC_thresholds = traits.Dict(
         desc="Specifications for scan-level QC thresholds.")
+    figure_format = traits.Str(
+        desc="Select file format for figures.")
+    extended_QC = traits.Bool(
+        desc="Whether to include image intensity and BOLDsd in the group stats.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -183,6 +191,8 @@ class DatasetDiagnosis(BaseInterface):
         import matplotlib.pyplot as plt
         from rabies.utils import flatten_list
         from .analysis_QC import analysis_QC,QC_distributions
+
+        figure_format = self.inputs.figure_format
 
         out_dir_global = os.path.abspath('analysis_QC/')
         os.makedirs(out_dir_global, exist_ok=True)
@@ -211,10 +221,10 @@ class DatasetDiagnosis(BaseInterface):
         scan_name_list=[]
         mean_maps=[]
         std_maps=[]
-        CRsd_scaled_maps=[]
+        CRsd_maps=[]
         tdof_list=[]
         mean_FD_list=[]
-        CR_VE_scaled_list=[]
+        total_CRsd_list=[]
 
         FC_maps_dict={}
         FC_maps_dict['DR']=[]
@@ -236,9 +246,8 @@ class DatasetDiagnosis(BaseInterface):
             scan_name_list.append(scan_name)
             mean_maps.append(scan_data['voxelwise_mean'])            
             std_maps.append(temporal_std)
-            scaled_CRsd = CRsd/np.median(CRsd) # we are scaling relative to central distribution
-            CRsd_scaled_maps.append(scaled_CRsd)
-            CR_VE_scaled_list.append(scan_data['CR_global_std']/np.median(CRsd)) # scaling total var by same factor as the spatial map
+            CRsd_maps.append(CRsd)
+            total_CRsd_list.append(scan_data['CR_global_std'])
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
@@ -265,15 +274,21 @@ class DatasetDiagnosis(BaseInterface):
         non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
-        mean_maps=np.array(mean_maps)[:,non_zero_voxels]
-        BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
-        CRsd_scaled_maps=np.array(CRsd_scaled_maps)[:,non_zero_voxels]
+        CRsd_maps=np.array(CRsd_maps)[:,non_zero_voxels]
 
-        corr_variable = [mean_maps,BOLD_std_maps, CRsd_scaled_maps, np.array(mean_FD_list).reshape(-1,1)]
-        variable_name = ['BOLD mean', '$\mathregular{BOLD_{SD}}$', '$\mathregular{CR_{SD}}$ (scaled)', 'Mean FD']
+        corr_variable = []
+        variable_name = []
+        if self.inputs.extended_QC:
+            mean_maps=np.array(mean_maps)[:,non_zero_voxels]
+            BOLD_std_maps=np.array(std_maps)[:,non_zero_voxels]
+            corr_variable += [mean_maps,BOLD_std_maps]
+            variable_name += ['BOLD mean', '$\mathregular{BOLD_{SD}}$']
+
+        corr_variable += [CRsd_maps, np.array(mean_FD_list).reshape(-1,1)]
+        variable_name += ['$\mathregular{CR_{SD}}$', 'Mean FD']
 
         mean_FD_array = np.array(mean_FD_list)
-        CR_VE = np.array(CR_VE_scaled_list)
+        total_CRsd = np.array(total_CRsd_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -288,11 +303,11 @@ class DatasetDiagnosis(BaseInterface):
             columns = list(df.columns)
             i=0
             for column in columns:
-                if '$\mathregular{CR_{SD}}$ (scaled)' in column:
+                if '$\mathregular{CR_{SD}}$' in column:
                     if 'Overlap:' in column:
-                        columns[i] = 'Overlap: Prior - CRsd (scaled)'
+                        columns[i] = 'Overlap: Prior - CRsd'
                     if 'Avg.:' in column:
-                        columns[i] = 'Avg.: CRsd (scaled)'
+                        columns[i] = 'Avg.: CRsd'
                 elif '$\mathregular{BOLD_{SD}}$' in column:
                     if 'Overlap:' in column:
                         columns[i] = 'Overlap: Prior - BOLDsd'
@@ -310,19 +325,19 @@ class DatasetDiagnosis(BaseInterface):
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
-                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps.png'
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps.{figure_format}'
                 fig.savefig(fig_path, bbox_inches='tight')
-                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps_unthresholded.png'
+                fig_path = f'{out_dir}/{analysis_prefix}{i}_QC_maps_unthresholded.{figure_format}'
                 fig_unthresholded.savefig(fig_path, bbox_inches='tight')
 
                 plt.close(fig)
                 plt.close(fig_unthresholded)
 
-        def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,CR_VE, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
+        def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,CR_VE, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold)
+            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
-            fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.png'
+            fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')
             plt.close(fig)
             return QC_inclusion
@@ -370,7 +385,7 @@ class DatasetDiagnosis(BaseInterface):
             DR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='DR', network_i=i, num_priors=num_priors)
 
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
-            QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
+            QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
 
             # compute group stats only if there is at least 3 scans
             if QC_inclusion.sum()>2:
@@ -393,7 +408,7 @@ class DatasetDiagnosis(BaseInterface):
                 NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
 
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:
@@ -420,7 +435,7 @@ class DatasetDiagnosis(BaseInterface):
                 SBC_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='SBC', network_i=i, num_priors=num_priors)
 
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],CR_VE, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:

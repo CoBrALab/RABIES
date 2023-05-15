@@ -198,24 +198,27 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list)
 
     # organizing visual QC outputs
-    template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir'],
+    template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir', 'figure_format'],
                                        function=preprocess_visual_QC.template_info),
                               name='template_info')
     template_diagnosis.inputs.opts = opts
     template_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/template_files/'
+    template_diagnosis.inputs.figure_format = opts.figure_format
 
-    bold_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+    bold_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir', 'figure_format'],
                                        function=preprocess_visual_QC.inho_cor_diagnosis),
                               name='bold_inho_cor_diagnosis')
     bold_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/bold_inho_cor/'
+    bold_inho_cor_diagnosis.inputs.figure_format = opts.figure_format
 
-    temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir'],
+    temporal_diagnosis = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_csv', 'rabies_data_type', 'name_source', 'out_dir', 'figure_format'],
                                           output_names=[
                                             'std_filename', 'tSNR_filename'],
                                        function=preprocess_visual_QC.temporal_features),
                               name='temporal_features')
     temporal_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/temporal_features/'
     temporal_diagnosis.inputs.rabies_data_type = opts.data_type
+    temporal_diagnosis.inputs.figure_format = opts.figure_format
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
@@ -384,10 +387,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ])
 
         if not opts.anat_inho_cor['method']=='disable':
-            anat_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir'],
+            anat_inho_cor_diagnosis = pe.Node(Function(input_names=['raw_img','init_denoise','warped_mask','final_denoise', 'name_source', 'out_dir', 'figure_format'],
                                                function=preprocess_visual_QC.inho_cor_diagnosis),
                                       name='anat_inho_cor_diagnosis')
             anat_inho_cor_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/anat_inho_cor/'
+            anat_inho_cor_diagnosis.inputs.figure_format = opts.figure_format
 
             workflow.connect([
                 (format_anat_buffer, anat_inho_cor_diagnosis, [

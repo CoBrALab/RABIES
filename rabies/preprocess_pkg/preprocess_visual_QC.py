@@ -34,7 +34,7 @@ class PlotOverlapInputSpec(BaseInterfaceInputSpec):
 
 
 class PlotOverlapOutputSpec(TraitedSpec):
-    out_png = File(exists=True, desc="Output png.")
+    out_figure = File(exists=True, desc="Output figure.")
 
 
 class PlotOverlap(BaseInterface):
@@ -48,46 +48,19 @@ class PlotOverlap(BaseInterface):
         script_path = 'plot_overlap.sh'
         os.makedirs(self.inputs.out_dir, exist_ok=True)
         out_name = self.inputs.out_dir+'/' + \
-            filename_template+'_registration.png'
+            filename_template+f'_registration.png'
 
         command = f'{script_path} {self.inputs.moving} {self.inputs.fixed} {out_name}'
         rc = run_command(command)
 
-        setattr(self, 'out_png', out_name)
+        setattr(self, 'out_figure', out_name)
         return runtime
 
     def _list_outputs(self):
-        return {'out_png': getattr(self, 'out_png')}
+        return {'out_figure': getattr(self, 'out_figure')}
 
 
-def plot_reg(image1,image2, name_source, out_dir):
-    import os
-    import pathlib
-    filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
-    os.makedirs(out_dir, exist_ok=True)
-    prefix = out_dir+'/'+ \
-        filename_template
-
-    import matplotlib.pyplot as plt
-    from rabies.visualization import plot_3d, otsu_scaling
-    fig,axes = plt.subplots(nrows=2, ncols=3, figsize=(12*3,2*2))
-    plt.tight_layout()
-
-    scaled = otsu_scaling(image1)
-    display1,display2,display3 = plot_3d(scaled,axes[0,:], cmap='gray')
-    display1.add_edges(image2)
-    display2.add_edges(image2)
-    display3.add_edges(image2)
-
-    scaled = otsu_scaling(image2)
-    display1,display2,display3 = plot_3d(scaled,axes[1,:], cmap='gray')
-    display1.add_edges(image1)
-    display2.add_edges(image1)
-    display3.add_edges(image1)
-    fig.savefig(f'{prefix}_registration.png', bbox_inches='tight')
-
-
-def template_info(anat_template, opts, out_dir):
+def template_info(anat_template, opts, out_dir,figure_format):
     import os
     import SimpleITK as sitk
     # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
@@ -156,10 +129,10 @@ def template_info(anat_template, opts, out_dir):
     plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
     plt.tight_layout()
 
-    fig.savefig(out_dir+'/template_files.png', bbox_inches='tight')
+    fig.savefig(out_dir+f'/template_files.{figure_format}', bbox_inches='tight')
 
 
-def template_masking(template, mask, out_dir):
+def template_masking(template, mask, out_dir, figure_format):
     import os
     import SimpleITK as sitk
     # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
@@ -182,9 +155,9 @@ def template_masking(template, mask, out_dir):
     plot_3d(axes[:],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
     plot_3d(axes[:],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
     plt.tight_layout()
-    fig.savefig(out_dir+'/template_masking.png', bbox_inches='tight')
+    fig.savefig(out_dir+f'/template_masking.{figure_format}', bbox_inches='tight')
 
-def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, name_source, out_dir):
+def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, name_source, out_dir,figure_format):
     import os
     import pathlib
     filename_template = pathlib.Path(name_source).name.rsplit(".nii")[0]
@@ -206,18 +179,22 @@ def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, na
     ax.plot(df['mov2'])
     ax.plot(df['mov3'])
     ax.legend(['mov1','mov2','mov3'])
-    ax.set_title('Translation parameters', fontsize=30, color='white')
+    ax.set_title('Translation parameters', fontsize=25, color='white')
+    ax.set_ylabel('mm', fontsize=15)
+    
     ax = axes[1,0]
     ax.plot(df['rot1'])
     ax.plot(df['rot2'])
     ax.plot(df['rot3'])
     ax.legend(['rot1','rot2','rot3'])
-    ax.set_title('Rotation parameters', fontsize=30, color='white')
+    ax.set_title('Rotation parameters', fontsize=25, color='white')
+    ax.set_ylabel('Euler angle\n (radians)', fontsize=15)
 
     df = pd.read_csv(FD_csv)
     ax=axes[2,0]
     ax.plot(df['Mean'], color='r')
-    ax.set_title('Framewise Displacement', fontsize=30, color='white')
+    ax.set_title('Framewise displacement', fontsize=25, color='white')
+    ax.set_ylabel('mm', fontsize=15)
 
     plt.tight_layout()
 
@@ -238,20 +215,20 @@ def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, na
         sitk.GetImageFromArray(tSNR, isVector=False), img)
     sitk.WriteImage(tSNR_image, tSNR_filename)
 
-    axes[0,1].set_title('Temporal STD', fontsize=30, color='white')
+    axes[0,1].set_title('Temporal standard deviation', fontsize=25, color='white')
     std=std.flatten()
     std.sort()
     std_vmax = std[int(len(std)*0.95)]
     plot_3d(axes[:,1],std_image,fig=fig,vmin=0,vmax=std_vmax,cmap='inferno', cbar=True)
-    axes[0,2].set_title('Temporal SNR', fontsize=30, color='white')
+    axes[0,2].set_title('Temporal SNR', fontsize=25, color='white')
     plot_3d(axes[:,2],tSNR_image,fig=fig,vmin=0,vmax=tSNR.max(),cmap='Spectral', cbar=True)
 
-    fig.savefig(f'{prefix}_temporal_features.png', bbox_inches='tight')
+    fig.savefig(f'{prefix}_temporal_features.{figure_format}', bbox_inches='tight')
 
     return std_filename, tSNR_filename
 
 
-def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_source, out_dir):
+def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_source, out_dir,figure_format):
     import os
     import pathlib
     import SimpleITK as sitk
@@ -290,7 +267,7 @@ def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sour
     plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
 
     plt.tight_layout()
-    fig.savefig(f'{prefix}_inho_cor.png', bbox_inches='tight')
+    fig.savefig(f'{prefix}_inho_cor.{figure_format}', bbox_inches='tight')
 
 def add_filenames(ax, file_dict, line_length=40):
     txt=""

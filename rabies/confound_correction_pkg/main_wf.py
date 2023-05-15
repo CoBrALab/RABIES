@@ -14,6 +14,10 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
 
+    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
+        raise ValueError(
+            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
+
     if cr_opts.read_datasink:
         split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'])
     else:
@@ -56,10 +60,11 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts)
 
-    plot_CR_overfit_node = pe.Node(Function(input_names=['mask_file', 'STD_file_path', 'CR_STD_file_path', 'random_CR_STD_file_path', 'corrected_CR_STD_file_path'],
+    plot_CR_overfit_node = pe.Node(Function(input_names=['mask_file', 'STD_file_path', 'CR_STD_file_path', 'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'figure_format'],
                                            output_names=['figure_path'],
                                        function=plot_CR_overfit),
                               name='plot_CR_overfit_node')
+    plot_CR_overfit_node.inputs.figure_format = cr_opts.figure_format
 
     workflow.connect([
         (main_split, preproc_outputnode, [
@@ -77,10 +82,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("outputnode.corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ]),
         ])
-
-    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
-        raise ValueError(
-            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.nativespace_analysis:
         workflow.connect([
@@ -325,7 +326,7 @@ def read_preproc_workflow(preproc_output, nativespace=False):
     return split_dict, split_name, target_list
 
 
-def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path):
+def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path, figure_format):
 
     for file in STD_file_path, CR_STD_file_path, random_CR_STD_file_path, corrected_CR_STD_file_path:
         if 'empty' in file:
@@ -365,7 +366,7 @@ def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_fi
 
     import pathlib
     filename_template = pathlib.Path(STD_file_path).name.rsplit("_STD_map.nii.gz")[0]
-    figure_path = os.path.abspath(filename_template)+'_CR_overfit.png'
+    figure_path = os.path.abspath(filename_template)+f'_CR_overfit.{figure_format}'
     fig.savefig(figure_path, bbox_inches='tight')
 
     return figure_path

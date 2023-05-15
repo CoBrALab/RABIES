@@ -9,6 +9,7 @@ from .bold_ref import init_bold_reference_wf
 from rabies.utils import slice_applyTransforms, Merge
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
+    # resampling_head_start
     """
     This workflow carries out the resampling of the original EPI timeseries into preprocessed timeseries.
     This is accomplished by applying at each frame a combined transform which accounts for previously estimated 
@@ -64,6 +65,7 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             vascular_mask: the vascular mask resampled onto preprocessed EPI timeseries
             labels: the atlas labels resampled onto preprocessed EPI timeseries
     """
+    # resampling_head_end
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[

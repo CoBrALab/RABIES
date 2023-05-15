@@ -12,6 +12,7 @@ from rabies.utils import copyInfo_4DImage, copyInfo_3DImage, run_command
 from .hmc import antsMotionCorr
 
 def init_bold_reference_wf(opts, name='gen_bold_ref'):
+    # gen_bold_ref_head_start
     """
     The 4D raw EPI file is used to generate a representative volumetric 3D EPI. This volume later becomes the target for 
     motion realignment and the estimation of susceptibility distortions through registration to the structural image. 
@@ -40,6 +41,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
             ref_image: the reference EPI volume
             bold_file: the input EPI timeseries, but after removing dummy volumes if --detect_dummy is selected
     """
+    # gen_bold_ref_head_end
 
     workflow = pe.Workflow(name=name)
 
@@ -66,7 +68,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    HMC_option = traits.Str(desc="Select one of the pre-built options from https://github.com/ANTsX/ANTsR/blob/60eefd96fedd16bceb4703ecd2cd5730e6843807/R/ants_motion_estimation.R")
+    HMC_option = traits.Str(desc="Select one of the pre-defined HMC registration command.")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -105,7 +107,7 @@ class EstimateReferenceImage(BaseInterface):
         if not in_nii.GetDimension()==4:
             raise ValueError(f"Input image {self.inputs.in_file} is not 4-dimensional.")
 
-        data_slice = sitk.GetArrayFromImage(in_nii)[:50, :, :, :]
+        data_array = sitk.GetArrayFromImage(in_nii)
 
         n_volumes_to_discard = _get_vols_to_discard(in_nii)
 
@@ -117,12 +119,11 @@ class EstimateReferenceImage(BaseInterface):
             log.info("Detected "+str(n_volumes_to_discard)
                   + " dummy scans. Taking the median of these volumes as reference EPI.")
             median_image_data = np.median(
-                data_slice[:n_volumes_to_discard, :, :, :], axis=0)
+                data_array[:n_volumes_to_discard, :, :, :], axis=0)
 
             out_bold_file = os.path.abspath(
                 f'{filename_split[0]}_cropped_dummy.nii.gz')
-            img_array = sitk.GetArrayFromImage(
-                in_nii)[n_volumes_to_discard:, :, :, :]
+            img_array = data_array[n_volumes_to_discard:, :, :, :]
 
             image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
                 img_array, isVector=False), in_nii, in_nii)
@@ -135,23 +136,25 @@ class EstimateReferenceImage(BaseInterface):
             if self.inputs.detect_dummy:
                 log.info(
                     "Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
-            # if no dummy scans, will generate a median from a subset of max 100
+            # if no dummy scans, will generate a median from a subset of max 50
             # slices of the time series
-            if in_nii.GetSize()[-1] > 100:
+
+            num_timepoints = in_nii.GetSize()[-1]
+            # select a slice of 50 frames centered around the mid-frame
+            mid_frame = num_timepoints//2
+            data_slice = data_array[max(mid_frame-25,0):min(mid_frame+25,num_timepoints),:,:,:]
+            if num_timepoints > 50:
                 slice_fname = os.path.abspath("slice.nii.gz")
                 image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
-                    data_slice[20:100, :, :, :], isVector=False), in_nii, in_nii)
+                    data_slice, isVector=False), in_nii, in_nii)
                 sitk.WriteImage(image_4d, slice_fname)
-                median_fname = os.path.abspath("median.nii.gz")
-                image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-                    np.median(data_slice[20:100, :, :, :], axis=0), isVector=False), in_nii)
-                sitk.WriteImage(image_3d, median_fname)
             else:
                 slice_fname = self.inputs.in_file
-                median_fname = os.path.abspath("median.nii.gz")
-                image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-                    np.median(data_slice, axis=0), isVector=False), in_nii)
-                sitk.WriteImage(image_3d, median_fname)
+
+            median_fname = os.path.abspath("median.nii.gz")
+            image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
+                np.median(data_slice, axis=0), isVector=False), in_nii)
+            sitk.WriteImage(image_3d, median_fname)
 
             # First iteration to generate reference image.
             res = antsMotionCorr(in_file=slice_fname,
