@@ -776,6 +776,17 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        "--extended_QC", dest='extended_QC', action='store_true',
+        help=
+            "Select this option to output the network correlation with the original image intensity (calculated \n"
+            "during detrending) and the BOLDsd (signal variability). These two additional features allow to \n"
+            "further inspect potential issues of signal amplitude scaling between scans. However, it is unclear \n"
+            "whether signal of interest (i.e. neural metabolism) contribute to each measure, so these outpu8ts should \n"
+            "be interpreted with caution. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     analysis.add_argument(
         '--seed_list', type=str,
