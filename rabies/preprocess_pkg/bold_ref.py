@@ -140,9 +140,9 @@ class EstimateReferenceImage(BaseInterface):
             # slices of the time series
 
             num_timepoints = in_nii.GetSize()[-1]
-            # select a slice of 50 frames centered around the mid-frame
-            mid_frame = num_timepoints//2
-            data_slice = data_array[max(mid_frame-25,0):min(mid_frame+25,num_timepoints),:,:,:]
+            # select a set of 50 frames spread uniformally across time to avoid temporal biases
+            subset_idx = np.linspace(0,num_timepoints-1,50).astype(int)
+            data_slice = data_array[subset_idx,:,:,:]
             if num_timepoints > 50:
                 slice_fname = os.path.abspath("slice.nii.gz")
                 image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
