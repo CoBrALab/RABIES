@@ -60,12 +60,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     confound_correction_wf = init_confound_correction_wf(cr_opts=cr_opts)
 
-    plot_CR_overfit_node = pe.Node(Function(input_names=['mask_file', 'STD_file_path', 'CR_STD_file_path', 'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'figure_format'],
-                                           output_names=['figure_path'],
-                                       function=plot_CR_overfit),
-                              name='plot_CR_overfit_node')
-    plot_CR_overfit_node.inputs.figure_format = cr_opts.figure_format
-
     workflow.connect([
         (main_split, preproc_outputnode, [
             ("split_name", "split_name"),
@@ -74,12 +68,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             ("motion_params_csv", "inputnode.motion_params_csv"),  # confounds file
             ("FD_csv", "inputnode.FD_file"),
             ("input_bold", "inputnode.raw_input_file"),
-            ]),
-        (confound_correction_wf, plot_CR_overfit_node, [
-            ("outputnode.STD_file", "STD_file_path"),
-            ("outputnode.CR_STD_file", "CR_STD_file_path"),
-            ("outputnode.random_CR_STD_file_path", "random_CR_STD_file_path"),
-            ("outputnode.corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
             ]),
         ])
 
@@ -92,9 +80,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("native_CSF_mask", "inputnode.CSF_mask"),
                 ("native_vascular_mask", "inputnode.vascular_mask"),
                 ]),
-            (preproc_outputnode, plot_CR_overfit_node, [
-                ("native_brain_mask", "mask_file"),
-                ]),
             ])
     else:
         workflow.connect([
@@ -104,9 +89,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("commonspace_WM_mask", "inputnode.WM_mask"),
                 ("commonspace_CSF_mask", "inputnode.CSF_mask"),
                 ("commonspace_vascular_mask", "inputnode.vascular_mask"),
-                ]),
-            (preproc_outputnode, plot_CR_overfit_node, [
-                ("commonspace_mask", "mask_file"),
                 ]),
             ])
 
@@ -118,9 +100,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     workflow.connect([
         (confound_correction_wf, confound_correction_datasink, [
             ("outputnode.cleaned_path", "cleaned_timeseries"),
-            ]),
-        (plot_CR_overfit_node, confound_correction_datasink, [
-            ("figure_path", "plot_CR_overfit"),
             ]),
         ])
     if cr_opts.ica_aroma['apply']:
@@ -135,6 +114,40 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("outputnode.frame_mask_file", "frame_censoring_mask"),
                 ]),
             ])
+        
+    if cr_opts.generate_CR_null:
+        plot_CR_overfit_node = pe.Node(Function(input_names=['mask_file', 'STD_file_path', 'CR_STD_file_path', 'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'figure_format'],
+                                            output_names=['figure_path'],
+                                        function=plot_CR_overfit),
+                                name='plot_CR_overfit_node')
+        plot_CR_overfit_node.inputs.figure_format = cr_opts.figure_format
+
+        workflow.connect([
+            (confound_correction_wf, plot_CR_overfit_node, [
+                ("outputnode.STD_file", "STD_file_path"),
+                ("outputnode.CR_STD_file", "CR_STD_file_path"),
+                ("outputnode.random_CR_STD_file_path", "random_CR_STD_file_path"),
+                ("outputnode.corrected_CR_STD_file_path", "corrected_CR_STD_file_path"),
+                ]),
+            (plot_CR_overfit_node, confound_correction_datasink, [
+                ("figure_path", "plot_CR_overfit"),
+                ]),
+            ])
+        
+        if cr_opts.nativespace_analysis:
+            workflow.connect([
+                (preproc_outputnode, plot_CR_overfit_node, [
+                    ("native_brain_mask", "mask_file"),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (preproc_outputnode, plot_CR_overfit_node, [
+                    ("commonspace_mask", "mask_file"),
+                    ]),
+                ])
+
+
 
     return workflow
 

@@ -672,6 +672,16 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    confound_correction.add_argument(
+        '--generate_CR_null', dest='generate_CR_null', action='store_true',
+        help=
+            "Estimate overfitting from confound regression by generating phase randomised regressors,\n"
+            "following the method by Bright and Murphy (2015), NeuroImage. By selecting this option, \n"
+            "an additional figure will be generated to display the variance explained by the real \n"
+            "regressors VS the randomized regressors to assess overfitting. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis
