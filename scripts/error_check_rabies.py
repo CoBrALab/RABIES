@@ -52,7 +52,7 @@ sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
 
 sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
                 + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
-
+'''
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16 --bold_only --detect_dummy \
@@ -80,7 +80,7 @@ process = subprocess.run(
     check=True,
     shell=True,
     )
-
+'''
 ### Add subjects for the group analysis to run
 array_4d += np.random.normal(0, array_4d.mean()
                              / 100, array_4d.shape)  # add gaussian noise
@@ -91,7 +91,7 @@ array_4d += np.random.normal(0, array_4d.mean()
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token3_bold.nii.gz')
 
-shutil.rmtree(f'{tmppath}/outputs/')
+#shutil.rmtree(f'{tmppath}/outputs/')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16  \
@@ -118,7 +118,7 @@ process = subprocess.run(
 
 shutil.rmtree(f'{tmppath}/outputs/confound_correction_main_wf')
 shutil.rmtree(f'{tmppath}/outputs/confound_correction_datasink')
-shutil.rmtree(f'{tmppath}/outputs/rabies_confound_correction.pkl')
+os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
 command = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs"
 process = subprocess.run(
     command,
@@ -128,7 +128,7 @@ process = subprocess.run(
 
 shutil.rmtree(f'{tmppath}/outputs/analysis_main_wf')
 shutil.rmtree(f'{tmppath}/outputs/analysis_datasink')
-shutil.rmtree(f'{tmppath}/outputs/rabies_analysis.pkl')
+os.remove(f'{tmppath}/outputs/rabies_analysis.pkl')
 command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --NPR_temporal_comp 1 --data_diagnosis --DR_ICA"
 process = subprocess.run(
     command,

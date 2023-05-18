@@ -187,6 +187,26 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
+        '--isotropic_HMC', dest='isotropic_HMC', action='store_true',
+        help=
+            "Whether to resample the EPI to isotropic resolution (taking the size of the axis with highest \n"
+            "resolution) for the estimation of motion parameters. This should greatly mitigating registration \n"
+            "'noise' which arise from partial volume effects, or poor image resolution (see online post on \n"
+            "this topic https://github.com/CoBrALab/RABIES/discussions/288). This option will increase \n"
+            "computational time, given the higher image resolution. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        '--voxelwise_motion', dest='voxelwise_motion', action='store_true',
+        help=
+            "Whether to output estimates of absolute displacement and framewise displacement at each voxel. \n"
+            "This will generate 4D nifti files representing motion timeseries derived from the 6 motion  \n"
+            "parameters. This is handled by antsMotionCorrStats. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
         '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
         help=
             "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"

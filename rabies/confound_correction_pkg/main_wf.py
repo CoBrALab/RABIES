@@ -19,7 +19,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.read_datasink:
-        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'])
+        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'], voxelwise_motion=preprocess_opts.voxelwise_motion)
     else:
         split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
@@ -153,7 +153,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
 
 
-def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=False, atlas_reg_script='SyN'):
+def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=False, atlas_reg_script='SyN', voxelwise_motion=False):
     import pathlib
     import glob
 
@@ -176,7 +176,10 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
     directory_list = [['bold_datasink','input_bold'],
         ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],
         ['bold_datasink','commonspace_CSF_mask'], ['bold_datasink','commonspace_vascular_mask'], ['bold_datasink','commonspace_labels'],
-        ['motion_datasink','motion_params_csv'], ['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise'], ['motion_datasink','FD_csv']]
+        ['motion_datasink','motion_params_csv'], ['motion_datasink','FD_csv']]
+    
+    if voxelwise_motion:
+        directory_list+=[['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise']]
 
     if nativespace:
         directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'],
