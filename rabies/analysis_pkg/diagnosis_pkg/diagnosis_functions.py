@@ -125,8 +125,6 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     spatial_info['VE_spatial'] = data_dict['VE_spatial']
     spatial_info['temporal_std'] = data_dict['temporal_std']
     spatial_info['predicted_std'] = data_dict['predicted_std']
-    spatial_info['random_CR_std'] = data_dict['random_CR_std']
-    spatial_info['corrected_CR_std'] = data_dict['corrected_CR_std']
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
@@ -170,14 +168,6 @@ def spatial_external_formating(spatial_info):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
-    random_CR_std_filename = os.path.abspath(filename_split[0]+'_random_CR_std.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['random_CR_std']), random_CR_std_filename)
-
-    corrected_CR_std_filename = os.path.abspath(filename_split[0]+'_corrected_CR_std.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['corrected_CR_std']), corrected_CR_std_filename)
-
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
@@ -186,7 +176,7 @@ def spatial_external_formating(spatial_info):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_cov']), GS_cov_filename)
 
-    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, GS_cov_filename
+    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, GS_cov_filename
 
 
 '''
