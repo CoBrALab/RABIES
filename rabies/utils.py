@@ -51,7 +51,9 @@ def resample_image_spacing(image, output_spacing):
 
     # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
-    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkLinear,
+    # the resampling is done with BSpline, the interpolator order is 3
+    # other BSpline options are blurry, see https://discourse.itk.org/t/resample-produces-blurry-results-when-just-cropping/4473
+    resampled_image = sitk.Resample(image, output_size, identity, sitk.sitkBSpline,
                                     image.GetOrigin(), output_spacing, image.GetDirection())
     # clip potential negative values
     array = sitk.GetArrayFromImage(resampled_image)
@@ -59,6 +61,46 @@ def resample_image_spacing(image, output_spacing):
     pos_resampled_image = sitk.GetImageFromArray(array, isVector=False)
     pos_resampled_image.CopyInformation(resampled_image)
     return pos_resampled_image
+
+
+def resample_image_spacing_4d(image_4d, output_spacing, clip_negative=True): 
+    # output_spacing should be specifying the resolution of the 3 spatial dimensions in mm
+    if not image_4d.GetDimension()==4:
+        raise ValueError("The image must be 4 dimensional.")
+    
+    # Compute grid size based on the physical size and spacing.
+    input_size = image_4d.GetSize()
+    sampling_ratio = np.asarray(image_4d.GetSpacing())[:3]/np.asarray(output_spacing)
+    output_size = [int(input_size[0]*sampling_ratio[0]), int(input_size[1]
+                                                                * sampling_ratio[1]), int(input_size[2]*sampling_ratio[2])]
+
+    origin = image_4d.GetOrigin()[:3]
+
+    direction_4d = image_4d.GetDirection()
+    direction_3d = tuple(direction_4d[:3]+direction_4d[4:7]+direction_4d[8:11])
+
+    dimension = 3
+    identity = sitk.Transform(dimension, sitk.sitkIdentity)
+    # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+    sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
+    resampled_list=[]
+    for i in range(input_size[3]):
+        # the resampling is done with BSpline, the interpolator order is 3
+        # other BSpline options are blurry, see https://discourse.itk.org/t/resample-produces-blurry-results-when-just-cropping/4473
+        resampled_image = sitk.Resample(image_4d[:,:,:,i], output_size, identity, sitk.sitkBSpline,
+                                        origin, output_spacing, direction_3d)
+        resampled_list.append(resampled_image)
+    combined = sitk.JoinSeries(resampled_list) 
+    resampled_4d = copyInfo_4DImage(combined, resampled_image, image_4d)
+
+    if clip_negative:
+        # clip potential negative values
+        array = sitk.GetArrayFromImage(resampled_4d)
+        array[(array < 0).astype(bool)] = 0
+        pos_resampled_image = sitk.GetImageFromArray(array, isVector=False)
+        pos_resampled_image.CopyInformation(resampled_4d)
+        resampled_4d = pos_resampled_image
+    return resampled_4d
 
 
 def copyInfo_4DImage(image_4d, ref_3d, ref_4d):
