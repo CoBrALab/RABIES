@@ -159,6 +159,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
             ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
             ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
+            ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
             ]),
         ])
 

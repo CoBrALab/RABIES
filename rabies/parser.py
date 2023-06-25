@@ -906,6 +906,45 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        '--optimize_NPR', type=str,
+        default='apply=false,window_size=5,min_prior_corr=0.5,diff_thresh=0.03,max_iter=20,compute_max=false',
+        help=
+            "This option handles the automated dimensionality estimation when carrying out NPR. NPR will be \n"
+            "carried out iteratively while incrementing the number of non-prior components fitted, until \n"
+            "convergence criteria are met (see below). A convergence report is generated to visualize the \n"
+            "results across iterations. \n"
+            "\n"
+            "Convergence criterion 1: Iterations continue until the correlation between the fitted component \n"
+            "and the prior does not reach the specified minimum.\n"
+            "\n"
+            "Convergence Criterion 2: At each iteration, the difference between the previous and new output \n"
+            "is evaluated (0=perfectly correlated; 1=uncorrelated). The forming set of successive iterations \n"
+            "(within a certain window length) is evaluated, and when a set respects the convergence threshold \n"
+            "for each iteration within the window, the iteration preceding that window is selected as optimal \n"
+            "output. We take the iteration preceding the  window, as this corresponds to the last iteration \n"
+            "which generated changes above threshold. The sliding-window approach is employed to prevent \n"
+            "falling within a local minima, when further ameliorations may be possible with further iterations.\n"
+            "\n"
+            "When multiple priors are fitted, they are all simultaneously subjected to the evaluation of \n"
+            "convergence, and as long as one prior fit does not meet the thresholds, iterations continue.\n"
+            "\n"
+            "* apply: select 'true' to apply this option. If selected, this option overrides --NPR_spatial_comp \n"
+            " and --NPR_spatial_comp. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "* window_size: Window size for criterion 2. \n"
+            "*** Must provide an integer. \n"
+            "* min_prior_corr: Threshold for criterion 1. \n"
+            "*** Must provide a float. \n"
+            "* diff_thresh: Threshold for criterion 2. \n"
+            "*** Must provide a float. \n"
+            "* max_iter: Maximum number of iterations. \n"
+            "*** Must provide an integer. \n"
+            "* compute_max: select 'true' to visualize all iterations until max_iter in the report. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         "--network_weighting", type=str, default='absolute',
         choices=['absolute', 'relative'],
         help=
@@ -967,6 +1006,10 @@ def read_parser(parser):
         opts.group_ica = parse_argument(opt=opts.group_ica, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             name='group_ica')
+        opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
+            key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,
+                               'diff_thresh':float, 'max_iter':int, 'compute_max':['true', 'false']},
+            name='optimize_NPR')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts

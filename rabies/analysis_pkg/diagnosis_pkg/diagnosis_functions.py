@@ -76,7 +76,7 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
         spatial_info['seed_map_list'] = []
         temporal_info['SBC_time'] = []
 
-    ### SBC analysis
+    ### DR analysis
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = sitk.GetArrayFromImage(
         sitk.ReadImage(analysis_dict['dual_regression_nii']))
