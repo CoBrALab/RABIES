@@ -38,7 +38,7 @@ Prepare the subject data
 '''
 
 
-def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
+def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     temporal_info = {}
     spatial_info = {}
     temporal_info['name_source'] = data_dict['name_source']
@@ -106,7 +106,7 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': [], 'W': []}
-    if (NPR_temporal_comp>-1) or (NPR_spatial_comp>-1):
+    if not analysis_dict['NPR_prior_filename'] is None:
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
             sitk.ReadImage(analysis_dict['NPR_prior_filename']))

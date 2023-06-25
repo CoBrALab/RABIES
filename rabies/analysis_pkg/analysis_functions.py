@@ -312,15 +312,15 @@ class NeuralPriorRecovery(BaseInterface):
                 }
 
 
-def eval_convergence(prior_corr,fit_diff_list,window_size=5,min_prior_corr=0.5,diff_thresh=0.04):
-    if (np.array(prior_corr)<min_prior_corr).max():
-        return None
+def eval_convergence(prior_corr_list,fit_diff_list,window_size=5,min_prior_corr=0.5,diff_thresh=0.04):
     if len(fit_diff_list)<window_size:
         return None
     for i in range(1,len(fit_diff_list)-window_size+1): # we start at 1 because idx 0 is nan
+        if (np.array(prior_corr_list[i-1])<min_prior_corr).max():
+            continue # if the preceding iteration does not pass corr threshold, search for another window
         window = np.array(fit_diff_list[i:i+window_size])
         if not (window>diff_thresh).max(): # if all diff are below threshold, return the first index
-            return i-1 # we take -1 because the iteration preceeding the window is ideal
+            return i-1 # we take -1 because the iteration preceding the window is ideal
     return None
 
 
@@ -384,7 +384,7 @@ def spatiotemporal_fit_converge(X,C_prior,window_size=5,min_prior_corr=0.5,diff_
             lim = np.abs(np.abs((C * C_prev).sum(axis=0)) - 1)
             fit_diff_list.append(lim)
 
-        convergence_idx = eval_convergence(NPR_dict['corr_list'],fit_diff_list,window_size=window_size,min_prior_corr=min_prior_corr,diff_thresh=diff_thresh)
+        convergence_idx = eval_convergence(prior_corr_list,fit_diff_list,window_size=window_size,min_prior_corr=min_prior_corr,diff_thresh=diff_thresh)
         if not compute_max and not convergence_idx is None:
             if gen_report:
                 fig = generate_convergence_report(convergence_idx,fit_diff_list,prior_corr_list,min_prior_corr=min_prior_corr,diff_thresh=diff_thresh)
