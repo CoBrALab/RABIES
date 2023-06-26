@@ -80,6 +80,8 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = sitk.GetArrayFromImage(
         sitk.ReadImage(analysis_dict['dual_regression_nii']))
+    if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
+        DR_array = DR_array[np.newaxis,:,:,:]
     DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
     for i in range(DR_array.shape[0]):
         DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
@@ -110,6 +112,9 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
             sitk.ReadImage(analysis_dict['NPR_prior_filename']))
+        if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
+            C_array = C_array[np.newaxis,:,:,:]
+
         C = np.zeros([C_array.shape[0], volume_indices.sum()])
         for i in range(C_array.shape[0]):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
