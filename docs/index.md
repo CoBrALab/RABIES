@@ -14,5 +14,6 @@ confound_correction.md
 analysis.md
 analysis_QC.md
 outputs.md
+metrics.md
 additional.md
 bibliography.md

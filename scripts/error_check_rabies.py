@@ -56,14 +56,14 @@ sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16 --bold_only --detect_dummy \
-    --tpattern seq-z --apply_STC"
+    --tpattern seq-z --apply_STC --voxelwise_motion --isotropic_HMC"
 process = subprocess.run(
     command,
     check=True,
     shell=True,
     )
 
-os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
+shutil.rmtree(f'{tmppath}/outputs/')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true --commonspace_reg masking=true,brain_extraction=true,fast_commonspace=true,template_registration=no_reg --data_type int16  \
@@ -91,7 +91,7 @@ array_4d += np.random.normal(0, array_4d.mean()
 sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
                 tmppath+'/inputs/sub-token3_bold.nii.gz')
 
-os.remove(f'{tmppath}/outputs/rabies_preprocess.pkl')
+shutil.rmtree(f'{tmppath}/outputs/')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16  \
@@ -102,7 +102,6 @@ process = subprocess.run(
     shell=True,
     )
 
-os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
 command = f"rabies --verbose 1 confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs --conf_list mot_6 --smoothing_filter 0.3"
 process = subprocess.run(
     command,
@@ -117,6 +116,8 @@ process = subprocess.run(
     shell=True,
     )
 
+shutil.rmtree(f'{tmppath}/outputs/confound_correction_main_wf')
+shutil.rmtree(f'{tmppath}/outputs/confound_correction_datasink')
 os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
 command = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs"
 process = subprocess.run(
@@ -125,6 +126,8 @@ process = subprocess.run(
     shell=True,
     )
 
+shutil.rmtree(f'{tmppath}/outputs/analysis_main_wf')
+shutil.rmtree(f'{tmppath}/outputs/analysis_datasink')
 os.remove(f'{tmppath}/outputs/rabies_analysis.pkl')
 command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --NPR_temporal_comp 1 --data_diagnosis --DR_ICA"
 process = subprocess.run(

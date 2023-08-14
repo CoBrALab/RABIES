@@ -142,28 +142,25 @@ class antsMotionCorr(BaseInterface):
             if moreaccurate not in [0, 1, 2, 3]:
                 raise ValueError("Wrong pre-built option provided.")
 
-        img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
+        img = sitk.ReadImage(moving, self.inputs.rabies_data_type)
+        ref_img = sitk.ReadImage(fixed, self.inputs.rabies_data_type)
+
         n = img.GetSize()[3]
         if (n > 10):
             n = 10
         mibins = 20
 
+        # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
+        shrinking_factor = 4
+        low_dim = np.asarray(ref_img.GetSize()[:3]).min()
+        if shrinking_factor > int(low_dim/4):
+            shrinking_factor = int(low_dim/4)
+
         if (moreaccurate == 3):
-            # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
-            shrinking_factor = 4
-            low_dim = np.asarray(img.GetSize()[:3]).min()
-            if shrinking_factor > int(low_dim/4):
-                shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} ] -t {txtype}[0.1,3,0] -i 100x50x30 -s 2x1x0mm -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
         elif (moreaccurate == 2):
-            # check the size of the lowest dimension, and make sure that the first shrinking factor allow for at least 4 slices
-            shrinking_factor = 4
-            img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
-            low_dim = np.asarray(img.GetSize()[:3]).min()
-            if shrinking_factor > int(low_dim/4):
-                shrinking_factor = int(low_dim/4)
             command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
                 {moving} , 1 , {str(mibins)} , regular, 0.25 ] -t {txtype}[ 0.1 ] -i 100x50x30 -s 2x1x0mm -f {str(shrinking_factor)}x2x1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
 
@@ -182,8 +179,8 @@ class antsMotionCorr(BaseInterface):
         elif (moreaccurate == "optim"):
 
             # generate sensible smoothing coefficients based on image dimensions
-            low_dim = np.asarray(img.GetSpacing()[:3]).min()
-            largest_dim = (np.array(img.GetSize()[:3])*np.array(img.GetSpacing()[:3])).max()
+            low_dim = np.asarray(ref_img.GetSpacing()[:3]).min()
+            largest_dim = (np.array(ref_img.GetSize()[:3])*np.array(ref_img.GetSpacing()[:3])).max()
 
             command=f'ants_generate_iterations.py --min {low_dim} --max {largest_dim}'
             import subprocess
@@ -397,14 +394,14 @@ class EstimateMotionParams(BaseInterface):
         # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         # first the voxelwise positioning map
         command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.raw_brain_mask} \
-                    -d {self.inputs.raw_bold} -s {filename_split[0]}_pos_voxelwise.nii.gz'
+                    -d {self.inputs.raw_bold}'
         rc = run_command(command)
         pos_voxelwise = os.path.abspath(
             f"{filename_split[0]}_pos_file.nii.gz")
 
         # then the voxelwise framewise displacement map
         command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.raw_brain_mask} \
-                    -d {self.inputs.raw_bold} -s {filename_split[0]}_FD_voxelwise.nii.gz -f 1'
+                    -d {self.inputs.raw_bold} -f 1'
         rc = run_command(command)
 
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
@@ -419,9 +416,10 @@ class EstimateMotionParams(BaseInterface):
         df.to_csv(motion_params_csv)
 
         setattr(self, 'FD_csv', FD_csv)
+        setattr(self, 'motion_params_csv', motion_params_csv)
         setattr(self, 'FD_voxelwise', FD_voxelwise)
         setattr(self, 'pos_voxelwise', pos_voxelwise)
-        setattr(self, 'motion_params_csv', motion_params_csv)
+
         return runtime
 
     def _list_outputs(self):

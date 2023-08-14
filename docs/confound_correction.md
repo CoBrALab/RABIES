@@ -5,13 +5,6 @@
 ![Processing Schema](pics/confound_correction.png)
 
 
-```{toctree}
----
-maxdepth: 3
----
-nested_docs/confound_metrics.md
-```
-
 The workflow for confound correction regroups a broad set of standard tools from the human litterature. The implementation of each step is structured to follow best practices and prevent re-introduction of confounds, as recommended in {cite}`Power2014-yf` and {cite}`Lindquist2019-lq`. Importantly, each operation is optional (except detrending), and a set of operations can be selected to design a customized workflow. Optimal correction strategy can be dataset-specific, and ideally, should be tuned to address relevant quality issues identified within the dataset (see section on [data quality assessment](analysis_QC_target)).
 
 1. **Frame censoring** (`--frame_censoring`): Frame censoring temporal masks are derived from FD and/or DVARS thresholds, and applied first on both BOLD timeseries before any other correction step to exclude signal spikes which may bias downstream corrections, in particular, detrending, frequency filtering and confound regression{cite}`Power2014-yf`. 
@@ -19,7 +12,7 @@ The workflow for confound correction regroups a broad set of standard tools from
     * Censoring with DVARS (see [definition](DVARS_target)): The DVARS values are z-scored ($DVARS_Z = \frac{DVARS-\mu}{\sigma}$, where $\mu$ is the mean DVARS across time, and $\sigma$ the standard deviation), and frames with $|DVARS_Z|>2.5$ (i.e. above 2.5 standard deviations from the mean) are removed. Z-scoring and outlier detection is repeated within the remaining frames, iteratively, until no more outlier is detected, to obtained a final set of frames post-censoring.
     * `--match_number_timepoints` : This option can be selected to constrain each scan to retain the same final number of frames, to account for downstream impacts from unequal temporal degrees of freedom (tDOF) on analysis. To do so, a pre-set final number of frames is defined with `minimum_timepoint`, and a number of extra frames remaining post-censoring (taking into account edge removal in 5) ) is randomly selected and removed from the set.
 
-2. **Detrending** (`--detrending_order`): Linear (or quadratic) trends are removed from timeseries. Detrended timeseries $\hat{Y}$ are obtained by preforming ordinary-least square (OLS) linear regression, 
+2. **Detrending** (`--detrending_order`): Linear (or quadratic) trends are removed from timeseries. Detrended timeseries $\hat{Y}$ are obtained by performing ordinary-least square (OLS) linear regression, 
 $$ 
 \beta = OLS(X,Y) 
 $$
@@ -51,7 +44,7 @@ where $Y$ is the timeseries, $X$ is the set of nuisance timecourses and $Y_{CR}$
 7. **Smoothing** (`--smoothing_filter`): Timeseries are spatially smoothed using a Gaussian smoothing filter ([nilearn.image.smooth_img](https://nilearn.github.io/dev/modules/generated/nilearn.image.smooth_img.html)). 
 
 
-### rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
+## rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
 
 ```{literalinclude} ../rabies/confound_correction_pkg/confound_correction.py
 :start-after: confound_wf_head_start

@@ -97,7 +97,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ])
 
 
-    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'random_CR_STD_file', 'corrected_CR_STD_file', 'name_source'],
+    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
                                            output_names=[
                                                'dict_file'],
                                        function=load_sub_input_dict),
@@ -110,8 +110,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
-            ("random_CR_STD_file_path", "random_CR_STD_file"),
-            ("corrected_CR_STD_file_path", "corrected_CR_STD_file"),
             ("input_bold", "name_source"),
             ]),
         (load_maps_dict_node, load_sub_dict_node, [
@@ -161,6 +159,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
             ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
             ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
+            ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
             ]),
         ])
 
@@ -197,12 +196,10 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),
                 ("outputnode.CR_prediction_std_nii", "CR_prediction_std_nii"),
-                ("outputnode.random_CR_std_nii", "random_CR_std_nii"),
-                ("outputnode.corrected_CR_std_nii", "corrected_CR_std_nii"),
                 ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ]),
             ])
-        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1):
+        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
@@ -273,7 +270,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
 
 # this function loads subject-specific data
-def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, random_CR_STD_file, corrected_CR_STD_file, name_source):
+def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
     import pickle
     import pathlib
     import os
@@ -295,15 +292,10 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
         sitk.ReadImage(STD_file))[volume_indices]
     predicted_std = sitk.GetArrayFromImage(
         sitk.ReadImage(CR_STD_file))[volume_indices]
-    random_CR_std = sitk.GetArrayFromImage(
-        sitk.ReadImage(random_CR_STD_file))[volume_indices]
-    corrected_CR_std = sitk.GetArrayFromImage(
-        sitk.ReadImage(corrected_CR_STD_file))[volume_indices]
 
     sub_dict = {'bold_file':bold_file, 'name_source':name_source, 'CR_data_dict':CR_data_dict, 
             'timeseries':timeseries, 'VE_spatial':VE_spatial, 'temporal_std':temporal_std,
-            'predicted_std':predicted_std, 'random_CR_std':random_CR_std, 
-            'corrected_CR_std':corrected_CR_std}
+            'predicted_std':predicted_std}
     
     # add all the maps_dict into the sub_dict
     for k in maps_dict.keys():

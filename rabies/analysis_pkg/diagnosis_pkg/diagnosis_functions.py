@@ -38,7 +38,7 @@ Prepare the subject data
 '''
 
 
-def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, NPR_temporal_comp=-1, NPR_spatial_comp=-1):
+def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     temporal_info = {}
     spatial_info = {}
     temporal_info['name_source'] = data_dict['name_source']
@@ -76,10 +76,12 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
         spatial_info['seed_map_list'] = []
         temporal_info['SBC_time'] = []
 
-    ### SBC analysis
+    ### DR analysis
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
     DR_array = sitk.GetArrayFromImage(
         sitk.ReadImage(analysis_dict['dual_regression_nii']))
+    if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
+        DR_array = DR_array[np.newaxis,:,:,:]
     DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
     for i in range(DR_array.shape[0]):
         DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
@@ -106,10 +108,13 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': [], 'W': []}
-    if (NPR_temporal_comp>-1) or (NPR_spatial_comp>-1):
+    if not analysis_dict['NPR_prior_filename'] is None:
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
             sitk.ReadImage(analysis_dict['NPR_prior_filename']))
+        if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
+            C_array = C_array[np.newaxis,:,:,:]
+
         C = np.zeros([C_array.shape[0], volume_indices.sum()])
         for i in range(C_array.shape[0]):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
@@ -125,8 +130,6 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx, N
     spatial_info['VE_spatial'] = data_dict['VE_spatial']
     spatial_info['temporal_std'] = data_dict['temporal_std']
     spatial_info['predicted_std'] = data_dict['predicted_std']
-    spatial_info['random_CR_std'] = data_dict['random_CR_std']
-    spatial_info['corrected_CR_std'] = data_dict['corrected_CR_std']
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
@@ -170,14 +173,6 @@ def spatial_external_formating(spatial_info):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
-    random_CR_std_filename = os.path.abspath(filename_split[0]+'_random_CR_std.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['random_CR_std']), random_CR_std_filename)
-
-    corrected_CR_std_filename = os.path.abspath(filename_split[0]+'_corrected_CR_std.nii.gz')
-    sitk.WriteImage(recover_3D(
-        mask_file, spatial_info['corrected_CR_std']), corrected_CR_std_filename)
-
     GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
@@ -186,7 +181,7 @@ def spatial_external_formating(spatial_info):
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_cov']), GS_cov_filename)
 
-    return VE_filename, std_filename, predicted_std_filename, random_CR_std_filename, corrected_CR_std_filename, GS_corr_filename, GS_cov_filename
+    return VE_filename, std_filename, predicted_std_filename, GS_corr_filename, GS_cov_filename
 
 
 '''

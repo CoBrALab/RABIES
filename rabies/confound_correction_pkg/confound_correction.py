@@ -135,9 +135,9 @@ class RegressOutputSpec(TraitedSpec):
                       desc="Temporal standard deviation map after confound correction, prior to standardization.")
     CR_STD_file_path = File(exists=True, mandatory=True,
                       desc="Temporal standard deviation on predicted confound timeseries.")
-    random_CR_STD_file_path = File(exists=True, mandatory=True,
+    random_CR_STD_file_path = File(exists=False, mandatory=False,
                       desc="Temporal standard deviation on predicted confound timeseries from random regressors.")
-    corrected_CR_STD_file_path = File(exists=True, mandatory=True,
+    corrected_CR_STD_file_path = File(exists=False, mandatory=False,
                       desc="Same as CR_STD_file_path, but the variance explained by random regressors was substracted.")
     frame_mask_file = File(exists=True, mandatory=True,
                       desc="Frame mask from temporal censoring.")
@@ -408,11 +408,14 @@ class Regress(BaseInterface):
         VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
         VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
 
-        # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
-        randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
-        X=randomized_confounds_array 
-        Y = timeseries
-        predicted_random = X.dot(closed_form(X,Y))
+        if cr_opts.generate_CR_null:
+            # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
+            randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
+            X=randomized_confounds_array 
+            Y = timeseries
+            predicted_random = X.dot(closed_form(X,Y))
+        else:
+            predicted_random = np.empty([0,timeseries.shape[1]])
 
         if len(cr_opts.conf_list) > 0:
             # if confound regression is applied
@@ -473,20 +476,12 @@ class Regress(BaseInterface):
         temporal_std = timeseries.std(axis=0)
         predicted_std = predicted.std(axis=0)
         predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
-        predicted_random_std = predicted_random.std(axis=0)
         predicted_global_std = predicted.std()
-
-        # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
-        var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
-        var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
-        corrected_predicted_std = np.sqrt(var_dif)
 
         # save output files
         VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
         STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
         CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
-        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
-        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
         timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
 
         if cr_opts.smoothing_filter is not None:
@@ -505,12 +500,26 @@ class Regress(BaseInterface):
         sitk.WriteImage(STD_spatial_map, STD_file_path)
         CR_STD_file_path = cr_out+'/'+filename_split[0]+'_CR_STD_map.nii.gz'
         sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
-        random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
-        sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
-        corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
-        sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
         frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
         pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
+
+        if cr_opts.generate_CR_null:
+            predicted_random_std = predicted_random.std(axis=0)
+
+            # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
+            var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
+            var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
+            corrected_predicted_std = np.sqrt(var_dif)
+            random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+            corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
+
+            random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
+            sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
+            corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
+            sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
+        else:
+            random_CR_STD_file_path=''
+            corrected_CR_STD_file_path=''
 
         # apply the frame mask to FD trace/DVARS
         DVARS = DVARS[frame_mask]

@@ -17,7 +17,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 'joined_seed_timecourse_csv',
                                                        'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
-                                                       'NPR_prior_filename', 'NPR_extra_filename']), name='outputnode')
+                                                       'NPR_prior_filename', 'NPR_extra_filename', 'NPR_optimize_report']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -116,14 +116,16 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    if (opts.NPR_temporal_comp>-1) or (opts.NPR_spatial_comp>-1):
+    if (opts.NPR_temporal_comp>-1) or (opts.NPR_spatial_comp>-1) or opts.optimize_NPR['apply']:
         from .analysis_functions import NeuralPriorRecovery
 
         NPR_node = pe.Node(NeuralPriorRecovery(
                             NPR_temporal_comp=opts.NPR_temporal_comp, 
                             NPR_spatial_comp=opts.NPR_spatial_comp, 
+                            optimize_NPR_dict=opts.optimize_NPR, 
                             prior_bold_idx = opts.prior_bold_idx,
-                            network_weighting=opts.network_weighting),
+                            network_weighting=opts.network_weighting,
+                            figure_format=opts.figure_format),
                             name='NPR_node', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
@@ -135,6 +137,13 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ("NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
                 ("NPR_prior_filename", "NPR_prior_filename"),
                 ("NPR_extra_filename", "NPR_extra_filename"),
+                ]),
+            ])
+        
+    if opts.optimize_NPR['apply']:
+        workflow.connect([
+            (NPR_node, outputnode, [
+                ("optimize_report", "NPR_optimize_report"),
                 ]),
             ])
 

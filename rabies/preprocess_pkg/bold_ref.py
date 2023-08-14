@@ -49,7 +49,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         fields=['bold_file']), name='inputnode')
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['bold_file', 'ref_image']),
+        niu.IdentityInterface(fields=['ref_image']),
         name='outputnode')
 
     gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
@@ -58,9 +58,10 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
 
     workflow.connect([
-        (inputnode, gen_ref, [('bold_file', 'in_file')]),
-        (gen_ref, outputnode, [('ref_image', 'ref_image'),
-                               ('bold_file', 'bold_file')]),
+        (inputnode, gen_ref, [
+            ('bold_file', 'in_file'),
+            ]),
+        (gen_ref, outputnode, [('ref_image', 'ref_image')]),
     ])
 
     return workflow
@@ -74,12 +75,8 @@ class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
-
 class EstimateReferenceImageOutputSpec(TraitedSpec):
     ref_image = File(exists=True, desc="3D reference image")
-    bold_file = File(
-        exists=True, desc="Input bold file without dummy volumes if detect_dummy is True.")
-
 
 class EstimateReferenceImage(BaseInterface):
     """
@@ -121,17 +118,7 @@ class EstimateReferenceImage(BaseInterface):
             median_image_data = np.median(
                 data_array[:n_volumes_to_discard, :, :, :], axis=0)
 
-            out_bold_file = os.path.abspath(
-                f'{filename_split[0]}_cropped_dummy.nii.gz')
-            img_array = data_array[n_volumes_to_discard:, :, :, :]
-
-            image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
-                img_array, isVector=False), in_nii, in_nii)
-            sitk.WriteImage(image_4d, out_bold_file)
-
         else:
-            out_bold_file = self.inputs.in_file
-
             n_volumes_to_discard = 0
             if self.inputs.detect_dummy:
                 log.info(
@@ -140,9 +127,9 @@ class EstimateReferenceImage(BaseInterface):
             # slices of the time series
 
             num_timepoints = in_nii.GetSize()[-1]
-            # select a slice of 50 frames centered around the mid-frame
-            mid_frame = num_timepoints//2
-            data_slice = data_array[max(mid_frame-25,0):min(mid_frame+25,num_timepoints),:,:,:]
+            # select a set of 50 frames spread uniformally across time to avoid temporal biases
+            subset_idx = np.linspace(0,num_timepoints-1,50).astype(int)
+            data_slice = data_array[subset_idx,:,:,:]
             if num_timepoints > 50:
                 slice_fname = os.path.abspath("slice.nii.gz")
                 image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
@@ -188,13 +175,11 @@ class EstimateReferenceImage(BaseInterface):
         rc = run_command(command)
 
         setattr(self, 'ref_image', out_ref_fname)
-        setattr(self, 'bold_file', out_bold_file)
 
         return runtime
 
     def _list_outputs(self):
-        return {'ref_image': getattr(self, 'ref_image'),
-                'bold_file': getattr(self, 'bold_file')}
+        return {'ref_image': getattr(self, 'ref_image')}
 
 
 def _get_vols_to_discard(img):

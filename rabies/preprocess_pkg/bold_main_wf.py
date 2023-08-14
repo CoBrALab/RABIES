@@ -136,7 +136,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                          name="boldbuffer")
 
     # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
                              name="transitionnode")
 
     if inho_cor_only or (not opts.bold_only):
@@ -149,6 +149,49 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         num_scan = len(bold_scan_list)
         num_procs = min(opts.local_threads, num_scan)
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
+
+        if opts.isotropic_HMC:
+            def resample_isotropic(bold_file, rabies_data_type):
+                import numpy as np
+                import SimpleITK as sitk
+                import os
+                import pathlib
+                from rabies.utils import resample_image_spacing_4d
+                image_4d = sitk.ReadImage(bold_file, rabies_data_type)
+                # the image gets resample to the dimension of the axis with highest resolution
+                min_dim = np.array(image_4d.GetSpacing()[:3]).min()
+                output_spacing = (min_dim,min_dim,min_dim)
+                resampled = resample_image_spacing_4d(image_4d, output_spacing, clip_negative=True)
+                filename_split = pathlib.Path(
+                    bold_file).name.rsplit(".nii")
+                isotropic_bold_file = os.path.abspath(filename_split[0]+'_isotropic.nii.gz')
+                sitk.WriteImage(resampled, isotropic_bold_file)
+                return isotropic_bold_file
+
+            isotropic_resampling_node = pe.Node(Function(input_names=['bold_file', 'rabies_data_type'],
+                                                            output_names=[
+                                                                'isotropic_bold_file'],
+                                                            function=resample_isotropic),
+                                                    name='resample_isotropic')
+            isotropic_resampling_node.inputs.rabies_data_type = opts.data_type
+
+            workflow.connect([
+                (boldbuffer, isotropic_resampling_node, [
+                    ('bold_file', 'bold_file'),
+                    ]),
+                (isotropic_resampling_node, bold_reference_wf, [
+                    ('isotropic_bold_file', 'inputnode.bold_file'),
+                    ]),
+                (isotropic_resampling_node, transitionnode, [
+                    ('isotropic_bold_file', 'isotropic_bold_file'),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (boldbuffer, bold_reference_wf, [
+                    ('bold_file', 'inputnode.bold_file'),
+                    ]),
+                ])
 
         if opts.apply_despiking:
             despike = pe.Node(
@@ -164,9 +207,40 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
                 ])
 
         if opts.detect_dummy:
+            def remove_dummy(bold_file):
+                import SimpleITK as sitk
+                import pathlib
+                import os
+                from rabies.utils import copyInfo_4DImage
+                from rabies.preprocess_pkg.bold_ref import _get_vols_to_discard
+
+                in_nii = sitk.ReadImage(bold_file)
+                data_array = sitk.GetArrayFromImage(in_nii)
+                n_volumes_to_discard = _get_vols_to_discard(in_nii)
+                if (not n_volumes_to_discard == 0):
+                    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+                    out_bold_file = os.path.abspath(
+                        f'{filename_split[0]}_cropped_dummy.nii.gz')
+                    img_array = data_array[n_volumes_to_discard:, :, :, :]
+
+                    image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
+                        img_array, isVector=False), in_nii, in_nii)
+                    sitk.WriteImage(image_4d, out_bold_file)
+                else:
+                    out_bold_file = bold_file
+                return out_bold_file
+
+            remove_dummy_node = pe.Node(Function(input_names=['bold_file'],
+                                                            output_names=[
+                                                                'out_bold_file'],
+                                                            function=remove_dummy),
+                                                    name='remove_dummy')
             workflow.connect([
-                (bold_reference_wf, transitionnode, [
-                    ('outputnode.bold_file', 'bold_file'),
+                (boldbuffer, remove_dummy_node, [
+                    ('bold_file', 'bold_file'),
+                    ]),
+                (remove_dummy_node, transitionnode, [
+                    ('out_bold_file', 'bold_file'),
                     ]),
                 ])
         else:
@@ -185,9 +259,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             (template_inputnode, inho_cor_wf, [
                 ("template_anat", "template_inputnode.template_anat"),
                 ("template_mask", "template_inputnode.template_mask"),
-                ]),
-            (boldbuffer, bold_reference_wf, [
-                ('bold_file', 'inputnode.bold_file'),
                 ]),
             (bold_reference_wf, inho_cor_wf, [
                 ('outputnode.ref_image', 'inputnode.target_img'),
@@ -334,8 +405,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
         (estimate_motion_node, outputnode, [
             ('motion_params_csv', 'motion_params_csv'),
             ('FD_csv', 'FD_csv'),
-            ('FD_voxelwise', 'FD_voxelwise'),
-            ('pos_voxelwise', 'pos_voxelwise'),
             ]),
         (prep_resampling_transforms_node, bold_commonspace_trans_wf, [
             ('to_commonspace_transform_list', 'inputnode.transforms_list'),
@@ -348,9 +417,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             ]),
         (bold_commonspace_trans_wf, estimate_motion_node, [
             ('outputnode.raw_brain_mask', 'raw_brain_mask'),
-            ]),
-        (inputnode, estimate_motion_node, [
-            ('bold', 'raw_bold'),
             ]),
         (bold_hmc_wf, bold_commonspace_trans_wf, [
          ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
@@ -383,8 +449,6 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             ])
     else:
         workflow.connect([
-            (transitionnode, bold_hmc_wf, [
-                ('bold_file', 'inputnode.bold_file')]),
             (bold_stc_wf, bold_commonspace_trans_wf, [
              ('outputnode.stc_file', 'inputnode.bold_file')]),
         ])
@@ -392,6 +456,38 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
             workflow.connect([
                 (bold_stc_wf, bold_native_trans_wf, [
                  ('outputnode.stc_file', 'inputnode.bold_file')]),
+            ])
+        if opts.isotropic_HMC:
+            workflow.connect([
+                (transitionnode, bold_hmc_wf, [
+                    ('isotropic_bold_file', 'inputnode.bold_file')]),
+                ])
+        else:
+            workflow.connect([
+                (transitionnode, bold_hmc_wf, [
+                    ('bold_file', 'inputnode.bold_file')]),
+                ])
+
+
+    if opts.isotropic_HMC:
+        workflow.connect([
+            (transitionnode, estimate_motion_node, [
+                ('isotropic_bold_file', 'raw_bold'),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (inputnode, estimate_motion_node, [
+                ('bold', 'raw_bold'),
+                ]),
+            ])
+
+    if opts.voxelwise_motion:
+        workflow.connect([
+            (estimate_motion_node, outputnode, [
+                ('FD_voxelwise', 'FD_voxelwise'),
+                ('pos_voxelwise', 'pos_voxelwise'),
+                ]),
             ])
 
     return workflow

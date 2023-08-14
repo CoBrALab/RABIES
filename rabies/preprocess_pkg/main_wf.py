@@ -425,6 +425,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             (inho_cor_bold_main_wf, bold_main_wf, [
                 ("transitionnode.bold_file", "transitionnode.bold_file"),
+                ("transitionnode.isotropic_bold_file", "transitionnode.isotropic_bold_file"),
                 ("transitionnode.bold_ref", "transitionnode.bold_ref"),
                 ("transitionnode.init_denoise", "transitionnode.init_denoise"),
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
