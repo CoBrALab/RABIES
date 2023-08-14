@@ -44,7 +44,7 @@ where $Y$ is the timeseries, $X$ is the set of nuisance timecourses and $Y_{CR}$
 7. **Smoothing** (`--smoothing_filter`): Timeseries are spatially smoothed using a Gaussian smoothing filter ([nilearn.image.smooth_img](https://nilearn.github.io/dev/modules/generated/nilearn.image.smooth_img.html)). 
 
 
-### rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
+## rabies.confound_correction_pkg.confound_correction.init_confound_correction_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/confound_correction_pkg/confound_correction.py)]
 
 ```{literalinclude} ../rabies/confound_correction_pkg/confound_correction.py
 :start-after: confound_wf_head_start

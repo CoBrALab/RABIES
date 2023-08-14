@@ -1,5 +1,6 @@
 # Metric definitions
 (metrics_target)=
+On this page, the L2-norm corresponds to $||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$
 
 (regressor_target)=
 ## Nuisance regressors for confound regression

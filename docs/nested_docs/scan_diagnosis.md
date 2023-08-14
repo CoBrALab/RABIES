@@ -5,7 +5,7 @@ By executing `--data_diagnosis` at the analysis stage of the pipeline, a set of 
 
 
 ## Spatiotemporal diagnosis
-![](pics/spatiotemporal_diagnosis.png)
+![](../pics/spatiotemporal_diagnosis.png)
 Above is an example of the report (files generated into the `data_diagnosis_datasink/figure_temporal_diagnosis/` and `data_diagnosis_datasink/figure_spatial_diagnosis/` folders) for a scan with little confound signatures and clear network connectivity. Each spatial map is represented along 6 cortical slices, overlapped onto the anatomical template in common space. The network maps from dual regression (DR) or seed-based connectivity (SBC) are thresholded to include the top 4% of the voxels with the highest values. In this example, both dual regression and seed-based connectivity was conducted, where DR network 0 and SBC network 1 correspond to analysis of the somatomotor network, whereas DR network 1 and SBC network 0 correspond to the default mode network. Below we detail the interpretation of each feature included in the diagnosis (whereas the detailed computations for each metric are further described in the [Metric definitions](metrics_target) page):
 
 * **A) Power spectrum:** the frequency power spectrum (averaged across voxels) is displayed to assess the dominant frequency profile.
@@ -34,7 +34,8 @@ Above is an example of the report (files generated into the `data_diagnosis_data
 * Note that $CR_{SD}$ and $CR_{R^2}$ are computing according to the specified list of regressors `--conf_list` during confound correction. If no regressor was specified, $CR_{SD}$ and $CR_{R^2}$ are still estimated with a regression of the 6 motion parameters, but the regression isn't applied to remove signal from the timeseries.
 
 ## Interpretation of the report and main features to inspect
-![](pics/diagnosis_key_markers.png)
+(quality_marker_target)=
+![](../pics/diagnosis_key_markers.png)
 
 A subset of the features in the spatiotemporal diagnosis are most crucial in determining scan quality in relationship to connectivity analysis, and are displayed above across 4 main categories of scan quality. Below we describe the key role of these four features in relationship to those 4 scan categories:
 
@@ -47,9 +48,3 @@ A subset of the features in the spatiotemporal diagnosis are most crucial in det
 * **Network and confound timecourses:** Finally, the respective timecourses for networks and confounds can be compared to reveal direct relationships between network amplitude and confounds in the temporal domain. Although this metric does not describe the type of confound, it is the most direct indicator of spurious connectivity. It is an important complement to the inspection of network shape, since spurious effects may only affect amplitude with minimal impact on shape.
 
 These 4 features are sufficient to capture the essential characteristics of network detectability and spurious connectivity at the single scan level. The remaining features from the spatiotemporal diagnosis provide additional details regarding timeseries properties, the motion parameters, or confound regression, and can further support characterizing the specific origin of confounds (e.g. determining that a correlation between network and confound timecourse is originating from framewise displacement (i.e. motion)).
-
-## Table with metric definition
-
-* Below the L2-norm corresponds to $||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$
-
-(image of the table)
