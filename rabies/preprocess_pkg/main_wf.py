@@ -7,9 +7,10 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
+from .utils import BIDSDataGraber, extract_entities, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
 from . import preprocess_visual_QC
-
+from niworkflows.utils.connections import listify, pop_file
+import pdb
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     This workflow organizes the entire processing.
@@ -153,6 +154,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     structural_scan_list: the set of structural scans; used for resample_template and managing # threads
     number_functional_scans: the number of functional scans; used for managing # threads
     '''
+    
+    entities = extract_entities(bold_scan_list)
+    echo_idxs = listify(entities.get("echo", []))
+    multiecho = len(echo_idxs) > 2
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),

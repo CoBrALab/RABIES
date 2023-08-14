@@ -2,6 +2,7 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
+from niworkflows.utils.connections import listify, pop_file
 
 def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'], exclusion_list=['none']):
     '''
@@ -15,6 +16,7 @@ def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'],
     split_name = []
     structural_scan_list = []
     run_iter = {}
+    echo_iter = {}
     bold_scan_list = []
 
     subject_list = layout.get_subject()
@@ -62,15 +64,21 @@ def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'],
             run = bold.get_entities()['run']
         except:
             run = None
+        try:
+            echo = bold.get_entities()['echo']
+        except:
+            echo = None
 
         if sub not in list(bold_dict.keys()):
             bold_dict[sub] = {}
         if ses not in list(bold_dict[sub].keys()):
             bold_dict[sub][ses] = {}
+        if run not in list(bold_dict[sub][ses].keys()):
+            bold_dict[sub][ses][run] = {}
 
-        bold_list = layout.get(subject=sub, session=ses, run=run, 
+        bold_list = layout.get(subject=sub, session=ses, run=run,echo=echo, 
                                extension=['nii', 'nii.gz'], return_type='filename',**bids_filter['func'])
-        bold_dict[sub][ses][run] = bold_list
+        bold_dict[sub][ses][run][echo] = bold_list
 
     # if not bold_only, then the bold_list and run_iter will be a dictionary with keys being the anat filename
     # otherwise, it will be a list of bold scans themselves
@@ -91,6 +99,7 @@ def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'],
                 split_name.append(filename_template)
                 scan_info.append({'subject_id': sub, 'session': ses})
                 run_iter[filename_template] = []
+                echo_iter[filename_template] = []
 
             for run in list(bold_dict[sub][ses].keys()):
                 bold_list = bold_dict[sub][ses][run]
@@ -121,6 +130,7 @@ class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
     scan_info = traits.Dict(exists=True, mandatory=True,
                             desc="Info required to find the scan")
     run = traits.Any(exists=True, desc="Run number")
+    echo = traits.Any(exists=True, desc="Echo number")
 
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
@@ -142,6 +152,10 @@ class BIDSDataGraber(BaseInterface):
             run = self.inputs.scan_info['run']
         else:
             run = self.inputs.run
+        if 'echo' in (self.inputs.scan_info.keys()):
+            echo = self.inputs.scan_info['echo']
+        else:
+            echo = self.inputs.echo
 
         bids_filter = self.inputs.bids_filter.copy()
         bids_filter['subject'] = self.inputs.scan_info['subject_id']
@@ -299,3 +313,59 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
 
     return resampled_template, resampled_mask
 
+def extract_entities(file_list):
+    """
+    Return a dictionary of common entities given a list of files.
+
+    Examples
+    --------
+    >>> extract_entities("sub-01/anat/sub-01_T1w.nii.gz")
+    {'subject': '01', 'suffix': 'T1w', 'datatype': 'anat', 'extension': '.nii.gz'}
+    >>> extract_entities(["sub-01/anat/sub-01_T1w.nii.gz"] * 2)
+    {'subject': '01', 'suffix': 'T1w', 'datatype': 'anat', 'extension': '.nii.gz'}
+    >>> extract_entities(["sub-01/anat/sub-01_run-1_T1w.nii.gz",
+    ...                   "sub-01/anat/sub-01_run-2_T1w.nii.gz"])
+    {'subject': '01', 'run': [1, 2], 'suffix': 'T1w', 'datatype': 'anat', 'extension': '.nii.gz'}
+
+    """
+    from collections import defaultdict
+
+    from bids.layout import parse_file_entities
+
+    entities = defaultdict(list)
+    for e, v in [
+        ev_pair for f in listify(file_list) for ev_pair in parse_file_entities(f).items()
+    ]:
+        entities[e].append(v)
+
+    def _unique(inlist):
+        inlist = sorted(set(inlist))
+        if len(inlist) == 1:
+            return inlist[0]
+        return inlist
+
+    return {k: _unique(v) for k, v in entities.items()}
+
+
+def get_img_orientation(imgf):
+    """Return the image orientation as a string"""
+    img = nb.load(imgf)
+    return "".join(nb.aff2axcodes(img.affine))
+
+
+def get_estimator(layout, fname):
+    field_source = layout.get_metadata(fname).get("B0FieldSource")
+    if isinstance(field_source, str):
+        field_source = (field_source,)
+
+    if field_source is None:
+        import re
+        from pathlib import Path
+
+        from sdcflows.fieldmaps import get_identifier
+
+        # Fallback to IntendedFor
+        intended_rel = re.sub(r"^sub-[a-zA-Z0-9]*/", "", str(Path(fname).relative_to(layout.root)))
+        field_source = get_identifier(intended_rel)
+
+    return field_source

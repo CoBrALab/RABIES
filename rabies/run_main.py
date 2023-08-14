@@ -3,7 +3,7 @@ import pickle
 import SimpleITK as sitk
 from nipype import logging, config
 from .boilerplate import *
-from .parser import get_parser,read_parser
+from .parser_1 import get_parser,read_parser
 
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
