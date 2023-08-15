@@ -207,7 +207,7 @@ class antsMotionCorr(BaseInterface):
                     {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 20 -s 0.0mm -f 1 -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
             elif len(s)>1:
                 command = f"antsMotionCorr -d 3 -o [ants_mc_tmp/motcorr,ants_mc_tmp/motcorr.nii.gz,ants_mc_tmp/motcorr_avg.nii.gz] -m MI[ {fixed} , \
-                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]}mm -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
+                    {moving} , 1 , {str(mibins)} , Regular, 0.25, 1 ] -t {txtype}[ 0.1 ] -i 50x20 -s {s[0]}x{s[1]} -f {f[0]}x{f[1]} -u 1 -e 1 -n {str(n)} -v {str(verbose)}"
             else:
                 raise ValueError("No smoothing coefficient was found.")
         else:

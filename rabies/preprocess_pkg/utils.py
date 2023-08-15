@@ -2,8 +2,9 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-from niworkflows.utils.connections import listify, pop_file
+from niworkflows.utils.connections import pop_file, listify
 
+import pdb
 def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'], exclusion_list=['none']):
     '''
     This function takes as input a BIDSLayout, and generates iteration lists
@@ -99,27 +100,32 @@ def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'],
                 split_name.append(filename_template)
                 scan_info.append({'subject_id': sub, 'session': ses})
                 run_iter[filename_template] = []
-                echo_iter[filename_template] = []
+                
 
             for run in list(bold_dict[sub][ses].keys()):
-                bold_list = bold_dict[sub][ses][run]
-                if len(bold_list) > 1:
-                    raise ValueError(
-                        f'Duplicate was found for bold files sub- {sub}, ses- {ses} and run {run}: {str(bold_list)}')
-                file = bold_list[0]
-                bold_scan_list.append(file)
-                if bold_only:
-                    structural_scan_list.append(file)
-                    filename_template = pathlib.Path(
-                        file).name.rsplit(".nii")[0]
-                    split_name.append(filename_template)
-                    scan_info.append(
-                        {'subject_id': sub, 'session': ses, 'run': run})
-                else:
-                    run_iter[filename_template].append(run)
+                echo_iter[run] = []
+                run_iter[filename_template].append(run)
+                run_scans = []  # Initialize the run_scans list for each run
+                for echo in list(bold_dict[sub][ses][run].keys()):
+                    bold_list = bold_dict[sub][ses][run][echo]
+                    if len(bold_list) > 1:
+                        raise ValueError(
+                            f'Duplicate was found for bold files sub- {sub}, ses- {ses} and run {run}: {str(bold_list)}')
+                    file = bold_list[0]
+                    bold_scan_list.append(file)
+                    if bold_only:
+                        structural_scan_list.append(file)
+                        filename_template = pathlib.Path(
+                            file).name.rsplit(".nii")[0]
+                        split_name.append(filename_template)
+                        scan_info.append(
+                            {'subject_id': sub, 'session': ses, 'run': run, 'echo': echo})
+                    else:
+                        echo_iter[run].append(echo)
+
 
     number_functional_scans = len(bold_scan_list)
-    return split_name, scan_info, run_iter, structural_scan_list, number_functional_scans
+    return split_name, scan_info, run_iter,echo_iter, structural_scan_list, number_functional_scans
 
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
@@ -134,8 +140,9 @@ class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
 
 
 class BIDSDataGraberOutputSpec(TraitedSpec):
-    out_file = File(
-        exists=True, desc="Selected file based on the provided parameters.")
+    out_file = traits.Either(traits.List(File(exists=True)),
+                             File(exists=True),
+                             desc="Either a single file or a list of selected files based on the provided parameters.")
 
 
 class BIDSDataGraber(BaseInterface):
@@ -167,14 +174,16 @@ class BIDSDataGraber(BaseInterface):
         layout = BIDSLayout(self.inputs.bids_dir, validate=False)
         try:
             file_list = layout.get(extension=['nii', 'nii.gz'], return_type='filename', **bids_filter)
-            if len(file_list) > 1:
+            '''if len(file_list) > 1:
                 raise ValueError(f'Provided BIDS spec lead to duplicates: {bids_filter}')
             elif len(file_list)==0:
                 raise ValueError(f'No file for found corresponding to the following BIDS spec: {bids_filter}')
+                    '''
         except:
             raise ValueError(f'Error with BIDS spec: {bids_filter}')
-
-        setattr(self, 'out_file', file_list[0])
+        if len(file_list)<2:
+            file_list = file_list[0]
+        setattr(self, 'out_file', file_list)
 
         return runtime
 
@@ -329,12 +338,22 @@ def extract_entities(file_list):
 
     """
     from collections import defaultdict
-
     from bids.layout import parse_file_entities
+
+    # Flatten a list recursively
+    def flatten(lis):
+        for item in lis:
+            if isinstance(item, list):
+                for subitem in flatten(item):
+                    yield subitem
+            else:
+                yield item
+
+    file_list = list(flatten(file_list))  # Ensure the input is a flat list
 
     entities = defaultdict(list)
     for e, v in [
-        ev_pair for f in listify(file_list) for ev_pair in parse_file_entities(f).items()
+        ev_pair for f in file_list for ev_pair in parse_file_entities(f).items()
     ]:
         entities[e].append(v)
 
@@ -369,3 +388,52 @@ def get_estimator(layout, fname):
         field_source = get_identifier(intended_rel)
 
     return field_source
+
+class BIDSDataGraberSingleEcho(BaseInterface):
+    """
+    This interface will select a single scan from the BIDS directory based on the
+    input specifications.
+    """
+
+    input_spec = BIDSDataGraberInputSpec
+    output_spec = BIDSDataGraberOutputSpec
+
+    def _run_interface(self, runtime):
+        subject_id = self.inputs.scan_info['subject_id']
+        session = self.inputs.scan_info['session']
+        if 'run' in (self.inputs.scan_info.keys()):
+            run = self.inputs.scan_info['run']
+        else:
+            run = self.inputs.run
+        if 'echo' in (self.inputs.scan_info.keys()):
+            echo = self.inputs.scan_info['echo']
+        else:
+            echo = self.inputs.echo
+
+        from bids.layout import BIDSLayout
+        layout = BIDSLayout(self.inputs.bids_dir, validate=False)
+        try:
+            if run is None: # if there is no run spec to search, don't include it in the search
+                file_list = layout.get(subject=subject_id, session=session, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            else:
+                file_list = layout.get(subject=subject_id, session=session, run=run,echo=echo, extension=[
+                                  'nii', 'nii.gz'], suffix=self.inputs.suffix, return_type='filename')
+            '''if len(file_list) > 1:
+                raise ValueError(f'Provided BIDS spec lead to duplicates: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
+            elif len(file_list)==0:
+                raise ValueError(f'No file for found corresponding to the following BIDS spec: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
+                    '''
+        except:
+            raise ValueError(f'Error with BIDS spec: \
+                    {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
+        if len(file_list)<2:
+            file_list = file_list[0]
+        setattr(self, 'out_file', file_list)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'out_file': getattr(self, 'out_file')}

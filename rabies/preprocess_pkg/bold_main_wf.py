@@ -10,6 +10,14 @@ from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
 from .utils import apply_despike
 
+import pdb
+
+def check_echo(filename):
+    import os
+    if 'echo-1' in os.path.basename(filename):
+        return filename
+    else:
+        return None
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
@@ -132,6 +140,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'raw_brain_mask']),
                 name='outputnode')
 
+    check_echo_node = pe.Node(Function(input_names=['filename'],
+                                  output_names=['valid_filename'],
+                                  function=check_echo),
+                          name='check_echo_node')
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
                          name="boldbuffer")
 
@@ -142,7 +154,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     if inho_cor_only or (not opts.bold_only):
         template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
                                             name="template_inputnode")
-
 
         bold_reference_wf = init_bold_reference_wf(opts=opts)
 
@@ -203,7 +214,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ])
         else:
             workflow.connect([
-                (inputnode, boldbuffer, [('bold', 'bold_file')]),
+                (inputnode, check_echo_node, [('bold', 'filename')]),
+                (check_echo_node, boldbuffer, [('valid_filename', 'bold_file')]),
                 ])
 
         if opts.detect_dummy:

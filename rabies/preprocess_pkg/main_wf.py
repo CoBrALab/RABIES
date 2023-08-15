@@ -7,10 +7,21 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, extract_entities, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
+from .utils import BIDSDataGraber, extract_entities, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,BIDSDataGraberSingleEcho
 from . import preprocess_visual_QC
 from niworkflows.utils.connections import listify, pop_file
 import pdb
+import nibabel as nb
+import numpy as np 
+from niworkflows.utils.connections import pop_file, listify
+from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
+
+from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
+import ast
+import os
+
+
+    
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     This workflow organizes the entire processing.
@@ -169,7 +180,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['func']),
                                name='bold_selectfiles')
 
-    # node to conver input image to consistent RAS orientation
+    #bold_selectfilessingle = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=['bold', 'cbv']),
+    #                       name='bold_selectfilessingle')
+    bold_selectfilessingle = pe.Node(BIDSDataGraberSingleEcho(bids_dir=data_dir_path, suffix=['bold', 'cbv']),
+                           name='bold_selectfilessingle')
+    # node to convert input image to consistent RAS orientation
     bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
                                                 output_names=['RAS_file'],
                                                 function=convert_to_RAS),
@@ -289,10 +304,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (main_split, bold_selectfiles, [
-            ("scan_info", "scan_info"),
+        (main_split, bold_selectfilessingle, [
+            ("scan_info", "scan_info")
             ]),
-        (bold_selectfiles, outputnode, [
+        (bold_selectfilessingle, bold_convert_to_RAS_node, [
+            ('out_file', 'img_file'),
+            ]),
+        (bold_selectfilessingle, outputnode, [
             ('out_file', 'input_bold'),
             ]),
         (format_bold_buffer, bold_main_wf, [
@@ -349,14 +367,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.corrected_EPI", "final_denoise"),
             ("outputnode.denoise_mask", "warped_mask"),
             ]),
-        (bold_selectfiles, bold_inho_cor_diagnosis,
+        (bold_selectfilessingle, bold_inho_cor_diagnosis,
          [("out_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
             ("outputnode.commonspace_bold", "bold_file"),
             ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),
-        (bold_selectfiles, temporal_diagnosis,
+        (bold_selectfilessingle, temporal_diagnosis,
          [("out_file", "name_source")]),
         (temporal_diagnosis, outputnode, [
             ("tSNR_filename", "tSNR_filename"),
@@ -369,7 +387,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                             name="run_split")
         run_split.itersource = ('main_split', 'split_name')
         run_split.iterables = [('run', run_iter)]
-
+        
+        echo_split = pe.Node(niu.IdentityInterface(fields=['echo', 'split_name','run']),
+                            name="echo_split")
+        echo_split.itersource = ('run_split', 'run')
+        echo_split.iterables = [('echo', echo_iter)]
+        
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['anat']),
                                    name='anat_selectfiles')
         anat_selectfiles.inputs.run = None
@@ -435,9 +458,16 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             (main_split, anat_selectfiles,
              [("scan_info", "scan_info")]),
-            (run_split, bold_selectfiles, [
+            (run_split, echo_split, [
+                ("split_name", "split_name"),
                 ("run", "run"),
                 ]),
+            (echo_split, bold_selectfilessingle, [
+                ("run", "run"),
+                ("echo","echo")
+                ]),
+            (anat_selectfiles, anat_convert_to_RAS_node,
+             [("out_file", "img_file")]),
             (format_anat_buffer, anat_inho_cor_wf, [
                 ("formatted_anat", "inputnode.target_img"),
                 ("formatted_anat", "inputnode.name_source"),
@@ -534,7 +564,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
         PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
         workflow.connect([
-            (bold_selectfiles, PlotOverlap_EPI2Anat_node,
+            (bold_selectfilessingle, PlotOverlap_EPI2Anat_node,
              [("out_file", "name_source")]),
             (anat_inho_cor_wf, PlotOverlap_EPI2Anat_node,
              [("outputnode.corrected", "fixed")]),
@@ -545,7 +575,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # fill the datasinks
     workflow.connect([
-        (bold_selectfiles, bold_datasink, [
+        (bold_selectfilessingle, bold_datasink, [
             ("out_file", "input_bold"),
             ]),
         (outputnode, motion_datasink, [
