@@ -1,5 +1,5 @@
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu
+from nipype.interfaces import utility as niu, afni
 
 from .hmc import init_bold_hmc_wf,EstimateMotionParams
 from .bold_ref import init_bold_reference_wf
@@ -8,12 +8,17 @@ from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
-from .utils import apply_despike
 
 import pdb
 
+def check_echo(filename):
+    import os
+    if 'echo-1' in os.path.basename(filename):
+        return filename
+    else:
+        return None
 
-def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
+def init_bold_main_wf_subsequent_echo(opts, output_folder, bold_scan_list, inho_cor_only=False, name='bold_main_wf_subsequent_echo'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -123,7 +128,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
                         'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                         'commonspace_to_native_transform_list','commonspace_to_native_inverse_list',
-                        'commonspace_ref','echo_num']),
+                        'commonspace_ref']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -135,7 +140,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'raw_brain_mask']),
                 name='outputnode')
 
-    
+    check_echo_node = pe.Node(Function(input_names=['filename'],
+                                  output_names=['valid_filename'],
+                                  function=check_echo),
+                          name='check_echo_node')
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
                          name="boldbuffer")
 
@@ -149,7 +157,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         bold_reference_wf = init_bold_reference_wf(opts=opts)
 
-        num_procs = min(opts.local_threads, number_functional_scans)
+        num_scan = len(bold_scan_list)
+        num_procs = min(opts.local_threads, num_scan)
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
 
         if opts.isotropic_HMC:
@@ -196,19 +205,18 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ])
 
         if opts.apply_despiking:
-            despike = pe.Node(Function(input_names=['in_file'],
-                                                        output_names=['out_file'],
-                                                        function=apply_despike),
-                                            name='despike')
+            despike = pe.Node(
+                afni.Despike(outputtype='NIFTI_GZ'),
+                name='despike')
             workflow.connect([
                 (inputnode, despike, [('bold', 'in_file')]),
                 (despike, boldbuffer, [('out_file', 'bold_file')]),
                 ])
         else:
             workflow.connect([
-                (inputnode, boldbuffer, [('bold', 'bold_file')]),
+                (inputnode, check_echo_node, [('bold', 'filename')]),
+                (check_echo_node, boldbuffer, [('valid_filename', 'bold_file')]),
                 ])
-
 
         if opts.detect_dummy:
             def remove_dummy(bold_file):

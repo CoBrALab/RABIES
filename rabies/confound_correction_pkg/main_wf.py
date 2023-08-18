@@ -6,7 +6,9 @@ from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 from rabies.utils import fill_split_dict, get_workflow_dict
 
-
+def select_echo(scan_info, echo_num):
+    """Select the specified echo."""
+    return scan_info[echo_num - 1]
 def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     from rabies.confound_correction_pkg.confound_correction import init_confound_correction_wf
 

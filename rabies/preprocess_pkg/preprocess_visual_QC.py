@@ -6,7 +6,7 @@ import os
 import pathlib
 import matplotlib.pyplot as plt
 from rabies.utils import run_command
-
+import pdb
 # set a dark background
 plt.rcParams.update({
     "lines.color": "white",
