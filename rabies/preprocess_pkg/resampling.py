@@ -192,7 +192,7 @@ class MaskEPIInputSpec(BaseInterfaceInputSpec):
     mask = File(exists=True, mandatory=True,
                 desc="Mask to transfer to EPI space.")
     ref_EPI = File(exists=True, mandatory=True,
-                   desc="Motion-realigned and SDC-corrected reference 3D EPI.")
+                   desc="Motion-realigned and SDC-corrected reference 3D EPI.") #Need to apply only one SDC and motion realignment
     transforms = traits.List(desc="List of transforms to apply to every volume.")
     inverses = traits.List(
         desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")

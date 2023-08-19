@@ -13,7 +13,7 @@ from .utils import apply_despike
 import pdb
 
 
-def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
+def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inho_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -123,7 +123,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
                         'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                         'commonspace_to_native_transform_list','commonspace_to_native_inverse_list',
-                        'commonspace_ref','echo_num']),
+                        'commonspace_ref','echo_num','motcorr_params','bold_to_anat_affine','bold_to_anat_warp','bold_to_anat_inverse_warp','output_warped_bold']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -341,17 +341,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ('corrected_EPI', 'inputnode.ref_bold_brain'),
                 ('denoise_mask', 'inputnode.moving_mask'),
                 ]),
-            (cross_modal_reg_wf, outputnode, [
-                ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
-                ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
-                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
-                ('outputnode.output_warped_bold', 'output_warped_bold'),
-                ]),
-            (cross_modal_reg_wf, prep_resampling_transforms_node, [
-                ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
-                ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
-                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
-                ]),
             (prep_resampling_transforms_node, bold_native_trans_wf, [
                 ('raw_to_native_transform_list', 'inputnode.transforms_list'),
                 ('raw_to_native_inverse_list', 'inputnode.inverses'),
@@ -361,10 +350,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             (transitionnode, bold_native_trans_wf, [
                 ('bold_ref', 'inputnode.raw_bold_ref'),
                 ]),
-            (cross_modal_reg_wf, bold_native_trans_wf, [
-                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
-            (bold_hmc_wf, bold_native_trans_wf, [
-             ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
             (bold_native_trans_wf, outputnode, [
                 ('outputnode.bold', 'native_bold'),
                 ('outputnode.bold_ref','native_bold_ref'),
@@ -374,8 +359,53 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ('outputnode.vascular_mask', 'native_vascular_mask'),
                 ('outputnode.labels', 'native_labels'),
                 ]),
+            (cross_modal_reg_wf, bold_native_trans_wf, [
+                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
+            (cross_modal_reg_wf, outputnode, [
+                ('outputnode.output_warped_bold', 'output_warped_bold')]),
             ])
-
+        if echo_num == 1:
+            workflow.connect([
+                (bold_hmc_wf, bold_native_trans_wf, [
+                ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+                (bold_hmc_wf, outputnode, [
+                ('outputnode.motcorr_params', 'motcorr_params')]),
+                (bold_hmc_wf, estimate_motion_node, [
+                ('outputnode.motcorr_params', 'motcorr_params')]),
+                (bold_hmc_wf, bold_commonspace_trans_wf, [
+                ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+                (cross_modal_reg_wf, outputnode, [
+                ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
+                ]),
+                (cross_modal_reg_wf, prep_resampling_transforms_node, [
+                ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
+                ]),
+            ])
+        else:
+            workflow.connect([
+                (inputnode, bold_native_trans_wf, [
+                ('motcorr_params', 'inputnode.motcorr_params')]),
+                (inputnode, outputnode, [
+                ('motcorr_params', 'motcorr_params')]),
+                (inputnode, estimate_motion_node, [
+                ('motcorr_params', 'motcorr_params')]),
+                (inputnode, bold_commonspace_trans_wf, [
+                ('motcorr_params', 'inputnode.motcorr_params')]),
+                (inputnode, outputnode, [
+                ('bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
+                ]),
+                (inputnode, prep_resampling_transforms_node, [
+                ('bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
+                ]),
+            ])
     else:
         prep_resampling_transforms_node.inputs.bold_to_anat_warp = None
         prep_resampling_transforms_node.inputs.bold_to_anat_inverse_warp = None
@@ -395,16 +425,11 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         (transitionnode, bold_hmc_wf, [
             ('bold_ref', 'inputnode.ref_image'),
             ]),
-        (bold_hmc_wf, outputnode, [
-            ('outputnode.motcorr_params', 'motcorr_params')]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
             ('init_denoise', 'init_denoise'),
             ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
-            ]),
-        (bold_hmc_wf, estimate_motion_node, [
-            ('outputnode.motcorr_params', 'motcorr_params'),
             ]),
         (estimate_motion_node, outputnode, [
             ('motion_params_csv', 'motion_params_csv'),
@@ -422,8 +447,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         (bold_commonspace_trans_wf, estimate_motion_node, [
             ('outputnode.raw_brain_mask', 'raw_brain_mask'),
             ]),
-        (bold_hmc_wf, bold_commonspace_trans_wf, [
-         ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
         (inputnode, bold_commonspace_trans_wf, [
             ('bold', 'inputnode.name_source'),
             ('commonspace_ref', 'inputnode.ref_file'),

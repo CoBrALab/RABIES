@@ -19,7 +19,14 @@ from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits
 from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
 import ast
 import os
+from nipype import logging
 
+#logging.getLogger('nipype.workflow').setLevel('DEBUG')
+
+def trigger_next_echo(input_filepath):
+    # The actual function doesn't need to do anything with the input_filepath
+    # It's just a trigger to produce the next echo signal.
+    return 1
 def select_echo(scan_info, echo_num):
     """Select the specified echo."""
     return scan_info[echo_num - 1]
@@ -141,7 +148,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask','motcorr_params']),
         name='outputnode')
     
     anat_outputnode = pe.Node(niu.IdentityInterface(
@@ -510,11 +517,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
     PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
  ## time to split
- 
+
     num_echoes = 3
     for echo_num in range(1, num_echoes + 1):  # Start from 2 because the first echo is already processed
+
         # Clone the BOLD processing workflow for the current echo
-        current_bold_wf = bold_main_wf.clone(name=f"bold_main_wf_echo{echo_num}")
+        #current_bold_wf = bold_main_wf.clone(name=f"bold_main_wf_echo{echo_num}")
+        current_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
+        current_bold_wf = current_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
         current_bold_wf.inputs.inputnode.echo_num = echo_num
         from nipype.interfaces.utility import IdentityInterface
         echo_num_node = pe.Node(IdentityInterface(fields=["echo_num"]), name=f"echo_num_{echo_num}")
@@ -537,6 +547,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         current_PlotOverlap_EPI2Anat_node = PlotOverlap_EPI2Anat_node.clone(name=f"PlotOverlap_EPI2Anat{echo_num}")
         #current_PlotOverlap_EPI2Anat_node.inputs.container = f"echo_{echo_num}"
         # Connect this cloned workflow
+            
+
         workflow.connect([
             (main_split, bold_selectfiles, [
                 ("scan_info", "scan_info"),
@@ -608,6 +620,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
                 ("outputnode.commonspace_labels", "commonspace_labels"),
                 ("outputnode.raw_brain_mask", "raw_brain_mask"),
+                ("outputnode.motcorr_params", "motcorr_params"),
                 ]),
             (current_bold_wf, current_temporal_diagnosis, [
                 ("outputnode.commonspace_bold", "bold_file"),
@@ -624,6 +637,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("std_filename", "std_filename"),
             ]),
         ])
+        if echo_num == 1:
+            first_bold_wf_outputnode_name = f"bold_outputnode_echo{echo_num}"
+        if echo_num > 1:
+            first_bold_wf_outputnode = workflow.get_node(first_bold_wf_outputnode_name)
+            workflow.connect([
+                (first_bold_wf_outputnode,current_bold_wf,
+                [("motcorr_params", "inputnode.motcorr_params")]), 
+                (first_bold_wf_outputnode, current_bold_wf, [
+                    ('bold_to_anat_affine', 'inputnode.bold_to_anat_affine'),
+                    ('bold_to_anat_warp', 'inputnode.bold_to_anat_warp'),
+                    ('bold_to_anat_inverse_warp', 'inputnode.bold_to_anat_inverse_warp'),
+                    ]),
+            ])
 
 
         ## Now add common BOLD connections
