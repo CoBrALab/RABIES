@@ -1,52 +1,62 @@
 import os
 import pathlib
+import pdb
+import sys
+import json
+
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
+from nipype.interfaces.utility import Merge
+from nipype.interfaces.utility import IdentityInterface
+from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
+from nipype import logging
+
+from niworkflows.utils.connections import listify, pop_file
+
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
 from .utils import BIDSDataGraber, extract_entities, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,BIDSDataGraberSingleEcho
 from . import preprocess_visual_QC
-from niworkflows.utils.connections import listify, pop_file
-import pdb
-import nibabel as nb
-import numpy as np 
-from niworkflows.utils.connections import pop_file, listify
-from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
 
-from nipype.interfaces.base import BaseInterface, BaseInterfaceInputSpec, traits, File, TraitedSpec
-import ast
-import os
-from nipype import logging
+sys.path.append("/Users/davidgruskin/Documents/GitHub/RABIES/rabies/preprocess_pkg")
+from multiecho import T2SMap, create_multiecho_wf
+
 
 #logging.getLogger('nipype.workflow').setLevel('DEBUG')
 
-def trigger_next_echo(input_filepath):
-    # The actual function doesn't need to do anything with the input_filepath
-    # It's just a trigger to produce the next echo signal.
-    return 1
-def select_echo(scan_info, echo_num):
-    """Select the specified echo."""
-    return scan_info[echo_num - 1]
-def get_subsequent_echo(echo_dict, run_id):
-    echo = echo_dict[int(run_id)][1:]
-    return echo,run_id
-    #return {'echo': subsequent_echo, 'run_id': run_id}
+def extract_first_element(list):
+    return list[0]
+def extract_te_from_json(bold_file):
+    import os
+    import json
+    """
+    Extract the echo time (TE) from the JSON sidecar of a BOLD file.
+    """
+    # Replace .nii.gz or .nii extension with .json to get the JSON sidecar path
+    json_file = os.path.splitext(bold_file)[0].rstrip('.nii.gz') + '.json'
 
-def extract_run_id(file_path):
+    # Read the JSON file
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+    
+    # Extract the echo time
+    te = data.get('EchoTime', None)
+
+    return te
+
+def rename_optcom(first_echo_filename):
     import re
-    match = re.search(r"run-(\d+)", file_path)
-    if match:
-        return match.group(1)
-    else:
-        raise ValueError(f"No run ID found in path: {file_path}")
-
-get_run_id = pe.Node(Function(input_names=['file_path'],
-                              output_names=['run_id'],
-                              function=extract_run_id),
-                     name='get_run_id')
+    # Use regex to remove the "_echo-1" part from the filename
+    new_name = re.sub(r"_echo-\d", "", first_echo_filename)
+    return new_name
+def get_filename(input_file):
+    import os
+    # Extract the filename without extension
+    base_name = os.path.basename(input_file).split('_echo-')[0]
+    return f"{base_name}.nii.gz"
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
@@ -148,21 +158,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask','motcorr_params']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask','motcorr_params','te']),
         name='outputnode')
-    
-    anat_outputnode = pe.Node(niu.IdentityInterface(
-                fields=['bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels', 'commonspace_mask',
-                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
-                        'raw_brain_mask']),
-                name='anat_outputnode')
-    
-    bold_outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
-                        'output_warped_bold', 'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'native_bold', 'native_bold_ref',
-                        'motion_params_csv','std_filename', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold',
-                        ]),
-                name='bold_outputnode')  
+
     
     # Datasink - creates output folder for important outputs
     bold_datasink = pe.Node(DataSink(base_directory=output_folder,
@@ -180,7 +178,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     motion_datasink = pe.Node(DataSink(base_directory=output_folder,
                                           container="motion_datasink"),
                                  name="motion_datasink")
-
+    multiecho_datasink = pe.Node(DataSink(base_directory=output_folder,
+                                          container="multiecho_datasink"),
+                                 name="multiecho_datasink")
     import bids
     bids.config.set_option('extension_initial_dot', True)
     try:
@@ -210,7 +210,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     multiecho = len(echo_idxs) > 2
     
     num_echoes = len(set([echo[0] for echo in echo_iter.values()]))
-
+    rename_node = pe.Node(Function(input_names=['first_echo_filename'],
+                                output_names=['new_name'],
+                                function=rename_optcom),
+                    name='rename_node')
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
                          name="main_split")
@@ -225,6 +228,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                            name='bold_selectfilessingle')
     # node to convert input image to consistent RAS orientation
 
+    extract_first = pe.Node(niu.Function(function=extract_first_element, input_names=["list"], output_names=["first_element"]), name="extract_first")
     if not opts.oblique2card=='none':
         if opts.oblique2card=='3dWarp':
             correct_oblique=convert_3dWarp
@@ -336,7 +340,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     temporal_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/temporal_features/'
     temporal_diagnosis.inputs.rabies_data_type = opts.data_type
     temporal_diagnosis.inputs.figure_format = opts.figure_format
-
+    rename_output = pe.Node(Function(input_names=["input_file"],
+                                output_names=["output_name"],
+                                function=get_filename),
+                        name="rename_output")
     if not opts.bold_only:
         run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
@@ -507,18 +514,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "anat_preproc"),
                 ]),
             ])
-    from nipype import JoinNode, IdentityInterface
 
-    joinnode = JoinNode(IdentityInterface(fields=['input_bold']),
-                        joinsource='echo_num_node',
-                        joinfield='input_bold',
-                        name='joinnode')
     PlotOverlap_EPI2Anat_node = pe.Node(
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
     PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
  ## time to split
-
+    extract_te_node = pe.Node(Function(input_names=['bold_file'],
+                                    output_names=['te'],
+                                    function=extract_te_from_json),
+                            name='extract_te_node')
     num_echoes = 3
+    merge_commonspace = pe.Node(Merge(num_echoes), name='merge_commonspace')
+    merge_te = pe.Node(Merge(num_echoes), name='merge_te')
+
     for echo_num in range(1, num_echoes + 1):  # Start from 2 because the first echo is already processed
 
         # Clone the BOLD processing workflow for the current echo
@@ -526,7 +534,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         current_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
         current_bold_wf = current_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
         current_bold_wf.inputs.inputnode.echo_num = echo_num
-        from nipype.interfaces.utility import IdentityInterface
         echo_num_node = pe.Node(IdentityInterface(fields=["echo_num"]), name=f"echo_num_{echo_num}")
         echo_num_node.inputs.echo_num = echo_num
         bold_selectfiles = pe.Node(BIDSDataGraberSingleEcho(bids_dir=data_dir_path, suffix=['bold', 'cbv']),
@@ -545,6 +552,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         current_temporal_diagnosis = temporal_diagnosis.clone(name=f"temporal_diagnosis_echo{echo_num}")
         #current_temporal_diagnosis.inputs.container = f"echo_{echo_num}"
         current_PlotOverlap_EPI2Anat_node = PlotOverlap_EPI2Anat_node.clone(name=f"PlotOverlap_EPI2Anat{echo_num}")
+        current_extract_te_node = extract_te_node.clone(name=f"extract_te_node{echo_num}")
+
         #current_PlotOverlap_EPI2Anat_node.inputs.container = f"echo_{echo_num}"
         # Connect this cloned workflow
             
@@ -582,6 +591,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             (bold_selectfiles, bold_convert_to_RAS_node, [
                 ('out_file', 'img_file'),
+                ]),
+            (bold_selectfiles, current_extract_te_node, [
+                ('out_file', 'bold_file'),
+                ]),
+            (current_extract_te_node, current_bold_outputnode, [
+                ('te', 'te'),
                 ]),
             (bold_selectfiles, current_bold_outputnode, [
                 ('out_file', 'input_bold'),
@@ -636,9 +651,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("tSNR_filename", "tSNR_filename"),
                 ("std_filename", "std_filename"),
             ]),
+            (current_bold_outputnode, merge_commonspace, [('commonspace_bold', f'in{echo_num}')]),
+            (current_bold_outputnode, merge_te, [('te', f'in{echo_num}')])
         ])
         if echo_num == 1:
             first_bold_wf_outputnode_name = f"bold_outputnode_echo{echo_num}"
+
         if echo_num > 1:
             first_bold_wf_outputnode = workflow.get_node(first_bold_wf_outputnode_name)
             workflow.connect([
@@ -694,8 +712,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("commonspace_resampled_template", "commonspace_resampled_template"),
                 ("raw_brain_mask", "raw_brain_mask"),
                 ]),
-            #(get_run_id, subsequent_echo, [('run_id', 'run_id')]),
-            #(subsequent_echo, echo_split_subsequent, [('echo', 'echo'),('run_id', 'run')]),
             ])
         if not opts.bold_only:
             workflow.connect([
@@ -707,4 +723,18 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                     ("inho_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                     ]),
                 ])
+    
+    # Instantiate the multi-echo workflow
+    multiecho_wf = create_multiecho_wf()
+    # Connect the first element of merged_commonspace_bold to rename_output
+    workflow.connect(merge_commonspace, 'out', extract_first, 'list')
+    workflow.connect(extract_first, 'first_element', rename_output, 'input_file')
+
+    # Connect the merged commonspace_bold and te lists to the multiecho_wf
+    workflow.connect([
+        (merge_commonspace, multiecho_wf, [('out', 'inputnode.commonspace_bold_list')]),
+        (merge_te, multiecho_wf, [('out', 'inputnode.te_list')]),
+        (multiecho_wf, multiecho_datasink, [('optimal_combination.optimal_comb', 'optimally_combined.@filename')]),  # This is the key change
+        (rename_output, multiecho_datasink, [('output_name', 'optimally_combined')]),  # This line renames the file before saving
+    ])
     return workflow

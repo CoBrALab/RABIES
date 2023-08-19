@@ -111,3 +111,24 @@ sub-01_run-01_echo-3_bold.nii.gz -e 13.0 27.0 43.0 --fittype curvefit'
         outputs['s0_map'] = os.path.join(out_dir, 'S0map.nii.gz')
         outputs['optimal_comb'] = os.path.join(out_dir, 'desc-optcom_bold.nii.gz')
         return outputs
+    
+from nipype.pipeline.engine import Workflow, Node
+from nipype.interfaces.utility import IdentityInterface
+
+def create_multiecho_wf():
+    # Instantiate a workflow
+    multiecho_wf = Workflow(name='multiecho_wf')
+    
+    # Create input nodes
+    inputnode = Node(IdentityInterface(fields=['commonspace_bold_list', 'te_list']), name='inputnode')
+    
+    # Create the T2SMap node to get the optimally combined output
+    optimal_combination = Node(T2SMap(fittype='curvefit'), name='optimal_combination')
+    
+    # Connect input nodes to the T2SMap node
+    multiecho_wf.connect([
+        (inputnode, optimal_combination, [('commonspace_bold_list', 'in_files'),
+                                          ('te_list', 'echo_times')])
+    ])
+    
+    return multiecho_wf
