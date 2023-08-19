@@ -283,7 +283,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
     bold_stc_wf = init_bold_stc_wf(opts=opts)
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(opts=opts)
+    if echo_num == 1:
+        bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
     bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.commonspace_resampling, name='bold_commonspace_trans_wf')
     bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
@@ -360,7 +361,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                 ('outputnode.labels', 'native_labels'),
                 ]),
             (cross_modal_reg_wf, bold_native_trans_wf, [
-                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
+                ('outputnode.output_warped_bold', 'inputnode.ref_file')]), # Probably need to figure out how to pass this in directly from the first echo wf...
             (cross_modal_reg_wf, outputnode, [
                 ('outputnode.output_warped_bold', 'output_warped_bold')]),
             ])
@@ -384,6 +385,11 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                 ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
                 ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
+                (transitionnode, bold_hmc_wf, [
+                ('bold_file', 'inputnode.bold_file')]),
+                (transitionnode, bold_hmc_wf, [
+                ('bold_ref', 'inputnode.ref_image'),
+            ]),
             ])
         else:
             workflow.connect([
@@ -421,9 +427,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
             ]),
         (transitionnode, bold_stc_wf, [
             ('bold_file', 'inputnode.bold_file'),
-            ]),
-        (transitionnode, bold_hmc_wf, [
-            ('bold_ref', 'inputnode.ref_image'),
             ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
@@ -488,11 +491,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
             workflow.connect([
                 (transitionnode, bold_hmc_wf, [
                     ('isotropic_bold_file', 'inputnode.bold_file')]),
-                ])
-        else:
-            workflow.connect([
-                (transitionnode, bold_hmc_wf, [
-                    ('bold_file', 'inputnode.bold_file')]),
                 ])
 
 
