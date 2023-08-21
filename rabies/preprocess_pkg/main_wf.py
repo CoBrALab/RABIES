@@ -29,6 +29,7 @@ from multiecho import T2SMap, create_multiecho_wf
 
 def extract_first_element(list):
     return list[0]
+
 def extract_te_from_json(bold_file):
     import os
     import json
@@ -46,17 +47,6 @@ def extract_te_from_json(bold_file):
     te = data.get('EchoTime', None)
 
     return te
-
-def rename_optcom(first_echo_filename):
-    import re
-    # Use regex to remove the "_echo-1" part from the filename
-    new_name = re.sub(r"_echo-\d", "", first_echo_filename)
-    return new_name
-def get_filename(input_file):
-    import os
-    # Extract the filename without extension
-    base_name = os.path.basename(input_file).split('_echo-')[0]
-    return f"{base_name}.nii.gz"
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
@@ -210,10 +200,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     multiecho = len(echo_idxs) > 2
     
     num_echoes = len(set([echo[0] for echo in echo_iter.values()]))
-    rename_node = pe.Node(Function(input_names=['first_echo_filename'],
-                                output_names=['new_name'],
-                                function=rename_optcom),
-                    name='rename_node')
+
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
                          name="main_split")
@@ -340,10 +327,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     temporal_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/temporal_features/'
     temporal_diagnosis.inputs.rabies_data_type = opts.data_type
     temporal_diagnosis.inputs.figure_format = opts.figure_format
-    rename_output = pe.Node(Function(input_names=["input_file"],
-                                output_names=["output_name"],
-                                function=get_filename),
-                        name="rename_output")
+
     if not opts.bold_only:
         run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
@@ -507,7 +491,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
 
     # fill the datasinks
-   
     if not opts.bold_only:
         workflow.connect([
             (anat_inho_cor_wf, anat_datasink, [
@@ -518,7 +501,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     PlotOverlap_EPI2Anat_node = pe.Node(
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
     PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
- ## time to split
+
     extract_te_node = pe.Node(Function(input_names=['bold_file'],
                                     output_names=['te'],
                                     function=extract_te_from_json),
@@ -530,10 +513,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     for echo_num in range(1, num_echoes + 1):  # Start from 2 because the first echo is already processed
 
         # Clone the BOLD processing workflow for the current echo
-        #current_bold_wf = bold_main_wf.clone(name=f"bold_main_wf_echo{echo_num}")
-        current_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
-        current_bold_wf = current_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
-        current_bold_wf.inputs.inputnode.echo_num = echo_num
         echo_num_node = pe.Node(IdentityInterface(fields=["echo_num"]), name=f"echo_num_{echo_num}")
         echo_num_node.inputs.echo_num = echo_num
         bold_selectfiles = pe.Node(BIDSDataGraberSingleEcho(bids_dir=data_dir_path, suffix=['bold', 'cbv']),
@@ -545,19 +524,16 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
         format_bold_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_bold']),
                                             name=f"format_bold_buffer{echo_num}")
+        current_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
+        current_bold_wf = current_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
+        current_bold_wf.inputs.inputnode.echo_num = echo_num
         current_bold_datasink = bold_datasink.clone(name=f"bold_datasink_echo{echo_num}")
-        #current_bold_datasink.inputs.container = f"echo_{echo_num}"
         current_bold_outputnode = outputnode.clone(name=f"bold_outputnode_echo{echo_num}")
-        #current_bold_outputnode.inputs.container = f"echo_{echo_num}"
         current_temporal_diagnosis = temporal_diagnosis.clone(name=f"temporal_diagnosis_echo{echo_num}")
-        #current_temporal_diagnosis.inputs.container = f"echo_{echo_num}"
         current_PlotOverlap_EPI2Anat_node = PlotOverlap_EPI2Anat_node.clone(name=f"PlotOverlap_EPI2Anat{echo_num}")
         current_extract_te_node = extract_te_node.clone(name=f"extract_te_node{echo_num}")
 
-        #current_PlotOverlap_EPI2Anat_node.inputs.container = f"echo_{echo_num}"
         # Connect this cloned workflow
-            
-
         workflow.connect([
             (main_split, bold_selectfiles, [
                 ("scan_info", "scan_info"),
@@ -656,22 +632,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         ])
         if echo_num == 1:
             first_bold_wf_outputnode_name = f"bold_outputnode_echo{echo_num}"
-
-        if echo_num > 1:
-            first_bold_wf_outputnode = workflow.get_node(first_bold_wf_outputnode_name)
-            workflow.connect([
-                (first_bold_wf_outputnode,current_bold_wf,
-                [("motcorr_params", "inputnode.motcorr_params")]), 
-                (first_bold_wf_outputnode, current_bold_wf, [
-                    ('bold_to_anat_affine', 'inputnode.bold_to_anat_affine'),
-                    ('bold_to_anat_warp', 'inputnode.bold_to_anat_warp'),
-                    ('bold_to_anat_inverse_warp', 'inputnode.bold_to_anat_inverse_warp'),
-                    ]),
-            ])
-
-
-        ## Now add common BOLD connections
-        if echo_num == 1:
             workflow.connect([
                 (current_bold_outputnode, motion_datasink, [
                     ("motion_params_csv", "motion_params_csv"),  # confounds file
@@ -685,6 +645,24 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                     ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                     ]),
                 ])
+        if echo_num > 1:
+            first_bold_wf_outputnode = workflow.get_node(first_bold_wf_outputnode_name)
+            workflow.connect([
+                (first_bold_wf_outputnode,current_bold_wf,
+                    [("motcorr_params", "inputnode.motcorr_params")
+                    ]), 
+                (first_bold_wf_outputnode, current_bold_wf, [
+                    ('bold_to_anat_affine', 'inputnode.bold_to_anat_affine'),
+                    ('bold_to_anat_warp', 'inputnode.bold_to_anat_warp'),
+                    ('bold_to_anat_inverse_warp', 'inputnode.bold_to_anat_inverse_warp'),
+                    ]),
+                (first_bold_wf_outputnode,current_bold_wf,
+                    [("initial_bold_ref", "inputnode.bold_ref")
+                    ]),         
+            ])
+
+
+        ## Now add common BOLD connections
         workflow.connect([
             (current_bold_outputnode, current_bold_datasink, [
                 ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
@@ -707,8 +685,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("commonspace_CSF_mask", "commonspace_CSF_mask"),
                 ("commonspace_vascular_mask", "commonspace_vascular_mask"),
                 ("commonspace_labels", "commonspace_labels"),
-                #("tSNR_filename", "tSNR_map_preprocess"),
-                #("std_filename", "std_map_preprocess"),
                 ("commonspace_resampled_template", "commonspace_resampled_template"),
                 ("raw_brain_mask", "raw_brain_mask"),
                 ]),
@@ -723,18 +699,18 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                     ("inho_cor_bold_warped2anat", "moving"),  # warped EPI to anat
                     ]),
                 ])
-    
+
     # Instantiate the multi-echo workflow
     multiecho_wf = create_multiecho_wf()
     # Connect the first element of merged_commonspace_bold to rename_output
     workflow.connect(merge_commonspace, 'out', extract_first, 'list')
-    workflow.connect(extract_first, 'first_element', rename_output, 'input_file')
 
     # Connect the merged commonspace_bold and te lists to the multiecho_wf
     workflow.connect([
         (merge_commonspace, multiecho_wf, [('out', 'inputnode.commonspace_bold_list')]),
         (merge_te, multiecho_wf, [('out', 'inputnode.te_list')]),
+        (multiecho_wf, multiecho_datasink, [('optimal_combination.t2star_map', 'T2star_map.@filename')]),
+        (multiecho_wf, multiecho_datasink, [('optimal_combination.s0_map', 'S0_map.@filename')]),
         (multiecho_wf, multiecho_datasink, [('optimal_combination.optimal_comb', 'optimally_combined.@filename')]),  # This is the key change
-        (rename_output, multiecho_datasink, [('output_name', 'optimally_combined')]),  # This line renames the file before saving
     ])
     return workflow

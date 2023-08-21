@@ -123,7 +123,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                 fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
                         'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
                         'commonspace_to_native_transform_list','commonspace_to_native_inverse_list',
-                        'commonspace_ref','echo_num','motcorr_params','bold_to_anat_affine','bold_to_anat_warp','bold_to_anat_inverse_warp','output_warped_bold']),
+                        'commonspace_ref','echo_num','motcorr_params','bold_to_anat_affine','bold_to_anat_warp','bold_to_anat_inverse_warp','output_warped_bold','bold_ref']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
@@ -147,7 +147,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
         template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
                                             name="template_inputnode")
 
-        bold_reference_wf = init_bold_reference_wf(opts=opts)
+        if echo_num == 1:
+            bold_reference_wf = init_bold_reference_wf(opts=opts)
 
         num_procs = min(opts.local_threads, number_functional_scans)
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
@@ -189,11 +190,13 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                     ]),
                 ])
         else:
-            workflow.connect([
-                (boldbuffer, bold_reference_wf, [
-                    ('bold_file', 'inputnode.bold_file'),
-                    ]),
-                ])
+            if echo_num == 1:
+                workflow.connect([
+                    (boldbuffer, bold_reference_wf, [
+                        ('bold_file', 'inputnode.bold_file'),
+                        ]),
+                    ])
+                
 
         if opts.apply_despiking:
             despike = pe.Node(Function(input_names=['in_file'],
@@ -264,17 +267,29 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                 ("template_anat", "template_inputnode.template_anat"),
                 ("template_mask", "template_inputnode.template_mask"),
                 ]),
-            (bold_reference_wf, inho_cor_wf, [
-                ('outputnode.ref_image', 'inputnode.target_img'),
-                ]),
-            (bold_reference_wf, transitionnode, [
-                ('outputnode.ref_image', 'bold_ref'),
-                ]),
             (inho_cor_wf, transitionnode, [
                 ('outputnode.init_denoise', 'init_denoise'),
                 ('outputnode.denoise_mask', 'denoise_mask'),
                 ('outputnode.corrected', 'corrected_EPI'),
                 ]),
+            ])
+        if echo_num == 1:
+            workflow.connect([
+                (bold_reference_wf, inho_cor_wf, [
+                    ('outputnode.ref_image', 'inputnode.target_img'),
+                    ]),
+                (bold_reference_wf, transitionnode, [
+                    ('outputnode.ref_image', 'bold_ref'),
+                    ]),
+            ])
+        else:
+            workflow.connect([
+                (inputnode, inho_cor_wf, [
+                    ('bold_ref', 'inputnode.target_img'),
+                    ]),
+                (inputnode, transitionnode, [
+                    ('bold_ref', 'bold_ref'),
+                    ]),
             ])
 
     if inho_cor_only:
