@@ -28,6 +28,8 @@ For using multi-echo EPI data.
 
 """
 import os
+from nipype.pipeline.engine import Workflow, Node
+from nipype.interfaces.utility import IdentityInterface
 
 from nipype import logging
 from nipype.interfaces.base import (
@@ -111,9 +113,6 @@ sub-01_run-01_echo-3_bold.nii.gz -e 13.0 27.0 43.0 --fittype curvefit'
         outputs['s0_map'] = os.path.join(out_dir, 'S0map.nii.gz')
         outputs['optimal_comb'] = os.path.join(out_dir, 'desc-optcom_bold.nii.gz')
         return outputs
-    
-from nipype.pipeline.engine import Workflow, Node
-from nipype.interfaces.utility import IdentityInterface
 
 def create_multiecho_wf():
     # Instantiate a workflow

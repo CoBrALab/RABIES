@@ -164,6 +164,13 @@ class BIDSDataGraber(BaseInterface):
         else:
             echo = self.inputs.echo
 
+
+        bids_filter = self.inputs.bids_filter.copy()
+        bids_filter['subject'] = self.inputs.scan_info['subject_id']
+        bids_filter['session'] = self.inputs.scan_info['session']
+        if not run is None:
+            bids_filter['run'] = run
+
         bids_filter = self.inputs.bids_filter.copy()
         bids_filter['subject'] = self.inputs.scan_info['subject_id']
         bids_filter['session'] = self.inputs.scan_info['session']
@@ -429,11 +436,41 @@ class BIDSDataGraberSingleEcho(BaseInterface):
         except:
             raise ValueError(f'Error with BIDS spec: \
                     {str(self.inputs.suffix)} sub-{subject_id} ses-{session} run-{str(run)}')
-        if len(file_list)<2:
-            file_list = file_list[0]
+        #if len(file_list)<2:
+        file_list = file_list[0]
         setattr(self, 'out_file', file_list)
 
         return runtime
 
     def _list_outputs(self):
         return {'out_file': getattr(self, 'out_file')}
+
+def remove_echo_string(filename):
+    import re
+    import shutil
+    modified_filename = re.sub(r'echo-\d+_', '', filename)
+    #shutil.copyfile(filename, modified_filename) Uncomment this to copy the final output to the initial func directory
+    return modified_filename
+
+#logging.getLogger('nipype.workflow').setLevel('DEBUG')
+
+def extract_first_element(list):
+    return list[0]
+
+def extract_te_from_json(bold_file):
+    import os
+    import json
+    """
+    Extract the echo time (TE) from the JSON sidecar of a BOLD file.
+    """
+    # Replace .nii.gz or .nii extension with .json to get the JSON sidecar path
+    json_file = os.path.splitext(bold_file)[0].rstrip('.nii.gz') + '.json'
+
+    # Read the JSON file
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+    
+    # Extract the echo time
+    te = data.get('EchoTime', None)
+
+    return te

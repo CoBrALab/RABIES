@@ -114,6 +114,34 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
             EPI vascular mask for commonspace bold
         commonspace_labels
             EPI anatomical labels for commonspace bold
+        raw_brain_mask
+            Brain mask from transforms workflow
+        motcorr_params
+            Motion realignment parameters
+        te
+            Echo time for the input bold
+        bold_mot_only
+            RAS + STC bold after motion correction only
+        bold_commonspace_trans_only
+            RAS + STC bold after transformation to commonspace only
+        bold_native_trans_only
+            RAS + STC bold after transformation to native space only
+        raw_to_native_transform_list
+            Raw to native transform list
+        raw_to_native_inverse_list
+            Raw to native inverse list
+        commonspace_to_raw_transform_list
+            Commonspace to raw transform list
+        commonspace_to_raw_inverse_list
+            Commonspace to raw inverse list
+        to_commonspace_transform_list
+            Raw to commonspace transform list
+        to_commonspace_inverse_list
+            Raw to inverse transform list
+        commonspace_to_native_transform_list
+            Commonspace to native transform list
+        commonspace_to_native_inverse_list
+            Commonspace to native inverse list
     """
 
     workflow = pe.Workflow(name=name)
@@ -131,7 +159,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
-                        'raw_brain_mask','bold_mot_only','bold_commonspace_trans_only','bold_native_trans_only','raw_to_native_transform_list','raw_to_native_inverse_list','commonspace_to_raw_transform_list','commonspace_to_raw_inverse_list','to_commonspace_transform_list','to_commonspace_inverse_list','commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
+                        'raw_brain_mask','bold_mot_only','bold_commonspace_trans_only','bold_native_trans_only','raw_to_native_transform_list',
+                        'raw_to_native_inverse_list','commonspace_to_raw_transform_list','commonspace_to_raw_inverse_list','to_commonspace_transform_list',
+                        'to_commonspace_inverse_list','commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
                 name='outputnode')
 
     
@@ -380,8 +410,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
                 ('outputnode.vascular_mask', 'native_vascular_mask'),
                 ('outputnode.labels', 'native_labels'),
                 ]),
-            (cross_modal_reg_wf, bold_native_trans_wf, [
-                ('outputnode.output_warped_bold', 'inputnode.ref_file')]), # Probably need to figure out how to pass this in directly from the first echo wf...
+            (cross_modal_reg_wf, bold_native_trans_wf, [ #check this
+                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
             (cross_modal_reg_wf, outputnode, [
                 ('outputnode.output_warped_bold', 'output_warped_bold')]),
             ])
@@ -474,7 +504,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans,echo_num, inh
         (bold_commonspace_trans_wf, estimate_motion_node, [
             ('outputnode.raw_brain_mask', 'raw_brain_mask'),
             ]),
-        (inputnode, bold_commonspace_trans_wf, [ # CHECK HERE
+        (inputnode, bold_commonspace_trans_wf, [ 
             ('bold', 'inputnode.name_source'),
             ('commonspace_ref', 'inputnode.ref_file'),
             ]),         
