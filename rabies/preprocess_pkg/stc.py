@@ -3,7 +3,7 @@ from nipype.interfaces.utility import Function
 from nipype.interfaces import utility as niu
 
 
-def init_bold_stc_wf(opts, name='bold_stc_wf'):
+def init_bold_stc_wf(opts,echo_num, name='bold_stc_wf'):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
@@ -11,7 +11,7 @@ def init_bold_stc_wf(opts, name='bold_stc_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['stc_file']), name='outputnode')
 
-    if opts.apply_STC:
+    if opts.apply_STC and echo_num<9:
         slice_timing_correction_node = pe.Node(Function(input_names=['in_file', 'tr', 'tpattern', 'stc_axis', 'interp_method', 'rabies_data_type'],
                                                         output_names=[
                                                             'out_file'],

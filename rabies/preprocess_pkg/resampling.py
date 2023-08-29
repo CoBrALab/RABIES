@@ -71,13 +71,13 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file',
         'mask_transforms_list', 'mask_inverses', 'commonspace_to_raw_transform_list', 'commonspace_to_raw_inverse_list',
-        'raw_bold_ref','med_EPI']),
+        'raw_bold_ref']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask','bold_mot_only']),
+            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask','bold_mot_only','bold_trans_only']),
         name='outputnode')
 
     bold_transform = pe.Node(slice_applyTransforms(
@@ -92,7 +92,13 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     bold_transform_mot_only.inputs.resampling_dim = resampling_dim
     bold_transform_mot_only.inputs.transforms = []  # No transforms
     bold_transform_mot_only.inputs.inverses = []  # No inverses
-    #bold_transform_mot_only.inputs.ref_file = '/Users/davidgruskin/Downloads/multiecho2/preprocess2/main_wf/bold_main_wf_echo1/bold_main_wf_echo1/gen_bold_ref/_scan_info_subject_idDv015DMS.session20230820_split_name_sub-Dv015DMS_ses-20230820_T1w/_run_05/gen_ref/sub-Dv015DMS_ses-20230820_run-05_echo-1_bold_bold_ref.nii.gz'
+
+    bold_transform_trans_only = pe.Node(slice_applyTransforms(
+        rabies_data_type=opts.data_type), name='bold_transform_trans_only', mem_gb=1*opts.scale_min_memory)
+    bold_transform_trans_only.inputs.apply_motcorr = False
+    bold_transform_trans_only.inputs.resampling_dim = resampling_dim
+    bold_transform_trans_only.inputs.transforms = []  # No transforms
+    bold_transform_trans_only.inputs.inverses = []  # No inverses
 
     merge = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), name='merge', mem_gb=4*opts.scale_min_memory)
     merge.plugin_args = {
@@ -102,6 +108,12 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
                             name='merge_mot_only', 
                             mem_gb=4*opts.scale_min_memory)
     merge_mot_only.plugin_args = {
+        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
+    
+    merge_trans_only = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), 
+                            name='merge_trans_only', 
+                            mem_gb=4*opts.scale_min_memory)
+    merge_trans_only.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)
@@ -131,8 +143,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     raw_brain_mask.inputs.mask = str(opts.brain_mask)
 
     workflow.connect([
-        (inputnode, merge, [('name_source', 'header_source')]),
-        (inputnode, merge_mot_only, [('name_source', 'header_source')]),
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
@@ -140,16 +150,30 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ('inverses', 'inverses'),
             ('ref_file', 'ref_file'),
             ]),
+        (inputnode, merge, [('name_source', 'header_source')]),
+        (bold_transform, merge, [('out_files', 'in_files')]),
+        (merge, outputnode, [('out_file', 'bold')]),
+
         (inputnode, bold_transform_mot_only, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
-            ('med_EPI', 'ref_file'),
+            ('raw_bold_ref', 'ref_file'),
             ]),
-        (bold_transform, merge, [('out_files', 'in_files')]),
+        (inputnode, merge_mot_only, [('name_source', 'header_source')]),
         (bold_transform_mot_only, merge_mot_only, [('out_files', 'in_files')]),
-        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
-        (merge, outputnode, [('out_file', 'bold')]),
         (merge_mot_only, outputnode, [('out_file', 'bold_mot_only')]),
+
+        (inputnode, bold_transform_trans_only, [
+            ('bold_file', 'in_file'),
+            ('ref_file', 'ref_file'),
+            ('transforms_list', 'transforms'),
+            ('inverses', 'inverses'),
+            ]),
+        (inputnode, merge_trans_only, [('name_source', 'header_source')]),
+        (bold_transform_trans_only, merge_trans_only, [('out_files', 'in_files')]),
+        (merge_trans_only, outputnode, [('out_file', 'bold_trans_only')]),
+
+        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
         (inputnode, brain_mask_to_EPI, [
             ('name_source', 'name_source'),
             ('mask_transforms_list', 'transforms'),

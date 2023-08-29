@@ -3,6 +3,7 @@ import pathlib
 import pdb
 import sys
 import json
+import re
 
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
@@ -20,12 +21,22 @@ from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
 from .utils import BIDSDataGraber, extract_entities, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,BIDSDataGraberSingleEcho
 from . import preprocess_visual_QC
+from .registration import init_cross_modal_reg_wf
+from .resampling import init_bold_preproc_trans_wf
 
 sys.path.append("/Users/davidgruskin/Documents/GitHub/RABIES/rabies/preprocess_pkg")
 from multiecho import T2SMap, create_multiecho_wf
 
+def remove_echo_string(filename):
+    import re
+    import shutil
+    # Use regular expression to replace the 'echo-?_' pattern with an empty string
+    modified_filename = re.sub(r'echo-\d+_', '', filename)
+    #shutil.copyfile(filename, modified_filename)
 
-#logging.getLogger('nipype.workflow').setLevel('DEBUG')
+    return modified_filename
+
+logging.getLogger('nipype.workflow').setLevel('DEBUG')
 
 def extract_first_element(list):
     return list[0]
@@ -148,7 +159,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask','motcorr_params','te','bold_mot_only']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask','motcorr_params','te','bold_mot_only','bold_commonspace_trans_only','bold_native_trans_only','raw_to_native_transform_list','raw_to_native_inverse_list','commonspace_to_raw_transform_list','commonspace_to_raw_inverse_list','to_commonspace_transform_list','to_commonspace_inverse_list','commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
         name='outputnode')
 
     
@@ -327,7 +338,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     temporal_diagnosis.inputs.out_dir = output_folder+'/preprocess_QC_report/temporal_features/'
     temporal_diagnosis.inputs.rabies_data_type = opts.data_type
     temporal_diagnosis.inputs.figure_format = opts.figure_format
-
+    
+    remove_echo_node = pe.Node(Function(input_names=["filename"],
+                                    output_names=["modified_filename"],
+                                    function=remove_echo_string),
+                            name="remove_echo_node")
     if not opts.bold_only:
         run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
@@ -521,8 +536,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
         format_bold_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_bold']),
                                             name=f"format_bold_buffer{echo_num}")
-        current_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
-        current_bold_wf = current_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
+        this_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=echo_num)
+        current_bold_wf = this_bold_wf.clone(name=f"bold_main_wf_echo{echo_num}")
+        this_bold_wf = None
         current_bold_wf.inputs.inputnode.echo_num = echo_num
         current_bold_datasink = bold_datasink.clone(name=f"bold_datasink_echo{echo_num}")
         current_bold_outputnode = outputnode.clone(name=f"bold_outputnode_echo{echo_num}")
@@ -551,9 +567,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             (format_bold_buffer, current_bold_wf, [
                 ("formatted_bold", "inputnode.bold"),
                 ]),
-            (resample_template_node, current_bold_wf, [  # Note the change here
+            (resample_template_node, current_bold_wf, [ 
                 ("resampled_template", "inputnode.commonspace_ref"),
-                ]),
+                ]),   
             (anat_inho_cor_wf, current_bold_wf, [
                 ("outputnode.corrected", "inputnode.coreg_anat"),
                 ]),
@@ -610,6 +626,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.commonspace_labels", "commonspace_labels"),
                 ("outputnode.raw_brain_mask", "raw_brain_mask"),
                 ("outputnode.motcorr_params", "motcorr_params"),
+                ("outputnode.raw_to_native_transform_list", "raw_to_native_transform_list"),
+                ("outputnode.raw_to_native_inverse_list", "raw_to_native_inverse_list"),
+                ("outputnode.commonspace_to_raw_transform_list", "commonspace_to_raw_transform_list"),
+                ("outputnode.commonspace_to_raw_inverse_list", "commonspace_to_raw_inverse_list"),
+                ("outputnode.to_commonspace_transform_list", "to_commonspace_transform_list"),
+                ("outputnode.to_commonspace_inverse_list", "to_commonspace_inverse_list"),
+                ("outputnode.commonspace_to_native_transform_list", "commonspace_to_native_transform_list"),
+                ("outputnode.commonspace_to_native_inverse_list", "commonspace_to_native_inverse_list"),
                 ]),
             (current_bold_wf, current_temporal_diagnosis, [
                 ("outputnode.commonspace_bold", "bold_file"),
@@ -632,7 +656,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             first_bold_wf_outputnode_name = f"bold_outputnode_echo{echo_num}"
             workflow.connect([
                 (current_bold_outputnode, motion_datasink, [
-                    ("motion_params_csv", "motion_params_csv"),  # confounds file
+                    ("motion_params_csv", "motion_params_csv"), 
                     ("FD_voxelwise", "FD_voxelwise"),
                     ("pos_voxelwise", "pos_voxelwise"),
                     ("FD_csv", "FD_csv"),
@@ -700,10 +724,115 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # Connect the merged commonspace_bold and te lists to the multiecho_wf
     workflow.connect([
-        (merge_commonspace, multiecho_wf, [('out', 'inputnode.commonspace_bold_list')]),
+        (merge_commonspace, multiecho_wf, [('out', 'inputnode.bold_list')]),
         (merge_te, multiecho_wf, [('out', 'inputnode.te_list')]),
         (multiecho_wf, multiecho_datasink, [('optimal_combination.t2star_map', 'T2star_map.@filename')]),
         (multiecho_wf, multiecho_datasink, [('optimal_combination.s0_map', 'S0_map.@filename')]),
-        (multiecho_wf, multiecho_datasink, [('optimal_combination.optimal_comb', 'optimally_combined.@filename')]),  # This is the key change
+        (multiecho_wf, multiecho_datasink, [('optimal_combination.optimal_comb', 'optimally_combined.@filename')]),  
     ])
+    
+  
+    optcom_temporal_diagnosis = temporal_diagnosis.clone(name=f"optcom_temporal_diagnosis")
+    optcom_bold_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list,echo_num=9,name=f"optcom_bold_main_wf")
+    optcom_bold_outputnode = outputnode.clone(name=f"optcom_bold_outputnode_echo{echo_num}")
+
+    workflow.connect([
+        (EPI_target_buffer, optcom_bold_wf, [
+                ("EPI_template", "inputnode.inho_cor_anat"),
+                ("EPI_mask", "inputnode.inho_cor_mask"),
+                ]),
+        (anat_inho_cor_wf, optcom_bold_wf, [
+                ("outputnode.corrected", "inputnode.coreg_anat"),
+                ]),
+        (multiecho_wf, optcom_bold_wf, [
+            ('optimal_combination.optimal_comb', 'inputnode.bold')]),
+
+        (resample_template_node, optcom_bold_wf, [ 
+                ("resampled_template", "inputnode.commonspace_ref"),
+                ]),   
+        (commonspace_reg_wf, optcom_bold_wf, [
+                ("outputnode.native_mask", "inputnode.coreg_mask"),
+                ("outputnode.unbiased_template", "template_inputnode.template_anat"),
+                ("outputnode.unbiased_mask", "template_inputnode.template_mask"),
+                ]),
+        (commonspace_reg_wf, optcom_bold_wf, [  # Note the change here
+                ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
+                ("outputnode.native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
+                ("outputnode.commonspace_to_native_transform_list", "inputnode.commonspace_to_native_transform_list"),
+                ("outputnode.commonspace_to_native_inverse_list", "inputnode.commonspace_to_native_inverse_list"),
+                ]), 
+        (optcom_bold_wf, optcom_bold_outputnode, [
+                ("outputnode.bold_ref", "initial_bold_ref"),
+                ("outputnode.bold_mot_only", "bold_mot_only"),
+                ("outputnode.bold_commonspace_trans_only", "bold_commonspace_trans_only"),
+                ("outputnode.bold_native_trans_only", "bold_native_trans_only"),
+                ("outputnode.corrected_EPI", "inho_cor_bold"),
+                ("outputnode.native_brain_mask", "native_brain_mask"),
+                ("outputnode.native_WM_mask", "native_WM_mask"),
+                ("outputnode.native_CSF_mask", "native_CSF_mask"),
+                ("outputnode.native_vascular_mask", "native_vascular_mask"),
+                ("outputnode.native_labels", "native_labels"),
+                ('outputnode.bold_to_anat_affine', 'bold_to_anat_affine'),
+                ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
+                ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
+                ("outputnode.output_warped_bold", "inho_cor_bold_warped2anat"),
+                ("outputnode.native_bold", "native_bold"),
+                ("outputnode.native_bold_ref", "native_bold_ref"),
+                ("outputnode.commonspace_bold", "commonspace_bold"),
+                ("outputnode.commonspace_mask", "commonspace_mask"),
+                ("outputnode.commonspace_WM_mask", "commonspace_WM_mask"),
+                ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
+                ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
+                ("outputnode.commonspace_labels", "commonspace_labels"),
+                ("outputnode.raw_brain_mask", "raw_brain_mask"),
+                ("outputnode.motcorr_params", "motcorr_params"),
+                ("outputnode.raw_to_native_transform_list", "raw_to_native_transform_list"),
+                ("outputnode.raw_to_native_inverse_list", "raw_to_native_inverse_list"),
+                ("outputnode.commonspace_to_raw_transform_list", "commonspace_to_raw_transform_list"),
+                ("outputnode.commonspace_to_raw_inverse_list", "commonspace_to_raw_inverse_list"),
+                ("outputnode.to_commonspace_transform_list", "to_commonspace_transform_list"),
+                ("outputnode.to_commonspace_inverse_list", "to_commonspace_inverse_list"),
+                ("outputnode.commonspace_to_native_transform_list", "commonspace_to_native_transform_list"),
+                ("outputnode.commonspace_to_native_inverse_list", "commonspace_to_native_inverse_list"),
+                ]),
+        (optcom_bold_outputnode, multiecho_datasink, [
+                ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
+                ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction
+                ("native_brain_mask", "native_brain_mask"),  # get the EPI labels
+                ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
+                ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
+                ("native_vascular_mask", "native_vascular_mask"),  # get the EPI labels
+                ("native_labels", "native_labels"),  # get the EPI labels
+                ("bold_mot_only", "bold_mot_only"),  # get the EPI labels
+                ("bold_commonspace_trans_only", "bold_commonspace_trans_only"),  # get the EPI labels
+                ("bold_native_trans_only", "bold_native_trans_only"),  # get the EPI labels
+               # warped EPI to anat
+                ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),
+                # resampled EPI after motion realignment and SDC
+                ("native_bold", "native_bold"),
+                # resampled EPI after motion realignment and SDC
+                ("native_bold_ref", "native_bold_ref"),
+                # resampled EPI after motion realignment and SDC
+                ("commonspace_bold", "commonspace_bold"),
+                ("commonspace_mask", "commonspace_mask"),
+                ("commonspace_WM_mask", "commonspace_WM_mask"),
+                ("commonspace_CSF_mask", "commonspace_CSF_mask"),
+                ("commonspace_vascular_mask", "commonspace_vascular_mask"),
+                ("commonspace_labels", "commonspace_labels"),
+                ("commonspace_resampled_template", "commonspace_resampled_template"),
+                ("raw_brain_mask", "raw_brain_mask"),
+                ]),
+        (optcom_bold_wf, optcom_temporal_diagnosis, [
+                ("outputnode.bold_commonspace_trans_only", "bold_file")]),
+        (first_bold_wf_outputnode, optcom_temporal_diagnosis, [
+                ("motion_params_csv", "motion_params_csv"),
+                ("FD_csv", "FD_csv")]),
+        (first_bold_wf_outputnode, remove_echo_node, [ 
+            ('input_bold', 'filename'),
+            ]),
+        (remove_echo_node, optcom_temporal_diagnosis, [ 
+            ('modified_filename', 'name_source'),
+            ]),  
+         ])
+      
     return workflow

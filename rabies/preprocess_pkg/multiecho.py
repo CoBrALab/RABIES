@@ -120,14 +120,14 @@ def create_multiecho_wf():
     multiecho_wf = Workflow(name='multiecho_wf')
     
     # Create input nodes
-    inputnode = Node(IdentityInterface(fields=['commonspace_bold_list', 'te_list']), name='inputnode')
+    inputnode = Node(IdentityInterface(fields=['bold_list', 'te_list','mask']), name='inputnode')
     
     # Create the T2SMap node to get the optimally combined output
     optimal_combination = Node(T2SMap(fittype='curvefit'), name='optimal_combination')
     
     # Connect input nodes to the T2SMap node
     multiecho_wf.connect([
-        (inputnode, optimal_combination, [('commonspace_bold_list', 'in_files'),
+        (inputnode, optimal_combination, [('bold_list', 'in_files',),
                                           ('te_list', 'echo_times')])
     ])
     

@@ -10,7 +10,9 @@ set -x
 calc(){ awk "BEGIN { print "$*" }"; }
 
 tmpdir=$(mktemp -d)
-
+for arg in "$@"; do
+    echo "$arg"
+done
 input=$1
 output=$2
 modelfile=$3
