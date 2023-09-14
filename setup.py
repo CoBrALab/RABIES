@@ -17,25 +17,25 @@ DESCRIPTION = 'RABIES: Rodent Automated Bold Improvement of EPI Sequences.'
 URL = 'https://github.com/CoBrALab/RABIES'
 EMAIL = 'contact@cobralab.ca'
 AUTHOR = 'CoBrALab'
-REQUIRES_PYTHON = '>=3.6.0'
+REQUIRES_PYTHON = '>=3.9.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     # 'requests', 'maya', 'records',
-    'matplotlib>=3.1.1',
-    'nibabel>=2.3.1',
-    'nilearn>=0.4.2',
-    'nipype>=1.1.4',
-    'numpy>=1.16.2',
-    'pandas',
-    'pybids',
-    'scikit-learn>=0.20.0',
-    'scipy',
-    'simpleitk>=2.0.2',
-    # from twolevel_dbm
-    'tqdm',
-    'pathos',
-    'qbatch',
+    'matplotlib=3.3.4',
+    'multiprocess=0.70.11.1',
+    'nibabel=3.2.1',
+    'nilearn=0.7.1',
+    'nipype=1.6.0',
+    'numpy=1.20.1',
+    'pandas=1.2.4',
+    'pathos=0.2.7',
+    'pybids=0.13',
+    'scikit-learn=0.24.1',
+    'scipy=1.6.2',
+    'seaborn=0.11.1',
+    'simpleitk=2.0.2',
+    'qbatch=2.3',
 ]
 
 # What packages are optional?
