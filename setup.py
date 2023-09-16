@@ -30,12 +30,13 @@ REQUIRED = [
     'numpy==1.20.1',
     'pandas==1.2.4',
     'pathos==0.2.7',
-    'pybids==0.13',
+    'pybids==0.16.3',
     'scikit-learn==0.24.1',
-    'scipy==1.6.2',
+    'scipy==1.8.1',
     'seaborn==0.11.1',
     'simpleitk==2.0.2',
     'qbatch==2.3',
+    'networkx<3'
 ]
 
 # What packages are optional?
