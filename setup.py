@@ -25,7 +25,7 @@ REQUIRED = [
     'matplotlib==3.3.4',
     'nibabel==3.2.1',
     'nilearn==0.7.1',
-    'nipype==1.6.0',
+    'nipype==1.6.1',
     'numpy==1.20.1',
     'pandas==1.2.4',
     'pathos==0.2.7',
