@@ -23,7 +23,6 @@ REQUIRES_PYTHON = '>=3.9.0'
 REQUIRED = [
     # 'requests', 'maya', 'records',
     'matplotlib==3.3.4',
-    'multiprocess==0.70.11.1',
     'nibabel==3.2.1',
     'nilearn==0.7.1',
     'nipype==1.6.0',
