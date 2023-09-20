@@ -31,7 +31,7 @@ REQUIRED = [
     'pathos==0.2.7',
     'pybids==0.16.3',
     'scikit-learn==0.24.1',
-    'scipy==1.8.1',
+    'scipy==1.10.0',
     'seaborn==0.11.1',
     'simpleitk==2.0.2',
     'qbatch==2.3',
