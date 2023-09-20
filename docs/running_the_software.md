@@ -178,8 +178,9 @@ The same logic applies at the analysis stage.
 docker run -it --rm \
 -v $PWD/input_BIDS:/input_BIDS:ro \
 -v $PWD/preprocess_outputs:/preprocess_outputs/ \
-rabies -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
+gabdesgreg/rabies:tagname -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
-The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`).
+The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
+
 
 
