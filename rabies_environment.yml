@@ -20,7 +20,7 @@ dependencies:
   - seaborn=0.11.1
   - simpleitk=2.0.2
   - networkx<3
-  - fsl-base
-  - fsl-melodic
+  - fsl-base=2309.1
+  - fsl-melodic=2111.3
   - pip:
     - qbatch==2.3
