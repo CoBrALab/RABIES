@@ -1,0 +1,25 @@
+name: rabies
+channels:
+  - conda-forge
+  - simpleitk
+  - https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/public/
+dependencies:
+  - python=3.9
+  - pip
+  - future
+  - matplotlib
+  - nibabel
+  - nilearn
+  - nipype
+  - numpy
+  - pandas
+  - pathos
+  - pybids
+  - scikit-learn
+  - scipy
+  - seaborn
+  - simpleitk
+  - fsl-base
+  - fsl-melodic
+  - pip:
+    - qbatch
