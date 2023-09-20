@@ -26,7 +26,7 @@ REQUIRED = [
     'nibabel==3.2.1',
     'nilearn==0.7.1',
     'nipype==1.6.1',
-    'numpy==1.20.1',
+    'numpy==1.22.0',
     'pandas==1.2.4',
     'pathos==0.2.7',
     'pybids==0.16.3',
