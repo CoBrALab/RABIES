@@ -14,47 +14,54 @@ if len(sys.argv) == 2:
 else:
     tmppath = tempfile.mkdtemp()
 
-os.makedirs(tmppath+'/inputs', exist_ok=True)
+def generate_token_data(tmppath, number_scans):
 
-if 'XDG_DATA_HOME' in os.environ.keys():
-    rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
-else:
-    rabies_path = os.environ['HOME']+'/.local/share/rabies'
+    os.makedirs(tmppath+'/inputs', exist_ok=True)
 
-template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
-mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+    if 'XDG_DATA_HOME' in os.environ.keys():
+        rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
+    else:
+        rabies_path = os.environ['HOME']+'/.local/share/rabies'
 
-img = sitk.ReadImage(template)
-spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
-resampled = resample_image_spacing(sitk.ReadImage(template), spacing)
-array = sitk.GetArrayFromImage(resampled)
-array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
-array_4d += np.random.normal(0, array_4d.mean()
-                             / 100, array_4d.shape)  # add gaussian noise
-sitk.WriteImage(resampled, tmppath+'/inputs/sub-token_T1w.nii.gz')
-sitk.WriteImage(resampled, tmppath+'/inputs/sub-token2_T1w.nii.gz')
-sitk.WriteImage(resampled, tmppath+'/inputs/sub-token3_T1w.nii.gz')
-sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
-                tmppath+'/inputs/sub-token_bold.nii.gz')
+    template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
+    mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
 
-resampled = resample_image_spacing(sitk.ReadImage(mask), spacing)
-array = sitk.GetArrayFromImage(resampled)
-array[array < 1] = 0
-array[array > 1] = 1
-binarized = sitk.GetImageFromArray(array, isVector=False)
-binarized.CopyInformation(resampled)
-sitk.WriteImage(binarized, tmppath+'/inputs/token_mask.nii.gz')
-array[:, :, :6] = 0
-binarized = sitk.GetImageFromArray(array, isVector=False)
-binarized.CopyInformation(resampled)
-sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
+    spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
+    resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
+    # generate template masks
+    resampled_mask = resample_image_spacing(sitk.ReadImage(mask), spacing)
+    array = sitk.GetArrayFromImage(resampled_mask)
+    array[array < 1] = 0
+    array[array > 1] = 1
+    binarized = sitk.GetImageFromArray(array, isVector=False)
+    binarized.CopyInformation(resampled_mask)
+    sitk.WriteImage(binarized, tmppath+'/inputs/token_mask.nii.gz')
+    array[:, :, :6] = 0
+    binarized = sitk.GetImageFromArray(array, isVector=False)
+    binarized.CopyInformation(resampled_mask)
+    sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
+
+    # generate fake scans from the template
+    array = sitk.GetArrayFromImage(resampled_template)
+    array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
+
+    for i in range(number_scans):
+        # generate anatomical scan
+        sitk.WriteImage(resampled_template, tmppath+f'/inputs/sub-token{i+1}_T1w.nii.gz')
+        # generate functional scan
+        array_4d_ = array_4d + np.random.normal(0, array_4d.mean()
+                                    / 100, array_4d.shape)  # add gaussian noise
+        sitk.WriteImage(sitk.GetImageFromArray(array_4d_, isVector=False),
+                        tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
+
+        sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz'), sitk.ReadImage(tmppath
+                        + f'/inputs/sub-token{i+1}_T1w.nii.gz'), sitk.ReadImage(tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')), tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
 
 
-sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz'), sitk.ReadImage(tmppath
-                + '/inputs/sub-token_T1w.nii.gz'), sitk.ReadImage(tmppath+'/inputs/sub-token_bold.nii.gz')), tmppath+'/inputs/sub-token_bold.nii.gz')
+generate_token_data(tmppath, number_scans=1)
 
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-    --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
+    --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16 --bold_only --detect_dummy \
     --tpattern seq-z --apply_STC --voxelwise_motion --isotropic_HMC"
 process = subprocess.run(
@@ -65,7 +72,7 @@ process = subprocess.run(
 
 shutil.rmtree(f'{tmppath}/outputs/')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-    --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
+    --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true --commonspace_reg masking=true,brain_extraction=true,fast_commonspace=true,template_registration=no_reg --data_type int16  \
     --HMC_option 0"
 process = subprocess.run(
@@ -81,19 +88,19 @@ process = subprocess.run(
     shell=True,
     )
 
-### Add subjects for the group analysis to run
-array_4d += np.random.normal(0, array_4d.mean()
-                             / 100, array_4d.shape)  # add gaussian noise
-sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
-                tmppath+'/inputs/sub-token2_bold.nii.gz')
-array_4d += np.random.normal(0, array_4d.mean()
-                             / 100, array_4d.shape)  # add gaussian noise
-sitk.WriteImage(sitk.GetImageFromArray(array_4d, isVector=False),
-                tmppath+'/inputs/sub-token3_bold.nii.gz')
+#command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis"
+#process = subprocess.run(
+#    command,
+#    check=True,
+#    shell=True,
+#    )
+
+shutil.rmtree(f'{tmppath}/inputs/')
+generate_token_data(tmppath, number_scans=3)
 
 shutil.rmtree(f'{tmppath}/outputs/')
 command = f"rabies --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-    --anat_template {tmppath}/inputs/sub-token_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
+    --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false --commonspace_reg masking=false,brain_extraction=false,fast_commonspace=true,template_registration=no_reg --data_type int16  \
     --HMC_option 0"
 process = subprocess.run(
