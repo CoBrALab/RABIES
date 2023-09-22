@@ -42,12 +42,21 @@ process = subprocess.run(
     shell=True,
     )
 
-#command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis"
-#process = subprocess.run(
-#    command,
-#    check=True,
-#    shell=True,
-#    )
+# rerunning confound correction without censoring, which removes all scans
+os.remove(f'{tmppath}/outputs/rabies_confound_correction.pkl')
+command = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --nativespace_analysis"
+process = subprocess.run(
+    command,
+    check=True,
+    shell=True,
+    )
+
+command = f"rabies --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis"
+process = subprocess.run(
+    command,
+    check=True,
+    shell=True,
+    )
 
 shutil.rmtree(f'{tmppath}/inputs/')
 generate_token_data(tmppath, number_scans=3)
