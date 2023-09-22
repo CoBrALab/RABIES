@@ -958,8 +958,11 @@ def get_parser():
     return parser
 
 
-def read_parser(parser):
-    opts = parser.parse_args()
+def read_parser(parser, args):
+    if args is None:
+        opts = parser.parse_args()
+    else:
+        opts = parser.parse_args(args)
 
     if opts.rabies_stage == 'preprocess':
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 

@@ -11,10 +11,10 @@ else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
 
 
-def execute_workflow():
+def execute_workflow(args=None):
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
-    opts = read_parser(parser)
+    opts = read_parser(parser, args)
 
     try: # convert the output path to absolute if not already the case
         opts.output_dir = os.path.abspath(str(opts.output_dir))
