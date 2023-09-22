@@ -135,7 +135,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     bids.config.set_option('extension_initial_dot', True)
     layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
     split_name, scan_info, run_iter, scan_list, bold_scan_list = prep_bids_iter(
-        layout, opts.bold_only)
+        layout, opts.bold_only, inclusion_list=opts.inclusion_ids)
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),

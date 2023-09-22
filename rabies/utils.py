@@ -389,6 +389,38 @@ def flatten_list(l):
         return l
 
 
+def filter_scan_inclusion(inclusion_list, split_name):
+    # the function will update the list of scan IDs in split_name to correspond to inclusion/exclusion list
+    
+    # inclusion_list: the input provided by the user
+    # split_name: a list of all scan IDs that were found
+    
+    import numpy as np
+    import pandas as pd
+    if os.path.isfile(os.path.abspath(inclusion_list[0])):
+        updated_split_name=[]
+        if '.nii' in pathlib.Path(inclusion_list[0]).name:
+            for scan in inclusion_list:
+                updated_split_name.append(find_split(scan, split_name))
+        else:
+            # read the file as a .txt
+            inclusion_list = np.array(pd.read_csv(os.path.abspath(inclusion_list[0]), header=None)).flatten()
+            for scan in inclusion_list:
+                updated_split_name.append(find_split(scan, split_name))
+    elif inclusion_list[0]=='all':
+        updated_split_name = split_name
+    else:
+        raise ValueError(f"The --inclusion_ids {inclusion_list} input had improper format. It must the full path to a .txt or .nii files, or 'all' to keep all scans.")
+    return updated_split_name
+
+
+def find_split(scan, split_name):
+    for split in split_name:
+        if split in scan:
+            return split
+    raise ValueError(f"No previous file name is matching {scan}")
+
+
 ######################
 #FUNCTIONS TO READ WORKFLOW GRAPH
 ######################

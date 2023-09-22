@@ -25,8 +25,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             the case.
             """)
 
-    # update split_name according to the --scan_list option
-    split_name_list = get_iterable_scan_list(analysis_opts.scan_list, split_name_list)
+    # filter inclusion/exclusion lists
+    from rabies.utils import filter_scan_inclusion
+    split_name_list = filter_scan_inclusion(analysis_opts.inclusion_ids, split_name_list)
 
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),

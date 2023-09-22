@@ -8,7 +8,7 @@ from nipype.interfaces.base import (
 )
 from rabies.utils import run_command
 
-def prep_bids_iter(layout, bold_only=False):
+def prep_bids_iter(layout, bold_only=False, inclusion_list=['all']):
     '''
     This function takes as input a BIDSLayout, and generates iteration lists
     for managing the workflow's iterables depending on whether --bold_only is
@@ -37,6 +37,18 @@ def prep_bids_iter(layout, bold_only=False):
     if len(bold_bids) == 0:
         raise ValueError(
             "No functional file with the suffix 'bold' were found among the BIDS directory.")
+
+    # filter inclusion/exclusion lists
+    from rabies.utils import filter_scan_inclusion
+    boldname_list=[pathlib.Path(bold.filename).name.rsplit(".nii")[0] for bold in bold_bids]
+    updated_split_name = filter_scan_inclusion(inclusion_list, boldname_list)
+    
+    filtered_bold_bids=[]
+    for name in updated_split_name:
+        for bold in bold_bids:
+            if name in bold.filename:
+                filtered_bold_bids.append(bold)
+    bold_bids = filtered_bold_bids
 
     bold_dict = {}
     for bold in bold_bids:

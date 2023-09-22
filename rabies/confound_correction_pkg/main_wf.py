@@ -23,6 +23,10 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     else:
         split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
+    # filter inclusion/exclusion lists
+    from rabies.utils import filter_scan_inclusion
+    split_name = filter_scan_inclusion(cr_opts.inclusion_ids, split_name)
+
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
                          name="main_split")
