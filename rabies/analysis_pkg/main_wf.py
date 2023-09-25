@@ -26,8 +26,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             """)
 
     # filter inclusion/exclusion lists
-    from rabies.utils import filter_scan_inclusion
+    from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
     split_name_list = filter_scan_inclusion(analysis_opts.inclusion_ids, split_name_list)
+    split_name_list = filter_scan_exclusion(analysis_opts.exclusion_ids, split_name_list)
 
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),

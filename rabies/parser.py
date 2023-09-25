@@ -97,6 +97,17 @@ def get_parser():
             "\n"
         )
     g_execution.add_argument(
+        '--exclusion_ids', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=['none'],
+        help=
+            "Instead of providing a list of scans to include, this argument provides a list of scans to exclude (while \n"
+            "keeping all other scans). This argument follows the same syntax rules as --includion_ids. --exclusion_ids \n"
+            "and --inclusion_ids cannot be used simultaneously. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
         "-p", "--plugin", default='Linear',
         choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
                 'PBS', 'LSF', 'SLURM', 'SLURMGraph'],

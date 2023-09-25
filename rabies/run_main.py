@@ -40,6 +40,13 @@ def execute_workflow(args=None):
         args += input
     log.info(args)
 
+    # inclusion/exclusion list are incompatible parameters
+    if (not opts.inclusion_ids[0]=='all') and (not opts.exclusion_ids[0]=='none'):
+        raise ValueError(f"""
+           Either an inclusion list (--inclusion_ids) or exclusion list (--exclusion_ids)
+           can be provided, not both.
+           """)
+
     if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)
     elif opts.rabies_stage == 'confound_correction':

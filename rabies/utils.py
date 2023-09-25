@@ -389,6 +389,39 @@ def flatten_list(l):
         return l
 
 
+def filter_scan_exclusion(exclusion_list, split_name):
+    # the function removes a list of scan IDs from split_name
+    
+    # exclusion_list: the input provided by the user
+    # split_name: a list of all scan IDs that were found
+    
+    import numpy as np
+    import pandas as pd
+    if os.path.isfile(os.path.abspath(exclusion_list[0])):
+        updated_split_name=[]
+        if not '.nii' in pathlib.Path(exclusion_list[0]).name:
+            # read the file as a .txt
+            exclusion_list = np.array(pd.read_csv(os.path.abspath(exclusion_list[0]), header=None)).flatten()
+        for split in split_name:
+            exclude = False
+            for scan in exclusion_list:
+                if split in scan:
+                    exclude = True
+            if not exclude:
+                updated_split_name.append(split)
+    elif exclusion_list[0]=='none':
+        updated_split_name = split_name
+    else:
+        raise ValueError(f"The --exclusion_ids {exclusion_list} input had improper format. It must the full path to a .txt or .nii files.")
+    
+    if len(updated_split_name)==0:
+        raise ValueError(f"""
+            No scans are left after scan exclusion!
+            """)
+
+    return updated_split_name
+
+
 def filter_scan_inclusion(inclusion_list, split_name):
     # the function will update the list of scan IDs in split_name to correspond to inclusion/exclusion list
     
