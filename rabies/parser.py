@@ -156,6 +156,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_execution.add_argument(
+        "-f", "--force", dest='force', action='store_true',
+        help=
+            "The pipeline will not stop if previous outputs are encountered. \n"
+            "Previous outputs will be overwritten.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Preprocessing
