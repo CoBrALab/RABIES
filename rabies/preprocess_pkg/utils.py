@@ -6,7 +6,6 @@ from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-from rabies.utils import run_command
 
 def prep_bids_iter(layout, bold_only=False, inclusion_list=['all'], exclusion_list=['none']):
     '''

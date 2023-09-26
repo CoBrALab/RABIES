@@ -133,7 +133,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     import bids
     bids.config.set_option('extension_initial_dot', True)
-    layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
+    try:
+        layout = bids.layout.BIDSLayout(data_dir_path, validate=True)
+    except Exception as e:
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
+        log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
+        layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
+
     split_name, scan_info, run_iter, scan_list, bold_scan_list = prep_bids_iter(
         layout, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
 
