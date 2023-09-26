@@ -81,6 +81,33 @@ def get_parser():
             "Options for parallel execution and memory management."
         )
     g_execution.add_argument(
+        '--inclusion_ids', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=['all'],
+        help=
+            "Define a list of BOLD scan to include, i.e. run the pipeline on a subset of the data. \n"
+            "To do so, provide the full path to the corresponding BOLD file in the input BIDS folder. The list \n"
+            "of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz \n"
+            "scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row.\n"
+            "By default, 'all' the scans found in the input BIDS directory or from the previous \n"
+            "processing step. This can be provided at any processing stage.\n"
+            "***NOTE: do not enter this parameter right before the processing stage (preprocess, etc...), this will cause \n"
+            "parsing errors. Instead, provide another parameter after --inclusion_ids (e.g. --verbose or -p). \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        '--exclusion_ids', type=str,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=['none'],
+        help=
+            "Instead of providing a list of scans to include, this argument provides a list of scans to exclude (while \n"
+            "keeping all other scans). This argument follows the same syntax rules as --includion_ids. --exclusion_ids \n"
+            "and --inclusion_ids cannot be used simultaneously. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
         "-p", "--plugin", default='Linear',
         choices=['Linear', 'MultiProc', 'SGE', 'SGEGraph',
                 'PBS', 'LSF', 'SLURM', 'SLURMGraph'],
@@ -126,6 +153,14 @@ def get_parser():
         "--verbose", type=int, default=1,
         help=
             "Set the verbose level. 0=WARNING, 1=INFO, 2 or above=DEBUG.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "-f", "--force", dest='force', action='store_true',
+        help=
+            "The pipeline will not stop if previous outputs are encountered. \n"
+            "Previous outputs will be overwritten.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -958,8 +993,11 @@ def get_parser():
     return parser
 
 
-def read_parser(parser):
-    opts = parser.parse_args()
+def read_parser(parser, args):
+    if args is None:
+        opts = parser.parse_args()
+    else:
+        opts = parser.parse_args(args)
 
     if opts.rabies_stage == 'preprocess':
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 

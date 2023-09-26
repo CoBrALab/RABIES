@@ -389,6 +389,71 @@ def flatten_list(l):
         return l
 
 
+def filter_scan_exclusion(exclusion_list, split_name):
+    # the function removes a list of scan IDs from split_name
+    
+    # exclusion_list: the input provided by the user
+    # split_name: a list of all scan IDs that were found
+    
+    import numpy as np
+    import pandas as pd
+    if os.path.isfile(os.path.abspath(exclusion_list[0])):
+        updated_split_name=[]
+        if not '.nii' in pathlib.Path(exclusion_list[0]).name:
+            # read the file as a .txt
+            exclusion_list = np.array(pd.read_csv(os.path.abspath(exclusion_list[0]), header=None)).flatten()
+        for split in split_name:
+            exclude = False
+            for scan in exclusion_list:
+                if split in scan:
+                    exclude = True
+            if not exclude:
+                updated_split_name.append(split)
+    elif exclusion_list[0]=='none':
+        updated_split_name = split_name
+    else:
+        raise ValueError(f"The --exclusion_ids {exclusion_list} input had improper format. It must the full path to a .txt or .nii files.")
+    
+    if len(updated_split_name)==0:
+        raise ValueError(f"""
+            No scans are left after scan exclusion!
+            """)
+
+    return updated_split_name
+
+
+def filter_scan_inclusion(inclusion_list, split_name):
+    # the function will update the list of scan IDs in split_name to correspond to inclusion/exclusion list
+    
+    # inclusion_list: the input provided by the user
+    # split_name: a list of all scan IDs that were found
+    
+    import numpy as np
+    import pandas as pd
+    if os.path.isfile(os.path.abspath(inclusion_list[0])):
+        updated_split_name=[]
+        if '.nii' in pathlib.Path(inclusion_list[0]).name:
+            for scan in inclusion_list:
+                updated_split_name.append(find_split(scan, split_name))
+        else:
+            # read the file as a .txt
+            inclusion_list = np.array(pd.read_csv(os.path.abspath(inclusion_list[0]), header=None)).flatten()
+            for scan in inclusion_list:
+                updated_split_name.append(find_split(scan, split_name))
+    elif inclusion_list[0]=='all':
+        updated_split_name = split_name
+    else:
+        raise ValueError(f"The --inclusion_ids {inclusion_list} input had improper format. It must the full path to a .txt or .nii files, or 'all' to keep all scans.")
+    return updated_split_name
+
+
+def find_split(scan, split_name):
+    for split in split_name:
+        if split in scan:
+            return split
+    raise ValueError(f"No previous file name is matching {scan}")
+
+
 ######################
 #FUNCTIONS TO READ WORKFLOW GRAPH
 ######################
@@ -437,3 +502,53 @@ def fill_node_dict(d, key_l, e):
         return d
     else:
         return e
+
+
+######################
+#DEBUGGING
+######################
+
+def generate_token_data(tmppath, number_scans):
+    # this function generates fake scans at low resolution for quick testing and debugging
+
+    os.makedirs(tmppath+'/inputs', exist_ok=True)
+
+    if 'XDG_DATA_HOME' in os.environ.keys():
+        rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
+    else:
+        rabies_path = os.environ['HOME']+'/.local/share/rabies'
+
+    template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
+    mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+
+    spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
+    resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
+    # generate template masks
+    resampled_mask = resample_image_spacing(sitk.ReadImage(mask), spacing)
+    array = sitk.GetArrayFromImage(resampled_mask)
+    array[array < 1] = 0
+    array[array > 1] = 1
+    binarized = sitk.GetImageFromArray(array, isVector=False)
+    binarized.CopyInformation(resampled_mask)
+    sitk.WriteImage(binarized, tmppath+'/inputs/token_mask.nii.gz')
+    array[:, :, :6] = 0
+    binarized = sitk.GetImageFromArray(array, isVector=False)
+    binarized.CopyInformation(resampled_mask)
+    sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
+
+    # generate fake scans from the template
+    array = sitk.GetArrayFromImage(resampled_template)
+    array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
+
+    for i in range(number_scans):
+        # generate anatomical scan
+        sitk.WriteImage(resampled_template, tmppath+f'/inputs/sub-token{i+1}_T1w.nii.gz')
+        # generate functional scan
+        array_4d_ = array_4d + np.random.normal(0, array_4d.mean()
+                                    / 100, array_4d.shape)  # add gaussian noise
+        sitk.WriteImage(sitk.GetImageFromArray(array_4d_, isVector=False),
+                        tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
+
+        # necessary to read matrix orientation properly at the analysis stage
+        sitk.WriteImage(copyInfo_4DImage(sitk.ReadImage(tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz'), sitk.ReadImage(tmppath
+                        + f'/inputs/sub-token{i+1}_T1w.nii.gz'), sitk.ReadImage(tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')), tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')

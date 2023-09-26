@@ -17,8 +17,18 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     split_dict, split_name_list, target_list = read_confound_workflow(conf_output, nativespace=cr_opts.nativespace_analysis)
 
-    # update split_name according to the --scan_list option
-    split_name_list = get_iterable_scan_list(analysis_opts.scan_list, split_name_list)
+    if len(split_name_list)==0:
+        raise ValueError(f"""
+            No outputs were founds from the confound correction stage. 
+            All scans may have been removed for not meeting the minimum_timepoint threshold 
+            when applying --frame_censoring. Outputs will be named empty.nii.gz if this is 
+            the case.
+            """)
+
+    # filter inclusion/exclusion lists
+    from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
+    split_name_list = filter_scan_inclusion(analysis_opts.inclusion_ids, split_name_list)
+    split_name_list = filter_scan_exclusion(analysis_opts.exclusion_ids, split_name_list)
 
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
@@ -310,6 +320,8 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
 
 
 def read_confound_workflow(conf_output, nativespace=False):
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
 
     conf_workflow_file = f'{conf_output}/rabies_confound_correction_workflow.pkl'
 
@@ -358,14 +370,25 @@ def read_confound_workflow(conf_output, nativespace=False):
 
     # don't include scans that were removed during confound correction
     corrected_split_name=[]
+    remove_list = []
     import pathlib
     for name in split_name:
         filename = pathlib.Path(split_dict[name]['cleaned_path']).name
         if 'empty' in filename:
+            remove_list.append(name)
             del split_dict[name]
         else:
             corrected_split_name.append(name)
     split_name = corrected_split_name
+
+    if len(remove_list)>0:
+        scan_list_str = ''
+        for name in remove_list:
+            scan_list_str += f'\n        - {name}'
+        log.warning(f"""
+        The following scans were not included for analysis as the file was empty: {scan_list_str}
+        This is likely due to not meeting the minimum_timepoints threshold from --frame_censoring.
+                    """)
 
     return split_dict, split_name, target_list
 

@@ -11,10 +11,10 @@ else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
 
 
-def execute_workflow():
+def execute_workflow(args=None):
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
-    opts = read_parser(parser)
+    opts = read_parser(parser, args)
 
     try: # convert the output path to absolute if not already the case
         opts.output_dir = os.path.abspath(str(opts.output_dir))
@@ -39,6 +39,13 @@ def execute_workflow():
         input = f'-> {arg} = {getattr(opts, arg)} \n'
         args += input
     log.info(args)
+
+    # inclusion/exclusion list are incompatible parameters
+    if (not opts.inclusion_ids[0]=='all') and (not opts.exclusion_ids[0]=='none'):
+        raise ValueError(f"""
+           Either an inclusion list (--inclusion_ids) or exclusion list (--exclusion_ids)
+           can be provided, not both.
+           """)
 
     if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)
@@ -72,12 +79,13 @@ def execute_workflow():
 
 def prep_logging(opts, output_folder):
     cli_file = f'{output_folder}/rabies_{opts.rabies_stage}.pkl'
-    if os.path.isfile(cli_file):
+    if os.path.isfile(cli_file) and not opts.force:
         raise ValueError(f"""
             A previous run was indicated by the presence of {cli_file}.
             This can lead to inconsistencies between previous outputs and the log files.
-            To prevent this, you are required to manually remove {cli_file}, and we 
-            recommend also removing previous datasinks from the {opts.rabies_stage} RABIES step.
+            To prevent this, we recommend removing previous datasinks from the {opts.rabies_stage} 
+            RABIES stage. To continue with your execution, the {cli_file} file must be  
+            removed (use --force to automatically do so).
             """)
 
     # remove old versions of the log if already existing
