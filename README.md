@@ -58,10 +58,8 @@ The [RABIES license](https://github.com/CoBrALab/RABIES/blob/master/LICENSE) all
 ## Acknowledgements
 This software was developped by the [CoBrALab](https://cobralab.ca/), located at the Cerebral Imaging Center of the Douglas Mental Health University Institute, Montreal, Canada, in affiliation with McGill University, Montreal, Canada. This work was supported by funding from Healthy Brains, Healthy Lives (HBHL), the Fonds de recherche du Québec - Santé (FRQS) and - Nature et technologies (FRQNT), and the Natural Sciences and Engineering Research Council (NSERC) of Canada. [fMRIPrep](https://fmriprep.org/en/stable/) was an important inspirational source for this project, in particular with regards to best practices for software reproducibility and code design using Nipype. We also thank the organizers of [BrainHack School Montreal](https://school.brainhackmtl.org/), which guided the initial steps of this project in 2018.
 
-
 ## Ask for help
 If you need support in using the software or experience issues that are not documented, we'll provide support on the [Github discussion](https://github.com/CoBrALab/RABIES/discussions).
 
 ## Contributing to RABIES
-
-RABIES is under continuous development to keep up with evolving demand and ongoing research. We welcome suggestions for improvements using the [Github issue system](https://github.com/CoBrALab/RABIES/issues). If you're interested in contributing code, you can reach out on the [Github discussion](https://github.com/CoBrALab/RABIES/discussions) and we welcome contributions as pull requests.
+**Read our dedicated [documentation](https://rabies.readthedocs.io/en/latest/contributing.html)**
