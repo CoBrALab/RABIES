@@ -12,7 +12,7 @@ Mandatory BIDS specifications are:
 * `run-{run #}` is necessary for functional images if there are multiple scans per session
 
 ### Directory structure for an example dataset
-* Our [example dataset](http://doi.org/10.5281/zenodo.3937697) has the following BIDS structure:
+* Our [example dataset](http://doi.org/10.5281/zenodo.8349029) has the following BIDS structure: 
 
 <!DOCTYPE html>
 <html>
@@ -20,7 +20,7 @@ Mandatory BIDS specifications are:
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <meta name="Author" content="Made by 'tree'">
  <meta name="GENERATOR" content="$Version: $ tree v1.7.0 (c) 1996 - 2014 by Steve Baker, Thomas Moore, Francesc Rocher, Florian Sesser, Kyosuke Tokoro $">
-  <!--
+  <!-- 
   BODY { font-family : ariel, monospace, sans-serif; }
   P { font-weight: normal; font-family : ariel, monospace, sans-serif; color: black; background-color: transparent;}
   B { font-weight: normal; color: black; background-color: transparent;}
@@ -40,28 +40,31 @@ Mandatory BIDS specifications are:
   -->
 </head>
 <body>
-	<p>
-	<a href="test_dataset">test_dataset</a><br>
-	├── <a href="test_dataset/sub-MFC067/">sub-MFC067</a><br>
-	│   └── <a href="test_dataset/sub-MFC067/ses-1/">ses-1</a><br>
-	│   &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC067/ses-1/anat/">anat</a><br>
-	│   &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC067/ses-1/anat/sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC067_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	│   &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/">func</a><br>
-	│   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC067/ses-1/func/sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC067_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	└── <a href="test_dataset/sub-MFC068/">sub-MFC068</a><br>
-	&nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/">ses-1</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="test_dataset/sub-MFC068/ses-1/anat/">anat</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="test_dataset/sub-MFC068/ses-1/anat/sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz">sub-MFC068_ses-1_acq-FLASH_T1w.nii.gz</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/">func</a><br>
-	&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="test_dataset/sub-MFC068/ses-1/func/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz">sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
-	<br><br>
-	</p>
-	<p>
+        <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip">https://zenodo.org/record/8349029/preview/test_dataset.zip</a><br>
+        ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/">sub-PHG001</a><br>
+        │   └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/">ses-3</a><br>
+        │   &nbsp;&nbsp;&nbsp; ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/anat/">anat</a><br>
+        │   &nbsp;&nbsp;&nbsp; │   ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/anat/sub-PHG001_ses-3_acq-RARE_T2w.json">sub-PHG001_ses-3_acq-RARE_T2w.json</a><br>
+        │   &nbsp;&nbsp;&nbsp; │   └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/anat/sub-PHG001_ses-3_acq-RARE_T2w.nii.gz">sub-PHG001_ses-3_acq-RARE_T2w.nii.gz</a><br>
+        │   &nbsp;&nbsp;&nbsp; └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/func/">func</a><br>
+        │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/func/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold.json">sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold.json</a><br>
+        │   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG001/ses-3/func/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold.nii.gz">sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+        └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/">sub-PHG002</a><br>
+        &nbsp;&nbsp;&nbsp; └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/">ses-3</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/anat/">anat</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/anat/sub-PHG002_ses-3_acq-RARE_T2w.json">sub-PHG002_ses-3_acq-RARE_T2w.json</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; │   └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/anat/sub-PHG002_ses-3_acq-RARE_T2w.nii.gz">sub-PHG002_ses-3_acq-RARE_T2w.nii.gz</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/func/">func</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ├── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/func/sub-PHG002_ses-3_task-rest_acq-EPI_run-1_bold.json">sub-PHG002_ses-3_task-rest_acq-EPI_run-1_bold.json</a><br>
+        &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; └── <a href="https://zenodo.org/record/8349029/preview/test_dataset.zip/sub-PHG002/ses-3/func/sub-PHG002_ses-3_task-rest_acq-EPI_run-1_bold.nii.gz">sub-PHG002_ses-3_task-rest_acq-EPI_run-1_bold.nii.gz</a><br>
+        <br><br>
+        </p>
+        <p>
 
-8 directories, 4 files
-	<br><br>
-	</p>
-	<hr>
+8 directories, 8 files
+        <br><br>
+        </p>
+        <hr>
 </body>
 </html>
 
@@ -183,4 +186,11 @@ gabdesgreg/rabies:tagname -p MultiProc preprocess /input_BIDS/ /preprocess_outpu
 The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
 
 
+## Additional Resources
+
+* **Workshop and tutorial for RABIES:**
+    * [Hands-on tutorial](https://github.com/grandjeanlab/INCF_preclinical/tree/main) on RABIES presented at the INCF Neuroinformatics Assembly 2023 (in the `rabies/` folder of the repository).
+    * A workshop providing a complete software overview was [recorded and posted online](https://www.youtube.com/watch?v=LZohKlUgycc&t=2766s&ab_channel=DouglasResearchCentre) on February 2023.
+* Conversion from Bruker raw to Nifti formats can be handled with [BrkRaw](https://brkraw.github.io/) (consult [associated documentation](https://github.com/CoBrALab/documentation/wiki/bruker2nifti-conversion) from the CoBrALab)
+* [CoBrALab recommendations](https://github.com/CoBrALab/documentation/wiki/Running-RABIES-on-niagara) for using compute canada.
 
