@@ -180,6 +180,17 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
+        "--bids_filter", 
+        default={"func":{"suffix":["bold","cbv"]},"anat":{"suffix":["T1w","T2w"]}},
+        help=
+            "Allows to provide additional BIDS specifications (found within the input BIDS directory) \n"
+            "for selected a subset of functional and/or anatomical images. Takes as input a JSON file \n"
+            "containing the set of parameters for functional image under 'func' and under 'anat' for the \n"
+            "anatomical image. See online documentation for an example. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
         "--bold_only", dest='bold_only', action='store_true',
         help=
             "Apply preprocessing with only EPI scans. Commonspace registration is executed directly using\n"
@@ -1000,6 +1011,17 @@ def read_parser(parser, args):
         opts = parser.parse_args(args)
 
     if opts.rabies_stage == 'preprocess':
+        if not type(opts.bids_filter) is dict:
+            # read as a json file
+            import json
+            opts.bids_filter = json.load(open(opts.bids_filter))
+
+        if 'anat' in list(opts.bids_filter.keys()):
+            if 'subject' in list(opts.bids_filter['anat'].keys()):
+                raise ValueError("Don't provide 'subject' specifications with the structural image using --bids_filter. Manage this parameter with the functional image only.")
+            if 'session' in list(opts.bids_filter['anat'].keys()):
+                raise ValueError("Don't provide 'session' specifications with the structural image --bids_filter. Manage this parameter with the functional image only.")
+
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
                 'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
