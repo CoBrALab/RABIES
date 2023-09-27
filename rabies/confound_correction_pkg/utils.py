@@ -189,7 +189,7 @@ def select_confound_timecourses(conf_list,confounds_file,FD_file):
             aCompCor_keys = [s for s in keys if "aCompCor" in s]
             from nipype import logging
             log = logging.getLogger('nipype.workflow')
-            log.info('Applying aCompCor with '+len(aCompCor_keys)+' components.')
+            log.info('Applying aCompCor with '+str(len(aCompCor_keys))+' components.')
             conf_keys += aCompCor_keys
         elif conf == 'mean_FD':
             mean_FD = pd.read_csv(FD_file).get('Mean')
