@@ -10,7 +10,7 @@ from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
 
 
-def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, name='bold_main_wf'):
+def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
     """
     This workflow controls the functional preprocessing stages of the pipeline when both
     functional and anatomical images are provided.
@@ -146,8 +146,7 @@ def init_bold_main_wf(opts, output_folder, bold_scan_list, inho_cor_only=False, 
 
         bold_reference_wf = init_bold_reference_wf(opts=opts)
 
-        num_scan = len(bold_scan_list)
-        num_procs = min(opts.local_threads, num_scan)
+        num_procs = min(opts.local_threads, number_functional_scans)
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
 
         if opts.isotropic_HMC:

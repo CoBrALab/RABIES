@@ -133,9 +133,27 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     import bids
     bids.config.set_option('extension_initial_dot', True)
-    layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
-    split_name, scan_info, run_iter, scan_list, bold_scan_list = prep_bids_iter(
-        layout, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
+    try:
+        layout = bids.layout.BIDSLayout(data_dir_path, validate=True)
+    except Exception as e:
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
+        log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
+        layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
+
+    split_name, scan_info, run_iter, structural_scan_list, number_functional_scans = prep_bids_iter(
+        layout, opts.bids_filter, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
+    '''***details on outputs from prep_bids_iter:
+    split_name: a list of strings, providing a sensible name to distinguish each iterable, 
+        and also necessary to link up the run iterables with a specific session later.
+    scan_info: a list of dictionary including the subject ID and session # for a given 
+        iterable from split_name
+    run_iter: a list of dictionary, where the keys correspond to a session split from 
+        split_name, and the value is a list of runs for that split. This manages iterables
+        for runs.
+    structural_scan_list: the set of structural scans; used for resample_template and managing # threads
+    number_functional_scans: the number of functional scans; used for managing # threads
+    '''
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
@@ -144,8 +162,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                             ('scan_info', scan_info)]
     main_split.synchronize = True
 
-    bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=[
-                               'bold', 'cbv']), name='bold_selectfiles')
+    bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['func']),
+                               name='bold_selectfiles')
 
     # node to conver input image to consistent RAS orientation
     bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
@@ -183,11 +201,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     resample_template_node.inputs.template_file = str(opts.anat_template)
     resample_template_node.inputs.mask_file = str(opts.brain_mask)
     resample_template_node.inputs.spacing = opts.anatomical_resampling
-    resample_template_node.inputs.file_list = scan_list
+    resample_template_node.inputs.file_list = structural_scan_list
     resample_template_node.inputs.rabies_data_type = opts.data_type
 
     # calculate the number of scans that will be registered
-    num_scan = len(scan_list)
+    num_scan = len(structural_scan_list)
     num_procs = min(opts.local_threads, num_scan)
 
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
@@ -195,7 +213,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.commonspace_reg['masking'], brain_extraction=opts.commonspace_reg['brain_extraction'], template_reg=opts.commonspace_reg['template_registration'], fast_commonspace=opts.commonspace_reg['fast_commonspace'], output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, joinsource_list=['main_split'], name='commonspace_reg_wf')
 
-    bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, bold_scan_list=bold_scan_list)
+    bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, number_functional_scans=number_functional_scans)
 
     # organizing visual QC outputs
     template_diagnosis = pe.Node(Function(input_names=['anat_template', 'opts', 'out_dir', 'figure_format'],
@@ -306,8 +324,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         run_split.itersource = ('main_split', 'split_name')
         run_split.iterables = [('run', run_iter)]
 
-        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, suffix=[
-                                   'T2w', 'T1w']), name='anat_selectfiles')
+        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['anat']),
+                                   name='anat_selectfiles')
         anat_selectfiles.inputs.run = None
 
         anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
@@ -409,7 +427,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     else:
         inho_cor_bold_main_wf = init_bold_main_wf(
-            output_folder=output_folder, bold_scan_list=bold_scan_list, inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
+            output_folder=output_folder, number_functional_scans=number_functional_scans, inho_cor_only=True, name='inho_cor_bold_main_wf', opts=opts)
 
         workflow.connect([
             (resample_template_node, inho_cor_bold_main_wf, [

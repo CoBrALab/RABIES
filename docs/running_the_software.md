@@ -2,14 +2,7 @@
 
 ## Input data in BIDS standard
 
-The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/){cite}`Gorgolewski2016-zm`. RABIES will iterate through subjects and search for all available functional scans with suffix 'bold'. Anatomical scans are not necessary (`--bold_only` runs preprocessing with only functional scans), but can improve registration quality. If anatomical scans are used for preprocessing, each functional scan will be matched to one corresponding anatomical scan with suffix `T1w` or `T2w` of the same subject/session. Extra files which don't have a functional or structural suffix will be ignored.
-<br/>
-<br/>
-Mandatory BIDS specifications are:
-* `sub-{subject ID}` and `ses-{session ID}` for both functional and anatomical images
-* `bold` suffix for functional images
-* `T1w` or `T2w` for anatomical images
-* `run-{run #}` is necessary for functional images if there are multiple scans per session
+The input dataset must be organized according to the [BIDS data structure](https://bids.neuroimaging.io/){cite}`Gorgolewski2016-zm`. RABIES will iterate through all subjects found to contain a functional file (see section on BIDS filters below), and will also iterate according to sessions and runs found within each subject if available. If anatomical scans are used for preprocessing (i.e. not using `--bold_only`), each functional scan will be matched to one corresponding anatomical scan of the same subject/session (using BIDS filters for the anatomical image, see below).
 
 ### Directory structure for an example dataset
 * Our [example dataset](http://doi.org/10.5281/zenodo.8349029) has the following BIDS structure: 
@@ -67,6 +60,19 @@ Mandatory BIDS specifications are:
         <hr>
 </body>
 </html>
+
+### BIDS filters to identify functional and structural images
+By default, RABIES will use the 'bold' or 'cbv' suffix to identify functional scans and the 'T1w' or 'T2w' suffix for structural scans. Files which don't match the BIDS filters are ignored. However, the BIDS filters can also be customized with the `--bids_filter` parameter during the preprocessing stage. This can be useful for instance if the default is not enough to find the right set of scans. The custom BIDS filter must be formated into a JSON file with the functional filter under 'func' and structural filter under 'anat' (see example below for the default parameters):
+```json
+{
+    "func": {
+        "suffix":["bold","cbv"]
+    },
+    "anat": {
+        "suffix":["T1w","T2w"]
+    }
+}
+```
 
 ## Command Line Interface
 
