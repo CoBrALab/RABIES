@@ -447,7 +447,7 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
     return randomized_confounds_array
 
 
-def smooth_image(img, affine, fwhm):
+def smooth_image(img, affine, fwhm, mask_img):
     # apply nilearn's Gaussian smoothing on a SITK image
     from nilearn.image.image import _smooth_array
     from rabies.utils import copyInfo_4DImage, copyInfo_3DImage
@@ -466,12 +466,28 @@ def smooth_image(img, affine, fwhm):
         array_3d = sitk.GetArrayFromImage(img)
         arr = array_3d.transpose(2,1,0) # re-orient the array to match the affine
     smoothed_arr = _smooth_array(arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
+    
+    # smoothing creates leakage around mask boundaries
+    # correct for edge effects by dividing by the smoothed mask like FSL https://johnmuschelli.com/fslr/reference/fslsmooth.html
+    mask_arr = sitk.GetArrayFromImage(mask_img).transpose(2,1,0) # re-orient the array to match the affine
+    smoothed_mask = _smooth_array(mask_arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
+    smoothed_mask = smoothed_mask.transpose(2,1,0) # recover SITK orientation
+
+    # recover SITK img
     if dim==4:
         smoothed_arr = smoothed_arr.transpose(3,2,1,0)
+        smoothed_arr /= smoothed_mask # correct for edge effect
+        smoothed_arr *= sitk.GetArrayFromImage(mask_img) # re-apply mask
+        smoothed_arr[np.isnan(smoothed_arr)] = 0
+        
         smoothed_img = copyInfo_4DImage(sitk.GetImageFromArray(
             smoothed_arr, isVector=False), img, img)
     elif dim==3:
         smoothed_arr = smoothed_arr.transpose(2,1,0)
+        smoothed_arr /= smoothed_mask # correct for edge effect
+        smoothed_arr *= sitk.GetArrayFromImage(mask_img) # re-apply mask
+        smoothed_arr[np.isnan(smoothed_arr)] = 0
+        
         smoothed_img = copyInfo_3DImage(sitk.GetImageFromArray(
             smoothed_arr, isVector=False), img)
 
