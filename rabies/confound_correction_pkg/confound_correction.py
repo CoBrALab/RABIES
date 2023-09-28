@@ -490,7 +490,8 @@ class Regress(BaseInterface):
             '''
             import nibabel as nb
             affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
-            timeseries_img = smooth_image(timeseries_img, affine, cr_opts.smoothing_filter)
+            mask_img = sitk.ReadImage(brain_mask_file, sitk.sitkFloat32)
+            timeseries_img = smooth_image(timeseries_img, affine, cr_opts.smoothing_filter, mask_img)
 
         cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
         sitk.WriteImage(timeseries_img, cleaned_path)
