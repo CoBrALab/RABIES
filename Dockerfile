@@ -80,6 +80,6 @@ ENV XDG_DATA_HOME=${HOME}/.local/share
 RUN micromamba run -n base install_DSURQE.sh $XDG_DATA_HOME/rabies
 
 # Run a basic test
-RUN micromamba run -n base error_check_rabies.py
+RUN micromamba run -n base error_check_rabies.py --complete
 
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "rabies"]
