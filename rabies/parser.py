@@ -457,7 +457,8 @@ def get_parser():
     g_stc.add_argument(
         '--TR', type=str, default='auto',
         help=
-            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2)\n"
+            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2). 'auto' will read the TR from \n"
+            "the nifti header. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -659,7 +660,8 @@ def get_parser():
     confound_correction.add_argument(
         '--TR', type=str, default='auto',
         help=
-            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2)\n"
+            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2). 'auto' will read the TR from \n"
+            "the nifti header. \n"
             "(default: %(default)s)\n"
             "\n"
         )
