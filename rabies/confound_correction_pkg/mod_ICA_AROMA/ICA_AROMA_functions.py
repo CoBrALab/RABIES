@@ -105,9 +105,8 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
     try:
         aromafunc.runICA(fslDir, inFile, outDir, melDir, mask, dim, TR, random_seed=random_seed)
         melIC = os.path.join(outDir, 'melodic_IC_thr.nii.gz')
-    except:
-        print('MELODIC FAILED. RETURNING EMPTY FILES.')
-        return False, False
+    except Exception as e:
+        raise ValueError(f"MELODIC FAILED DURING ICA-AROMA: {e}")
 
     print('Step 2) Automatic classification of the components')
 
