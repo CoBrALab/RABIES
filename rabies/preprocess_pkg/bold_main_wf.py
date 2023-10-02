@@ -1,5 +1,5 @@
 from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu, afni
+from nipype.interfaces import utility as niu
 
 from .hmc import init_bold_hmc_wf,EstimateMotionParams
 from .bold_ref import init_bold_reference_wf
@@ -8,7 +8,7 @@ from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
-
+from .utils import apply_despike
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
     """
@@ -193,9 +193,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ])
 
         if opts.apply_despiking:
-            despike = pe.Node(
-                afni.Despike(outputtype='NIFTI_GZ'),
-                name='despike')
+            despike = pe.Node(Function(input_names=['in_file'],
+                                                        output_names=['out_file'],
+                                                        function=apply_despike),
+                                            name='despike')
             workflow.connect([
                 (inputnode, despike, [('bold', 'in_file')]),
                 (despike, boldbuffer, [('out_file', 'bold_file')]),
