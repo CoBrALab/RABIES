@@ -764,19 +764,6 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--scan_list', type=str,
-        nargs="*",  # 0 or more values expected => creates a list
-        default=['all'],
-        help=
-            "This option offers to run the analysis on a subset of the scans. The scans are selected by\n"
-            "providing the full path to the corresponding EPI file in the input BIDS folder. The list \n"
-            "of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz \n"
-            "scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row.\n"
-            "By default, 'all' will use all the scans previously processed.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    analysis.add_argument(
         '--prior_maps', action='store', type=Path,
         default=f"{rabies_path}/melodic_IC.nii.gz",
         help=
