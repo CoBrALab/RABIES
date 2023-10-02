@@ -71,6 +71,16 @@ RUN micromamba install -y -n base -f $RABIES/rabies_environment.yml && \
     micromamba run -n base pip install -e $RABIES && \
     micromamba clean --all --yes
 
+# FSL conda packages don't properly setup FSL, do it manually
+ENV FSLDIR=/opt/conda
+ENV FSLWISH=/opt/conda/bin/fslwish
+ENV FSLTCLSH=/opt/conda/bin/fsltclsh
+ENV FSLMULTIFILEQUIT=TRUE
+ENV FSL_LOAD_NIFTI_EXTENSIONS=0
+ENV FSLGECUDAQ=
+ENV FSL_SKIP_GLOBAL=0
+ENV FSLOUTPUTTYPE=NIFTI_GZ
+
 # adding 'agg' as default backend to avoid matplotlib errors
 ENV MPLBACKEND agg
 
