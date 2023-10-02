@@ -520,6 +520,7 @@ def generate_token_data(tmppath, number_scans):
 
     template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
     mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+    melodic_file = f"{rabies_path}/melodic_IC.nii.gz"
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
@@ -539,13 +540,21 @@ def generate_token_data(tmppath, number_scans):
     # generate fake scans from the template
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
+    
+    melodic_img = sitk.ReadImage(melodic_file)
+    network1_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,5], resampled_template))
+    network2_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,19], resampled_template))
+    time1 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
+    time2 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
+    # creating fake network timeseries
+    network1_time = (np.repeat(network1_map[np.newaxis, :, :, :], 15, axis=0).T*time1).T
+    network2_time = (np.repeat(network2_map[np.newaxis, :, :, :], 15, axis=0).T*time2).T
 
     for i in range(number_scans):
         # generate anatomical scan
         sitk.WriteImage(resampled_template, tmppath+f'/inputs/sub-token{i+1}_T1w.nii.gz')
         # generate functional scan
-        array_4d_ = array_4d + np.random.normal(0, array_4d.mean()
-                                    / 100, array_4d.shape)  # add gaussian noise
+        array_4d_ = array_4d + network1_time + network2_time + np.random.normal(0, array_4d.mean()/ 100, array_4d.shape)  # add gaussian noise; scale is 1% of the mean intensity of the template
         sitk.WriteImage(sitk.GetImageFromArray(array_4d_, isVector=False),
                         tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
 
