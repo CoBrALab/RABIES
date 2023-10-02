@@ -4,11 +4,10 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
-from nipype.interfaces.afni import Autobox
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, resample_template
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, resample_template, apply_autobox
 from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
@@ -175,8 +174,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                         name="format_bold_buffer")
 
     if opts.bold_autobox: # apply AFNI's 3dAutobox
-        bold_autobox = pe.Node(Autobox(padding=1, outputtype='NIFTI_GZ'),
-                                name="bold_autobox")
+        bold_autobox = pe.Node(Function(input_names=['in_file'],
+                                                    output_names=['out_file'],
+                                                    function=apply_autobox),
+                                        name='bold_autobox')
         workflow.connect([
             (bold_convert_to_RAS_node, bold_autobox, [
                 ('RAS_file', 'in_file'),
@@ -337,8 +338,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                             name="format_anat_buffer")
 
         if opts.anat_autobox: # apply AFNI's 3dAutobox
-            anat_autobox = pe.Node(Autobox(padding=1, outputtype='NIFTI_GZ'),
-                                    name="anat_autobox")
+            anat_autobox = pe.Node(Function(input_names=['in_file'],
+                                                        output_names=['out_file'],
+                                                        function=apply_autobox),
+                                            name='anat_autobox')
             workflow.connect([
                 (anat_convert_to_RAS_node, anat_autobox, [
                     ('RAS_file', 'in_file'),

@@ -172,6 +172,17 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
+def apply_autobox(in_file):
+    import pathlib
+    import os
+    from rabies.utils import run_command
+    split = pathlib.Path(in_file).name.rsplit(".nii")[0]
+    out_file = os.path.abspath(f"{split}_autobox.nii.gz")
+    command = f'3dAutobox -input {in_file} -prefix {out_file} -npad 1'
+    rc = run_command(command)
+    return out_file
+
+
 def convert_to_RAS(img_file, out_dir=None):
     # convert the input image to the RAS orientation convention
     import os
