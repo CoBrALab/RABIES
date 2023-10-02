@@ -104,7 +104,7 @@ process = subprocess.run(
 command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true --commonspace_reg masking=true,brain_extraction=true,fast_commonspace=true,template_registration=no_reg --data_type int16  \
-    --HMC_option 0"
+    --HMC_option 0 --oblique2card"
 process = subprocess.run(
     command,
     check=True,

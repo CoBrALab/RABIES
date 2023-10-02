@@ -216,6 +216,15 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
+        '--oblique2card', dest='oblique2card', action='store_true',
+        help=
+            "Applies AFNI's 3dWarp -oblique2card on all structural and functional data to \n"
+            "convert oblique data to cartesian (see https://github.com/CoBrALab/RABIES/issues/160). \n"
+            "WARNING: this is modifying the original data by resampling on a new grid, only apply if necessary. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )    
+    preprocess.add_argument(
         '--apply_despiking', dest='apply_despiking', action='store_true',
         help=
             "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"

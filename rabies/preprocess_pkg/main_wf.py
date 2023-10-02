@@ -8,7 +8,7 @@ from nipype.interfaces.afni import Autobox
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, resample_template
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, convert_oblique2card, resample_template
 from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
@@ -171,6 +171,26 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                 function=convert_to_RAS),
                                        name='bold_convert_to_RAS')
 
+    if opts.oblique2card:
+        bold_oblique2card_node = pe.Node(Function(input_names=['input'],
+                                                    output_names=['output'],
+                                                    function=convert_oblique2card),
+                                        name='bold_oblique2card')
+        workflow.connect([
+            (bold_selectfiles, bold_oblique2card_node, [
+                ('out_file', 'input'),
+                ]),
+            (bold_oblique2card_node, bold_convert_to_RAS_node, [
+                ('output', 'img_file'),
+                ]),
+            ])
+    else:
+        workflow.connect([
+            (bold_selectfiles, bold_convert_to_RAS_node, [
+                ('out_file', 'img_file'),
+                ]),
+            ])
+
     format_bold_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_bold']),
                                         name="format_bold_buffer")
 
@@ -242,9 +262,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     workflow.connect([
         (main_split, bold_selectfiles, [
             ("scan_info", "scan_info"),
-            ]),
-        (bold_selectfiles, bold_convert_to_RAS_node, [
-            ('out_file', 'img_file'),
             ]),
         (bold_selectfiles, outputnode, [
             ('out_file', 'input_bold'),
@@ -333,6 +350,26 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                     function=convert_to_RAS),
                                            name='anat_convert_to_RAS')
 
+        if opts.oblique2card:
+            anat_oblique2card_node = pe.Node(Function(input_names=['input'],
+                                                        output_names=['output'],
+                                                        function=convert_oblique2card),
+                                            name='anat_oblique2card')
+            workflow.connect([
+                (anat_selectfiles, anat_oblique2card_node, [
+                    ('out_file', 'input'),
+                    ]),
+                (anat_oblique2card_node, anat_convert_to_RAS_node, [
+                    ('output', 'img_file'),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (anat_selectfiles, anat_convert_to_RAS_node, [
+                    ('out_file', 'img_file'),
+                    ]),
+                ])
+
         format_anat_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_anat']),
                                             name="format_anat_buffer")
 
@@ -366,8 +403,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             (run_split, bold_selectfiles, [
                 ("run", "run"),
                 ]),
-            (anat_selectfiles, anat_convert_to_RAS_node,
-             [("out_file", "img_file")]),
             (format_anat_buffer, anat_inho_cor_wf, [
                 ("formatted_anat", "inputnode.target_img"),
                 ("formatted_anat", "inputnode.name_source"),
