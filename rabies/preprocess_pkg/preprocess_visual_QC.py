@@ -51,7 +51,7 @@ class PlotOverlap(BaseInterface):
             filename_template+f'_registration.png'
 
         command = f'{script_path} {self.inputs.moving} {self.inputs.fixed} {out_name}'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
         setattr(self, 'out_figure', out_name)
         return runtime

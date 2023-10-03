@@ -172,6 +172,29 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
+###WRAPPERS FOR AFNI'S FUNCTIONS; NECESSARY TO PREVENT ISSUES WHEN READING INPUTS/OUTPUTS FROM WORKFLOW GRAPH
+
+def apply_despike(in_file):
+    import pathlib
+    import os
+    from rabies.utils import run_command
+    split = pathlib.Path(in_file).name.rsplit(".nii")[0]
+    out_file = os.path.abspath(f"{split}_despike.nii.gz")
+    command = f'3dDespike -prefix {out_file} {in_file}'
+    rc,c_out = run_command(command)
+    return out_file
+
+def apply_autobox(in_file):
+    import pathlib
+    import os
+    from rabies.utils import run_command
+    split = pathlib.Path(in_file).name.rsplit(".nii")[0]
+    out_file = os.path.abspath(f"{split}_autobox.nii.gz")
+    command = f'3dAutobox -input {in_file} -prefix {out_file} -npad 1'
+    rc,c_out = run_command(command)
+    return out_file
+
+
 def convert_to_RAS(img_file, out_dir=None):
     # convert the input image to the RAS orientation convention
     import os
@@ -241,7 +264,7 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
     # also resample the brain mask to ensure stable registrations further down
     resampled_mask = os.path.abspath("resampled_mask.nii.gz")
     command = f'antsApplyTransforms -d 3 -i {mask_file} -r {resampled_template} -o {resampled_mask} --verbose -n GenericLabel'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
 
     return resampled_template, resampled_mask
 

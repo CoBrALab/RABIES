@@ -208,7 +208,7 @@ class slice_applyTransforms(BaseInterface):
 
             if self.inputs.apply_motcorr:
                 command = f'antsMotionCorrStats -m {motcorr_params} -o motcorr_vol{x}.mat -t {x}'
-                rc = run_command(command)
+                rc,c_out = run_command(command)
 
                 transforms = orig_transforms+[f'motcorr_vol{x}.mat']
                 inverses = orig_inverses+[0]
@@ -245,7 +245,7 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
         interpolation = 'BSpline[5]'
 
     command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     if not os.path.isfile(output_image):
         raise ValueError(
             "Missing output image. Transform call failed: "+command)
@@ -360,19 +360,21 @@ def run_command(command, verbose = False):
         log.warning(e.output.decode("utf-8"))
         raise
 
-    out = process.stdout.decode("utf-8")
-    if not out == '':
+    c_out = process.stdout.decode("utf-8")
+    if not c_out == '':
         if verbose:
-            log.info(out)
+            log.info(c_out)
         else:
-            log.debug(out)
+            log.debug(c_out)
     if process.stderr is not None:
         if verbose:
             log.info(process.stderr)
         else:
             log.warning(process.stderr)
     rc = process.returncode
-    return rc
+    if len(c_out)>0 and c_out[-1]=='\n': # remove the extra break point, can affect string construction
+        c_out = c_out[:-1] 
+    return rc,c_out
 
 
 def flatten_list(l):
@@ -520,6 +522,7 @@ def generate_token_data(tmppath, number_scans):
 
     template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
     mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+    melodic_file = f"{rabies_path}/melodic_IC.nii.gz"
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
@@ -539,13 +542,21 @@ def generate_token_data(tmppath, number_scans):
     # generate fake scans from the template
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
+    
+    melodic_img = sitk.ReadImage(melodic_file)
+    network1_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,5], resampled_template))
+    network2_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,19], resampled_template))
+    time1 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
+    time2 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
+    # creating fake network timeseries
+    network1_time = (np.repeat(network1_map[np.newaxis, :, :, :], 15, axis=0).T*time1).T
+    network2_time = (np.repeat(network2_map[np.newaxis, :, :, :], 15, axis=0).T*time2).T
 
     for i in range(number_scans):
         # generate anatomical scan
         sitk.WriteImage(resampled_template, tmppath+f'/inputs/sub-token{i+1}_T1w.nii.gz')
         # generate functional scan
-        array_4d_ = array_4d + np.random.normal(0, array_4d.mean()
-                                    / 100, array_4d.shape)  # add gaussian noise
+        array_4d_ = array_4d + network1_time + network2_time + np.random.normal(0, array_4d.mean()/ 100, array_4d.shape)  # add gaussian noise; scale is 1% of the mean intensity of the template
         sitk.WriteImage(sitk.GetImageFromArray(array_4d_, isVector=False),
                         tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
 

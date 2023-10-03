@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install a few minimal AFNI components
 RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/tgz/linux_ubuntu_16_64.tgz && \
     mkdir -p /opt/afni && \
-    tar xzvf linux_ubuntu_16_64.tgz -C /opt/afni linux_ubuntu_16_64/{libmri.so,libf2c.so,3dDespike,3dTshift,3dWarp} --strip-components=1 && \
+    tar xzvf linux_ubuntu_16_64.tgz -C /opt/afni linux_ubuntu_16_64/{libmri.so,libf2c.so,3dDespike,3dTshift,3dWarp,3dAutobox} --strip-components=1 && \
     rm -f linux_ubuntu_16_64.tgz
 ENV PATH=/opt/afni${PATH:+:$PATH}
 

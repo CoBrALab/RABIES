@@ -102,7 +102,7 @@ def slice_timing_correction(in_file, tr='auto', tpattern='alt-z', stc_axis='Y', 
 
     command = f'3dTshift -{interp_method} -prefix temp_tshift.nii.gz -tpattern {tpattern} -TR {tr} {target_file}'
     from rabies.utils import run_command
-    rc = run_command(command)
+    rc,c_out = run_command(command)
 
     tshift_img = sitk.ReadImage(
         'temp_tshift.nii.gz', rabies_data_type)
