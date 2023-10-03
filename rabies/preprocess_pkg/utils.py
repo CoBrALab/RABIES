@@ -1,7 +1,3 @@
-import os
-import pathlib
-import SimpleITK as sitk
-import numpy as np
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
