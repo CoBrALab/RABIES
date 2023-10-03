@@ -372,6 +372,8 @@ def run_command(command, verbose = False):
         else:
             log.warning(process.stderr)
     rc = process.returncode
+    if len(c_out)>0 and c_out[-1]=='\n': # remove the extra break point, can affect string construction
+        c_out = c_out[:-1] 
     return rc,c_out
 
 
