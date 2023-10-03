@@ -215,6 +215,18 @@ def convert_to_RAS(img_file, out_dir=None):
         return out_file
 
 
+def convert_oblique2card(input):
+    import pathlib
+    import os
+    from rabies.utils import run_command
+    # apply AFNI's 3dWarp to convert from oblique to cartesian
+    split = pathlib.Path(input).name.rsplit(".nii")[0]
+    output = os.path.abspath(f"{split}_2card.nii.gz")
+    command = f'3dWarp -oblique2card -prefix {output} {input}'
+    rc = run_command(command)
+    return output
+
+
 def resample_template(template_file, mask_file, file_list, spacing='inputs_defined', rabies_data_type=8):
     import os
     import SimpleITK as sitk
