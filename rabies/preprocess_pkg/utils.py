@@ -181,7 +181,7 @@ def apply_despike(in_file):
     split = pathlib.Path(in_file).name.rsplit(".nii")[0]
     out_file = os.path.abspath(f"{split}_despike.nii.gz")
     command = f'3dDespike -prefix {out_file} {in_file}'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     return out_file
 
 def apply_autobox(in_file):
@@ -191,7 +191,7 @@ def apply_autobox(in_file):
     split = pathlib.Path(in_file).name.rsplit(".nii")[0]
     out_file = os.path.abspath(f"{split}_autobox.nii.gz")
     command = f'3dAutobox -input {in_file} -prefix {out_file} -npad 1'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     return out_file
 
 
@@ -252,7 +252,7 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
     # also resample the brain mask to ensure stable registrations further down
     resampled_mask = os.path.abspath("resampled_mask.nii.gz")
     command = f'antsApplyTransforms -d 3 -i {mask_file} -r {resampled_template} -o {resampled_mask} --verbose -n GenericLabel'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
 
     return resampled_template, resampled_mask
 

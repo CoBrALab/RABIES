@@ -326,7 +326,7 @@ def install_DSURQE(log):
         from rabies.preprocess_pkg.utils import run_command
         log.info(
             "SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
-        rc = run_command(f'install_DSURQE.sh {rabies_path}', verbose=True)
+        rc,c_out = run_command(f'install_DSURQE.sh {rabies_path}', verbose=True)
 
 
 def check_binary_masks(mask):

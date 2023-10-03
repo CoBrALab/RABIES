@@ -172,7 +172,7 @@ class EstimateReferenceImage(BaseInterface):
         # denoise the resulting reference image through non-local mean denoising
         # Denoising reference image.
         command = f'DenoiseImage -d 3 -i {out_ref_fname} -o {out_ref_fname}'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
         setattr(self, 'ref_image', out_ref_fname)
 

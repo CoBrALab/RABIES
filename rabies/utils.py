@@ -208,7 +208,7 @@ class slice_applyTransforms(BaseInterface):
 
             if self.inputs.apply_motcorr:
                 command = f'antsMotionCorrStats -m {motcorr_params} -o motcorr_vol{x}.mat -t {x}'
-                rc = run_command(command)
+                rc,c_out = run_command(command)
 
                 transforms = orig_transforms+[f'motcorr_vol{x}.mat']
                 inverses = orig_inverses+[0]
@@ -245,7 +245,7 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
         interpolation = 'BSpline[5]'
 
     command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     if not os.path.isfile(output_image):
         raise ValueError(
             "Missing output image. Transform call failed: "+command)
@@ -360,19 +360,19 @@ def run_command(command, verbose = False):
         log.warning(e.output.decode("utf-8"))
         raise
 
-    out = process.stdout.decode("utf-8")
-    if not out == '':
+    c_out = process.stdout.decode("utf-8")
+    if not c_out == '':
         if verbose:
-            log.info(out)
+            log.info(c_out)
         else:
-            log.debug(out)
+            log.debug(c_out)
     if process.stderr is not None:
         if verbose:
             log.info(process.stderr)
         else:
             log.warning(process.stderr)
     rc = process.returncode
-    return rc
+    return rc,c_out
 
 
 def flatten_list(l):

@@ -29,7 +29,7 @@ def resample_mask(in_file, ref_file):
             transform_string += f"-t {transform} "
 
     command = f'antsApplyTransforms -i {in_file} {transform_string}-n GenericLabel -r {ref_file} -o {out_file}'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     return out_file
 
 

@@ -27,7 +27,7 @@ def otsu_scaling(image_file):
 
     # select a smart vmax for the image display to enhance contrast
     command = f'ThresholdImage 3 {image_file} otsu_weight.nii.gz Otsu 4'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
 
     # clip off the background
     mask = sitk.GetArrayFromImage(sitk.ReadImage('otsu_weight.nii.gz'))

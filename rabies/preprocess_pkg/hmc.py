@@ -123,7 +123,7 @@ class antsMotionCorr(BaseInterface):
         # change the name of the first iteration directory to prevent overlap of files with second iteration
         if self.inputs.second:
             command = 'mv ants_mc_tmp first_ants_mc_tmp'
-            rc = run_command(command)
+            rc,c_out = run_command(command)
 
         # make a tmp directory to store the files
         os.makedirs('ants_mc_tmp', exist_ok=True)
@@ -212,7 +212,7 @@ class antsMotionCorr(BaseInterface):
                 raise ValueError("No smoothing coefficient was found.")
         else:
             raise ValueError("Wrong moreaccurate provided.")
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
         setattr(self, 'csv_params', os.path.abspath('ants_mc_tmp/motcorrMOCOparams.csv'))
         setattr(self, 'mc_corrected_bold', os.path.abspath('ants_mc_tmp/motcorr.nii.gz'))
@@ -395,14 +395,14 @@ class EstimateMotionParams(BaseInterface):
         # first the voxelwise positioning map
         command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.raw_brain_mask} \
                     -d {self.inputs.raw_bold}'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
         pos_voxelwise = os.path.abspath(
             f"{filename_split[0]}_pos_file.nii.gz")
 
         # then the voxelwise framewise displacement map
         command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.raw_brain_mask} \
                     -d {self.inputs.raw_bold} -f 1'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
         FD_voxelwise = os.path.abspath(f"{filename_split[0]}_FD_file.nii.gz")
