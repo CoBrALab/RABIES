@@ -15,5 +15,5 @@ analysis.md
 analysis_QC.md
 outputs.md
 metrics.md
-additional.md
+contributing.md
 bibliography.md
