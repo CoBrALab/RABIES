@@ -151,7 +151,7 @@ process = subprocess.run(
 if opts.complete:
     ####CONFOUND CORRECTION####
     command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs \
-        --generate_CR_null --timeseries_interval 0,5 --TR 1 --scale_variance_voxelwise \
+        --generate_CR_null --timeseries_interval 2,12 --TR 1 --scale_variance_voxelwise \
         --smoothing_filter 0.3 --detrending_order quadratic --image_scaling global_variance "
     process = subprocess.run(
         command,
@@ -168,7 +168,7 @@ if opts.complete:
         )
 
     # testing AROMA on its own to retain degrees of freedom
-    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --ica_aroma apply=true,dim=0,random_seed=1"
+    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --ica_aroma apply=true,dim=2,random_seed=1"
     process = subprocess.run(
         command,
         check=True,
