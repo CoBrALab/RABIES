@@ -15,7 +15,8 @@ import numpy as np
 def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melDir="",dim=0,overwrite=False, random_seed=1):
     ###additional function for the execution of ICA_AROMA within RABIES
     import os
-    import subprocess
+    #import subprocess
+    from rabies.utils import run_command
     import shutil
     import rabies.confound_correction_pkg.mod_ICA_AROMA.classification_plots as classification_plots
     import rabies.confound_correction_pkg.mod_ICA_AROMA.ICA_AROMA_functions as aromafunc
@@ -86,7 +87,8 @@ def run_ICA_AROMA(outDir,inFile,mc,TR,mask="",mask_csf="",denType="nonaggr",melD
         cmd = ' '.join([os.path.join(fslDir, 'fslinfo'),
                         inFile,
                         '| grep pixdim4 | awk \'{print $2}\''])
-        TR = float(subprocess.getoutput(cmd))
+        rc,c_out = run_command(cmd)
+        TR = float(c_out)
 
     # Check TR
     if TR == 0:
@@ -170,7 +172,8 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
 
     # Import needed modules
     import os
-    import subprocess
+    #import subprocess
+    from rabies.utils import run_command
 
     # Define the 'new' MELODIC directory and predefine some associated files
     melDir = os.path.join(outDir, 'melodic.ica')
@@ -201,7 +204,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
                            os.path.join(melDir, item))
 
             # Run mixture modeling
-            os.system(' '.join([os.path.join(fslDir, 'melodic'),
+            run_command(' '.join([os.path.join(fslDir, 'melodic'),
                                 '--in=' + melIC,
                                 '--ICs=' + melIC,
                                 '--mix=' + melICmix,
@@ -217,7 +220,7 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
                 print('  - The specified MELODIC directory does not contain the required files to run ICA-AROMA. MELODIC will be run seperately.')
 
         # Run MELODIC
-        os.system(' '.join([os.path.join(fslDir, 'melodic'),
+        run_command(' '.join([os.path.join(fslDir, 'melodic'),
                             '--in=' + inFile,
                             '--outdir=' + melDir,
                             '--mask=' + mask,
@@ -229,7 +232,8 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
     cmd = ' '.join([os.path.join(fslDir, 'fslinfo'),
                     melIC,
                     '| grep dim4 | head -n1 | awk \'{print $2}\''])
-    nrICs = int(float(subprocess.getoutput(cmd)))
+    rc,c_out = run_command(cmd)
+    nrICs = int(float(c_out))
 
     # Merge mixture modeled thresholded spatial maps. Note! In case that mixture modeling did not converge, the file will contain two spatial maps. The latter being the results from a simple null hypothesis test. In that case, this map will have to be used (first one will be empty).
     for i in range(1, nrICs + 1):
@@ -238,32 +242,34 @@ def runICA(fslDir, inFile, outDir, melDirIn, mask, dim, TR, random_seed):
         cmd = ' '.join([os.path.join(fslDir, 'fslinfo'),
                         zTemp,
                         '| grep dim4 | head -n1 | awk \'{print $2}\''])
-        lenIC = int(float(subprocess.getoutput(cmd)))
+        rc,c_out = run_command(cmd)
+        lenIC = int(float(c_out))
 
         # Define zeropad for this IC-number and new zstat file
         cmd = ' '.join([os.path.join(fslDir, 'zeropad'),
                         str(i),
                         '4'])
-        ICnum = subprocess.getoutput(cmd)
+        rc,c_out = run_command(cmd)
+        ICnum = c_out
         zstat = os.path.join(outDir, 'thr_zstat' + ICnum)
 
         # Extract last spatial map within the thresh_zstat file
-        os.system(' '.join([os.path.join(fslDir, 'fslroi'),
+        run_command(' '.join([os.path.join(fslDir, 'fslroi'),
                             zTemp,      # input
                             zstat,      # output
                             str(lenIC - 1),   # first frame
                             '1']))      # number of frames
 
     # Merge and subsequently remove all mixture modeled Z-maps within the output directory
-    os.system(' '.join([os.path.join(fslDir, 'fslmerge'),
+    run_command(' '.join([os.path.join(fslDir, 'fslmerge'),
                         '-t',                       # concatenate in time
                         melICthr,                   # output
                         os.path.join(outDir, 'thr_zstat????.nii.gz')]))  # inputs
 
-    os.system('rm ' + os.path.join(outDir, 'thr_zstat????.nii.gz'))
+    run_command('rm ' + os.path.join(outDir, 'thr_zstat????.nii.gz'))
 
     # Apply the mask to the merged file (in case a melodic-directory was predefined and run with a different mask)
-    os.system(' '.join([os.path.join(fslDir, 'fslmaths'),
+    run_command(' '.join([os.path.join(fslDir, 'fslmaths'),
                         melICthr,
                         '-mas ' + mask,
                         melICthr]))
@@ -531,10 +537,13 @@ def mod_feature_spatial(fslDir, tempDir, melIC, mask_csf, mask_edge, mask_out):
     # Import required modules
     import numpy as np
     import os
-    import subprocess
+    #import subprocess
+    from rabies.utils import run_command
 
     # Get the number of ICs
-    numICs = int(subprocess.getoutput('%sfslinfo %s | grep dim4 | head -n1 | awk \'{print $2}\'' % (fslDir, melIC) ))
+    cmd = '%sfslinfo %s | grep dim4 | head -n1 | awk \'{print $2}\'' % (fslDir, melIC)
+    rc,c_out = run_command(cmd)
+    numICs = int(c_out)
 
     # Loop over ICs
     edgeFract = np.zeros(numICs)
@@ -544,27 +553,31 @@ def mod_feature_spatial(fslDir, tempDir, melIC, mask_csf, mask_edge, mask_out):
         tempIC = os.path.join(tempDir, 'temp_IC.nii.gz')
 
         # Extract IC from the merged melodic_IC_thr2MNI2mm file
-        os.system(' '.join([os.path.join(fslDir, 'fslroi'),
+        run_command(' '.join([os.path.join(fslDir, 'fslroi'),
                   melIC,
                   tempIC,
                   str(i),
                   '1']))
 
         # Change to absolute Z-values
-        os.system(' '.join([os.path.join(fslDir, 'fslmaths'),
+        run_command(' '.join([os.path.join(fslDir, 'fslmaths'),
                   tempIC,
                   '-abs',
                   tempIC]))
 
         # Get sum of Z-values within the total Z-map (calculate via the mean and number of non-zero voxels)
-        totVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                     tempIC,
-                                                    '-V | awk \'{print $1}\''])))
+                                                    '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        totVox = int(c_out)
 
         if not (totVox == 0):
-            totMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
-                                                           '-M'])))
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            totMean = float(c_out)
         else:
             print('     - The spatial map of component ' + str(i + 1) + ' is empty. Please check!')
             totMean = 0
@@ -572,46 +585,58 @@ def mod_feature_spatial(fslDir, tempDir, melIC, mask_csf, mask_edge, mask_out):
         totSum = totMean * totVox
 
         # Get sum of Z-values of the voxels located within the CSF (calculate via the mean and number of non-zero voxels)
-        csfVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                     tempIC,
                                                     '-k ', mask_csf,
-                                                    '-V | awk \'{print $1}\''])))
+                                                    '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        csfVox = int(c_out)
 
         if not (csfVox == 0):
-            csfMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
                                                            '-k ', mask_csf,
-                                                           '-M'])))
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            csfMean = float(c_out)
         else:
             csfMean = 0
 
         csfSum = csfMean * csfVox
 
         # Get sum of Z-values of the voxels located within the Edge (calculate via the mean and number of non-zero voxels)
-        edgeVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                      tempIC,
                                                      '-k ', mask_edge,
-                                                     '-V | awk \'{print $1}\''])))
+                                                     '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        edgeVox = int(c_out)
         if not (edgeVox == 0):
-            edgeMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                             tempIC,
                                                             '-k ', mask_edge,
-                                                            '-M'])))
+                                                            '-M'])
+            rc,c_out = run_command(cmd)
+            edgeMean = float(c_out)
         else:
             edgeMean = 0
 
         edgeSum = edgeMean * edgeVox
 
         # Get sum of Z-values of the voxels located outside the brain (calculate via the mean and number of non-zero voxels)
-        outVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                     tempIC,
                                                     '-k ', mask_out,
-                                                    '-V | awk \'{print $1}\''])))
+                                                    '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        outVox = int(c_out)
         if not (outVox == 0):
-            outMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
                                                            '-k ', mask_out,
-                                                           '-M'])))
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            outMean = float(c_out)
         else:
             outMean = 0
 
@@ -654,10 +679,13 @@ def feature_spatial(fslDir, tempDir, aromaDir, melIC):
     # Import required modules
     import numpy as np
     import os
-    import subprocess
+    #import subprocess
+    from rabies.utils import run_command
 
     # Get the number of ICs
-    numICs = int(subprocess.getoutput('%sfslinfo %s | grep dim4 | head -n1 | awk \'{print $2}\'' % (fslDir, melIC) ))
+    cmd = '%sfslinfo %s | grep dim4 | head -n1 | awk \'{print $2}\'' % (fslDir, melIC)
+    rc,c_out = run_command(cmd)
+    numICs = int(c_out)
 
     # Loop over ICs
     edgeFract = np.zeros(numICs)
@@ -667,27 +695,31 @@ def feature_spatial(fslDir, tempDir, aromaDir, melIC):
         tempIC = os.path.join(tempDir, 'temp_IC.nii.gz')
 
         # Extract IC from the merged melodic_IC_thr2MNI2mm file
-        os.system(' '.join([os.path.join(fslDir, 'fslroi'),
+        run_command(' '.join([os.path.join(fslDir, 'fslroi'),
                   melIC,
                   tempIC,
                   str(i),
                   '1']))
 
         # Change to absolute Z-values
-        os.system(' '.join([os.path.join(fslDir, 'fslmaths'),
+        run_command(' '.join([os.path.join(fslDir, 'fslmaths'),
                   tempIC,
                   '-abs',
                   tempIC]))
 
         # Get sum of Z-values within the total Z-map (calculate via the mean and number of non-zero voxels)
-        totVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                     tempIC,
-                                                    '-V | awk \'{print $1}\''])))
+                                                    '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        totVox = int(c_out)
 
         if not (totVox == 0):
-            totMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
-                                                           '-M'])))
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            totMean = float(c_out)
         else:
             print('     - The spatial map of component ' + str(i + 1) + ' is empty. Please check!')
             totMean = 0
@@ -695,46 +727,58 @@ def feature_spatial(fslDir, tempDir, aromaDir, melIC):
         totSum = totMean * totVox
 
         # Get sum of Z-values of the voxels located within the CSF (calculate via the mean and number of non-zero voxels)
-        csfVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
-                                                    tempIC,
-                                                    '-k mask_csf.nii.gz',
-                                                    '-V | awk \'{print $1}\''])))
-
-        if not (csfVox == 0):
-            csfMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
                                                            '-k mask_csf.nii.gz',
-                                                           '-M'])))
+                                                           '-M'])
+        rc,c_out = run_command(cmd)
+        csfVox = int(c_out)
+
+        if not (csfVox == 0):
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
+                                                           tempIC,
+                                                           '-k mask_csf.nii.gz',
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            csfMean = float(c_out)
         else:
             csfMean = 0
 
         csfSum = csfMean * csfVox
 
         # Get sum of Z-values of the voxels located within the Edge (calculate via the mean and number of non-zero voxels)
-        edgeVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                      tempIC,
                                                      '-k mask_edge.nii.gz',
-                                                     '-V | awk \'{print $1}\''])))
+                                                     '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        edgeVox = int(c_out)
         if not (edgeVox == 0):
-            edgeMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                             tempIC,
                                                             '-k mask_edge.nii.gz',
-                                                            '-M'])))
+                                                            '-M'])
+            rc,c_out = run_command(cmd)
+            edgeMean = float(c_out)
         else:
             edgeMean = 0
 
         edgeSum = edgeMean * edgeVox
 
         # Get sum of Z-values of the voxels located outside the brain (calculate via the mean and number of non-zero voxels)
-        outVox = int(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+        cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                     tempIC,
                                                     '-k mask_out.nii.gz',
-                                                    '-V | awk \'{print $1}\''])))
+                                                    '-V | awk \'{print $1}\''])
+        rc,c_out = run_command(cmd)
+        outVox = int(c_out)
         if not (outVox == 0):
-            outMean = float(subprocess.getoutput(' '.join([os.path.join(fslDir, 'fslstats'),
+            cmd = ' '.join([os.path.join(fslDir, 'fslstats'),
                                                            tempIC,
                                                            '-k mask_out.nii.gz',
-                                                           '-M'])))
+                                                           '-M'])
+            rc,c_out = run_command(cmd)
+            outMean = float(c_out)
         else:
             outMean = 0
 
@@ -852,6 +896,7 @@ def denoising(fslDir, inFile, outDir, melmix, denType, denIdx):
     # Import required modules
     import os
     import numpy as np
+    from rabies.utils import run_command
 
     # Check if denoising is needed (i.e. are there components classified as motion)
     check = denIdx.size > 0
@@ -866,7 +911,7 @@ def denoising(fslDir, inFile, outDir, melmix, denType, denIdx):
 
         # Non-aggressive denoising of the data using fsl_regfilt (partial regression), if requested
         if (denType == 'nonaggr') or (denType == 'both'):
-            os.system(' '.join([os.path.join(fslDir, 'fsl_regfilt'),
+            run_command(' '.join([os.path.join(fslDir, 'fsl_regfilt'),
                                 '--in=' + inFile,
                                 '--design=' + melmix,
                                 '--filter="' + denIdxStrJoin + '"',
@@ -874,7 +919,7 @@ def denoising(fslDir, inFile, outDir, melmix, denType, denIdx):
 
         # Aggressive denoising of the data using fsl_regfilt (full regression)
         if (denType == 'aggr') or (denType == 'both'):
-            os.system(' '.join([os.path.join(fslDir, 'fsl_regfilt'),
+            run_command(' '.join([os.path.join(fslDir, 'fsl_regfilt'),
                                 '--in=' + inFile,
                                 '--design=' + melmix,
                                 '--filter="' + denIdxStrJoin + '"',

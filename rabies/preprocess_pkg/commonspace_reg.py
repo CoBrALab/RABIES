@@ -515,7 +515,7 @@ class GenerateTemplate(BaseInterface):
         template_folder = self.inputs.output_folder
 
         command = f'mkdir -p {template_folder}'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
         merged = flatten_list(list(self.inputs.moving_image_list))
         # create a csv file of the input image list
@@ -580,13 +580,13 @@ class GenerateTemplate(BaseInterface):
         # for an intermediate modelbuild step and include --close and --initial-transform to the registration.
         # To avoid this, the template file is renamed to another generic filename. 
         command = f'cp {self.inputs.template_anat} {template_folder}/modelbuild_starting_target.nii.gz'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
         log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine,nlin \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
-        rc = run_command(command)
+        rc,c_out = run_command(command)
 
 
         unbiased_template = template_folder + \

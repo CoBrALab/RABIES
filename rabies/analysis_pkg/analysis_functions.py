@@ -26,7 +26,7 @@ def seed_based_FC(dict_file, seed_dict, seed_name):
     seed_file = seed_dict[seed_name]
     resampled = os.path.abspath('resampled.nii.gz')
     command=f'antsApplyTransforms -i {seed_file} -r {mask_file} -o {resampled} -n GenericLabel'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     roi_mask = sitk.GetArrayFromImage(sitk.ReadImage(resampled))[volume_indices].astype(bool)
 
     # extract the voxel timeseries within the mask, and take the mean ROI timeseries
@@ -139,7 +139,7 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
     from rabies.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
     command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)}'
-    rc = run_command(command)
+    rc,c_out = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file
 

@@ -393,27 +393,6 @@ def read_confound_workflow(conf_output, nativespace=False):
     return split_dict, split_name, target_list
 
 
-def get_iterable_scan_list(scan_list, split_name):
-    # prep the subset of scans on which the analysis will be run
-    import numpy as np
-    import pandas as pd
-    if os.path.isfile(os.path.abspath(scan_list[0])):
-        updated_split_name=[]
-        if '.nii' in pathlib.Path(scan_list[0]).name:
-            for scan in scan_list:
-                updated_split_name.append(find_split(scan, split_name))
-        else:
-            # read the file as a .txt
-            scan_list = np.array(pd.read_csv(os.path.abspath(scan_list[0]), header=None)).flatten()
-            for scan in scan_list:
-                updated_split_name.append(find_split(scan, split_name))
-    elif scan_list[0]=='all':
-        updated_split_name = split_name
-    else:
-        raise ValueError(f"The --scan_list {scan_list} input had improper format. It must the full path to a .txt or .nii files, or 'all' to keep all scans.")
-    return updated_split_name
-
-
 def find_split(scan, split_name):
     for split in split_name:
         if split in scan:
