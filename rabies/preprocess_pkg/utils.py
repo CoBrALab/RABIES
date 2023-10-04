@@ -219,6 +219,7 @@ def correct_oblique_affine(input):
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
 
+    import numpy as np
     import nibabel as nb
     img = nb.load(input)
     # check if the image is oblique
