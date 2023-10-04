@@ -216,11 +216,16 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        '--oblique2card', dest='oblique2card', action='store_true',
+        "--oblique2card", type=str, default='none',
+        choices=['none', 'affine', '3dWarp'],
         help=
-            "Applies AFNI's 3dWarp -oblique2card on all structural and functional data to \n"
-            "convert oblique data to cartesian (see https://github.com/CoBrALab/RABIES/issues/160). \n"
-            "WARNING: this is modifying the original data by resampling on a new grid, only apply if necessary. \n"
+            "Correct for oblique coordinates on all structural and functional data. \n"
+            "   WARNING: these corrections are suboptimal, and may alter the data. Only apply if necessary. \n"
+            "\n"
+            "affine: only the affine matrix is changed to cardinal axes. \n"
+            "\n"
+            "3dWarp: Applies AFNI's 3dWarp -oblique2card. This involves resampling the \n"
+            "data on a new isotropic grid.\n"
             "(default: %(default)s)\n"
             "\n"
         )    

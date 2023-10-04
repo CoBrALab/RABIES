@@ -215,7 +215,41 @@ def convert_to_RAS(img_file, out_dir=None):
         return out_file
 
 
-def convert_oblique2card(input):
+def correct_oblique_affine(input):
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
+
+    import nibabel as nb
+    img = nb.load(input)
+    # check if the image is oblique
+    if (nb.affines.obliquity(img.affine)!=0).sum()==0:
+        # no axis is oblique, thus don't apply correction
+        log.info(f"The file {input} is not oblique. No corrections applied.")
+        return input
+    
+    log.info(f"The file {input} is considered oblique. The affine matrix is modified.")
+    # nb.affines.obliquity assumes the largest dimension is the one that should correspond to voxel size
+    aff = img.affine
+    new_aff = np.zeros([4,4])
+    vs = nb.affines.voxel_sizes(aff)
+    vs_ratio = np.abs(aff[:-1, :-1] / vs)
+    for ax in [0,1,2]:
+        idx = np.where(vs_ratio[:,ax]==vs_ratio[:,ax].max())[0][0]
+        new_aff[idx,ax]=vs[ax]*np.sign(aff[idx,ax])
+        
+    # copy 4th row/column
+    new_aff[3,:] = aff[3,:]
+    new_aff[:,3] = aff[:,3]
+
+    import pathlib
+    import os
+    split = pathlib.Path(input).name.rsplit(".nii")[0]
+    output = os.path.abspath(f"{split}_2card.nii.gz")
+    nb.Nifti1Image(img.dataobj, new_aff, img.header).to_filename(output)
+    return output
+
+
+def convert_3dWarp(input):
     import pathlib
     import os
     from rabies.utils import run_command

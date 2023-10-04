@@ -7,7 +7,7 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, convert_oblique2card, apply_autobox, resample_template
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
 from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
@@ -170,10 +170,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                 function=convert_to_RAS),
                                        name='bold_convert_to_RAS')
 
-    if opts.oblique2card:
+    if not opts.oblique2card=='none':
+        if opts.oblique2card=='3dWarp':
+            correct_oblique=convert_3dWarp
+        elif opts.oblique2card=='affine':
+            correct_oblique=correct_oblique_affine
         bold_oblique2card_node = pe.Node(Function(input_names=['input'],
                                                     output_names=['output'],
-                                                    function=convert_oblique2card),
+                                                    function=correct_oblique),
                                         name='bold_oblique2card')
         workflow.connect([
             (bold_selectfiles, bold_oblique2card_node, [
@@ -351,10 +355,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                     function=convert_to_RAS),
                                            name='anat_convert_to_RAS')
 
-        if opts.oblique2card:
+        if not opts.oblique2card=='none':
+            if opts.oblique2card=='3dWarp':
+                correct_oblique=convert_3dWarp
+            elif opts.oblique2card=='affine':
+                correct_oblique=correct_oblique_affine
             anat_oblique2card_node = pe.Node(Function(input_names=['input'],
                                                         output_names=['output'],
-                                                        function=convert_oblique2card),
+                                                        function=correct_oblique),
                                             name='anat_oblique2card')
             workflow.connect([
                 (anat_selectfiles, anat_oblique2card_node, [
