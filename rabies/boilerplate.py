@@ -13,7 +13,7 @@ def preprocess_boilerplate(opts):
     i=1
 
     # define references
-    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2022). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
+    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2023). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
     afni='Cox, R. W. (1996). AFNI: software for analysis and visualization of functional \
 magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-173.'
     avants_2011='Avants, B. B., Tustison, N. J., Song, G., Cook, P. A., Klein, A., & Gee, J. C. (2011). A reproducible evaluation of ANTs similarity metric performance in brain image registration. NeuroImage, 54(3), 2033–2044.'
@@ -66,26 +66,22 @@ higher anatomical contrast. Otherwise, a"
 
     # common space alignment
     if not opts.bold_only:
-        reg_image='structural images, which were acquired along the EPI scans,'
+        reg_image='structural images'
     else:
         reg_image='volumetric EPI scans'
-    methods+=f"To conduct common space alignment, {reg_image} are initially corrected for \
+    methods+=f"To derive an alignment to common space, {reg_image} are initially corrected for \
 inhomogeneities and "
     if not opts.commonspace_reg['fast_commonspace']:
         references[avants_2011]=i
         i+=1
-        methods+=f"then registered together to allow the alignment of different MRI acquisitions. This registration is conducted by generating \
-an unbiased data-driven template through the iterative nonlinear registration of each image to the dataset consensus average, where the average \
-gets updated at each iteration to provide an increasingly representative dataset template \
-(https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction) [{references[avants_2011]}]. The finalized template after the last \
-iteration provides a representative alignment of each MRI session to a template that shares the acquisition properties of the dataset \
-(e.g. brain shape, FOV, anatomical contrast, ...), which makes it a stable registration target for cross-subject alignment. After aligning the MRI \
-sessions, this newly-generated unbiased template is then itself registered, using a {define_registration(opts.commonspace_reg['template_registration'])} registration, to an external reference atlas to provide both an anatomical segmentation \
-and a common space comparable across studies defined from the provided reference atlas."
+        methods+=f"then registered together to allow the alignment of different acquisition sessions. This is done by generating \
+an unbiased data-driven template through the iterative nonlinear registration of each image to a dataset average, where the average \
+is improved at each iteration \
+(https://github.com/CoBrALab/optimized_antsMultivariateTemplateConstruction) [{references[avants_2011]}]. After aligning the acquisition \
+sessions, this newly-generated unbiased template is then itself registered, using a {define_registration(opts.commonspace_reg['template_registration'])} registration, to an external reference atlas."
     else:
         # Fast commonspace alignment
-        methods+=f"then registered individually to an external reference atlas, with a {define_registration(opts.commonspace_reg['template_registration'])} registration, to \
-provide both an anatomical segmentation and a common space comparable across studies defined from the provided reference atlas. "
+        methods+=f"then aligned individually to an external reference atlas using a {define_registration(opts.commonspace_reg['template_registration'])} registration. "
 
     # STC
     if opts.apply_STC:
@@ -118,7 +114,7 @@ concatenated into a single resampling operation (avoiding multiple resampling) w
 using a {define_registration(opts.bold2anat_coreg['registration'])} registration to the anatomical scan from the same MRI session, which allows to calculate the required \
 geometrical transforms for recovering brain anatomy [{references[sdc_nonlinear]}]. "
         else:
-            sdc_str="[NO SUSCEPTIBILITY DISTORTION CORRECTION CONDUCTED]"
+            sdc_str="[NO SUSCEPTIBILITY DISTORTION CORRECTION CONDUCTED] "
 
         references[fmriprep]=i
         i+=1
@@ -142,7 +138,7 @@ the registration to common space, the preprocessed timeseries are resampled to c
     methods+=sdc_str
     methods+=resampling_str
 
-    ref_string=''
+    ref_string='\n'
     for key in references.keys():
         ref_string+=f"[{references[key]}] {key} \n"
     return methods,ref_string
@@ -154,7 +150,7 @@ def confound_correction_boilerplate(opts):
     i=1
 
     # define references
-    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2022). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
+    rabies_ref='Desrosiers-Gregoire, G., Devenyi, G. A., Grandjean, J., & Chakravarty, M. M. (2023). Rodent Automated Bold Improvement of EPI Sequences (RABIES): A standardized image processing and data quality platform for rodent fMRI. bioRxiv.'
     aroma='Pruim, R. H., Mennes, M., van Rooij, D., Llera, A., Buitelaar, J. K., & Beckmann, C. F. (2015). ICA-AROMA: A robust ICA-based strategy for removing motion artifacts from fMRI data. Neuroimage, 112, 267-277.'
     Lindquist='Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce artifacts into fMRI data. Human Brain Mapping, 40(8), 2358–2376.'
     mathias='Mathias, A., Grond, F., Guardans, R., Seese, D., Canela, M., & Diebner, H. H. (2004). Algorithms for spectral analysis of irregularly sampled time series. Journal of Statistical Software, 11(1), 1–27.'
@@ -191,6 +187,10 @@ def confound_correction_boilerplate(opts):
                 i+=1
             methods+=f"Using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal, timepoints presenting outlier DVARS values, characteristic of confounds, were removed. \
 This was conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
+        if opts.match_number_timepoints:
+            methods+=f"Following censoring, only a total of {opts.frame_censoring['minimum_timepoint']} frames was retained in each scan through random selection among the remaining frames. This was done \
+to enforce equal degrees of freedom across scans despite an inconsistent number of frames removed through censoring. "
+
         methods+="Next, "
     else:
         methods+="First, "
@@ -234,13 +234,10 @@ before classification. "
             i+=1
             references[mathias]=i
             i+=1
-            methods+=f"Next, frequency filtering requires particular considerations when frame censoring was \
-previously applied, which results in missing timepoints. Conventional filters cannot account for missing data, \
-and to address this issue, Power and colleagues introduced a method for simulating missing timepoints [{references[power2014]}]. \
-This method relies on an adaptation of the Lomb-Scargle periodogram, which allows estimating the frequency composition of \
-timeseries with missing data points, and from that estimation, missing timepoints can be simulated while preserving the \
-frequency profile [{references[mathias]}]. Missing data is thereby simulated with preserved frequency properties for both \
-BOLD timeseries and nuisance regressors prior to frequency filtering. "
+            methods+=f"To apply frequency filters despite missing data points (i.e. following the frame censoring step), \
+missing data was simulated based on a method introduced by Power and colleagues, where data is simulated \
+using the Lomb-Scargle periodogram to preserve the frequency profile of the timeseries before applying \
+the filters[{references[power2014]},{references[mathias]}]. "
 
             methods+=f"Following the simulation, "
         else:
@@ -250,8 +247,7 @@ BOLD timeseries and nuisance regressors prior to frequency filtering. "
             references[power2014]=i
             i+=1
         methods+=f"{filter} filtering({freq}Hz) was applied using a 3rd-order Butterworth filter, and {opts.edge_cutoff} seconds \
-is removed at each edge of the timeseries to account for edge artefacts following filtering [{references[power2014]}]. The removal \
-of 30 seconds and the use of a 3rd order filter was selected based on the visualization of edge artefacts with simulated data. "
+is removed at each edge of the timeseries to account for edge artefacts following filtering [{references[power2014]}]. "
 
         if len(opts.conf_list) > 0:
             references[Lindquist]=i
@@ -310,18 +306,23 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
         if len(str_list)>1:
             conf_list_str+=f' and {str_list[-1]}'
 
-
         methods+=f"Selected nuisance regressors were then used for confound regression. More specifically, using ordinary least square regression, \
 {conf_list_str} were modelled at each voxel and regressed from the data. "
 
     # variance standardization
-    if opts.image_scaling=="background_noise":
-        methods+=f"To normalize variance, each image was seperately scaled according to its background noise. "
+    if opts.image_scaling=="grand_mean_scaling":
+        methods+=f"Timeseries were converted to percent BOLD fluctuations by dividing by the grand mean signal across voxels, \
+and multiplying by 100. "
+    elif opts.image_scaling=="voxelwise_mean":
+        methods+=f"Each voxel was individually converted to percent BOLD fluctuations by dividing by the temporal mean and multiplying by 100. "
     elif opts.image_scaling=="global_variance":
         methods+=f"To normalize variance, each image was seperately scaled according to its total variance. "
     elif opts.image_scaling=="voxelwise_standardization":
         methods+=f"To normalize variance, each voxel was individually standardized to unit variance. "
-
+    if opts.scale_variance_voxelwise:
+        methods+=f"Additionally, each voxel was set to equal temporal variance while preserving the total variance of the entire image. \
+This allows to obtain a spatially-homogeneous variance distribution, and mitigate influence from confounds [{references[rabies_ref]}]. "
+        
     # Spatial smoothing
     if opts.smoothing_filter is not None:
         if not nilearn in references.keys():
@@ -330,7 +331,7 @@ of 30 seconds and the use of a 3rd order filter was selected based on the visual
         methods+=f"Finally, a spatial Gaussian smoothing filter(nilearn.image.smooth_img)[{references[nilearn]}] was applied at {opts.smoothing_filter}mm full-width at half maximum (FWHM). "
 
     methods+='\n'
-    ref_string=''
+    ref_string='\n'
     for key in references.keys():
         ref_string+=f"[{references[key]}] {key} \n"
     return methods,ref_string
