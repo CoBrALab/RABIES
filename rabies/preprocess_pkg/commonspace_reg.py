@@ -1,5 +1,4 @@
 from nipype.interfaces import utility as niu
-import nipype.interfaces.ants as ants
 import nipype.pipeline.engine as pe  # pypeline engine
 from nipype.interfaces.utility import Function
 from nipype.interfaces.base import (
@@ -12,7 +11,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
@@ -111,30 +110,36 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
     workflow = pe.Workflow(name=name)
 
 
-    if fast_commonspace:
-        # if fast commonspace, then the inputs iterables are not merged
+    if fast_commonspace or inherit_unbiased:
+        # without modelbuild, the inputs iterables are not merged
         source_join_common_reg = pe.Node(niu.IdentityInterface(fields=['file_list0', 'file_list1']),
                                             name="fast_commonreg_buffer")
         merged_join_common_reg = source_join_common_reg
     else:
         workflow, source_join_common_reg, merged_join_common_reg = join_iterables(workflow=workflow, joinsource_list=joinsource_list, node_prefix='commonspace_reg', num_inputs=2)
 
-    atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
-                                    output_names=['affine', 'warp',
-                                                  'inverse_warp', 'warped_image'],
-                                    function=run_antsRegistration),
-                           name='atlas_reg', mem_gb=2*opts.scale_min_memory)
+    if inherit_unbiased:
+        # Identity node to relate inherited files to existing workflow
+        atlas_reg = pe.Node(niu.IdentityInterface(fields=['moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'affine', 'warp',
+                                                    'inverse_warp', 'warped_image']),
+                                            name="atlas_reg_inherited")
+    else:
+        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+                                        output_names=['affine', 'warp',
+                                                    'inverse_warp', 'warped_image'],
+                                        function=run_antsRegistration),
+                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
 
-    # don't use brain extraction without a moving mask
-    if brain_extraction:
-        if not commonspace_masking:
-            brain_extraction=False
+        # don't use brain extraction without a moving mask
+        if brain_extraction:
+            if not commonspace_masking:
+                brain_extraction=False
 
-    atlas_reg.inputs.brain_extraction = brain_extraction
-    atlas_reg.inputs.rabies_data_type = opts.data_type
-    atlas_reg.plugin_args = {
-        'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-    atlas_reg.inputs.reg_method = template_reg
+        atlas_reg.inputs.brain_extraction = brain_extraction
+        atlas_reg.inputs.rabies_data_type = opts.data_type
+        atlas_reg.plugin_args = {
+            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
+        atlas_reg.inputs.reg_method = template_reg
 
     prep_commonspace_transform_node = pe.Node(Function(input_names=['native_ref', 'atlas_mask', 'native_to_unbiased_affine',
                                                                'native_to_unbiased_warp','native_to_unbiased_inverse_warp',
@@ -218,17 +223,24 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
 
     else:
 
-        # setup a node to select the proper files associated with a given input scan for commonspace registration
-        commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
-                                                   output_names=[
-                                                       'native_ref', 'warped_native', 'native_to_unbiased_affine','native_to_unbiased_warp','native_to_unbiased_inverse_warp'],
-                                                   function=select_commonspace_outputs),
-                                          name='commonspace_selectfiles')
+        if inherit_unbiased:
+            # Identity node to relate inherited files to existing workflow
+            generate_template = pe.Node(niu.IdentityInterface(fields=['moving_image_list', 'moving_mask_list', 'template_anat', 
+                                                                      'unbiased_template', 'unbiased_mask', 'affine_list', 'warp_list', 
+                                                                      'inverse_warp_list', 'warped_image_list']),
+                                                name="generate_template_inherited")
+        else:
+            # setup a node to select the proper files associated with a given input scan for commonspace registration
+            commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
+                                                    output_names=[
+                                                        'native_ref', 'warped_native', 'native_to_unbiased_affine','native_to_unbiased_warp','native_to_unbiased_inverse_warp'],
+                                                    function=select_commonspace_outputs),
+                                            name='commonspace_selectfiles')
 
-        generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-        generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
-                                              ),
-                                      name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
+            generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
+            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
+                                                ),
+                                        name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
         PlotOverlap_Native2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Native2Unbiased')
@@ -279,26 +291,14 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
             (merged_join_common_reg, generate_template, [
                 ("file_list0", "moving_image_list"),
                 ]),
-            (merged_join_common_reg, commonspace_selectfiles, [
-                ("file_list0", "native_list"),
-                ]),
             (template_inputnode, PlotOverlap_Unbiased2Atlas_node,[
                 ("template_anat", "fixed"),
-                ]),
-            (inputnode, commonspace_selectfiles, [
-                ("moving_image", "filename"),
                 ]),
             (inputnode, PlotOverlap_Native2Unbiased_node, [
                 ("moving_image", "name_source"),
                 ]),
             (generate_template, atlas_reg, [
                 ("unbiased_template", "moving_image"),
-                ]),
-            (generate_template, commonspace_selectfiles, [
-                ("affine_list", "affine_list"),
-                ("warp_list", "warp_list"),
-                ("inverse_warp_list", "inverse_warp_list"),
-                ("warped_image_list", "warped_native_list"),
                 ]),
             (generate_template, outputnode, [
                 ("unbiased_template", "unbiased_template"),
@@ -315,20 +315,6 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                 ]),
             (resample_unbiased_mask_node, outputnode, [
                 ("unbiased_mask", "unbiased_mask"),
-                ]),
-            (commonspace_selectfiles, prep_commonspace_transform_node, [
-                ("native_ref", "native_ref"),
-                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, outputnode, [
-                ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
-                ]),
-            (commonspace_selectfiles, PlotOverlap_Native2Unbiased_node, [
-                ("warped_native", "moving"),
                 ]),
             (generate_template, PlotOverlap_Native2Unbiased_node, [
                 ("unbiased_template", "fixed"),
@@ -368,12 +354,108 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                     ("warp", "unbiased_to_atlas_warp"),
                     ("inverse_warp", "unbiased_to_atlas_inverse_warp"),
                     ]),
-                (commonspace_selectfiles, transforms_datasink, [
+                ])
+
+        if inherit_unbiased:
+            inherit_unbiased_inputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'unbiased_to_atlas_affine', 'unbiased_to_atlas_warp',
+                                                                            'unbiased_to_atlas_inverse_warp', 'warped_unbiased']),
+                                                name="inherit_unbiased_inputnode")
+
+            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+                                            output_names=['affine', 'warp',
+                                                        'inverse_warp', 'warped_image'],
+                                            function=run_antsRegistration),
+                                name='inherit_unbiased_reg', mem_gb=2*opts.scale_min_memory)
+            inherit_unbiased_reg_node.inputs.reg_method = 'Rigid' # this is the registration modelbuild conducts
+            inherit_unbiased_reg_node.inputs.brain_extraction = False # brain extraction is not applied during template building
+            inherit_unbiased_reg_node.inputs.rabies_data_type = opts.data_type
+
+            if commonspace_masking: # this parameter should be inherited from previous run
+                workflow.connect([
+                    (inputnode, inherit_unbiased_reg_node, [
+                        ("moving_mask", "moving_mask"),
+                        ]),
+                    (generate_template, inherit_unbiased_reg_node, [
+                        ("unbiased_mask", "fixed_mask"),
+                        ]),
+                    ])
+            else:
+                inherit_unbiased_reg_node.inputs.moving_mask = 'NULL'
+                inherit_unbiased_reg_node.inputs.fixed_mask = 'NULL'
+
+            workflow.connect([
+                (inherit_unbiased_inputnode, generate_template, [
+                    ("unbiased_template", "unbiased_template"),
+                    ("unbiased_mask", "unbiased_mask"),
+                    ]),
+                (inherit_unbiased_inputnode, atlas_reg, [
+                    ("unbiased_to_atlas_affine", "affine"),
+                    ("unbiased_to_atlas_warp", "warp"),
+                    ("unbiased_to_atlas_inverse_warp", "inverse_warp"),
+                    ("warped_unbiased", "warped_image"),
+                    ]),
+                (inputnode, inherit_unbiased_reg_node, [
+                    ("moving_image", "moving_image"),
+                    ]),
+                (generate_template, inherit_unbiased_reg_node, [
+                    ("unbiased_template", "fixed_image"),
+                    ]),
+                (inherit_unbiased_reg_node, prep_commonspace_transform_node, [
+                    ("affine", "native_to_unbiased_affine"),
+                    ("warp", "native_to_unbiased_warp"),
+                    ("inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ]),
+                (inherit_unbiased_reg_node, outputnode, [
+                    ("affine", "native_to_unbiased_affine"),
+                    ("warp", "native_to_unbiased_warp"),
+                    ("inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ]),
+                (merged_join_common_reg, prep_commonspace_transform_node, [
+                    ("file_list0", "native_ref"),
+                    ]),
+                (inherit_unbiased_reg_node, PlotOverlap_Native2Unbiased_node, [
+                    ("warped_image", "moving"),
+                    ]),
+                ])
+            
+        else:
+            workflow.connect([
+                (merged_join_common_reg, commonspace_selectfiles, [
+                    ("file_list0", "native_list"),
+                    ]),
+                (inputnode, commonspace_selectfiles, [
+                    ("moving_image", "filename"),
+                    ]),
+                (generate_template, commonspace_selectfiles, [
+                    ("affine_list", "affine_list"),
+                    ("warp_list", "warp_list"),
+                    ("inverse_warp_list", "inverse_warp_list"),
+                    ("warped_image_list", "warped_native_list"),
+                    ]),
+                (commonspace_selectfiles, prep_commonspace_transform_node, [
+                    ("native_ref", "native_ref"),
                     ("native_to_unbiased_affine", "native_to_unbiased_affine"),
                     ("native_to_unbiased_warp", "native_to_unbiased_warp"),
                     ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
                     ]),
+                (commonspace_selectfiles, outputnode, [
+                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ]),
+                (commonspace_selectfiles, PlotOverlap_Native2Unbiased_node, [
+                    ("warped_native", "moving"),
+                    ]),
                 ])
+            
+            if output_datasinks:
+                workflow.connect([
+                    (commonspace_selectfiles, transforms_datasink, [
+                        ("native_to_unbiased_affine", "native_to_unbiased_affine"),
+                        ("native_to_unbiased_warp", "native_to_unbiased_warp"),
+                        ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                        ]),
+                    ])
 
 
     return workflow
@@ -648,3 +730,66 @@ class GenerateTemplate(BaseInterface):
                 'warp_list': getattr(self, 'warp_list'),
                 'inverse_warp_list': getattr(self, 'inverse_warp_list'),
                 'warped_image_list': getattr(self, 'warped_image_list'), }
+
+
+def inherit_unbiased_files(RABIES_output_path, opts):
+    import os
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
+    from rabies.utils import get_workflow_dict
+    import pickle
+    cli_file = f'{RABIES_output_path}/rabies_preprocess.pkl'
+    with open(cli_file, 'rb') as handle:
+        inherit_preprocess_opts = pickle.load(handle)
+
+    if inherit_preprocess_opts.commonspace_reg['fast_commonspace']:
+        raise ValueError("fast_commonspace was conducted in the previous run; no unbiased template can be inherited.")
+
+    log.warning("--inherit_unbiased_template will be applied. The following options are inherited from the previous run: \n \
+            --anatomical_resampling \n \
+            --commonspace_reg \n \
+            --anat_template \n \
+            --brain_mask \n \
+            --WM_mask \n \
+            --CSF_mask \n \
+            --vascular_mask \n \
+            --labels\n ")
+    
+    opts.anatomical_resampling = inherit_preprocess_opts.anatomical_resampling
+    opts.commonspace_reg = inherit_preprocess_opts.commonspace_reg
+    opts.anat_template = inherit_preprocess_opts.anat_template
+    opts.brain_mask = inherit_preprocess_opts.brain_mask
+    opts.WM_mask = inherit_preprocess_opts.WM_mask
+    opts.CSF_mask = inherit_preprocess_opts.CSF_mask
+    opts.vascular_mask = inherit_preprocess_opts.vascular_mask
+    opts.labels = inherit_preprocess_opts.labels
+
+    preproc_workflow_file = f'{RABIES_output_path}/rabies_preprocess_workflow.pkl'
+    node_dict = get_workflow_dict(preproc_workflow_file)
+
+    inherit_dict = {}
+
+    inherit_dict['resampled_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_template']
+    inherit_dict['resampled_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_mask']
+
+    inherit_dict['unbiased_template'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_template']
+    inherit_dict['unbiased_mask'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_mask']
+
+    inherit_dict['unbiased_to_atlas_affine'] = node_dict['main_wf.commonspace_reg_wf.atlas_reg'].result.outputs.get()['affine']
+    inherit_dict['unbiased_to_atlas_warp'] = node_dict['main_wf.commonspace_reg_wf.atlas_reg'].result.outputs.get()['warp']
+    inherit_dict['unbiased_to_atlas_inverse_warp'] = node_dict['main_wf.commonspace_reg_wf.atlas_reg'].result.outputs.get()['inverse_warp']
+    inherit_dict['warped_unbiased'] = node_dict['main_wf.commonspace_reg_wf.atlas_reg'].result.outputs.get()['warped_image']
+
+    # check that the files exist
+    for key in list(inherit_dict.keys()):
+        if not os.path.isfile(inherit_dict[key]):
+            if key=='unbiased_mask':
+                if opts.commonspace_reg['masking']: # the file is only present when masking was used
+                    raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
+            elif key=='unbiased_to_atlas_warp' or key=='unbiased_to_atlas_inverse_warp': # if registration was rigid or affine, no warp files
+                if not inherit_dict[key]=='NULL':
+                    raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
+            else:
+                raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
+
+    return opts, inherit_dict

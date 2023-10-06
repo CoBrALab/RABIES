@@ -5,7 +5,7 @@ from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
-from .commonspace_reg import init_commonspace_reg_wf
+from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
 from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
 from . import preprocess_visual_QC
@@ -217,17 +217,26 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             ])
 
-    # Resample the anatomical template according to the resolution of the provided input data
-    resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
-                                              output_names=[
-                                                  'resampled_template', 'resampled_mask'],
-                                              function=resample_template),
-                                     name='resample_template', mem_gb=1*opts.scale_min_memory)
-    resample_template_node.inputs.template_file = str(opts.anat_template)
-    resample_template_node.inputs.mask_file = str(opts.brain_mask)
-    resample_template_node.inputs.spacing = opts.anatomical_resampling
-    resample_template_node.inputs.file_list = structural_scan_list
-    resample_template_node.inputs.rabies_data_type = opts.data_type
+    if opts.inherit_unbiased_template=='none':
+        inherit_unbiased=False
+        # Resample the anatomical template according to the resolution of the provided input data
+        resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
+                                                output_names=[
+                                                    'resampled_template', 'resampled_mask'],
+                                                function=resample_template),
+                                        name='resample_template', mem_gb=1*opts.scale_min_memory)
+        resample_template_node.inputs.template_file = str(opts.anat_template)
+        resample_template_node.inputs.mask_file = str(opts.brain_mask)
+        resample_template_node.inputs.spacing = opts.anatomical_resampling
+        resample_template_node.inputs.file_list = structural_scan_list
+        resample_template_node.inputs.rabies_data_type = opts.data_type
+    else: # inherit the atlas files from previous run
+        inherit_unbiased=True
+        opts, inherit_dict = inherit_unbiased_files(opts.inherit_unbiased_template, opts)
+        resample_template_node = pe.Node(niu.IdentityInterface(fields=['resampled_template', 'resampled_mask']),
+                                            name="resample_template")
+        resample_template_node.inputs.resampled_template = inherit_dict['resampled_template']
+        resample_template_node.inputs.resampled_mask = inherit_dict['resampled_mask']
 
     # calculate the number of scans that will be registered
     num_scan = len(structural_scan_list)
@@ -236,7 +245,17 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.commonspace_reg['masking'], brain_extraction=opts.commonspace_reg['brain_extraction'], template_reg=opts.commonspace_reg['template_registration'], fast_commonspace=opts.commonspace_reg['fast_commonspace'], output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, joinsource_list=['main_split'], name='commonspace_reg_wf')
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.commonspace_reg['masking'], brain_extraction=opts.commonspace_reg['brain_extraction'], 
+                                                 template_reg=opts.commonspace_reg['template_registration'], fast_commonspace=opts.commonspace_reg['fast_commonspace'], inherit_unbiased=inherit_unbiased,
+                                                 output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, 
+                                                 joinsource_list=['main_split'], name='commonspace_reg_wf')
+    if inherit_unbiased:
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_template = inherit_dict['unbiased_template']
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_mask = inherit_dict['unbiased_mask']
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_affine = inherit_dict['unbiased_to_atlas_affine']
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_warp = inherit_dict['unbiased_to_atlas_warp']
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_inverse_warp = inherit_dict['unbiased_to_atlas_inverse_warp']
+        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.warped_unbiased = inherit_dict['warped_unbiased']
 
     bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, number_functional_scans=number_functional_scans)
 

@@ -395,6 +395,21 @@ def get_parser():
             "\n"
         )
     g_registration.add_argument(
+        '--inherit_unbiased_template', type=str,
+        default='none',
+        help=
+            "Provide a path to a previous RABIES preprocessing output folder to inherit the unbiased template \n"
+            "generated in that previous run, as well as the registration to the external atlas. In place of \n"
+            "conducting unbiased template generation, each scan is registered to this pre-generated template \n"
+            "with registration parameters that are consistent with that of the previous run. The atlas registration \n"
+            "is also inherited, and won't be conducted again. \n"
+            "By selecting this option, the following preprocessing parameters will be overriden to enforce \n"
+            "consistency with the previous run: --anatomical_resampling, --commonspace_reg, --anat_template, \n"
+            "--brain_mask, --WM_mask, --CSF_mask, --vascular_mask, --labels \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
         default='masking=false,brain_extraction=false,registration=SyN',
         help=

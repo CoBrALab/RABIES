@@ -222,6 +222,11 @@ def preprocess(opts, log):
         str(opts.labels), opts.output_dir+'/template_files')
     check_template_overlap(opts.anat_template, opts.labels)
 
+    if not opts.inherit_unbiased_template=='none':
+        opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
+        if not os.path.isdir(opts.inherit_unbiased_template):
+            raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exists.")
+
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
     check_resampling_syntax(opts.anatomical_resampling)
