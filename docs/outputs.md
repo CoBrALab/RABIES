@@ -79,13 +79,18 @@ Outputs from analyses will be found in the `analysis_datasink/`, whereas outputs
     - `NPR_extra_timecourse_csv/`: timecourses associated to each components from NPR_extra_filename
 (diagnosis_datasink_target)=
 - `data_diagnosis_datasink/`:
-    - `figure_temporal_diagnosis/`: PNG file which displays scan-level temporal features from `--data_diagnosis`
-    - `figure_spatial_diagnosis/`: PNG file which displays scan-level spatial features from `--data_diagnosis`
+    - `figure_temporal_diagnosis/`: figure which displays scan-level temporal features from the [spatiotemporal diagnosis](diagnosis_target)
+    - `figure_spatial_diagnosis/`: figure which displays scan-level spatial features from the [spatiotemporal diagnosis](diagnosis_target)
     - `analysis_QC/`: group-level features of data quality from `--data_diagnosis`
-        - `DR{component #}_QC_maps.png`: The _QC_maps.png files are PNGs displaying statistical maps relevant to analysis quality control. The DR refers to dual regression analysis, and the {component #} is relating the file to one of the BOLD components specified in `--prior_bold_idx`
-        - `DR{component #}_QC_stats.csv`: a follow-up to _QC_maps.png which allows for the quantitative categorization of data quality outcomes in Desrosiers-Gregoire et al. (in prep.)
-        - `seed_FC{seed #}_QC_maps.png`: same statistical maps as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
-        - `seed_FC{seed #}_QC_stats.csv`: same measures as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
+        - `sample_distributions/`: contains the [distribution plots](dist_plot_target)
+            - `{analysis}_sample_distribution.png`: the distribution plot for a given network analysis
+            - `{analysis}_outlier_detection.csv`: a CSV which associates the measures displayed in the distribution plot with corresponding scan IDs
+        - `parametric_stats/`: [group statistical report](group_stats_target) for analysis quality control (using parametric measures)
+            - `DR{component #}_QC_maps.png`: The _QC_maps.png files are displaying statistical maps relevant to analysis quality control. The DR refers to dual regression analysis, and the {component #} is relating the file to one of the BOLD components specified in `--prior_bold_idx`
+            - `DR{component #}_QC_stats.csv`: a follow-up to _QC_maps.png which allows for the quantitative categorization of data quality outcomes in Desrosiers-Gregoire et al. (in prep.)
+            - `seed_FC{seed #}_QC_maps.png`: same statistical maps as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
+            - `seed_FC{seed #}_QC_stats.csv`: same measures as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
+        - `non_parametric_stats/`: same as `parametric_stats/`, but using non-parametric measures
     - `temporal_info_csv/`: CSV file containing the data plotted with `figure_temporal_diagnosis/`
     - `spatial_VE_nii/`: Nifti file with the confound regression percentage variance explained (R^2) at each voxel
     - `CR_prediction_std_nii/`: Nifti file with the confound regression variance explained at each voxel
