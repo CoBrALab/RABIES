@@ -12,4 +12,4 @@ On this page is a procedure for improving confound correction design based on ob
 
 The table below offers guidance for prioritizing additional corrections based on observations from the data quality reports. The confound correction workflow and the various strategies available are described elsewhere in the [confound correction pipeline](confound_pipeline_target).
 
-![](../pics/CR_optimization_table.png)
+![](../pics/CR_optimization_table.svg)
