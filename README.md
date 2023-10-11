@@ -64,4 +64,4 @@ If you need support in using the software or experience issues that are not docu
 
 ## Contributing to RABIES
 
-RABIES is under continuous development to keep up with evolving demand and ongoing research. We welcome suggestions for improvements using the [Github issue system](https://github.com/CoBrALab/RABIES/issues). If you're interested in contributing code, you can reach out on the [Github discussion](https://github.com/CoBrALab/RABIES/discussions) and we welcome contributions as pull requests.
+**Read our dedicated [documentation](https://rabies.readthedocs.io/en/latest/contributing.html)**

@@ -184,18 +184,18 @@ The same logic applies at the analysis stage.
 
 ### Docker execution
 ```sh
-docker run -it --rm \
+docker run -it --rm --user $(id -u) \
 -v $PWD/input_BIDS:/input_BIDS:ro \
 -v $PWD/preprocess_outputs:/preprocess_outputs/ \
 gabdesgreg/rabies:tagname -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
-The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
+The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). `--user $(id -u)` can be added to mitigate writing permission issues when using Docker. Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
 
 
 ## Additional Resources
 
 * **Workshop and tutorial for RABIES:**
-    * [Hands-on tutorial](https://github.com/grandjeanlab/INCF_preclinical/tree/main) on RABIES presented at the INCF Neuroinformatics Assembly 2023 (in the `rabies/` folder of the repository).
+    * [Hands-on tutorial](https://github.com/CoBrALab/RABIES_tutorial) on RABIES (originally developed for and presented at the INCF Neuroinformatics Assembly 2023).
     * A workshop providing a complete software overview was [recorded and posted online](https://www.youtube.com/watch?v=LZohKlUgycc&t=2766s&ab_channel=DouglasResearchCentre) on February 2023.
 * Conversion from Bruker raw to Nifti formats can be handled with [BrkRaw](https://brkraw.github.io/) (consult [associated documentation](https://github.com/CoBrALab/documentation/wiki/bruker2nifti-conversion) from the CoBrALab)
 * [CoBrALab recommendations](https://github.com/CoBrALab/documentation/wiki/Running-RABIES-on-niagara) for using compute canada.

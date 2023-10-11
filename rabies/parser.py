@@ -812,8 +812,9 @@ def get_parser():
         nargs="*",  # 0 or more values expected => creates a list
         default=[5, 12, 19],
         help=
-            "Specify the indices for the priors corresponding to BOLD sources from --prior_maps. These will\n"
-            "be fitted during Dual ICA and provide the BOLD components during --data_diagnosis.\n"
+            "Specify the indices for the priors corresponding to BOLD sources of interest from --prior_maps. \n"
+            "This will determine the set of networks analyzed for --data_diagnosis. \n"
+            "IMPORTANT: index counting starts at 0 (i.e. the first component is selected with 0, not 1) \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -823,19 +824,19 @@ def get_parser():
         default=[0, 2, 6, 7, 8, 9, 10, 11,
                     13, 14, 21, 22, 24, 26, 28, 29],
         help=
-            "Specify the indices for the confound components from --prior_maps. This is pertinent for the\n" 
-            "--data_diagnosis outputs.\n"
+            "Specify the indices for the confound components from --prior_maps. This is pertinent for \n" 
+            "evaluating features in the --data_diagnosis outputs.\n"
+            "IMPORTANT: index counting starts at 0 (i.e. the first component is selected with 0, not 1) \n"
             "(default: %(default)s)\n"
             "\n"
         )
     analysis.add_argument(
         "--data_diagnosis", dest='data_diagnosis', action='store_true',
         help=
-            "This option carries out the spatiotemporal diagnosis as described in Desrosiers-Gregoire et al. \n"
-            "The diagnosis generates key temporal and spatial features both at the scan level and the group\n"
-            "level, allowing the identification of sources of confounds and data quality issues. We recommend \n"
-            "using this data diagnosis workflow, more detailed in the publication, to improve the control for \n"
-            "data quality issues and prevent the corruptions of analysis outputs.\n"
+            "Generates a set of data quality assessment reports as described in Desrosiers-Gregoire et al. 2023. \n"
+            "These reports aim to support interpreting connectivity results and account for data quality issues, \n"
+            "and include: 1-a scan-level qualitative diagnosis report, 2-a quantitative distribution report, 3-a \n"
+            "group-level statistical report for network analysis. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -876,7 +877,7 @@ def get_parser():
             "Select this option to output the network correlation with the original image intensity (calculated \n"
             "during detrending) and the BOLDsd (signal variability). These two additional features allow to \n"
             "further inspect potential issues of signal amplitude scaling between scans. However, it is unclear \n"
-            "whether signal of interest (i.e. neural metabolism) contribute to each measure, so these outpu8ts should \n"
+            "whether signal of interest (i.e. neural metabolism) contribute to each measure, so these outputs should \n"
             "be interpreted with caution. \n"
             "(default: %(default)s)\n"
             "\n"
