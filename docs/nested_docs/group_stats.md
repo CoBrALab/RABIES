@@ -1,4 +1,7 @@
 # Group stats
+
+(group_stats_target)=
+
 ![](../pics/group_stats_QC.svg)
 
 Inspecting scan-level features is insufficient to conclude that inter-scan variability in connectivity isn't itself impacted (which is of primary interest for group analysis). This final report is aimed at inspecting features of connectivity variability at the group level, and focuses on two aspects: 
