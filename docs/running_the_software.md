@@ -184,12 +184,12 @@ The same logic applies at the analysis stage.
 
 ### Docker execution
 ```sh
-docker run -it --rm \
+docker run -it --rm --user $(id -u) \
 -v $PWD/input_BIDS:/input_BIDS:ro \
 -v $PWD/preprocess_outputs:/preprocess_outputs/ \
 gabdesgreg/rabies:tagname -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
-The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). When using Docker, there may be issues with writing permissions, and you may need to explicitely allow permissions on the output folder (e.g. `chmod 777 preprocess_outputs/`). Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
+The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). `--user $(id -u)` can be added to mitigate writing permission issues when using Docker. Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
 
 
 ## Additional Resources
