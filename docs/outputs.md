@@ -46,8 +46,8 @@ Multiple datasink folders are generated during preprocessing for different outpu
     - `unbiased_to_atlas_warp/`: non-linear transforms for the alignment between unbiased template and the atlas in commonspace
     - `unbiased_to_atlas_inverse_warp/`: inverse of the non-linear transforms for the alignment between unbiased template and the atlas in commonspace
 
-- `confounds_datasink/`: regroups data features which are later relevant for subsequent confound correction.
-    - `confounds_csv/`: a CSV file grouping a set of nuisance timeseries, which can be used for confound regression. The timeseries generated are detailed in the Nuisance timecourse estimation documentation (https://rabies.readthedocs.io/en/latest/preprocessing.html#nuisance-timecourse-estimation).
+- `motion_datasink/`: files derivated from motion estimation
+    - `motion_params_csv/`: contains the 24 motion parameters which can be used as nuisance regressors at the confound correction pipeline stage.
     - `FD_csv/`: a CSV file with timescourses for either the mean or maximal framewise displacement (FD) estimations.
     - `FD_voxelwise/`: a Nifti image which contains framewise displacement evaluated at each voxel
     - `pos_voxelwise/`: a Nifti image which tracks the displacement (derived from the head motion realignment parameters) of each voxel across time
