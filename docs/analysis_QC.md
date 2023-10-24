@@ -12,7 +12,7 @@ nested_docs/group_stats.md
 nested_docs/optim_CR.md
 ```
 
-Data quality can have serious impacts on analysis outcomes, leading to false findings. Rodent imaging can suffer from spurious effects on connectivity measures if potential confounds are not well accounted for, or acquisition factors, such as anesthesia levels, can influence network activity (refs to Jo Multisite + RABIES preprint). To support interpretability, troubleshooting and reproducible research, RABIES includes a set of reports for conducting data quality assessment in individual scans and conducting quality control prior to network analysis at the group level. The reports are designed most specifically to evaluate the detectability of canonical brain networks and the impact of potential confounds (motion, physiological instabilities, and more). 
+Data quality can have serious impacts on analysis outcomes, leading to false findings. Rodent imaging can suffer from spurious effects on connectivity measures if potential confounds are not well accounted for, or acquisition factors, such as anesthesia levels, can influence network activity {cite}`Desrosiers-Gregoire2023-jm,Grandjean2020-fa`. To support interpretability, troubleshooting and reproducible research, RABIES includes a set of reports for conducting data quality assessment in individual scans and conducting quality control prior to network analysis at the group level. The reports are designed most specifically to evaluate the detectability of canonical brain networks and the impact of potential confounds (motion, physiological instabilities, and more). 
 
 This page describes how to generate the reports, our guidelines for conducting quality network of network analysis, and how to include those reports in a publication.
 
