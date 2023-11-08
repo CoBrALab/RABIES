@@ -85,9 +85,7 @@ def resample_image_spacing_4d(image_4d, output_spacing, clip_negative=True):
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
     resampled_list=[]
     for i in range(input_size[3]):
-        # the resampling is done with BSpline, the interpolator order is 3
-        # other BSpline options are blurry, see https://discourse.itk.org/t/resample-produces-blurry-results-when-just-cropping/4473
-        resampled_image = sitk.Resample(image_4d[:,:,:,i], output_size, identity, sitk.sitkBSpline,
+        resampled_image = sitk.Resample(image_4d[:,:,:,i], output_size, identity, sitk.sitkLinear,
                                         origin, output_spacing, direction_3d)
         resampled_list.append(resampled_image)
     combined = sitk.JoinSeries(resampled_list) 
@@ -242,7 +240,7 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
     if mask:
         interpolation = 'GenericLabel'
     else:
-        interpolation = 'BSpline[5]'
+        interpolation = 'Linear'
 
     command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
     rc,c_out = run_command(command)
