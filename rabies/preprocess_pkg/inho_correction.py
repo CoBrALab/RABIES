@@ -153,7 +153,9 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, output_folder=output_folder, transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], 
+                                                     template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, inherit_unbiased=False, output_folder=output_folder, 
+                                                     transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([
             (inputnode, init_inho_cor_node, [
