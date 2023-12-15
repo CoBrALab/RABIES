@@ -131,6 +131,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
             multistage_otsu='true'
         if opts.bold_robust_inho_cor['apply']:
             robust_inho_cor=True
+            robust_inho_cor_opts=opts.bold_robust_inho_cor
             commonspace_wf_name='bold_robust_inho_cor_template'
             if not opts.bold_only:
                 joinsource_list = ['run_split', 'main_split']
@@ -144,6 +145,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
             multistage_otsu='true'
         if opts.anat_robust_inho_cor['apply']:
             robust_inho_cor=True
+            robust_inho_cor_opts=opts.anat_robust_inho_cor
             commonspace_wf_name='anat_robust_inho_cor_template'
             joinsource_list = ['main_split']
     else:
@@ -157,8 +159,8 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], keep_mask_after_extract=opts.bold_robust_inho_cor['keep_mask_after_extract'], 
-                                                     template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, inherit_unbiased=False, output_folder=output_folder, 
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=robust_inho_cor_opts['masking'], brain_extraction=robust_inho_cor_opts['brain_extraction'], keep_mask_after_extract=robust_inho_cor_opts['keep_mask_after_extract'], 
+                                                     template_reg=robust_inho_cor_opts['template_registration'], fast_commonspace=False, inherit_unbiased=False, output_folder=output_folder, 
                                                      transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([
