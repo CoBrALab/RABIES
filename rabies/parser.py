@@ -1064,31 +1064,37 @@ def read_parser(parser, args):
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
                 'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            defaults = {'method': 'SyN', 'otsu_thresh': '2', 'multiotsu': False},
             name='anat_inho_cor')
 
         opts.bold_inho_cor = parse_argument(opt=opts.bold_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
                 'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
+            defaults = {'method': 'Rigid', 'otsu_thresh': '2', 'multiotsu': False},
             name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN'},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            defaults = {'apply':False,'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN'},
             name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+            defaults = {'apply':False,'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN'},
             name='bold_robust_inho_cor')
         
         # check that masking/extraction options are well set
@@ -1105,48 +1111,57 @@ def read_parser(parser, args):
         opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
             key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
                 'minimum_timepoint':int},
+            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'minimum_timepoint':3},
             name='frame_censoring')
 
         opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            defaults = {'apply':False,'dim':0,'random_seed':1},
             name='ica_aroma')
 
     elif opts.rabies_stage == 'analysis':
         opts.group_ica = parse_argument(opt=opts.group_ica, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
+            defaults = {'apply':False,'dim':0,'random_seed':1},
             name='group_ica')
         opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
             key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,
                                'diff_thresh':float, 'max_iter':int, 'compute_max':['true', 'false']},
+            defaults = {'apply':False,'window_size':5,'min_prior_corr':0.5,'diff_thresh':0.03,'max_iter':20,'compute_max':False},
             name='optimize_NPR')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts
 
-def parse_argument(opt, key_value_pairs, name):
+def parse_argument(opt, key_value_pairs, defaults, name):
     key_list = list(key_value_pairs.keys())
     l = opt.split(',')
     opt_dict = {}
     for e in l:
         if not '=' in e:
-            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead for --{name}.")
         s = e.split('=')
         if not len(s)==2:
-            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead.")
+            raise ValueError(f"Provided option must follow the 'key=value' syntax, {e} was found instead for --{name}.")
         [key,value] = s
         if not key in key_list:
-            raise ValueError(f"The provided key {key} is not part of the available options {key_list}.")
+            raise ValueError(f"The provided key {key} is not part of the available options {key_list} for --{name}.")
         if key_value_pairs[key] in [int,float]:
             value = key_value_pairs[key](value)
         else:
             if not value in key_value_pairs[key]:
-                raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key}.")
+                raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key} for --{name}.")
             if value=='true':
                 value=True
             elif value=='false':
                 value=False
         opt_dict[key]=value
 
+    for key in key_list:
+        if not key in list(opt_dict.keys()):
+            opt_dict[key]=defaults[key]
+
+    # double check the format
     for key in key_list:
         if not key in list(opt_dict.keys()):
             raise ValueError(f"The key {key} is missing from the necessary attributes for --{name}.")
