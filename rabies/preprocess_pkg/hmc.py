@@ -239,7 +239,7 @@ def register_slice(fixed_image, moving_image):
     registration_method.SetMetricSamplingStrategy(registration_method.NONE)
     # registration_method.SetMetricSamplingPercentage(0.01)
 
-    registration_method.SetInterpolator(sitk.sitkBSpline)
+    registration_method.SetInterpolator(sitk.sitkLinear)
 
     # Optimizer settings.
     registration_method.SetOptimizerAsGradientDescent(
@@ -278,7 +278,7 @@ def slice_specific_registration(i, ref_file, timeseries_file):
 
         final_transform = register_slice(fixed_image, moving_image)
         moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform,
-                                         sitk.sitkBSplineResamplerOrder4, 0.0, moving_image.GetPixelID())
+                                         sitk.sitkLinear, 0.0, moving_image.GetPixelID())
 
         resampled_slice = sitk.GetArrayFromImage(moving_resampled)
         volume_array[:, j, :] = resampled_slice
