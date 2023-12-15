@@ -25,12 +25,16 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                             inhomogeneity correction. This will enhance brain edge-matching, but requires good quality 
                             masks. This should be selected along the 'masking' option.
                             *** Specify 'true' or 'false'. 
+                            * keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric
+                            within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask
+                            (e.g. if the moving and target images don't have the same brain coverage).
+                            *** Specify 'true' or 'false'.
                             * registration: Specify a registration script.
                             *** Rigid: conducts only rigid registration.
                             *** Affine: conducts Rigid then Affine registration.
                             *** SyN: conducts Rigid, Affine then non-linear registration.
                             *** no_reg: skip registration.
-                            (default: masking=false,brain_extraction=false,registration=SyN)
+                            (default: masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN)
 
     Workflow:
         parameters
@@ -63,7 +67,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
         name='outputnode'
     )
 
-    run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "moving_image", "moving_mask", "fixed_image",
+    run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "keep_mask_after_extract", "moving_image", "moving_mask", "fixed_image",
                                             "fixed_mask", "rabies_data_type"],
                                output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
                                              'bold_to_anat_inverse_warp', 'output_warped_bold'],
@@ -72,6 +76,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     # don't use brain extraction without a moving mask
     run_reg.inputs.reg_method = opts.bold2anat_coreg['registration']
     run_reg.inputs.brain_extraction = opts.bold2anat_coreg['brain_extraction']
+    run_reg.inputs.keep_mask_after_extract = opts.bold2anat_coreg['keep_mask_after_extract']
     run_reg.inputs.rabies_data_type = opts.data_type
     run_reg.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -99,7 +104,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
+def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -109,7 +114,9 @@ def run_antsRegistration(reg_method, brain_extraction=False, moving_image='NULL'
 
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
         if brain_extraction:
-            reg_call+=" --mask-extract --keep-mask-after-extract"
+            reg_call+=" --mask-extract"
+            if keep_mask_after_extract:
+                reg_call+=" --keep-mask-after-extract"
         command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'

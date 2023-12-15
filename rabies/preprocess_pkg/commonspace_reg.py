@@ -11,7 +11,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, template_reg, fast_commonspace, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_mask_after_extract, template_reg, fast_commonspace, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
@@ -42,6 +42,10 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                                 combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
                                 requires good quality masks. This should be selected along the 'masking' option.
                                 *** Specify 'true' or 'false'. 
+                                * keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric
+                                within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask
+                                (e.g. if the moving and target images don't have the same brain coverage).
+                                *** Specify 'true' or 'false'.
                                 * template_registration: Specify a registration script for the alignment of the 
                                 dataset-generated unbiased template to the commonspace atlas.
                                 *** Rigid: conducts only rigid registration.
@@ -53,13 +57,14 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                                 template_registration. This option can be faster, but may decrease the quality of 
                                 alignment between subjects. 
                                 *** Specify 'true' or 'false'. 
-                                (default: masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false)
+                                (default: masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false)
                         
     Workflow:
         parameters
             opts: command line interface parameters
             commonspace_masking: whether masking is applied during template generation and registration
             brain_extraction: whether brain extraction is applied for template registration
+            keep_mask_after_extract: whether to keep using mask to delineate metric computation after brain extraction.
             template_reg: registration method
             fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
             output_folder: specify a folder to execute the workflow and store important outputs
@@ -124,7 +129,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                                                     'inverse_warp', 'warped_image']),
                                             name="atlas_reg_inherited")
     else:
-        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                         output_names=['affine', 'warp',
                                                     'inverse_warp', 'warped_image'],
                                         function=run_antsRegistration),
@@ -136,6 +141,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                 brain_extraction=False
 
         atlas_reg.inputs.brain_extraction = brain_extraction
+        atlas_reg.inputs.keep_mask_after_extract = keep_mask_after_extract
         atlas_reg.inputs.rabies_data_type = opts.data_type
         atlas_reg.plugin_args = {
             'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -361,13 +367,14 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, templat
                                                                             'unbiased_to_atlas_inverse_warp', 'warped_unbiased']),
                                                 name="inherit_unbiased_inputnode")
 
-            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
                                             output_names=['affine', 'warp',
                                                         'inverse_warp', 'warped_image'],
                                             function=run_antsRegistration),
                                 name='inherit_unbiased_reg', mem_gb=2*opts.scale_min_memory)
             inherit_unbiased_reg_node.inputs.reg_method = 'Rigid' # this is the registration modelbuild conducts
             inherit_unbiased_reg_node.inputs.brain_extraction = False # brain extraction is not applied during template building
+            inherit_unbiased_reg_node.inputs.keep_mask_after_extract = False # brain extraction is not applied during template building
             inherit_unbiased_reg_node.inputs.rabies_data_type = opts.data_type
 
             if commonspace_masking: # this parameter should be inherited from previous run

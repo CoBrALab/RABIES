@@ -59,13 +59,17 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                                 combined masks from inhomogeneity correction. This will enhance brain edge-matching, but 
                                 requires good quality masks. This should be selected along the 'masking' option.
                                 *** Specify 'true' or 'false'. 
+                                * keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric
+                                within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask
+                                (e.g. if the moving and target images don't have the same brain coverage).
+                                *** Specify 'true' or 'false'.
                                 * template_registration: Specify a registration script for the alignment of the 
                                 dataset-generated unbiased template to a reference template for masking.
                                 *** Rigid: conducts only rigid registration.
                                 *** Affine: conducts Rigid then Affine registration.
                                 *** SyN: conducts Rigid, Affine then non-linear registration.
                                 *** no_reg: skip registration.
-                                (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
+                                (default: apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN)
                                 
         --bold_inho_cor BOLD_INHO_COR
                                 Same as --anat_inho_cor, but for the EPI images.
@@ -73,7 +77,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                                 
         --bold_robust_inho_cor BOLD_ROBUST_INHO_COR
                                 Same as --anat_robust_inho_cor, but for the EPI images.
-                                (default: apply=false,masking=false,brain_extraction=false,template_registration=SyN)
+                                (default: apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN)
                                 
     Workflow:
         parameters
@@ -153,7 +157,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], 
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.bold_robust_inho_cor['masking'], brain_extraction=opts.bold_robust_inho_cor['brain_extraction'], keep_mask_after_extract=opts.bold_robust_inho_cor['keep_mask_after_extract'], 
                                                      template_reg=opts.bold_robust_inho_cor['template_registration'], fast_commonspace=False, inherit_unbiased=False, output_folder=output_folder, 
                                                      transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 

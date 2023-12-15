@@ -324,7 +324,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--anat_robust_inho_cor', type=str,
-        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
+        default='apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN',
         help=
             "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
             "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
@@ -342,6 +342,10 @@ def get_parser():
             " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
             " requires good quality masks. This must be selected along the 'masking' option.\n"
             " *** Specify 'true' or 'false'. \n"
+            "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
+            " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
+            " (e.g. if the moving and target images don't have the same brain coverage).\n"
+            "*** Specify 'true' or 'false'. \n"
             "* template_registration: Specify a registration script for the alignment of the \n"
             " dataset-generated unbiased template to a reference template for masking.\n"
             "*** Rigid: conducts only rigid registration.\n"
@@ -361,7 +365,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--bold_robust_inho_cor', type=str,
-        default='apply=false,masking=false,brain_extraction=false,template_registration=SyN',
+        default='apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN',
         help=
             "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
@@ -369,7 +373,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='masking=false,brain_extraction=false,template_registration=SyN,fast_commonspace=false',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false',
         help=
             "Specify registration options for the commonspace registration.\n"
             "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
@@ -379,6 +383,10 @@ def get_parser():
             "* brain_extraction: conducts brain extraction prior to template registration based on the \n"
             " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
             " requires good quality masks. This must be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
+            " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
+            " (e.g. if the moving and target images don't have the same brain coverage).\n"
             "*** Specify 'true' or 'false'. \n"
             "* template_registration: Specify a registration script for the alignment of the \n"
             " dataset-generated unbiased template to the commonspace atlas.\n"
@@ -411,7 +419,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
-        default='masking=false,brain_extraction=false,registration=SyN',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
@@ -421,6 +429,10 @@ def get_parser():
             "* brain_extraction: conducts brain extraction prior to registration using the EPI masks from \n"
             " inhomogeneity correction. This will enhance brain edge-matching, but requires good quality \n"
             " masks. This must be selected along the 'masking' option.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
+            " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
+            " (e.g. if the moving and target images don't have the same brain coverage).\n"
             "*** Specify 'true' or 'false'. \n"
             "* registration: Specify a registration script.\n"
             "*** Rigid: conducts only rigid registration.\n"
@@ -1052,24 +1064,34 @@ def read_parser(parser, args):
             name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
-            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
-            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
-            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
             name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
-            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 
+            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
             name='bold_robust_inho_cor')
+        
+        # check that masking/extraction options are well set
+        for name,opt in zip(['--commonspace_reg','--bold2anat_coreg','--anat_robust_inho_cor','--bold_robust_inho_cor'],
+                            [opts.commonspace_reg, opts.bold2anat_coreg, opts.anat_robust_inho_cor, opts.bold_robust_inho_cor]):
+            if opt['brain_extraction']:
+                if not opt['masking']:
+                    raise ValueError(f"For {name}, 'masking' must be set to 'true' if 'brain_extraction' is set to 'true'.")
+            if opt['keep_mask_after_extract']:
+                if not opt['brain_extraction']:
+                    raise ValueError(f"For {name}, 'brain_extraction' must be set to 'true' if 'keep_mask_after_extract' is set to 'true'.")
 
     elif opts.rabies_stage == 'confound_correction':
         opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
