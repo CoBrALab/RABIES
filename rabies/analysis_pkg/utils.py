@@ -17,7 +17,7 @@ def resample_prior_maps(in_file, ref_file, transforms = [], inverses = []):
         warped_vol_fname = os.path.abspath(
             "deformed_volume" + str(x) + ".nii.gz")
         warped_volumes.append(warped_vol_fname)
-        exec_applyTransforms(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_image=warped_vol_fname, mask=False)
+        exec_applyTransforms(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_image=warped_vol_fname, interpolation='Linear')
 
     sample_volume = sitk.ReadImage(
         warped_volumes[0])

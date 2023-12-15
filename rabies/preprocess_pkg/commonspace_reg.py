@@ -267,7 +267,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
             transform_list=[to_atlas_affine,to_atlas_inverse_warp]
             inverse_list=[1,0]
             exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
-                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, mask=True)
+                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, interpolation='GenericLabel')
             return unbiased_mask
 
         resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
@@ -551,7 +551,7 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
     from rabies.utils import exec_applyTransforms
     # resample the atlas brain mask to native space
     exec_applyTransforms(transforms = commonspace_to_native_transform_list, inverses = commonspace_to_native_inverse_list, 
-        input_image = atlas_mask, ref_image = native_ref, output_image = native_mask, mask=True)
+        input_image = atlas_mask, ref_image = native_ref, output_image = native_mask, interpolation='GenericLabel')
 
     return native_mask, native_to_commonspace_transform_list,native_to_commonspace_inverse_list,commonspace_to_native_transform_list,commonspace_to_native_inverse_list
 

@@ -14,6 +14,7 @@ preprocess:
     --anat_robust_inho_cor/bold_robust_inho_cor: requires MINC/ANTs, which doesn't run on token data
     --commonspace_reg: requires MINC/ANTs, which doesn't run on token data
     --bold2anat_coreg: requires MINC/ANTs, which doesn't run on token data
+    --interpolation: is not tested.
 
 confound_correction:
     --highpass/lowpass/edge_cutoff; since filtering doesn't work with 3 timepoints

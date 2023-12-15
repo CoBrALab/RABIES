@@ -479,6 +479,14 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_resampling.add_argument(
+        "--interpolation", type=str, default='Linear',
+        help=
+            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
+            "to resample preprocessed timeseries. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )    
 
     g_stc = preprocess.add_argument_group(
         title='STC Options', 

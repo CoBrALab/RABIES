@@ -155,6 +155,8 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
         exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(
         desc="Specification for the dimension of resampling.")
+    interpolation = traits.Str(
+        desc="Select the interpolator for antsApplyTransform.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
@@ -214,7 +216,7 @@ class slice_applyTransforms(BaseInterface):
                 transforms = orig_transforms
                 inverses = orig_inverses
 
-            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, mask=False)
+            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, interpolation=self.inputs.interpolation)
             # change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname,
                                            self.inputs.rabies_data_type), warped_vol_fname)
@@ -226,7 +228,7 @@ class slice_applyTransforms(BaseInterface):
         return {'out_files': getattr(self, 'out_files')}
 
 
-def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_image, mask=False):
+def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_image, interpolation):
     # tranforms is a list of transform files, set in order of call within antsApplyTransforms
     transform_string = ""
     for transform, inverse in zip(transforms, inverses):
@@ -236,11 +238,6 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
             transform_string += f"-t [{transform},1] "
         else:
             transform_string += f"-t {transform} "
-
-    if mask:
-        interpolation = 'GenericLabel'
-    else:
-        interpolation = 'Linear'
 
     command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
     rc,c_out = run_command(command)
