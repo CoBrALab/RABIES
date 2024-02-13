@@ -861,6 +861,15 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        "--group_avg_prior", dest='group_avg_prior', action='store_true',
+        help=
+            "Select this option to use the group average (the median across subject) as a reference prior network map \n"
+            "instead of providing an external image. This option will circumvent --seed_prior_list, and the ICA \n"
+            "components selected with --prior_bold_idx won't be used for computing Dice overlap measures during QC. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         '--scan_QC_thresholds', type=str, default="{}",
         help=
             "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"

@@ -215,7 +215,7 @@ if opts.complete:
 
     # testing group level --data_diagnosis
     command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --NPR_temporal_comp 1 \
-        --data_diagnosis --extended_QC --DR_ICA  --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
+        --data_diagnosis --group_avg_prior --extended_QC --DR_ICA --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
     process = subprocess.run(
         command,
         check=True,
