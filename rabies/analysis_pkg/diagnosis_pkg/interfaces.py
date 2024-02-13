@@ -161,6 +161,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Whether network maps are absolute or relative.")
     scan_QC_thresholds = traits.Dict(
         desc="Specifications for scan-level QC thresholds.")
+    group_avg_prior = traits.Bool(
+        desc="Whether to use the group average (median) as a network prior instead of using an external image.")
     figure_format = traits.Str(
         desc="Select file format for figures.")
     extended_QC = traits.Bool(
@@ -368,10 +370,16 @@ class DatasetDiagnosis(BaseInterface):
 
         scan_QC_thresholds = self.inputs.scan_QC_thresholds
 
-        prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
-        num_priors = prior_maps.shape[0]
 
         DR_maps_list=np.array(FC_maps_dict['DR'])
+
+        if self.inputs.group_avg_prior:
+            num_priors = DR_maps_list.shape[1]
+            prior_maps = np.median(DR_maps_list,axis=0)[:,non_zero_voxels]
+        else:
+            prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+            num_priors = prior_maps.shape[0]
+
         for i in range(num_priors):
             if self.inputs.network_weighting=='relative':
                 network_var=None
@@ -393,6 +401,13 @@ class DatasetDiagnosis(BaseInterface):
 
 
         NPR_maps_list=np.array(FC_maps_dict['NPR'])
+        if self.inputs.group_avg_prior:
+            num_priors = NPR_maps_list.shape[1]
+            prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
+        else:
+            prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+            num_priors = prior_maps.shape[0]
+
         if NPR_maps_list.shape[1]>0:
             for i in range(num_priors):
                 if self.inputs.network_weighting=='relative':
@@ -414,17 +429,25 @@ class DatasetDiagnosis(BaseInterface):
 
                     analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
-        # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
-        if len(self.inputs.seed_prior_maps)>0:
-            prior_maps=[]
-            for prior_map in self.inputs.seed_prior_maps:
-                # resample to match the subject
-                sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
-                prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
-
-            prior_maps = np.array(prior_maps)[:,non_zero_voxels]
-            num_priors = prior_maps.shape[0]
+        if self.inputs.group_avg_prior or (len(self.inputs.seed_prior_maps)>0):
             seed_maps_list=np.array(FC_maps_dict['SBC'])
+
+            if self.inputs.group_avg_prior:
+                num_priors = seed_maps_list.shape[1]
+                prior_maps = np.median(seed_maps_list,axis=0)[:,non_zero_voxels]
+
+            # prior maps are provided for seed-FC, tries to run the diagnosis on seeds
+            elif len(self.inputs.seed_prior_maps)>0:
+                prior_maps=[]
+                for prior_map in self.inputs.seed_prior_maps:
+                    # resample to match the subject
+                    sitk_img = sitk.Resample(sitk.ReadImage(prior_map), sitk.ReadImage(mask_file))
+                    prior_maps.append(sitk.GetArrayFromImage(sitk_img)[volume_indices])
+                prior_maps = np.array(prior_maps)[:,non_zero_voxels]
+                num_priors = prior_maps.shape[0]
+            else:
+                raise
+            
             for i in range(num_priors):
                 network_var=None
 
