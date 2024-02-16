@@ -401,14 +401,14 @@ class DatasetDiagnosis(BaseInterface):
 
 
         NPR_maps_list=np.array(FC_maps_dict['NPR'])
-        if self.inputs.group_avg_prior:
-            num_priors = NPR_maps_list.shape[1]
-            prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
-        else:
-            prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
-            num_priors = prior_maps.shape[0]
-
         if NPR_maps_list.shape[1]>0:
+            if self.inputs.group_avg_prior:
+                num_priors = NPR_maps_list.shape[1]
+                prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
+            else:
+                prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+                num_priors = prior_maps.shape[0]
+
             for i in range(num_priors):
                 if self.inputs.network_weighting=='relative':
                     network_var=None
