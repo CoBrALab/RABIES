@@ -429,8 +429,8 @@ class DatasetDiagnosis(BaseInterface):
 
                     analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
-        if self.inputs.group_avg_prior or (len(self.inputs.seed_prior_maps)>0):
-            seed_maps_list=np.array(FC_maps_dict['SBC'])
+        seed_maps_list=np.array(FC_maps_dict['SBC'])
+        if seed_maps_list.shape[1]>0:
 
             if self.inputs.group_avg_prior:
                 num_priors = seed_maps_list.shape[1]
