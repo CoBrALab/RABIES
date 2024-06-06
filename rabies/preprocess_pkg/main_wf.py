@@ -598,4 +598,18 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             ])
 
+    if opts.PEDir:
+        pe_split = pe.Node(niu.IdentityInterface(fields=['pe', 'split_name']),
+                            name="pe_split")
+        pe_split.itersource = ('main_split', 'split_name')
+        pe_split.iterables = ('pe', pe_iter)
+
+        workflow.connect([
+            (main_split, pe_split, [
+                ("split_name", "split_name"),
+            ]),
+            (pe_split, bold_selectfiles, [
+                ("pe", "pe"),
+            ]),
+            ])
     return workflow
