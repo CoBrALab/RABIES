@@ -246,7 +246,7 @@ class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
                          desc="BIDS specs")
     scan_info = traits.Dict(exists=True, mandatory=True,
                             desc="Info required to find the scan")
-    pe = traits.Any(exists=True, desc="Phase encoding direction", mandatory=False)
+    pe = traits.Any(exists=True, desc="Phase encoding direction", mandatory=False, default=None, usedefault=True)
     run = traits.Any(exists=True, desc="Run number")
 
 
@@ -268,7 +268,7 @@ class BIDSDataGraber(BaseInterface):
         if 'direction' in (self.inputs.scan_info.keys()):
             pe = self.inputs.scan_info['direction']
         else:
-            pe = None
+            pe = self.inputs.pe
 
         if 'run' in (self.inputs.scan_info.keys()):
             run = self.inputs.scan_info['run']
