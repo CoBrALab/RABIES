@@ -375,6 +375,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['anat']),
                                    name='anat_selectfiles')
+        anat_selectfiles.inputs.pe = None
         anat_selectfiles.inputs.run = None
 
         anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
