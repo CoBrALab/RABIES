@@ -140,18 +140,26 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
         layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
 
-    split_name, scan_info, run_iter, structural_scan_list, number_functional_scans = prep_bids_iter(
-        layout, opts.bids_filter, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
+    if opts.PEDir:
+        split_name, scan_info, run_iter, structural_scan_list, number_functional_scans, pe_iter = prep_bids_iter_pe(
+            layout, opts.bids_filter, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
+    else:
+        split_name, scan_info, run_iter, structural_scan_list, number_functional_scans = prep_bids_iter(
+            layout, opts.bids_filter, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
     '''***details on outputs from prep_bids_iter:
     split_name: a list of strings, providing a sensible name to distinguish each iterable, 
         and also necessary to link up the run iterables with a specific session later.
     scan_info: a list of dictionary including the subject ID and session # for a given 
         iterable from split_name
+    pe_iter(optional): a list of dictionary, where the keys correspond to a session split from         
+    split_name, and the value is a list of PEs for that split. This manages iterables
+        for PEs.
     run_iter: a list of dictionary, where the keys correspond to a session split from 
         split_name, and the value is a list of runs for that split. This manages iterables
         for runs.
     structural_scan_list: the set of structural scans; used for resample_template and managing # threads
     number_functional_scans: the number of functional scans; used for managing # threads
+
     '''
 
     # setting up all iterables
