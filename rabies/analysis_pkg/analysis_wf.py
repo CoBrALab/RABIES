@@ -16,8 +16,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 'joined_seed_timecourse_csv',
-                                                       'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
-                                                       'NPR_prior_filename', 'NPR_extra_filename', 'NPR_optimize_report']), name='outputnode')
+                                                       'sub_token', 'group_token','CPCA_prior_timecourse_csv', 'CPCA_extra_timecourse_csv',
+                                                       'CPCA_prior_filename', 'CPCA_extra_filename', 'CPCA_optimize_report']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -116,34 +116,34 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    if (opts.NPR_temporal_comp>-1) or (opts.NPR_spatial_comp>-1) or opts.optimize_NPR['apply']:
-        from .analysis_functions import NeuralPriorRecovery
+    if (opts.CPCA_temporal_comp>-1) or (opts.CPCA_spatial_comp>-1) or opts.optimize_CPCA['apply']:
+        from .analysis_functions import ComplementaryPCA
 
-        NPR_node = pe.Node(NeuralPriorRecovery(
-                            NPR_temporal_comp=opts.NPR_temporal_comp, 
-                            NPR_spatial_comp=opts.NPR_spatial_comp, 
-                            optimize_NPR_dict=opts.optimize_NPR, 
+        CPCA_node = pe.Node(ComplementaryPCA(
+                            CPCA_temporal_comp=opts.CPCA_temporal_comp, 
+                            CPCA_spatial_comp=opts.CPCA_spatial_comp, 
+                            optimize_CPCA_dict=opts.optimize_CPCA, 
                             prior_bold_idx = opts.prior_bold_idx,
                             network_weighting=opts.network_weighting,
                             figure_format=opts.figure_format),
-                            name='NPR_node', mem_gb=1*opts.scale_min_memory)
+                            name='CPCA_node', mem_gb=1*opts.scale_min_memory)
 
         workflow.connect([
-            (subject_inputnode, NPR_node, [
+            (subject_inputnode, CPCA_node, [
                 ("dict_file", "dict_file"),
                 ]),
-            (NPR_node, outputnode, [
-                ("NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-                ("NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-                ("NPR_prior_filename", "NPR_prior_filename"),
-                ("NPR_extra_filename", "NPR_extra_filename"),
+            (CPCA_node, outputnode, [
+                ("CPCA_prior_timecourse_csv", "CPCA_prior_timecourse_csv"),
+                ("CPCA_extra_timecourse_csv", "CPCA_extra_timecourse_csv"),
+                ("CPCA_prior_filename", "CPCA_prior_filename"),
+                ("CPCA_extra_filename", "CPCA_extra_filename"),
                 ]),
             ])
         
-    if opts.optimize_NPR['apply']:
+    if opts.optimize_CPCA['apply']:
         workflow.connect([
-            (NPR_node, outputnode, [
-                ("optimize_report", "NPR_optimize_report"),
+            (CPCA_node, outputnode, [
+                ("optimize_report", "CPCA_optimize_report"),
                 ]),
             ])
 

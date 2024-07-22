@@ -108,10 +108,10 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': [], 'W': []}
-    if not analysis_dict['NPR_prior_filename'] is None:
-        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
+    if not analysis_dict['CPCA_prior_filename'] is None:
+        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['CPCA_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_dict['NPR_prior_filename']))
+            sitk.ReadImage(analysis_dict['CPCA_prior_filename']))
         if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
             C_array = C_array[np.newaxis,:,:,:]
 
@@ -124,8 +124,8 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
-    spatial_info['NPR_maps'] = prior_fit_out['C']
-    temporal_info['NPR_time'] = prior_fit_out['W']
+    spatial_info['CPCA_maps'] = prior_fit_out['C']
+    temporal_info['CPCA_time'] = prior_fit_out['W']
 
     spatial_info['VE_spatial'] = data_dict['VE_spatial']
     spatial_info['temporal_std'] = data_dict['temporal_std']
@@ -144,7 +144,7 @@ def temporal_external_formating(temporal_info):
     filename_split = pathlib.Path(
         temporal_info['name_source']).name.rsplit(".nii")
 
-    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['NPR_time'],temporal_info['SBC_time']
+    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['CPCA_time'],temporal_info['SBC_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
@@ -384,8 +384,8 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
     legend=[]
     for network_time,name,color,scaler in zip(
-            [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['NPR_time']],
-            ['DR confounds', 'DR networks','SBC networks','NPR networks'],
+            [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['CPCA_time']],
+            ['DR confounds', 'DR networks','SBC networks','CPCA networks'],
             [YlOrRd_colors[2], Blues_colors[1],Purples_colors[1],Greens_colors[1]],
             [0,-1,-1,-1]):
         if len(network_time)>0:
@@ -417,10 +417,10 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
 
     dr_maps = spatial_info['DR_BOLD']
     SBC_maps = spatial_info['seed_map_list']
-    NPR_maps = spatial_info['NPR_maps']
+    CPCA_maps = spatial_info['CPCA_maps']
     mask_file = data_dict['mask_file']
 
-    nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
+    nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(CPCA_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -539,10 +539,10 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
         for ax in axes:
             ax.set_title(f'SBC network {i}', fontsize=30, color='white')
 
-    for i in range(len(NPR_maps)):
+    for i in range(len(CPCA_maps)):
         axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
 
-        map = NPR_maps[i, :]
+        map = CPCA_maps[i, :]
         threshold = percent_threshold(map)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
@@ -555,7 +555,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'NPR network {i}', fontsize=30, color='white')
+            ax.set_title(f'CPCA network {i}', fontsize=30, color='white')
 
     return fig, fig2
 

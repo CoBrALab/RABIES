@@ -187,7 +187,7 @@ if opts.complete:
 
     ####ANALYSIS####
     command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --network_weighting relative \
-        --optimize_NPR apply=true,window_size=2,min_prior_corr=0.5,diff_thresh=0.03,max_iter=5,compute_max=false \
+        --optimize_CPCA apply=true,min_prior_corr=0.5,diff_thresh_t=0.05,diff_thresh_s=0.03 \
         --FC_matrix --ROI_type voxelwise"
     process = subprocess.run(
         command,
@@ -214,7 +214,7 @@ if opts.complete:
         )
 
     # testing group level --data_diagnosis
-    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --NPR_temporal_comp 1 \
+    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --CPCA_temporal_comp 1 \
         --data_diagnosis --group_avg_prior --extended_QC --DR_ICA --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
     process = subprocess.run(
         command,

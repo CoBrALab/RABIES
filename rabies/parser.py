@@ -874,10 +874,10 @@ def get_parser():
         help=
             "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"
             "This can be specified for a given set of network analyses among DR (dual regression), SBC (seed \n"
-            "connectivity), or NPR. For each analysis, the following QC parameters can be specified: \n"
+            "connectivity), or CPCA. For each analysis, the following QC parameters can be specified: \n"
             "* Dice: Threshold for the minimum network detectability computed as Dice overlap with the prior. \n"
             "*** Specify a list of thresholds between 0 and 1. The order of thresholds provided within the list \n"
-            "    will be matched to the list of networks for the corresponding analysis (for DR/NPR, this \n"
+            "    will be matched to the list of networks for the corresponding analysis (for DR/CPCA, this \n"
             "    will be matched to the --prior_bold_idx list, and for SBC it will be matched to --seed_list). \n"
             "    If the list is empty, no thresholding is applied, otherwise, the length of the lists for the  \n"
             "    thresholds and networks must match. \n"
@@ -981,60 +981,50 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--NPR_temporal_comp', type=int, default=-1,
+        '--CPCA_temporal_comp', type=int, default=-1,
         help=
-            "Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra \n"
+            "Option for performing Complementary Principal Component Analysis (CPCA). Specify with this option how many extra \n"
             "subject-specific sources will be computed to account for non-prior confounds. This options \n"
             "specifies the number of temporal components to compute. After computing \n"
-            "these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
-            "Specify at least 0 extra sources to run NPR.\n"
+            "these sources, CPCA will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
+            "Specify at least 0 extra sources to run CPCA.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     analysis.add_argument(
-        '--NPR_spatial_comp', type=int, default=-1,
+        '--CPCA_spatial_comp', type=int, default=-1,
         help=
-            "Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are \n"
+            "Same as --CPCA_temporal_comp, but specify how many spatial components to compute (which are \n"
             "additioned to the temporal components).\n"
             "(default: %(default)s)\n"
             "\n"
         )
     analysis.add_argument(
-        '--optimize_NPR', type=str,
-        default='apply=false,window_size=5,min_prior_corr=0.5,diff_thresh=0.03,max_iter=20,compute_max=false',
+        '--optimize_CPCA', type=str,
+        default='apply=false,min_prior_corr=0.5,diff_thresh_t=0.03,diff_thresh_s=0.03',
         help=
-            "This option handles the automated dimensionality estimation when carrying out NPR. NPR will be \n"
-            "carried out iteratively while incrementing the number of non-prior components fitted, until \n"
-            "convergence criteria are met (see below). A convergence report is generated to visualize the \n"
-            "results across iterations. \n"
+            "This option handles the automated dimensionality estimation when carrying out CPCA. The number of \n"
+            "components specified with --CPCA_temporal_comp and --CPCA_spatial_comp will be first derived, and \n"
+            "then an ideal dimensionality will be selected for temporal components and then for spatial \n"
+            "components. A convergence report is generated to visualize the results across iterations. \n"
             "\n"
-            "Convergence criterion 1: Iterations continue until the correlation between the fitted component \n"
-            "and the prior does not reach the specified minimum.\n"
+            "Convergence criterion 1: A The correlation between the fitted network component \n"
+            "and the prior must reach a minimum.\n"
             "\n"
-            "Convergence Criterion 2: At each iteration, the difference between the previous and new output \n"
-            "is evaluated (0=perfectly correlated; 1=uncorrelated). The forming set of successive iterations \n"
-            "(within a certain window length) is evaluated, and when a set respects the convergence threshold \n"
-            "for each iteration within the window, the iteration preceding that window is selected as optimal \n"
-            "output. We take the iteration preceding the  window, as this corresponds to the last iteration \n"
-            "which generated changes above threshold. The sliding-window approach is employed to prevent \n"
-            "falling within a local minima, when further ameliorations may be possible with further iterations.\n"
+            "Convergence criterion 2: The last CPCA component which generated a sufficient difference in the output \n"
+            "fitted network is selected. \n"
             "\n"
-            "When multiple priors are fitted, they are all simultaneously subjected to the evaluation of \n"
-            "convergence, and as long as one prior fit does not meet the thresholds, iterations continue.\n"
+            "When multiple priors are fitted, the minimum dimensionality for all networks to respect the convergence \n"
+            "criteria is selected.\n"
             "\n"
-            "* apply: select 'true' to apply this option. If selected, this option overrides --NPR_spatial_comp \n"
-            " and --NPR_spatial_comp. \n"
+            "* apply: select 'true' to apply this option.\n"
             "*** Specify 'true' or 'false'. \n"
-            "* window_size: Window size for criterion 2. \n"
-            "*** Must provide an integer. \n"
             "* min_prior_corr: Threshold for criterion 1. \n"
             "*** Must provide a float. \n"
-            "* diff_thresh: Threshold for criterion 2. \n"
+            "* diff_thresh_t: Threshold for criterion 2 for temporal components. \n"
             "*** Must provide a float. \n"
-            "* max_iter: Maximum number of iterations. \n"
-            "*** Must provide an integer. \n"
-            "* compute_max: select 'true' to visualize all iterations until max_iter in the report. \n"
-            "*** Specify 'true' or 'false'. \n"
+            "* diff_thresh_s: Threshold for criterion 2 for spatial components. \n"
+            "*** Must provide a float. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1044,7 +1034,7 @@ def get_parser():
         help=
             "Whether to derive absolute or relative (variance-normalized) network maps, representing \n"
             "respectively network amplitude + shape or network shape only. This option applies to both \n"
-            "dual regression (DR) and Neural Prior Recovery (NPR) analyses. \n"
+            "dual regression (DR) and Complementary Principal Component Analysis (CPCA) analyses. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1133,11 +1123,11 @@ def read_parser(parser, args):
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             defaults = {'apply':False,'dim':0,'random_seed':1},
             name='group_ica')
-        opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
-            key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,
-                               'diff_thresh':float, 'max_iter':int, 'compute_max':['true', 'false']},
-            defaults = {'apply':False,'window_size':5,'min_prior_corr':0.5,'diff_thresh':0.03,'max_iter':20,'compute_max':False},
-            name='optimize_NPR')
+        opts.optimize_CPCA = parse_argument(opt=opts.optimize_CPCA, 
+            key_value_pairs = {'apply':['true', 'false'], 'min_prior_corr':float,
+                               'diff_thresh_t':float, 'diff_thresh_s':float},
+            defaults = {'apply':False,'min_prior_corr':0.5,'diff_thresh_t':0.03,'diff_thresh_s':0.03},
+            name='optimize_CPCA')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts
@@ -1179,7 +1169,7 @@ def parse_argument(opt, key_value_pairs, defaults, name):
 def parse_scan_QC_thresholds(opt):
 
     # we must add "" around each key manually, as they are not encoded from the parser
-    for key in ['SBC','DR','NPR','Dice','Conf','Amp']:
+    for key in ['SBC','DR','CPCA','Dice','Conf','Amp']:
         s=''
         for s_ in opt.split(key):
             s+=s_+f'"{key}"'
@@ -1202,8 +1192,8 @@ def parse_scan_QC_thresholds(opt):
 
     keys = list(opt_dict.keys())
     for key in keys:
-        if not key in ['SBC','DR','NPR']:
-            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR','NPR'.")
+        if not key in ['SBC','DR','CPCA']:
+            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR','CPCA'.")
         sub_dict = opt_dict[key]
         if not type(sub_dict) is dict:
             raise ValueError(f"The specification '{sub_dict}' for key '{key}' is not a valid dictionary.")
