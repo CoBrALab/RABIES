@@ -286,7 +286,7 @@ class ComplementaryPCA(BaseInterface):
         CPCA_prior_filename = os.path.abspath(filename_split[0]+'_CPCA_prior.nii.gz')
         sitk.WriteImage(recover_4D(mask_file,C_fit.T, bold_file), CPCA_prior_filename)
 
-        if (self.inputs.CPCA_temporal_comp+self.inputs.CPCA_spatial_comp)>0:
+        if C_extra.shape[1]>0: # store extra components if at least 1 was fitted
             CPCA_extra_filename = os.path.abspath(filename_split[0]+'_CPCA_extra.nii.gz')
             sitk.WriteImage(recover_4D(mask_file,C_extra.T, bold_file), CPCA_extra_filename)
         else:
