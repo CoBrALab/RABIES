@@ -87,7 +87,7 @@ def get_parser():
         help=
             "Define a list of BOLD scan to include, i.e. run the pipeline on a subset of the data. \n"
             "To do so, provide the full path to the corresponding BOLD file in the input BIDS folder. The list \n"
-            "of scan can be specified manually as a list of file name '--scan_list scan1.nii.gz \n"
+            "of scan can be specified manually as a list of file name '--inclusion_ids scan1.nii.gz \n"
             "scan2.nii.gz ...' or the files can be imbedded into a .txt file with one filename per row.\n"
             "By default, 'all' the scans found in the input BIDS directory or from the previous \n"
             "processing step. This can be provided at any processing stage.\n"
