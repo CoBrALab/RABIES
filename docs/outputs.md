@@ -87,7 +87,7 @@ Outputs from analyses will be found in the `analysis_datasink/`, whereas outputs
             - `{analysis}_outlier_detection.csv`: a CSV which associates the measures displayed in the distribution plot with corresponding scan IDs
         - `parametric_stats/`: [group statistical report](group_stats_target) for analysis quality control (using parametric measures)
             - `DR{component #}_QC_maps.png`: The _QC_maps.png files are displaying statistical maps relevant to analysis quality control. The DR refers to dual regression analysis, and the {component #} is relating the file to one of the BOLD components specified in `--prior_bold_idx`
-            - `DR{component #}_QC_stats.csv`: a follow-up to _QC_maps.png which allows for the quantitative categorization of data quality outcomes in Desrosiers-Gregoire et al. (in prep.)
+            - `DR{component #}_QC_stats.csv`: a follow-up to _QC_maps.png which allows for the quantitative categorization of data quality outcomes as in {cite}`Desrosiers-Gregoire2024-ou`
             - `seed_FC{seed #}_QC_maps.png`: same statistical maps as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
             - `seed_FC{seed #}_QC_stats.csv`: same measures as with `DR{component #}_QC_maps.png`, but for seed-based connectivity analysis
         - `non_parametric_stats/`: same as `parametric_stats/`, but using non-parametric measures

@@ -48,7 +48,7 @@ Simple resting-state connectivity analyses are made available after preprocessin
 
 ## Citation
 
-**Citing RABIES**: A [preprint introducing the software](https://doi.org/10.1101/2022.08.20.504597) is available on bioXriv, which should be cited accordingly when using RABIES.
+**Citing RABIES**: Please cite the official publication [Desrosiers-Grégoire, et al. Nat Commun 15, 6708 (2024).](https://doi.org/10.1038/s41467-024-50826-8) when referencing the software.
 
 **Boilerplate**: a boilerplate summarizing the preprocessing and confound correction operations is automatically generated in the output folder. You can use the boilerplate to help describe your methods in a paper.
 
