@@ -3,6 +3,6 @@ myst-parser==0.17.2
 sphinx-rtd-dark-mode
 sphinx-rtd-theme
 sphinxcontrib-bibtex
-sphinxcontrib-programoutput#==0.17
+sphinxcontrib-programoutput
 jinja2==3.1.1
 rabies==0.5.1
