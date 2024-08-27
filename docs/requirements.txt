@@ -1,5 +1,5 @@
 sphinx==5.0
-myst-parser==0.17.2
+myst-parser
 sphinx-rtd-dark-mode
 sphinx-rtd-theme
 sphinxcontrib-bibtex
