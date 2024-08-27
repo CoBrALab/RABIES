@@ -1,11 +1,9 @@
-sphinx==4.5.0
+sphinx==5.0
 myst-parser==0.17.2
 sphinx-rtd-dark-mode
 sphinx-rtd-theme
 sphinxcontrib-bibtex
-sphinxcontrib-programoutput==0.17
-sphinxcontrib-applehelp==1.0.4
-sphinxcontrib-devhelp==1.0.2
+sphinxcontrib-programoutput
 jinja2==3.1.1
 pillow==10.1.0
 rabies==0.5.1
