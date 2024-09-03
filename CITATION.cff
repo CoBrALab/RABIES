@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Desrosiers-Gregoire"
+  given-names: "Gabriel"
+- family-names: "Devenyi"
+  given-names: "Gabriel A."
+- family-names: "Grandjean"
+  given-names: "Joanes"
+- family-names: "Chakravarty"
+  given-names: "M. Mallar"
+title: "RABIES: Rodent Automated Bold Improvement of EPI Sequences."
+version: 0.5.1
+date-released: 2023-11-12
+url: "https://github.com/CoBrALab/RABIES"
+
+
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Desrosiers-Gregoire"
+    given-names: "Gabriel"
+  - family-names: "Devenyi"
+    given-names: "Gabriel A."
+  - family-names: "Grandjean"
+    given-names: "Joanes"
+  - family-names: "Chakravarty"
+    given-names: "M. Mallar"
+  doi: "10.1038/s41467-024-50826-8"
+  journal: "Nat. Commun."
+  month: 8
+  start: 1 # First page number
+  end: 15 # Last page number
+  title: "A standardized image processing and data quality platform for rodent fMRI"
+  volume: 15
+  year: 2024
