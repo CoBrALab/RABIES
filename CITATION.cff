@@ -26,9 +26,9 @@ preferred-citation:
     given-names: "Joanes"
   - family-names: "Chakravarty"
     given-names: "M. Mallar"
-  doi: "https://doi.org/10.1038/s41467-024-50826-8"
+  doi: "10.1038/s41467-024-50826-8"
   journal: "Nat. Commun."
-  month: aug
+  month: 8
   start: 1 # First page number
   end: 15 # Last page number
   title: "A standardized image processing and data quality platform for rodent fMRI"
