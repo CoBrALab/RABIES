@@ -1,0 +1,5 @@
+rabies.egg-info/PKG-INFO
+rabies.egg-info/SOURCES.txt
+rabies.egg-info/dependency_links.txt
+rabies.egg-info/requires.txt
+rabies.egg-info/top_level.txt

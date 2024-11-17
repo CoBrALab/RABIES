@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "Launch RABIES",
+            "program": "${workspaceFolder}/${input:programPath}",
+            "args": [],
+            "console": "integratedTerminal"
+        }
+    ],
+    "inputs": [
+        {
+            "type": "promptString",
+            "id": "programPath",
+            "description": "Enter the path to the main script of RABIES"
+        }
+    ]
+}
