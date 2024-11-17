@@ -601,7 +601,44 @@ def get_parser():
             "\n"
         )
 
+    g_multiecho = preprocess.add_argument_group(
+        title='Multiecho Options', 
+        description=
+            "Specify multiecho options\n"
+        )
+    g_multiecho.add_argument(
+            "--echo-idx",
+            action="store",
+            type=int,
+            help="Select a specific echo to be processed in a multiecho series",
+        )
+    g_multiecho.add_argument(
+        "--me-t2s-fit-method",
+        action="store",
+        default="curvefit",
+        choices=["curvefit", "loglin"],
+        help=(
+            "The method by which to estimate T2* and S0 for multi-echo data. "
+            "'curvefit' uses nonlinear regression. "
+            "It is more memory intensive, but also may be more accurate, than 'loglin'. "
+            "'loglin' uses log-linear regression. "
+            "It is faster and less memory intensive, but may be less accurate."
+        ),
+    )
+    g_multiecho.add_argument(
+        "--me-output-echos",
+        action="store_true",
+        default=False,
+        help="Output individual echo time series with slice, motion and susceptibility "
+        "correction. Useful for further Tedana processing post-RABIES.",
+    )
 
+    g_multiecho.add_argument(
+        "--use_meica",
+        action="store_true",
+        default=False,
+        help="Run multi-echo ICA (ME-ICA) on the preprocessed data. ",
+    )
 
     ####Confound correction
     confound_correction.add_argument(
