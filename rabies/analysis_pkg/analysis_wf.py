@@ -116,13 +116,11 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ]),
             ])
 
-    if (opts.CPCA_temporal_comp>-1) or (opts.CPCA_spatial_comp>-1) or opts.optimize_CPCA['apply']:
+    if opts.CPCA['n']>-1:
         from .analysis_functions import ComplementaryPCA
 
         CPCA_node = pe.Node(ComplementaryPCA(
-                            CPCA_temporal_comp=opts.CPCA_temporal_comp, 
-                            CPCA_spatial_comp=opts.CPCA_spatial_comp, 
-                            optimize_CPCA_dict=opts.optimize_CPCA, 
+                            CPCA_dict=opts.CPCA, 
                             prior_bold_idx = opts.prior_bold_idx,
                             network_weighting=opts.network_weighting,
                             figure_format=opts.figure_format),
@@ -137,17 +135,10 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
                 ("CPCA_extra_timecourse_csv", "CPCA_extra_timecourse_csv"),
                 ("CPCA_prior_filename", "CPCA_prior_filename"),
                 ("CPCA_extra_filename", "CPCA_extra_filename"),
+                ("CPCA_report", "CPCA_optimize_report"),
                 ]),
             ])
         
-    if opts.optimize_CPCA['apply']:
-        workflow.connect([
-            (CPCA_node, outputnode, [
-                ("optimize_report", "CPCA_optimize_report"),
-                ]),
-            ])
-
-
     if opts.FC_matrix:
         FC_matrix = pe.Node(Function(input_names=['dict_file', 'figure_format', 'roi_type'],
                                      output_names=['data_file', 'figname'],

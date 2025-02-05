@@ -981,49 +981,29 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--CPCA_temporal_comp', type=int, default=-1,
+        '--CPCA', type=str,
+        default='n=-1,Wt_n=0,min_prior_sim=-1,Dc_C_thresh=-1,Dc_W_thresh=-1',
         help=
-            "Option for performing Complementary Principal Component Analysis (CPCA). Specify with this option how many extra \n"
-            "subject-specific sources will be computed to account for non-prior confounds. This options \n"
-            "specifies the number of temporal components to compute. After computing \n"
-            "these sources, CPCA will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
-            "Specify at least 0 extra sources to run CPCA.\n"
-            "(default: %(default)s)\n"
+            "This option handles the application Complementary Principal Component Analysis (CPCA). \n"
+            "The options min_prior_sim,Dc_C_thresh, and Dc_W_thresh are thresholding strategies which allow to \n"
+            "automatically estimate an ideal dimensionality (up to a maximum set by parameter n) which balances between \n"
+            "underfitting and overfitting. This automated estimation is applied if one of the option is set above 0. \n"
             "\n"
-        )
-    analysis.add_argument(
-        '--CPCA_spatial_comp', type=int, default=-1,
-        help=
-            "Same as --CPCA_temporal_comp, but specify how many spatial components to compute (which are \n"
-            "additioned to the temporal components).\n"
-            "(default: %(default)s)\n"
+            "The ICA file for Cprior is set using --prior_maps and the selected set of networks is specified with \n"
+            "--prior_bold_idx. \n"
             "\n"
-        )
-    analysis.add_argument(
-        '--optimize_CPCA', type=str,
-        default='apply=false,min_prior_corr=0.5,diff_thresh_t=0.03,diff_thresh_s=0.03',
-        help=
-            "This option handles the automated dimensionality estimation when carrying out CPCA. The number of \n"
-            "components specified with --CPCA_temporal_comp and --CPCA_spatial_comp will be first derived, and \n"
-            "then an ideal dimensionality will be selected for temporal components and then for spatial \n"
-            "components. A convergence report is generated to visualize the results across iterations. \n"
-            "\n"
-            "Convergence criterion 1: A The correlation between the fitted network component \n"
-            "and the prior must reach a minimum.\n"
-            "\n"
-            "Convergence criterion 2: The last CPCA component which generated a sufficient difference in the output \n"
-            "fitted network is selected. \n"
-            "\n"
-            "When multiple priors are fitted, the minimum dimensionality for all networks to respect the convergence \n"
-            "criteria is selected.\n"
-            "\n"
-            "* apply: select 'true' to apply this option.\n"
-            "*** Specify 'true' or 'false'. \n"
-            "* min_prior_corr: Threshold for criterion 1. \n"
+            "* n: number of CPCA components. If n=-1, CPCA is not applied.\n"
+            "*** Must provide an integer. \n"
+            "* Wt_n: only the first Wt_n components are used for the temporal CPCA correction.\n"
+            "*** Must provide an integer. \n"
+            "* min_prior_sim: Threshold based on the cosine similarity with Cprior. \n"
+            "               No threshold is applied if the value is below 0. \n"
             "*** Must provide a float. \n"
-            "* diff_thresh_t: Threshold for criterion 2 for temporal components. \n"
+            "* Dc_C_thresh: Threshold based on the cosine distance on Cnet for each increment on n. \n"
+            "               No threshold is applied if the value is below 0. \n"
             "*** Must provide a float. \n"
-            "* diff_thresh_s: Threshold for criterion 2 for spatial components. \n"
+            "* Dc_W_thresh: Threshold based on the cosine distance on Wnet for each increment on n. \n"
+            "               No threshold is applied if the value is below 0. \n"
             "*** Must provide a float. \n"
             "(default: %(default)s)\n"
             "\n"
@@ -1123,11 +1103,11 @@ def read_parser(parser, args):
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             defaults = {'apply':False,'dim':0,'random_seed':1},
             name='group_ica')
-        opts.optimize_CPCA = parse_argument(opt=opts.optimize_CPCA, 
-            key_value_pairs = {'apply':['true', 'false'], 'min_prior_corr':float,
-                               'diff_thresh_t':float, 'diff_thresh_s':float},
-            defaults = {'apply':False,'min_prior_corr':0.5,'diff_thresh_t':0.03,'diff_thresh_s':0.03},
-            name='optimize_CPCA')
+        opts.CPCA = parse_argument(opt=opts.CPCA,
+            key_value_pairs = {'n':int, 'Wt_n':int, 'min_prior_sim':float,
+                               'Dc_C_thresh':float, 'Dc_W_thresh':float},
+            defaults = {'n':-1,'Wt_n':0,'min_prior_sim':-1,'Dc_C_thresh':-1,'Dc_W_thresh':-1},
+            name='CPCA')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
 
     return opts

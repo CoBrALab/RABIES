@@ -188,11 +188,7 @@ from nipype.interfaces.base import (
 class ComplementaryPCAInputSpec(BaseInterfaceInputSpec):
     dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    CPCA_temporal_comp = traits.Int(
-        desc="number of data-driven temporal components to compute.")
-    CPCA_spatial_comp = traits.Int(
-        desc="number of data-driven spatial components to compute.")
-    optimize_CPCA_dict = traits.Dict(
+    CPCA_dict = traits.Dict(
         desc="Dictionary with options for optimizing CPCA convergence.")
     network_weighting = traits.Str(
         desc="Whether to derive absolute or relative (variance-normalized) network maps.")
@@ -208,7 +204,7 @@ class ComplementaryPCAOutputSpec(TraitedSpec):
         exists=True, desc=".nii file with spatial components from the fitted prior sources.")
     CPCA_extra_filename = File(
         exists=True, desc=".nii file with spatial components from the scan-specific extra sources.")
-    optimize_report = traits.Any(
+    CPCA_report = traits.Any(
         exists=False, desc="The CPCA optimization report.")
 
 
@@ -226,7 +222,7 @@ class ComplementaryPCA(BaseInterface):
         import pandas as pd
         import pathlib  # Better path manipulation
         from rabies.utils import recover_4D
-        from rabies.analysis_pkg.CPCA import spatiotemporal_CPCA
+        from rabies.analysis_pkg.cpca.modeling import cpca_auto
 
         import pickle
         with open(self.inputs.dict_file, 'rb') as handle:
@@ -242,43 +238,41 @@ class ComplementaryPCA(BaseInterface):
 
         C_prior = prior_map_vectors[self.inputs.prior_bold_idx,:].T
 
-        CPCA_temporal_comp = self.inputs.CPCA_temporal_comp
-        CPCA_spatial_comp = self.inputs.CPCA_spatial_comp
-        if CPCA_temporal_comp<1: # make sure there is no negative number
-            CPCA_temporal_comp=0
-        if CPCA_spatial_comp<1: # make sure there is no negative number
-            CPCA_spatial_comp=0
-        optimize_CPCA_dict = self.inputs.optimize_CPCA_dict
-        modeling, Ct_extra, Cs_extra, optimize_report_fig = spatiotemporal_CPCA(timeseries, C_prior, 
-                                                                num_W=CPCA_temporal_comp, 
-                                                                num_C=CPCA_spatial_comp, 
-                                                                optim_dim=optimize_CPCA_dict['apply'],
-                                                                min_prior_corr=optimize_CPCA_dict['min_prior_corr'], 
-                                                                diff_thresh_t=optimize_CPCA_dict['diff_thresh_t'], 
-                                                                diff_thresh_s=optimize_CPCA_dict['diff_thresh_s']) 
+        CPCA_dict = self.inputs.CPCA_dict
+        min_prior_sim = CPCA_dict['min_prior_sim']
+        if min_prior_sim<0:
+            min_prior_sim = None
+        Dc_C_thresh = CPCA_dict['Dc_C_thresh']
+        if Dc_C_thresh<0:
+            Dc_C_thresh = None
+        Dc_W_thresh = CPCA_dict['Dc_W_thresh']
+        if Dc_W_thresh<0:
+            Dc_W_thresh = None
+
+        Cnet,Wnet,Cs,Ws,Ct,Wt,C,W,fig_list = cpca_auto(X=timeseries, C_prior=C_prior, 
+                                                 N_max=CPCA_dict['n'], Wt_n=CPCA_dict['Wt_n'], min_prior_sim=min_prior_sim, 
+                                                 Dc_W_thresh=Dc_W_thresh, Dc_C_thresh=Dc_C_thresh)
         
-        if optimize_CPCA_dict['apply']:
-            optimize_report_file = os.path.abspath(f'{filename_split[0]}_CPCA_optimize.{self.inputs.figure_format}')
-            optimize_report_fig.savefig(optimize_report_file, bbox_inches='tight')
-        else:
-            optimize_report_file=None
+        report_folder = os.path.abspath(f'CPCA_report/')
+        os.makedirs(report_folder, exist_ok=True)
+
+        for i in range(C_prior.shape[1]):
+            report_file = f'{report_folder}/{filename_split[0]}_CPCA_report{i}.{self.inputs.figure_format}'
+            fig_list[i].savefig(report_file, bbox_inches='tight')
 
         # put together the spatial and temporal extra components
-        W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
+        W_extra = np.concatenate((Ws,Wt), axis=1)
 
-        if network_weighting=='absolute':
-            C_extra = np.concatenate((modeling['C_spatial']*modeling['S_spatial'],
-                modeling['C_temporal']*modeling['S_temporal']), axis=1)
-            C_fit = modeling['C_fitted_prior']*modeling['S_fitted_prior']
-        elif network_weighting=='relative':
-            C_extra = np.concatenate((modeling['C_spatial'],
-                modeling['C_temporal']), axis=1)
-            C_fit = modeling['C_fitted_prior']
-        else:
-            raise 
+        if network_weighting=='relative':
+            Cnet /= np.sqrt((Cnet ** 2).mean(axis=0)) # normalization, so that the scale is in C
+            Cs /= np.sqrt((Cs ** 2).mean(axis=0)) # normalization, so that the scale is in C
+            Ct /= np.sqrt((Ct ** 2).mean(axis=0)) # normalization, so that the scale is in C
+            
+        C_extra = np.concatenate((Cs,Ct), axis=1)
+        C_fit = Cnet
 
         CPCA_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_CPCA_prior_timecourse.csv')
-        pd.DataFrame(modeling['W_fitted_prior']).to_csv(CPCA_prior_timecourse_csv, header=False, index=False)
+        pd.DataFrame(Wnet).to_csv(CPCA_prior_timecourse_csv, header=False, index=False)
 
         CPCA_extra_timecourse_csv = os.path.abspath(filename_split[0]+'_CPCA_extra_timecourse.csv')
         pd.DataFrame(W_extra).to_csv(CPCA_extra_timecourse_csv, header=False, index=False)
@@ -299,7 +293,7 @@ class ComplementaryPCA(BaseInterface):
         setattr(self, 'CPCA_extra_timecourse_csv', CPCA_extra_timecourse_csv)
         setattr(self, 'CPCA_prior_filename', CPCA_prior_filename)
         setattr(self, 'CPCA_extra_filename', CPCA_extra_filename)
-        setattr(self, 'optimize_report', optimize_report_file)
+        setattr(self, 'CPCA_report', report_folder)
 
         return runtime
 
@@ -308,5 +302,5 @@ class ComplementaryPCA(BaseInterface):
                 'CPCA_extra_timecourse_csv': getattr(self, 'CPCA_extra_timecourse_csv'),
                 'CPCA_prior_filename': getattr(self, 'CPCA_prior_filename'),
                 'CPCA_extra_filename': getattr(self, 'CPCA_extra_filename'),
-                'optimize_report': getattr(self, 'optimize_report'),
+                'CPCA_report': getattr(self, 'CPCA_report'),
                 }

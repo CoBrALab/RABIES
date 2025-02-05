@@ -209,7 +209,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ]),
             ])
-        if (analysis_opts.CPCA_temporal_comp>-1) or (analysis_opts.CPCA_spatial_comp>-1) or analysis_opts.optimize_CPCA['apply']:
+        if analysis_opts.CPCA['n']>-1:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.CPCA_prior_timecourse_csv", "CPCA_prior_timecourse_csv"),
