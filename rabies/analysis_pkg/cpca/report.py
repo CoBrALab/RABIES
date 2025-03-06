@@ -23,7 +23,8 @@ def gen_report(X,C_prior, Cs, min_prior_sim=None, Dc_W_thresh=None, Dc_C_thresh=
     '''
     
     # generate the fitting report
-    prior_sim_l,SSnet_s_l,SSnet_t_l,SSe_l,Dc_Cnet,Dc_Wnet,SSs_l,SSt_l,R2_s,R2_t = evaluate_fit(X,C_prior,Cs)
+    Snet_s_l,Snet_t_l,prior_sim_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t = evaluate_fit(X,C_prior,Cs)
+
     prior_sim_l = np.array(prior_sim_l)
     
     n_optim_idx = optim_n(prior_sim_l,min_prior_sim,Dc_Cnet,Dc_Wnet,Dc_W_thresh,Dc_C_thresh)
@@ -31,8 +32,7 @@ def gen_report(X,C_prior, Cs, min_prior_sim=None, Dc_W_thresh=None, Dc_C_thresh=
     n_prior = C_prior.shape[1]
     N_max = Cs.shape[1]
     fig_list = plot_report(n_prior,N_max,n_optim_idx,min_prior_sim,Dc_W_thresh,Dc_C_thresh,prior_sim_l,
-                         SSnet_s_l,SSnet_t_l,SSe_l,Dc_Cnet,Dc_Wnet,
-                         SSs_l,SSt_l,R2_s,R2_t)
+                    Snet_s_l,Snet_t_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t)
     return n_optim_idx, fig_list
     
 
@@ -41,10 +41,11 @@ def evaluate_fit(X,C_prior,Cs):
     N = Cs.shape[1]
     C_prior_ = np.concatenate((C_prior, Cs),axis=1) # expand prior
     W = closed_form(C_prior_, X.T).T
-    W /= np.sqrt((W ** 2).mean(axis=0)) # normalization by root mean square so that the scale is estimated on C
 
     # Wprior and Ws can be estimated with all Cs once, because adding new Cs do not impact their definition
     W_prior = W[:,:n_prior]
+    W_prior /= np.sqrt((W_prior ** 2).mean(axis=0)) # normalization by root mean square so that the scale is estimated on C
+
     Ws = W[:,n_prior:]
 
     Cnet_l = []
@@ -55,16 +56,39 @@ def evaluate_fit(X,C_prior,Cs):
     SSe_l = []
     SSnet_s_l = []
     SSnet_t_l = []
-
-    SSs_l = []
-    SSt_l = []
+    
+    Snet_s_l = []
+    Snet_t_l = []
 
     for i in range(N+1):
-        W = np.concatenate((W_prior, Ws[:,:i]),axis=1) # expand prior
-
-        C = closed_form(W, X).T
-        Cnet_s = C[:,:n_prior]
+        Wt = Ws[:,:i]
+        Ct = closed_form(Wt[:,:i], X).T
+        
+        # compute residuals after spatial or temporal orthogonal filter
+        X_s = X - Ws[:,:i].dot(Cs[:,:i].T)
+        X_t = X - Ws[:,:i].dot(Ct[:,:i].T)
+        
+        # apply Wt correction
+        Wnet = W_prior - Wt.dot(closed_form(Wt,W_prior))
+        Wnet /= np.sqrt((Wnet ** 2).mean(axis=0)) # normalization by root mean square so that the scale is estimated on C
+        Wnet_l.append(Wnet)
+                        
+        Cnet_s = closed_form(W_prior, X_s).T
         Cnet_l.append(Cnet_s)
+        Cnet_t = closed_form(Wnet, X_t).T
+        
+        Snet_s_l.append(np.sqrt((Cnet_s ** 2).sum(axis=0)))
+        Snet_t_l.append(np.sqrt((Cnet_t ** 2).sum(axis=0)))
+        
+        X_net_s = W_prior.dot(Cnet_s.T)
+        SSnet_s_total_l.append((X_net_s**2).sum())        
+        X_net_t = Wnet.dot(Cnet_t.T)
+        SSnet_t_total_l.append((X_net_t**2).sum())        
+        
+        # residuals are the same between s and t versions
+        e = X_s - X_net_s
+        SSe = (e ** 2).sum()
+        SSe_l.append(SSe)
 
         prior_sim = [cosine_similarity(Cnet_s[:,[n]],C_prior[:,[n]])[0,1] for n in range(n_prior)]
         prior_sim_l.append(prior_sim)
@@ -72,39 +96,9 @@ def evaluate_fit(X,C_prior,Cs):
         # we can calculate the entire variance of the subspace formed by the matrix product WC from the variance on each vector
         SSnet_s = (W_prior**2).sum(axis=0)*(Cnet_s**2).sum(axis=0)
         SSnet_s_l.append(SSnet_s)
-
-        e = X - W.dot(C.T)
-        SSe = (e ** 2).sum()
-        SSe_l.append(SSe)
-
-        if i>0:
-            SSs = (C[:,-1]**2).sum(axis=0)*(W[:,-1]**2).sum(axis=0)
-            SSs_l.append(SSs)
-        else:
-            SSs_l.append(np.nan)
-
-
-        Wt = Ws[:,:i]
-        # apply Wt correction
-        Wnet = W_prior - Wt.dot(closed_form(Wt,W_prior))
-        Wnet /= np.sqrt((Wnet ** 2).mean(axis=0)) # normalization by root mean square so that the scale is estimated on C
-        Wnet_l.append(Wnet)
-
-        W = np.concatenate((Wnet, Wt),axis=1)
-        C = closed_form(W, X).T
-        Cnet_t = C[:,:n_prior]
-
-        # we can calculate the entire variance of the subspace formed by the matrix product WC from the variance on each vector
         SSnet_t = (Wnet**2).sum(axis=0)*(Cnet_t**2).sum(axis=0)
         SSnet_t_l.append(SSnet_t)
-
-
-        if i>0:
-            SSt = (C[:,-1]**2).sum(axis=0)*(W[:,-1]**2).sum(axis=0)
-            SSt_l.append(SSt)
-        else:
-            SSt_l.append(np.nan)
-
+        
 
     '''
     Cosine distance between iterations
@@ -129,10 +123,11 @@ def evaluate_fit(X,C_prior,Cs):
     SSe_loss = np.concatenate((np.array([np.nan]), np.array(SSe_l)[:-1]-np.array(SSe_l)[1:]),axis=0)
     SSnet_s_loss = np.concatenate((np.array([np.repeat(np.nan,n_prior)]), np.array(SSnet_s_l)[:-1]-np.array(SSnet_s_l)[1:]),axis=0)
     SSnet_t_loss = np.concatenate((np.array([np.repeat(np.nan,n_prior)]), np.array(SSnet_t_l)[:-1]-np.array(SSnet_t_l)[1:]),axis=0)
-
+    
     R2_s = SSnet_s_loss/(SSnet_s_loss.T+SSe_loss).T
     R2_t = SSnet_t_loss/(SSnet_t_loss.T+SSe_loss).T
-    return prior_sim_l,SSnet_s_l,SSnet_t_l,SSe_l,Dc_Cnet,Dc_Wnet,SSs_l,SSt_l,R2_s,R2_t
+    
+    return Snet_s_l,Snet_t_l,prior_sim_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t
 
 
 def optim_n(prior_sim_l,min_prior_sim,Dc_Cnet,Dc_Wnet,Dc_W_thresh,Dc_C_thresh):
@@ -171,42 +166,40 @@ def optim_n(prior_sim_l,min_prior_sim,Dc_Cnet,Dc_Wnet,Dc_W_thresh,Dc_C_thresh):
 
 
 def plot_report(n_prior,N_max,n_optim_idx,min_prior_sim,Dc_W_thresh,Dc_C_thresh,prior_sim_l,
-                     SSnet_s_l,SSnet_t_l,SSe_l,Dc_Cnet,Dc_Wnet,
-                     SSs_l,SSt_l,R2_s,R2_t):
+                Snet_s_l,Snet_t_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t):
+    
     fig_list = []
     for prior_idx in range(n_prior):
-
-        fig,axes = plt.subplots(2,3, figsize=(17,10))
+        
+        fig,axes = plt.subplots(2,2, figsize=(8,8), constrained_layout=True)
 
         ax = axes[0,0]
-        ax.plot(SSe_l)
-        ax.legend(['SS($\epsilon$)'], fontsize=12, loc='upper right')
-        ax.set_ylabel('Sum of square (SS)', fontsize=15)
+        ax.plot(np.array(Snet_s_l)[:,prior_idx])
+        ax.plot(np.array(Snet_t_l)[:,prior_idx])
+        ax.legend(['Orthogonal CPCA','Non-orthogonal CPCA'], fontsize=12, loc='upper right')
+        ax.set_title('Network amplitude', fontsize=15)
+        ax.set_ylabel('L2-norm', fontsize=15)
+        ax.set_ylim([0,max(max(np.array(Snet_s_l)[:,prior_idx]),max(np.array(Snet_t_l)[:,prior_idx]))*1.05])
 
-        ax = axes[1,0]
+        ax = axes[0,1]
         ax.plot(prior_sim_l[:,prior_idx])
-        ax.legend(['Sc($c_{prior}$,$c_{net}$)'], fontsize=12, loc='lower right')
         ax.set_ylim([0,1])
-        ax.set_ylabel('Cosine similarity (Sc)', fontsize=15)
+        ax.set_title('Prior similarity', fontsize=15)
+        ax.set_ylabel('Cosine similarity', fontsize=15)
         if not min_prior_sim is None:
             ax.plot([-1,N_max+1],[min_prior_sim,min_prior_sim], color='lightgray', linestyle='--', linewidth=2)
         if not n_optim_idx is None:
             ax.scatter(n_optim_idx,prior_sim_l[n_optim_idx,prior_idx], color='r', marker='*', s=80)
 
 
-        ax = axes[0,1]
-        ax.plot(np.array(SSnet_s_l)[:,prior_idx])
-        ax.plot(np.array(SSnet_t_l)[:,prior_idx])
-        ax.legend(['SS($w_{net}c_{net}$$^{T}$) with $W_{ST} = W_{S}$','SS($w_{net}c_{net}$$^{T}$) with $W_{ST} = W_{T}$'], fontsize=12)
-        ax.set_ylim([0,max(max(np.array(SSnet_s_l)[:,prior_idx]),max(np.array(SSnet_t_l)[:,prior_idx]))*1.05])
-
-        ax = axes[1,1]
+        ax = axes[1,0]
         ax.plot(Dc_Cnet[:,prior_idx])
         ax.plot(Dc_Wnet[:,prior_idx])
-        ax.legend(['Dc($c_{net}$,$c_{net\_n-1}$)','Dc($w_{net}$,$w_{net\_n-1}$)'], fontsize=12, loc='upper right')
+        ax.legend(['Spatial map','Timecourse'], fontsize=12, loc='upper right')
         ax.set_ylim([0,0.4])
-        ax.set_ylabel('Cosine distance (Dc)', fontsize=15)
-        
+        ax.set_ylabel('Cosine distance', fontsize=15)
+        ax.set_title('Network component change', fontsize=15)
+
         thresh_l = []
         if not Dc_W_thresh is None:
             thresh_l.append(Dc_W_thresh)
@@ -216,32 +209,26 @@ def plot_report(n_prior,N_max,n_optim_idx,min_prior_sim,Dc_W_thresh,Dc_C_thresh,
             ax.plot([-1,N_max+1],[Dc_C_thresh,Dc_C_thresh], color='lightsteelblue', linestyle='--', linewidth=2)
         if len(thresh_l)>0:
             ax.set_ylim([0,min(max(thresh_l)*4,1)])
-        
+
         if not n_optim_idx is None:
             ax.scatter(n_optim_idx,Dc_Cnet[n_optim_idx,prior_idx], color='r', marker='*', s=80)
 
-
-        ax = axes[0,2]
-        ax.plot(np.array(SSs_l))
-        ax.plot(np.array(SSt_l))
-        ax.legend(['SS($w_{S}c_{S}$$^{T}$)','SS($w_{T}c_{T}$$^{T}$)'], fontsize=12, loc='upper right')
-
-        ax = axes[1,2]
+        ax = axes[1,1]
         ax.plot(R2_s[:,prior_idx])
         ax.plot(R2_t[:,prior_idx])
         ax.set_ylabel('Redundancy', fontsize=15)
-        ax.legend(['$w_{S}c_{S}$$^{T}$','$w_{T}c_{T}$$^{T}$'], fontsize=12, loc='upper right')
+        ax.set_title('CPCA and network redundancy', fontsize=15)
+        ax.legend(['Orthogonal CPCA','Non-orthogonal CPCA'], fontsize=12, loc='upper right')
         ax.set_ylim([0,1])
-        if not n_optim_idx is None:
-            ax.scatter(n_optim_idx,R2_s[n_optim_idx,prior_idx], color='r', marker='*', s=80)
 
-        for i in range(3):
-            axes[1,i].set_xlabel('Number of CPCA components (n)', fontsize=15)
+        for i in range(2):
+            axes[1,i].set_xlabel('Number of CPCA components', fontsize=15)
+            plt.setp(axes[0,i].get_xticklabels(), visible=False)
         for ax_ in axes:
             for ax in ax_:
                 ax.set_xlim([-1,N_max+1])
-
-
-        #plt.tight_layout()
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)
+        
         fig_list.append(fig)
     return fig_list
