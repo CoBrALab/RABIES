@@ -1,6 +1,6 @@
 # RABIES: Rodent Automated Bold Improvement of EPI Sequences.
 
-RABIES is an open source image processing pipeline for rodent fMRI. It conducts state-of-the-art preprocessing and confound correction, and supplies standard resting-state functional connectivity analyses. Visit our documentation at <https://rabies.readthedocs.io/en/stable/>.
+RABIES is an open source image processing pipeline for rodent fMRI. It conducts state-of-the-art preprocessing and confound correction, and supplies standard resting-state functional connectivity analyses. Visit our documentation at <https://rabies.readthedocs.io/en/latest/>.
 
 ![RABIES Schema](https://raw.githubusercontent.com/CoBrALab/RABIES/master/docs/pics/RABIES_schema.png)
 
