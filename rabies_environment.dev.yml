@@ -21,5 +21,6 @@ dependencies:
   - simpleitk
   - fsl-base
   - fsl-melodic
+  - traits<7.0
   - pip:
-    - qbatch
+      - qbatch
