@@ -9,7 +9,7 @@ import os
 import sys
 from shutil import rmtree
 
-from setuptools import find_packages, setup, Command
+from setuptools import Command, find_packages, setup
 
 # Package meta-data.
 NAME = 'rabies'
@@ -35,7 +35,8 @@ REQUIRED = [
     'seaborn==0.11.1',
     'simpleitk==2.0.2',
     'qbatch==2.3',
-    'networkx<3'
+    'networkx<3',
+    'traits<7.0'
 ]
 
 # What packages are optional?
