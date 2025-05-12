@@ -1,6 +1,7 @@
-import os
 import argparse
+import os
 from pathlib import Path
+
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -955,7 +956,7 @@ def get_parser():
         )
     analysis.add_argument(
         "--ROI_csv", action='store', type=Path, 
-        default=f"{rabies_path}/DSURQE_40micron_labels.nii.gz",
+        default=f"{rabies_path}/DSURQE_40micron_R_mapping.csv",
         help=
             "A CSV file with the ROI names matching the ROI index numbers in the atlas labels Nifti file. \n"
             "A copy of this file is provided along the FC matrix generated for each subject.\n"
@@ -1197,6 +1198,7 @@ def parse_scan_QC_thresholds(opt):
         opt=s[:-len(f'{replace}')] # remove the extra addition at the end
 
     import ast
+
     # using ast.literal_eval()
     # convert dictionary string to dictionary
     try:
