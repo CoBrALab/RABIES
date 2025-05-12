@@ -4,9 +4,11 @@ import SimpleITK as sitk
 
 def resample_prior_maps(in_file, ref_file, transforms = [], inverses = []):
     # resampling the reference image to the dimension of the EPI
+    import pathlib
+
     import SimpleITK as sitk
-    import os
-    from rabies.utils import split_volumes, exec_applyTransforms
+
+    from rabies.utils import exec_applyTransforms, split_volumes
 
     # Splitting bold file into lists of single volumes
     [volumes_list, num_volumes] = split_volumes(
@@ -14,8 +16,8 @@ def resample_prior_maps(in_file, ref_file, transforms = [], inverses = []):
 
     warped_volumes = []
     for x in range(0, num_volumes):
-        warped_vol_fname = os.path.abspath(
-            "deformed_volume" + str(x) + ".nii.gz")
+        warped_vol_fname = pathlib.Path(
+            "deformed_volume" + str(x) + ".nii.gz").absolute()
         warped_volumes.append(warped_vol_fname)
         exec_applyTransforms(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_image=warped_vol_fname, interpolation='Linear')
 
@@ -37,6 +39,7 @@ def resample_prior_maps(in_file, ref_file, transforms = [], inverses = []):
 
 def compute_edge_mask(mask_array, num_edge_voxels=1):
     import numpy as np
+
     #custom function for computing edge mask from an input brain mask
     shape = mask_array.shape
 

@@ -1,11 +1,13 @@
 import os
 import pathlib
-from nipype.pipeline import engine as pe
+
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
-from rabies.analysis_pkg.diagnosis_pkg.diagnosis_wf import init_diagnosis_wf
+from nipype.pipeline import engine as pe
+
 from rabies.analysis_pkg.analysis_wf import init_analysis_wf
+from rabies.analysis_pkg.diagnosis_pkg.diagnosis_wf import init_diagnosis_wf
 from rabies.utils import fill_split_dict, get_workflow_dict
 
 
@@ -13,7 +15,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     workflow = pe.Workflow(name='analysis_main_wf')
 
-    conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
+    conf_output = pathlib.Path(str(analysis_opts.confound_correction_out)).absolute()
 
     split_dict, split_name_list, target_list = read_confound_workflow(conf_output, nativespace=cr_opts.nativespace_analysis)
 
@@ -26,7 +28,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             """)
 
     # filter inclusion/exclusion lists
-    from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
+    from rabies.utils import filter_scan_exclusion, filter_scan_inclusion
     split_name_list = filter_scan_inclusion(analysis_opts.inclusion_ids, split_name_list)
     split_name_list = filter_scan_exclusion(analysis_opts.exclusion_ids, split_name_list)
 
@@ -55,7 +57,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 
     # prepare analysis workflow
-    analysis_output = os.path.abspath(str(analysis_opts.output_dir))
+    analysis_output = pathlib.Path(str(analysis_opts.output_dir)).absolute()
     commonspace_bold = not cr_opts.nativespace_analysis
     analysis_wf = init_analysis_wf(
         opts=analysis_opts, commonspace_cr=commonspace_bold)
@@ -65,7 +67,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          container="analysis_datasink"),
                                 name="analysis_datasink")
     if analysis_opts.FC_matrix:
-        if os.path.isfile(str(analysis_opts.ROI_csv)):
+        if pathlib.Path(str(analysis_opts.ROI_csv)).is_file():
             analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
@@ -78,10 +80,10 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                        function=load_maps_dict),
                               name='load_maps_dict_node')
     load_maps_dict_node.inputs.atlas_ref = str(preprocess_opts.labels)
-    if not os.path.isfile(str(analysis_opts.prior_maps)):
+    if not pathlib.Path(str(analysis_opts.prior_maps)).is_file():
         raise ValueError("--prior_maps doesn't exists.")
     else:
-        load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_node.inputs.prior_maps = pathlib.Path(analysis_opts.prior_maps).absolute()
 
 
     if commonspace_bold or preprocess_opts.bold_only:
@@ -240,12 +242,15 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 # this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
 def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps, transform_list, inverse_list):
-    import numpy as np
-    import SimpleITK as sitk
     import os
     import pathlib  # Better path manipulation
+
+    import numpy as np
+    import SimpleITK as sitk
+
+    from rabies.analysis_pkg.utils import (compute_edge_mask,
+                                           resample_prior_maps)
     from rabies.utils import resample_image_spacing
-    from rabies.analysis_pkg.utils import resample_prior_maps, compute_edge_mask
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
     volume_indices = mask_array.astype(bool)
@@ -261,7 +266,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     # the reference anatomical image (either the native space anat scan or commonspace template) is resampled to match the EPI resolution for plotting during --data_diagnosis
     resampled = resample_image_spacing(sitk.ReadImage(preprocess_anat_template), mask_img.GetSpacing())
     filename_split = pathlib.Path(preprocess_anat_template).name.rsplit(".nii")
-    template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
+    template_file = pathlib.Path(f'{filename_split[0]}_display_template.nii.gz').absolute()
     sitk.WriteImage(resampled, template_file)
 
     resampled_maps = resample_prior_maps(prior_maps, mask_file, transforms = transform_list, inverses = inverse_list)
@@ -281,9 +286,10 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
 # this function loads subject-specific data
 def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
-    import pickle
-    import pathlib
     import os
+    import pathlib
+    import pickle
+
     import numpy as np
     import SimpleITK as sitk
 
@@ -312,7 +318,7 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
         sub_dict[k] = maps_dict[k]
 
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    dict_file = os.path.abspath(f'{filename_split[0]}_data_dict.pkl')
+    dict_file = pathlib.Path(f'{filename_split[0]}_data_dict.pkl').absolute()
     with open(dict_file, 'wb') as handle:
         pickle.dump(sub_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

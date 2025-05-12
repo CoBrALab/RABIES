@@ -1,10 +1,12 @@
 import os
 import pathlib
-from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu
-from nipype import Function
 
-from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
+from nipype import Function
+from nipype.interfaces import utility as niu
+from nipype.pipeline import engine as pe
+
+from .analysis_functions import (run_DR_ICA, run_FC_matrix, run_group_ICA,
+                                 seed_based_FC)
 
 
 def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
@@ -40,8 +42,8 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         seed_dict = {}
         name_list = []
         for file in opts.seed_list:
-            file = os.path.abspath(file)
-            if not os.path.isfile(file):
+            file = pathlib.Path(file).absolute()
+            if not pathlib.Path(file).is_file():
                 raise ValueError(
                     f"Provide seed file path {file} doesn't exists.")
             seed_name = pathlib.Path(file).name.rsplit(".nii")[0]

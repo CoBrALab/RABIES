@@ -1,22 +1,25 @@
-import os
+import matplotlib.pyplot as plt
+import nilearn.plotting
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from rabies.utils import copyInfo_3DImage, recover_3D
-from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
-import nilearn.plotting
+
+from rabies.analysis_pkg import analysis_functions
+from rabies.utils import copyInfo_3DImage, recover_3D
+
 from .analysis_QC import masked_plot, percent_threshold
+
 
 def resample_mask(in_file, ref_file):
     transforms = []
     inverses = []
     # resampling the reference image to the dimension of the EPI
-    from rabies.utils import run_command
     import pathlib  # Better path manipulation
+
+    from rabies.utils import run_command
     filename_split = pathlib.Path(
         in_file).name.rsplit(".nii")
-    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
+    out_file = pathlib.Path(filename_split[0])+'_resampled.nii.gz'
 
     # tranforms is a list of transform files, set in order of call within antsApplyTransforms
     transform_string = ""
@@ -137,47 +140,48 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
 
 
 def temporal_external_formating(temporal_info):
-    import os
-    import pandas as pd
     import pathlib  # Better path manipulation
+
+    import pandas as pd
 
     filename_split = pathlib.Path(
         temporal_info['name_source']).name.rsplit(".nii")
 
     del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['NPR_time'],temporal_info['SBC_time']
 
-    temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
+    temporal_info_csv = pathlib.Path(filename_split[0]+'_temporal_info.csv').absolute()
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
     return temporal_info_csv
 
 
 def spatial_external_formating(spatial_info):
-    import os
     import pathlib  # Better path manipulation
+
     import SimpleITK as sitk
+
     from rabies.utils import recover_3D
 
     mask_file = spatial_info['mask_file']
     filename_split = pathlib.Path(
         spatial_info['name_source']).name.rsplit(".nii")
 
-    VE_filename = os.path.abspath(filename_split[0]+'_VE.nii.gz')
+    VE_filename = pathlib.Path(filename_split[0]+'_VE.nii.gz').absolute()
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['VE_spatial']), VE_filename)
 
-    std_filename = os.path.abspath(filename_split[0]+'_tSTD.nii.gz')
+    std_filename = pathlib.Path(filename_split[0]+'_tSTD.nii.gz').absolute()
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['temporal_std']), std_filename)
 
-    predicted_std_filename = os.path.abspath(filename_split[0]+'_predicted_std.nii.gz')
+    predicted_std_filename = pathlib.Path(filename_split[0]+'_predicted_std.nii.gz').absolute()
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['predicted_std']), predicted_std_filename)
 
-    GS_corr_filename = os.path.abspath(filename_split[0]+'_GS_corr.nii.gz')
+    GS_corr_filename = pathlib.Path(filename_split[0]+'_GS_corr.nii.gz').absolute()
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_corr']), GS_corr_filename)
 
-    GS_cov_filename = os.path.abspath(filename_split[0]+'_GS_cov.nii.gz')
+    GS_cov_filename = pathlib.Path(filename_split[0]+'_GS_cov.nii.gz').absolute()
     sitk.WriteImage(recover_3D(
         mask_file, spatial_info['GS_cov']), GS_cov_filename)
 

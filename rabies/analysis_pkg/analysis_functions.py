@@ -1,7 +1,7 @@
 import numpy as np
 import SimpleITK as sitk
-from .analysis_math import vcorrcoef,closed_form
 
+from .analysis_math import closed_form, vcorrcoef
 
 '''
 seed-based FC
@@ -9,13 +9,14 @@ seed-based FC
 
 def seed_based_FC(dict_file, seed_dict, seed_name):
     import os
+    import pathlib
+    import pickle
+
     import numpy as np
     import SimpleITK as sitk
-    import pathlib
-    from rabies.utils import run_command, recover_3D
-    from rabies.analysis_pkg.analysis_math import vcorrcoef
 
-    import pickle
+    from rabies.analysis_pkg.analysis_math import vcorrcoef
+    from rabies.utils import recover_3D, run_command
     with open(dict_file, 'rb') as handle:
         data_dict = pickle.load(handle)
     bold_file = data_dict['bold_file']
@@ -24,7 +25,7 @@ def seed_based_FC(dict_file, seed_dict, seed_name):
     volume_indices = data_dict['volume_indices']
 
     seed_file = seed_dict[seed_name]
-    resampled = os.path.abspath('resampled.nii.gz')
+    resampled = pathlib.Path('resampled.nii.gz').absolute()
     command=f'antsApplyTransforms -i {seed_file} -r {mask_file} -o {resampled} -n GenericLabel'
     rc,c_out = run_command(command)
     roi_mask = sitk.GetArrayFromImage(sitk.ReadImage(resampled))[volume_indices].astype(bool)
@@ -37,15 +38,15 @@ def seed_based_FC(dict_file, seed_dict, seed_name):
 
     corr_map_img = recover_3D(mask_file, corrs)
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
-    corr_map_file = os.path.abspath(
-        filename_split+'_'+seed_name+'_corr_map.nii.gz')
+    corr_map_file = pathlib.Path(
+        filename_split+'_'+seed_name+'_corr_map.nii.gz').absolute()
     
     sitk.WriteImage(corr_map_img, corr_map_file)
 
     # also save the seed timecourse
     import pandas as pd
-    seed_timecourse_csv = os.path.abspath(
-        filename_split+'_'+seed_name+'_timecourse.csv')
+    seed_timecourse_csv = pathlib.Path(
+        filename_split+'_'+seed_name+'_timecourse.csv').absolute()
     pd.DataFrame(seed_timeseries).to_csv(seed_timecourse_csv, header=False, index=False)
 
     return corr_map_file,seed_timecourse_csv
@@ -58,20 +59,22 @@ FC matrix
 
 def run_FC_matrix(dict_file, figure_format, roi_type='parcellated'):
     import os
+    import pathlib  # Better path manipulation
+    import pickle
+
+    import numpy as np
     import pandas as pd
     import SimpleITK as sitk
-    import numpy as np
-    import pathlib  # Better path manipulation
-    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
 
-    import pickle
+    from rabies.analysis_pkg.analysis_functions import (parcellated_FC_matrix,
+                                                        plot_matrix)
     with open(dict_file, 'rb') as handle:
         data_dict = pickle.load(handle)
 
 
     bold_file = data_dict['bold_file']
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    figname = os.path.abspath(filename_split[0]+f'_FC_matrix.{figure_format}')
+    figname = pathlib.Path(filename_split[0]+f'_FC_matrix.{figure_format}').absolute()
     
     timeseries = data_dict['timeseries']
     atlas_idx = data_dict['atlas_idx']
@@ -88,7 +91,7 @@ def run_FC_matrix(dict_file, figure_format, roi_type='parcellated'):
             f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
     plot_matrix(figname, corr_matrix)
 
-    data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
+    data_file = pathlib.Path(filename_split[0]+'_FC_matrix.csv').absolute()
     matrix_df.to_csv(data_file, sep=',')
     return data_file, figname
 
@@ -127,17 +130,18 @@ ICA
 
 def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
     import os
+
     import pandas as pd
 
     # create a filelist.txt
-    file_path = os.path.abspath('filelist.txt')
+    file_path = pathlib.Path('filelist.txt').absolute()
     from rabies.utils import flatten_list
     merged = flatten_list(list(bold_file_list))
     df = pd.DataFrame(data=merged)
     df.to_csv(file_path, header=False, sep=',', index=False)
 
     from rabies.utils import run_command
-    out_dir = os.path.abspath('group_melodic.ica')
+    out_dir = pathlib.Path('group_melodic.ica').absolute()
     command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)}'
     rc,c_out = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
@@ -146,13 +150,14 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed):
 
 def run_DR_ICA(dict_file,network_weighting):
     import os
-    import pandas as pd
     import pathlib  # Better path manipulation
-    import SimpleITK as sitk
-    from rabies.utils import recover_4D
-    from rabies.analysis_pkg.analysis_math import dual_regression
-
     import pickle
+
+    import pandas as pd
+    import SimpleITK as sitk
+
+    from rabies.analysis_pkg.analysis_math import dual_regression
+    from rabies.utils import recover_4D
     with open(dict_file, 'rb') as handle:
         data_dict = pickle.load(handle)
     bold_file = data_dict['bold_file']
@@ -171,19 +176,18 @@ def run_DR_ICA(dict_file,network_weighting):
     else:
         raise 
 
-    dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
+    dual_regression_timecourse_csv = pathlib.Path(filename_split[0]+'_dual_regression_timecourse.csv').absolute()
     pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
 
     # save the subjects' IC maps as .nii file
-    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
+    DR_maps_filename = pathlib.Path(filename_split[0]+'_DR_maps.nii.gz').absolute()
     sitk.WriteImage(recover_4D(mask_file, DR_C.T, bold_file), DR_maps_filename)
     return DR_maps_filename, dual_regression_timecourse_csv
 
 
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
+from nipype.interfaces.base import (BaseInterface, BaseInterfaceInputSpec,
+                                    File, TraitedSpec, traits)
+
 
 class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
     dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
@@ -222,13 +226,14 @@ class NeuralPriorRecovery(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import pathlib  # Better path manipulation
+        import pickle
+
         import numpy as np
         import pandas as pd
-        import pathlib  # Better path manipulation
-        from rabies.utils import recover_4D
-        from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
 
-        import pickle
+        from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
+        from rabies.utils import recover_4D
         with open(self.inputs.dict_file, 'rb') as handle:
             data_dict = pickle.load(handle)
         bold_file = data_dict['bold_file']
@@ -251,7 +256,7 @@ class NeuralPriorRecovery(BaseInterface):
                                         max_iter=optimize_NPR_dict['max_iter'], 
                                         compute_max=optimize_NPR_dict['compute_max'], 
                                         gen_report=True)
-            optimize_report_file = os.path.abspath(f'{filename_split[0]}_NPR_optimize.{self.inputs.figure_format}')
+            optimize_report_file = pathlib.Path(f'{filename_split[0]}_NPR_optimize.{self.inputs.figure_format}').absolute()
             optimize_report_fig.savefig(optimize_report_file, bbox_inches='tight')
         else:
             NPR_temporal_comp = self.inputs.NPR_temporal_comp
@@ -277,21 +282,21 @@ class NeuralPriorRecovery(BaseInterface):
         else:
             raise 
 
-        NPR_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_prior_timecourse.csv')
+        NPR_prior_timecourse_csv = pathlib.Path(filename_split[0]+'_NPR_prior_timecourse.csv').absolute()
         pd.DataFrame(modeling['W_fitted_prior']).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
 
-        NPR_extra_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_extra_timecourse.csv')
+        NPR_extra_timecourse_csv = pathlib.Path(filename_split[0]+'_NPR_extra_timecourse.csv').absolute()
         pd.DataFrame(W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
 
-        NPR_prior_filename = os.path.abspath(filename_split[0]+'_NPR_prior.nii.gz')
+        NPR_prior_filename = pathlib.Path(filename_split[0]+'_NPR_prior.nii.gz').absolute()
         sitk.WriteImage(recover_4D(mask_file,C_fit.T, bold_file), NPR_prior_filename)
 
         if (self.inputs.NPR_temporal_comp+self.inputs.NPR_spatial_comp)>0:
-            NPR_extra_filename = os.path.abspath(filename_split[0]+'_NPR_extra.nii.gz')
+            NPR_extra_filename = pathlib.Path(filename_split[0]+'_NPR_extra.nii.gz').absolute()
             sitk.WriteImage(recover_4D(mask_file,C_extra.T, bold_file), NPR_extra_filename)
         else:
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-            empty_file = os.path.abspath('empty.nii.gz')
+            empty_file = pathlib.Path('empty.nii.gz').absolute()
             sitk.WriteImage(empty_img, empty_file)
             NPR_extra_filename = empty_file
 

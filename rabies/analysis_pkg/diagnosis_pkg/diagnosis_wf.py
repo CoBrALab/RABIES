@@ -1,10 +1,14 @@
-import os
-from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu
-from nipype import Function
+import pathlib
 
-from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMasks, DatasetDiagnosis
-from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
+from nipype import Function
+from nipype.interfaces import utility as niu
+from nipype.pipeline import engine as pe
+
+from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import (
+    spatial_external_formating, temporal_external_formating)
+from rabies.analysis_pkg.diagnosis_pkg.interfaces import (DatasetDiagnosis,
+                                                          PrepMasks,
+                                                          ScanDiagnosis)
 
 
 def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf"):
@@ -16,7 +20,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
                                                        'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
 
-    if os.path.basename(preprocess_opts.anat_template)=='DSURQE_40micron_average.nii.gz':
+    if pathlib.Path(preprocess_opts.anat_template).name == 'DSURQE_40micron_average.nii.gz':
         DSURQE_regions=True
     else:
         DSURQE_regions=False

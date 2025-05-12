@@ -1,13 +1,14 @@
 import os
+import pathlib
+
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
+from nipype.interfaces.base import (BaseInterface, BaseInterfaceInputSpec,
+                                    File, TraitedSpec, traits)
+
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
 
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
 
 class PrepMasksInputSpec(BaseInterfaceInputSpec):
     mask_dict_list = traits.List(
@@ -32,7 +33,7 @@ class PrepMasks(BaseInterface):
     output_spec = PrepMasksOutputSpec
 
     def _run_interface(self, runtime):
-        from rabies.utils import flatten_list,resample_image_spacing
+        from rabies.utils import flatten_list, resample_image_spacing
         merged = flatten_list(list(self.inputs.mask_dict_list))
         mask_dict = merged[0]  # all mask files are assumed to be identical
         brain_mask_file = mask_dict['mask_file']
@@ -42,7 +43,7 @@ class PrepMasks(BaseInterface):
         # resample the template to the EPI dimensions
         resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(
             brain_mask_file).GetSpacing())
-        template_file = os.path.abspath('display_template.nii.gz')
+        template_file = pathlib.Path('display_template.nii.gz').absolute()
         sitk.WriteImage(resampled, template_file)
 
         if self.inputs.DSURQE_regions:
@@ -61,7 +62,7 @@ class PrepMasks(BaseInterface):
         from rabies.analysis_pkg.analysis_functions import resample_IC_file
         prior_maps = resample_IC_file(self.inputs.prior_maps, brain_mask_file)
 
-        edge_mask_file = os.path.abspath('edge_mask.nii.gz')
+        edge_mask_file = pathlib.Path('edge_mask.nii.gz').absolute()
         diagnosis_functions.compute_edge_mask(brain_mask_file, edge_mask_file, num_edge_voxels=1)
         mask_file_dict = {'template_file': template_file, 'brain_mask': brain_mask_file, 'WM_mask': WM_mask_file, 'CSF_mask': CSF_mask_file,
                           'edge_mask': edge_mask_file, 'right_hem_mask': right_hem_mask_file, 'left_hem_mask': left_hem_mask_file, 'prior_maps': prior_maps}
@@ -130,14 +131,15 @@ class ScanDiagnosis(BaseInterface):
 
         import pathlib
         filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
-        figure_path = os.path.abspath(filename_template)
-        fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
-        fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
+        figure_path= pathlib.Path(filename_template).absolute()
+        figure_path_str = str(figure_path)
+        fig.savefig(figure_path_str+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
+        fig2.savefig(figure_path_str+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
 
         setattr(self, 'figure_temporal_diagnosis',
-                figure_path+f'_temporal_diagnosis.{figure_format}')
+                figure_path_str+f'_temporal_diagnosis.{figure_format}')
         setattr(self, 'figure_spatial_diagnosis',
-                figure_path+f'_spatial_diagnosis.{figure_format}')
+                figure_path_str+f'_spatial_diagnosis.{figure_format}')
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
 
@@ -186,20 +188,26 @@ class DatasetDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         import pathlib
+
         import matplotlib.pyplot as plt
+
         from rabies.utils import flatten_list
-        from .analysis_QC import analysis_QC,QC_distributions
+
+        from .analysis_QC import QC_distributions, analysis_QC
 
         figure_format = self.inputs.figure_format
 
-        out_dir_global = os.path.abspath('analysis_QC/')
-        os.makedirs(out_dir_global, exist_ok=True)
-        out_dir_parametric = out_dir_global+'/parametric_stats/'
-        os.makedirs(out_dir_parametric, exist_ok=True)
-        out_dir_non_parametric = out_dir_global+'/non_parametric_stats/'
-        os.makedirs(out_dir_non_parametric, exist_ok=True)
-        out_dir_dist = out_dir_global+'/sample_distributions/'
-        os.makedirs(out_dir_dist, exist_ok=True)
+        out_dir_global = pathlib.Path('analysis_QC/').absolute()
+        out_dir_global.mkdir(exist_ok=True)
+
+        out_dir_parametric = out_dir_global / 'parametric_stats'
+        out_dir_parametric.mkdir(exist_ok=True)
+
+        out_dir_non_parametric = out_dir_global / 'non_parametric_stats'
+        out_dir_non_parametric.mkdir(exist_ok=True)
+
+        out_dir_dist = out_dir_global / 'sample_distributions'
+        out_dir_dist.mkdir(exist_ok=True)
 
         merged = flatten_list(list(self.inputs.scan_data_list))
         if len(merged) < 3:
@@ -269,7 +277,7 @@ class DatasetDiagnosis(BaseInterface):
         from rabies.utils import recover_3D
         std_maps=np.array(std_maps)
         non_zero_voxels = ((std_maps==0).sum(axis=0).astype(bool)==0)
-        non_zero_mask = os.path.abspath('non_zero_mask.nii.gz')
+        non_zero_mask = pathlib.Path('non_zero_mask.nii.gz').absolute()
         sitk.WriteImage(recover_3D(mask_file, non_zero_voxels.astype(float)), non_zero_mask)
 
         CRsd_maps=np.array(CRsd_maps)[:,non_zero_voxels]
