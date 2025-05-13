@@ -1,18 +1,21 @@
 import os
 import pathlib
-from nipype.pipeline import engine as pe
+
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
 from nipype.interfaces.utility import Function
+from nipype.pipeline import engine as pe
+
 from rabies.utils import fill_split_dict, get_workflow_dict
 
 
 def init_main_confound_correction_wf(preprocess_opts, cr_opts):
-    from rabies.confound_correction_pkg.confound_correction import init_confound_correction_wf
+    from rabies.confound_correction_pkg.confound_correction import \
+        init_confound_correction_wf
 
     workflow = pe.Workflow(name='confound_correction_main_wf')
 
-    preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
+    preproc_output = pathlib.Path(str(cr_opts.preprocess_out)).absolute()
 
     if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
         raise ValueError(
@@ -24,7 +27,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
 
     # filter inclusion/exclusion lists
-    from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
+    from rabies.utils import filter_scan_exclusion, filter_scan_inclusion
     split_name = filter_scan_inclusion(cr_opts.inclusion_ids, split_name)
     split_name = filter_scan_exclusion(cr_opts.exclusion_ids, split_name)
 
@@ -97,7 +100,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ]),
             ])
 
-    cr_output = os.path.abspath(str(cr_opts.output_dir))
+    cr_output = pathlib.Path(str(cr_opts.output_dir)).absolute()
 
     confound_correction_datasink = pe.Node(DataSink(base_directory=cr_output,
                                                     container="confound_correction_datasink"),
@@ -159,8 +162,8 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
 
 def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=False, atlas_reg_script='SyN', voxelwise_motion=False):
-    import pathlib
     import glob
+    import pathlib
 
     template_file = glob.glob(f'{preproc_output}/bold_datasink/commonspace_resampled_template/*')
     if len(template_file)==1:
@@ -193,7 +196,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
     target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
 
-        if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
+        if not pathlib.Path(f'{preproc_output}/{datasink}/{target}').is_dir():
             raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
                 "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
         target_list.append(target)
@@ -223,7 +226,7 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
         from bids.layout import parse_file_entities
         for datasink,target in directory_list:
 
-            if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
+            if not pathlib.Path(f'{preproc_output}/{datasink}/{target}').absolute():
                 raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
                     "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
             target_list.append(target)
@@ -353,7 +356,6 @@ def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_fi
         if 'empty' in file:
             return file
 
-    import os
     import matplotlib.pyplot as plt
     import SimpleITK as sitk
     nrows = 4
@@ -387,8 +389,9 @@ def plot_CR_overfit(mask_file, STD_file_path, CR_STD_file_path, random_CR_STD_fi
 
     import pathlib
     filename_template = pathlib.Path(STD_file_path).name.rsplit("_STD_map.nii.gz")[0]
-    figure_path = os.path.abspath(filename_template)+f'_CR_overfit.{figure_format}'
-    fig.savefig(figure_path, bbox_inches='tight')
+    figure_path = pathlib.Path(filename_template).absolute()
+    figure_path_string=str(figure_path)+f'_CR_overfit.{figure_format}'
+    fig.savefig(figure_path_string, bbox_inches='tight')
 
-    return figure_path
+    return figure_path_string
 

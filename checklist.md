@@ -19,12 +19,18 @@ around line 335, analysis_QC_network there's some path stuff that may need to be
 
 ###
 
-./rabies/boilerplate.py
-./rabies/confound_correction_pkg/confound_correction.py
-./rabies/confound_correction_pkg/**init**.py
-./rabies/confound_correction_pkg/main_wf.py
-./rabies/confound_correction_pkg/mod_ICA_AROMA/classification_plots.py
-./rabies/confound_correction_pkg/mod_ICA_AROMA/ICA_AROMA_functions.py
+./rabies/boilerplate.py - nothing
+./rabies/confound_correction_pkg/confound_correction.py - replaced os.path with pathlib. there are a lot of strings as file paths. may be an issue
+./rabies/confound_correction_pkg/**init**.py - nothing
+./rabies/confound_correction_pkg/main_wf.py - is_dir() used, figure path to a string again. re-visit, may need to be re-done
+
+###
+
+./rabies/confound_correction_pkg/mod_ICA_AROMA/classification_plots.py replaced os.path.join with pathlib `/` syntax
+./rabies/confound_correction_pkg/mod_ICA_AROMA/ICA_AROMA_functions.py changed to use `with open`, remvoed txt.close(), files will close correctly if error occurs
+currently uses camel case insteead of snake case, this shold be changed
+a lot of changes in this file, review required
+
 ./rabies/confound_correction_pkg/mod_ICA_AROMA/ICA_AROMA.py
 ./rabies/confound_correction_pkg/mod_ICA_AROMA/ica-aroma-via-docker.py
 ./rabies/confound_correction_pkg/mod_ICA_AROMA/**init**.py

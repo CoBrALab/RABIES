@@ -1,11 +1,11 @@
-from nipype.pipeline import engine as pe
-from nipype.interfaces import utility as niu
 from nipype import Function
+from nipype.interfaces import utility as niu
+from nipype.interfaces.base import (BaseInterface, BaseInterfaceInputSpec,
+                                    File, TraitedSpec, traits)
+from nipype.pipeline import engine as pe
+
 from .utils import prep_CR
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
+
 
 def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     # confound_wf_head_start
@@ -185,16 +185,22 @@ class Regress(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
+        import pathlib
+
         import numpy as np
         import pandas as pd
         import SimpleITK as sitk
-        from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors
+
         from rabies.analysis_pkg.analysis_functions import closed_form
+        from rabies.confound_correction_pkg.utils import (
+            butterworth, compute_signal_regressors, exec_ICA_AROMA,
+            lombscargle_fill, phase_randomized_regressors, remove_trend,
+            smooth_image, temporal_censoring)
+        from rabies.utils import recover_3D, recover_4D
 
         ### set null returns in case the workflow is interrupted
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-        empty_file = os.path.abspath('empty.nii.gz')
+        empty_file = pathlib.Path('empty.nii.gz').absolute()
         sitk.WriteImage(empty_img, empty_file)
 
         setattr(self, 'cleaned_path', empty_file)
@@ -396,7 +402,7 @@ class Regress(BaseInterface):
             log = logging.getLogger('nipype.workflow')
             log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-            empty_file = os.path.abspath('empty.nii.gz')
+            empty_file = pathlib.Path('empty.nii.gz').absolute()
             sitk.WriteImage(empty_img, empty_file)
 
             return runtime

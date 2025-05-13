@@ -3,15 +3,17 @@ from __future__ import print_function
 
 def classification_plot(myinput, outDir):
 
-    import pandas as pd
-    import numpy as np
     import matplotlib as mpl
+    import numpy as np
+    import pandas as pd
     mpl.use('Agg')
-    import matplotlib.pyplot as plt
-    from matplotlib import gridspec
-    import seaborn as sns
     import glob
     import os
+    import pathlib
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from matplotlib import gridspec
 
     ###---Start---###
     # find files
@@ -204,7 +206,7 @@ def classification_plot(myinput, outDir):
     plt.suptitle('Component Assessment', fontsize=20)
 
     # outtakes
-    plt.savefig(os.path.join(outDir, 'ICA_AROMA_component_assessment.pdf'),
+    plt.savefig(pathlib.Path(outDir / 'ICA_AROMA_component_assessment.pdf'),
                 bbox_inches='tight')
 
     return
