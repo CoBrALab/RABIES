@@ -2,8 +2,8 @@ name: PR Workflow - test that dockerfile will build on a PR to master
 
 on:
   pull_request:
-    branches: "master"
-
+    branches:
+      - master
 jobs:
   build:
     runs-on: ubuntu-latest
