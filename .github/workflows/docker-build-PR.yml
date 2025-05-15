@@ -21,6 +21,6 @@ jobs:
         with:
           context: .
           push: false
-          tags: RABIES:pr-${{ github.event.pull_request.number }}
+          tags: rabies:pr-${{ github.event.pull_request.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
