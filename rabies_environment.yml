@@ -22,5 +22,6 @@ dependencies:
   - networkx<3
   - fsl-base=2309.1
   - fsl-melodic=2111.3
+  - traits<7.0
   - pip:
-    - qbatch==2.3
+      - qbatch==2.3
