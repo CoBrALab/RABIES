@@ -11,6 +11,22 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 
 def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
+    """
+    Initialize the main Nipype workflow for neuroimaging analysis, integrating confound correction outputs, data preparation, analysis, and optional diagnostic workflows.
+    
+    This function constructs a Nipype workflow that:
+    - Loads confound correction outputs and filters BOLD scan splits based on inclusion/exclusion criteria.
+    - Prepares subject-specific and group-level data nodes for analysis.
+    - Initializes and connects the main analysis workflow, handling both native and common space processing.
+    - Sets up data sinks for saving analysis and diagnostic outputs.
+    - Optionally initializes and connects a diagnostic workflow if enabled, packaging relevant analysis outputs for further quality control.
+    
+    Raises:
+        ValueError: If no confound correction outputs are found or if required prior maps are missing.
+    
+    Returns:
+        workflow: The fully constructed Nipype workflow ready for execution.
+    """
     workflow = pe.Workflow(name='analysis_main_wf')
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
@@ -176,6 +192,12 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     if analysis_opts.data_diagnosis:
 
         def prep_analysis_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, CPCA_prior_timecourse_csv, CPCA_extra_timecourse_csv, CPCA_prior_filename, CPCA_extra_filename):
+            """
+            Package analysis output file paths into a dictionary for downstream processing.
+            
+            Returns:
+                dict: Dictionary containing file paths for seed-based, dual regression, and CPCA analysis outputs.
+            """
             return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
                     'CPCA_prior_timecourse_csv':CPCA_prior_timecourse_csv, 'CPCA_extra_timecourse_csv':CPCA_extra_timecourse_csv, 
                     'CPCA_prior_filename':CPCA_prior_filename, 'CPCA_extra_filename':CPCA_extra_filename}

@@ -58,6 +58,19 @@ def dual_regression(all_IC_vectors, timeseries):
     ### The fMRI timeseries aren't assumed theoretically to be spatially centered, and
     ### this measure would be removing global signal variations which we are interested in.
     ### Thus we prefer to avoid this step here, despite modelling limitations.
+    """
+    Perform dual regression to decompose timeseries data into spatial weights and component timecourses using provided independent component vectors.
+    
+    Parameters:
+        all_IC_vectors (ndarray): Array of independent component spatial maps (components x voxels).
+        timeseries (ndarray): Array of observed timeseries data (voxels x timepoints).
+    
+    Returns:
+        dict: Dictionary containing:
+            'C' (ndarray): Component timecourses (components x timepoints), variance-normalized.
+            'W' (ndarray): Spatial weights (voxels x components), variance-normalized.
+            'S' (ndarray): Scaling factors for each component.
+    """
     X = all_IC_vectors.T
     Y = timeseries.T
     # for one given volume, it's values can be expressed through a linear combination of the components

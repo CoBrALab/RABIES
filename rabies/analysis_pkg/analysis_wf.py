@@ -9,6 +9,22 @@ from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_b
 
 def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
+    """
+    Initialize and configure a Nipype workflow for neuroimaging data analysis based on specified options.
+    
+    This function constructs a modular workflow that conditionally includes analysis steps such as seed-based functional connectivity, dual regression ICA, group ICA, complementary PCA, and functional connectivity matrix computation. The workflow manages subject- and group-level inputs, enforces prerequisites for certain analyses, and aggregates outputs for downstream processing.
+    
+    Parameters:
+        opts: Configuration object containing analysis options and parameters.
+        commonspace_cr (bool): Indicates if confound regression outputs are in common space. Required for seed-based FC and group ICA.
+        name (str): Name assigned to the workflow.
+    
+    Returns:
+        workflow: A Nipype Workflow object with nodes and connections reflecting the requested analyses.
+        
+    Raises:
+        ValueError: If seed-based FC or group ICA is requested without common space confound regression outputs, or if any specified seed file does not exist.
+    """
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
         fields=['dict_file', 'token']), name='subject_inputnode')

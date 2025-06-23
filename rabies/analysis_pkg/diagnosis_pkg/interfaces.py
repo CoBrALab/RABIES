@@ -185,6 +185,13 @@ class DatasetDiagnosis(BaseInterface):
     output_spec = DatasetDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
+        """
+        Performs group-level quality control analysis by aggregating and evaluating spatial and temporal features across multiple neuroimaging scans.
+        
+        This method computes group statistics, detects outliers, and generates quality control (QC) figures and CSV reports for different network types (DR, CPCA, SBC). It supports both parametric and non-parametric analyses, applies user-defined or default QC thresholds, and handles group priors or external prior maps as needed. The results are saved in structured output directories for further review.
+        
+        If fewer than three scans are provided, the analysis is skipped and a warning is logged.
+        """
         import pathlib
         import matplotlib.pyplot as plt
         from rabies.utils import flatten_list

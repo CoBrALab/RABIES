@@ -5,9 +5,23 @@ from sklearn.utils import check_random_state
 
 
 def spatial_cpca(X, q=1, c_init=None, W_prior=None, tol=1e-6, max_iter=200, verbose=1):
-    '''
-    Derives spatially orthogonal complementary components (first step of CPCA, i.e. spatial CPCA)
-    '''
+    """
+    Extracts spatially orthogonal complementary components from a data matrix using the first step of Complementary Principal Component Analysis (CPCA).
+    
+    Parameters:
+        X (ndarray): Data matrix of shape (time points, voxels).
+        q (int, optional): Number of spatial components to extract. Default is 1.
+        c_init (ndarray, optional): Initial spatial weights matrix of shape (voxels, components). If None, initialized randomly.
+        W_prior (ndarray, optional): Prior temporal weights matrix of shape (time points, components). If None, set to zeros.
+        tol (float, optional): Convergence tolerance. Default is 1e-6.
+        max_iter (int, optional): Maximum number of iterations. Default is 200.
+        verbose (int, optional): Verbosity level for logging progress.
+    
+    Returns:
+        Cs (ndarray): Extracted spatial components (voxels × q).
+        Ws (ndarray): Corresponding temporal components (time points × q).
+        C_ (ndarray): Combined components matrix after update.
+    """
     # X: time by voxel matrix
     # c_init: can specify an voxel by component number matrix for initiating weights
     
@@ -49,9 +63,27 @@ def spatial_cpca(X, q=1, c_init=None, W_prior=None, tol=1e-6, max_iter=200, verb
     return Cs,Ws,C_
 
 def cpca(X, C_prior, sequence = ['s','s','s','s'], verbose=False):
-    '''
-    CPCA algorithm: 1) spatial CPCA, 2) temporal CPCA with Wt correction, 3) derive final model
-    '''
+    """
+    Performs Complementary Principal Component Analysis (CPCA) to extract spatial and temporal components from a data matrix.
+    
+    This function iteratively derives spatial and temporal components according to a specified sequence, applies temporal correction to ensure orthogonality, normalizes component weights, and computes the final component matrices.
+    
+    Parameters:
+        X (ndarray): Data matrix of shape (time points, voxels).
+        C_prior (ndarray): Prior spatial components matrix.
+        sequence (list of str, optional): List indicating the order and type of components to extract ('s' for spatial, 't' for temporal). Default is four spatial components.
+        verbose (bool, optional): If True, prints progress information.
+    
+    Returns:
+        Cnet (ndarray): Corrected prior spatial components.
+        Wnet (ndarray): Corrected prior spatial weights.
+        Cs (ndarray): Extracted spatial components.
+        Ws (ndarray): Extracted spatial weights.
+        Ct (ndarray): Extracted temporal components.
+        Wt (ndarray): Extracted temporal weights.
+        C (ndarray): Final combined component matrix.
+        W (ndarray): Final combined weights matrix.
+    """
     
     q=1 # one component is derived at a time to have deterministic outputs
     
@@ -99,9 +131,25 @@ def cpca(X, C_prior, sequence = ['s','s','s','s'], verbose=False):
 
 
 def cpca_quick(X, C_prior, sequence = ['s','s','s','s'], tol=1e-10, verbose=False):
-    '''
-    CPCA algorithm, but X is residualized for each spatial CPCA component to speed up convergence for next iterations
-    '''
+    """
+    Performs CPCA with accelerated convergence by residualizing the data matrix after each spatial component extraction.
+    
+    This function iteratively extracts spatial components from the data matrix, subtracting each extracted component's contribution before the next iteration. After all components are derived according to the specified sequence, temporal correction and normalization are applied to the resulting weights and components.
+    
+    Parameters:
+    	sequence (list of str): Specifies the order and type of components to extract ('s' for spatial, 't' for temporal).
+    	tol (float): Convergence tolerance for spatial CPCA steps.
+    
+    Returns:
+    	Cnet (ndarray): Corrected prior spatial components.
+    	Wnet (ndarray): Corrected prior spatial weights.
+    	Cs (ndarray): Extracted spatial components.
+    	Ws (ndarray): Extracted spatial weights.
+    	Ct (ndarray): Extracted temporal components.
+    	Wt (ndarray): Extracted temporal weights.
+    	C (ndarray): Final combined component matrix.
+    	W (ndarray): Final combined weight matrix.
+    """
     
     q=1 # one component is derived at a time to have deterministic outputs
     
@@ -153,9 +201,31 @@ def cpca_quick(X, C_prior, sequence = ['s','s','s','s'], tol=1e-10, verbose=Fals
 
 
 def cpca_auto(X, C_prior, N_max, Wt_n='n', min_prior_sim=None, Dc_W_thresh=None, Dc_C_thresh=None):
-    '''
-    Conduct CPCA with automated estimation of n*. Wt_n sets a maximum for how many components are used for temporal CPCA.
-    '''
+    """
+    Performs automated Complementary Principal Component Analysis (CPCA) with estimation of the optimal number of spatial components.
+    
+    This function runs CPCA with up to `N_max` spatial components, uses a fitting report to determine the optimal number of components, and constructs the final model accordingly. The number of temporal components used can be limited by `Wt_n`. Returns the corrected prior components and weights, spatial and temporal components and weights, final combined matrices, and diagnostic figures.
+    
+    Parameters:
+        X (np.ndarray): Data matrix (time points × voxels).
+        C_prior (np.ndarray): Prior spatial components matrix.
+        N_max (int): Maximum number of spatial components to consider.
+        Wt_n (int or 'n', optional): Maximum number of temporal components to use; if 'n', uses all available.
+        min_prior_sim (float, optional): Minimum similarity threshold for prior components in the fitting report.
+        Dc_W_thresh (float, optional): Threshold for temporal component diagnostics.
+        Dc_C_thresh (float, optional): Threshold for spatial component diagnostics.
+    
+    Returns:
+        Cnet (np.ndarray): Corrected prior spatial components.
+        Wnet (np.ndarray): Corrected prior weights.
+        Cs (np.ndarray): Derived spatial components.
+        Ws (np.ndarray): Derived spatial weights.
+        Ct (np.ndarray): Derived temporal components.
+        Wt (np.ndarray): Derived temporal weights.
+        C (np.ndarray): Final combined components matrix.
+        W (np.ndarray): Final combined weights matrix.
+        fig_list (list): List of diagnostic figures from the fitting report.
+    """
     
     if Wt_n=='n':
         Wt_n = N_max

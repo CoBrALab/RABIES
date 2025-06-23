@@ -217,6 +217,14 @@ class ComplementaryPCA(BaseInterface):
     output_spec = ComplementaryPCAOutputSpec
 
     def _run_interface(self, runtime):
+        """
+        Run Complementary Principal Component Analysis (CPCA) on BOLD fMRI data using provided priors and parameters.
+        
+        Loads preprocessed BOLD data and prior spatial maps, applies CPCA modeling to extract prior and extra spatial/temporal components, generates component figures, and saves results as NIfTI images and CSV files. Output files and report folder are set as attributes for downstream workflow use.
+        
+        Returns:
+            runtime: The updated runtime object after processing.
+        """
         import os
         import numpy as np
         import pandas as pd
@@ -298,6 +306,9 @@ class ComplementaryPCA(BaseInterface):
         return runtime
 
     def _list_outputs(self):
+        """
+        Return a dictionary mapping output names to their corresponding file paths or report folder for the ComplementaryPCA interface.
+        """
         return {'CPCA_prior_timecourse_csv': getattr(self, 'CPCA_prior_timecourse_csv'),
                 'CPCA_extra_timecourse_csv': getattr(self, 'CPCA_extra_timecourse_csv'),
                 'CPCA_prior_filename': getattr(self, 'CPCA_prior_filename'),

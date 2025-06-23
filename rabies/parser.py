@@ -10,7 +10,14 @@ else:
 
 
 def get_parser():
-    """Build parser object"""
+    """
+    Constructs and returns an argparse.ArgumentParser configured for the RABIES rodent fMRI processing pipeline.
+    
+    The parser supports three main subcommands—preprocess, confound_correction, and analysis—each with comprehensive argument groups for their respective processing stages. Options include parallel execution, memory management, input/output directories, BIDS filtering, registration and resampling strategies, slice timing correction, confound correction methods, quality control thresholds, and multiple analysis modalities such as seed-based connectivity, group ICA, dual regression, and CPCA.
+    
+    Returns:
+        argparse.ArgumentParser: Configured parser for RABIES CLI usage.
+    """
     parser = argparse.ArgumentParser(
         description=
             "RABIES performs multiple stages of rodent fMRI image processing, including preprocessing, \n"
@@ -1023,6 +1030,14 @@ def get_parser():
 
 
 def read_parser(parser, args):
+    """
+    Parse and validate command-line arguments for the specified RABIES processing stage.
+    
+    Depending on the selected stage ('preprocess', 'confound_correction', or 'analysis'), this function processes and validates complex options, including parsing key-value string arguments into dictionaries, loading JSON filters, and enforcing logical consistency among related options. Returns the fully parsed and validated options object.
+    
+    Returns:
+        opts: Namespace object containing parsed and validated command-line arguments for the selected RABIES stage.
+    """
     if args is None:
         opts = parser.parse_args()
     else:
@@ -1149,6 +1164,20 @@ def parse_argument(opt, key_value_pairs, defaults, name):
 def parse_scan_QC_thresholds(opt):
 
     # we must add "" around each key manually, as they are not encoded from the parser
+    """
+    Parse and validate the scan quality control thresholds string for analysis.
+    
+    Converts a string representation of a nested dictionary specifying scan QC thresholds into a validated Python dictionary. Ensures correct syntax, key names, value types, and logical consistency for the 'SBC', 'DR', and 'CPCA' analysis types.
+    
+    Parameters:
+        opt (str): String representing the scan QC thresholds, with keys and values for each analysis type.
+    
+    Returns:
+        dict: A validated dictionary mapping analysis types to their QC threshold specifications.
+    
+    Raises:
+        ValueError: If the input string is malformed, contains invalid keys, or specifies values with incorrect types or logical inconsistencies.
+    """
     for key in ['SBC','DR','CPCA','Dice','Conf','Amp']:
         s=''
         for s_ in opt.split(key):
