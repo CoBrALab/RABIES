@@ -62,11 +62,11 @@ def evaluate_fit(X,C_prior,Cs):
 
     for i in range(N+1):
         Wt = Ws[:,:i]
-        Ct = closed_form(Wt[:,:i], X).T
+        Ct = closed_form(Wt, X).T
         
         # compute residuals after spatial or temporal orthogonal filter
         X_s = X - Ws[:,:i].dot(Cs[:,:i].T)
-        X_t = X - Ws[:,:i].dot(Ct[:,:i].T)
+        X_t = X - Wt.dot(Ct.T)
         
         # apply Wt correction
         Wnet = W_prior - Wt.dot(closed_form(Wt,W_prior))
@@ -80,12 +80,8 @@ def evaluate_fit(X,C_prior,Cs):
         Snet_s_l.append(np.sqrt((Cnet_s ** 2).sum(axis=0)))
         Snet_t_l.append(np.sqrt((Cnet_t ** 2).sum(axis=0)))
         
-        X_net_s = W_prior.dot(Cnet_s.T)
-        SSnet_s_total_l.append((X_net_s**2).sum())        
-        X_net_t = Wnet.dot(Cnet_t.T)
-        SSnet_t_total_l.append((X_net_t**2).sum())        
-        
         # residuals are the same between s and t versions
+        X_net_s = W_prior.dot(Cnet_s.T)
         e = X_s - X_net_s
         SSe = (e ** 2).sum()
         SSe_l.append(SSe)
@@ -176,7 +172,7 @@ def plot_report(n_prior,N_max,n_optim_idx,min_prior_sim,Dc_W_thresh,Dc_C_thresh,
         ax = axes[0,0]
         ax.plot(np.array(Snet_s_l)[:,prior_idx])
         ax.plot(np.array(Snet_t_l)[:,prior_idx])
-        ax.legend(['Orthogonal CPCA','Non-orthogonal CPCA'], fontsize=12, loc='upper right')
+        ax.legend(['Orthogonal CPCA','Non-orthogonal CPCA'], fontsize=12)
         ax.set_title('Network amplitude', fontsize=15)
         ax.set_ylabel('L2-norm', fontsize=15)
         ax.set_ylim([0,max(max(np.array(Snet_s_l)[:,prior_idx]),max(np.array(Snet_t_l)[:,prior_idx]))*1.05])
