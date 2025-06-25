@@ -281,7 +281,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     # HMC on the BOLD
     bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
-    bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.commonspace_resampling, name='bold_commonspace_trans_wf')
+    bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim='ref_file', name='bold_commonspace_trans_wf')
     bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
     bold_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
 
