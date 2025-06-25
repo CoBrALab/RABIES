@@ -306,9 +306,8 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
         # create a list of all the types of spacing across listed files
         spacing_types = [spacing_list[0]]
         for spacing in spacing_list:
-            for spacing_type in spacing_types:
-                if not spacing==spacing_type:
-                    spacing_types.append(spacing)
+            if not spacing in spacing_types:
+                spacing_types.append(spacing)
 
         if len(spacing_types)>1:
             raise ValueError(f"""The following list of image dimensions have been sampled across the input functional images: {spacing_types}. 
