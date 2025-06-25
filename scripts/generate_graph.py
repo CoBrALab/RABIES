@@ -63,20 +63,6 @@ def execute_workflow(args=None):
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     return workflow
-    try:
-        log.info(f'Running workflow with {opts.plugin} plugin.')
-        # execute workflow, with plugin_args limiting the cluster load for parallel execution
-        graph_out = workflow.run(plugin=opts.plugin, plugin_args={'max_jobs': 50, 'dont_resubmit_completed_jobs': True,
-                                                      'n_procs': opts.local_threads, 'qsub_args': f'-pe smp {str(opts.min_proc)}'})
-        # save the workflow execution
-        workflow_file = f'{opts.output_dir}/rabies_{opts.rabies_stage}_workflow.pkl'
-        with open(workflow_file, 'wb') as handle:
-            pickle.dump(graph_out, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-    except Exception as e:
-        log.critical(f'RABIES failed: {e}')
-        raise
-
 
 
 from rabies.utils import generate_token_data

@@ -159,7 +159,7 @@ def cpca_auto(X, C_prior, N_max, Wt_n='n', min_prior_sim=None, Dc_W_thresh=None,
     
     if Wt_n=='n':
         Wt_n = N_max
-    elif not type(Wt_n) is int:
+    elif not isinstance(Wt_n, int):
         raise ValueError("Wt_n must be an integer or 'n'.") 
     elif Wt_n<0:
         raise ValueError("Wt_n must be minimum 0.") 
@@ -171,7 +171,7 @@ def cpca_auto(X, C_prior, N_max, Wt_n='n', min_prior_sim=None, Dc_W_thresh=None,
     # generate the fitting report
     n_optim_idx, fig_list = gen_report(X, C_prior, Cs, min_prior_sim=min_prior_sim, Dc_W_thresh=Dc_W_thresh, Dc_C_thresh=Dc_C_thresh)
     
-    if n_optim_idx==None:
+    if n_optim_idx is None:
         # if no threshold was applied, or min_prior_sim was not met, we still generate a model using N_max
         n_optim_idx = N_max
     
