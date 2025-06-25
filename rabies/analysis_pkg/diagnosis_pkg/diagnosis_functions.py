@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from rabies.utils import copyInfo_3DImage, recover_3D
-from rabies.analysis_pkg import analysis_functions
+from rabies.analysis_pkg.analysis_math import vcorrcoef
 import SimpleITK as sitk
 import nilearn.plotting
 from .analysis_QC import masked_plot, percent_threshold
@@ -105,7 +105,7 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     '''Spatial Features'''
     global_signal = timeseries.mean(axis=1)
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
-    GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
+    GS_corr = vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': [], 'W': []}
     if not analysis_dict['CPCA_prior_filename'] is None:
