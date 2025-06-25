@@ -5,6 +5,14 @@ from ..analysis_math import closed_form
 
 def cosine_similarity(X,Y=None): 
     # estimate cosine similarity across the columns of X and Y combined    
+    """
+    Compute the cosine similarity matrix between columns of one or two input arrays.
+    
+    If only X is provided, returns the cosine similarity among columns of X. If Y is provided, computes similarities among all columns of X and Y combined.
+    
+    Returns:
+        Sc (ndarray): Square matrix of cosine similarities between columns.
+    """
     if Y is None:
         arr = X.copy()
     else:
@@ -15,12 +23,20 @@ def cosine_similarity(X,Y=None):
 
 
 def gen_report(X,C_prior, Cs, min_prior_sim=None, Dc_W_thresh=None, Dc_C_thresh=None):
-    '''
-    Generate CPCA fitting report, and derive an optimal value for n* using minimal 
-    prior similarity threshold, and/or thresholds on Dc_Wnet and/or Dc_Cnet.
-    If min_prior_sim=None, Dc_t_thresh=None, and Dc_s_thresh=None, then n_optim_idx 
-    will be None (no optimal n* is derived).
-    '''
+    """
+    Generates a CPCA fitting report and determines the optimal number of components based on similarity and distance thresholds.
+    
+    Evaluates the CPCA fit using provided data and prior components, computes relevant metrics, and produces diagnostic plots. The optimal component count is selected according to user-specified thresholds for minimal prior similarity and cosine distances of spatial and temporal components. Returns the optimal index and a list of diagnostic figure objects.
+    
+    Parameters:
+        min_prior_sim (float, optional): Minimum acceptable similarity to prior components for selecting the optimal component count.
+        Dc_W_thresh (float, optional): Cosine distance threshold for temporal components.
+        Dc_C_thresh (float, optional): Cosine distance threshold for spatial components.
+    
+    Returns:
+        n_optim_idx (int or None): Index of the optimal number of components, or None if no thresholds are provided or met.
+        fig_list (list): List of matplotlib figure objects containing diagnostic plots.
+    """
     
     # generate the fitting report
     Snet_s_l,Snet_t_l,prior_sim_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t = evaluate_fit(X,C_prior,Cs)
@@ -37,6 +53,25 @@ def gen_report(X,C_prior, Cs, min_prior_sim=None, Dc_W_thresh=None, Dc_C_thresh=
     
 
 def evaluate_fit(X,C_prior,Cs):
+    """
+    Evaluate the quality of CPCA fitting across a range of component counts.
+    
+    For each number of added candidate components, computes spatial and temporal network amplitudes, similarity to prior components, cosine distances between consecutive iterations for spatial and temporal components, and redundancy metrics (R2) for orthogonal and non-orthogonal CPCA. Returns lists and arrays of these metrics for further analysis and reporting.
+    
+    Parameters:
+        X (ndarray): Data matrix to be decomposed.
+        C_prior (ndarray): Matrix of prior spatial components.
+        Cs (ndarray): Matrix of candidate spatial components.
+    
+    Returns:
+        Snet_s_l (list): Spatial network amplitudes for orthogonal CPCA at each iteration.
+        Snet_t_l (list): Spatial network amplitudes for non-orthogonal CPCA at each iteration.
+        prior_sim_l (list): Cosine similarities between estimated and prior components at each iteration.
+        Dc_Cnet (ndarray): Cosine distances between consecutive spatial component estimates.
+        Dc_Wnet (ndarray): Cosine distances between consecutive temporal component estimates.
+        R2_s (ndarray): Redundancy (variance explained) for orthogonal CPCA at each iteration.
+        R2_t (ndarray): Redundancy (variance explained) for non-orthogonal CPCA at each iteration.
+    """
     n_prior = C_prior.shape[1]
     N = Cs.shape[1]
     C_prior_ = np.concatenate((C_prior, Cs),axis=1) # expand prior
@@ -127,6 +162,15 @@ def evaluate_fit(X,C_prior,Cs):
 
 
 def optim_n(prior_sim_l,min_prior_sim,Dc_Cnet,Dc_Wnet,Dc_W_thresh,Dc_C_thresh):
+    """
+    Determine the optimal number of components based on prior similarity and cosine distance thresholds.
+    
+    Parameters:
+        prior_sim_l (array-like): Sequence of prior similarity values for each iteration.
+    
+    Returns:
+        optim_idx (int or None): The index corresponding to the optimal number of components, or None if no thresholds are provided or met.
+    """
     if (min_prior_sim is None) and (Dc_W_thresh is None) and (Dc_C_thresh is None):
         return None
     
@@ -164,7 +208,30 @@ def optim_n(prior_sim_l,min_prior_sim,Dc_Cnet,Dc_Wnet,Dc_W_thresh,Dc_C_thresh):
 def plot_report(n_prior,N_max,n_optim_idx,min_prior_sim,Dc_W_thresh,Dc_C_thresh,prior_sim_l,
                 Snet_s_l,Snet_t_l,Dc_Cnet,Dc_Wnet,R2_s,R2_t):
     
-    fig_list = []
+    """
+                Generate diagnostic plots for each prior component to visualize CPCA fitting metrics.
+                
+                For each prior component, creates a 2x2 grid of plots showing network amplitude, prior similarity, component change via cosine distance, and redundancy metrics. Thresholds and the optimal component count are marked if provided.
+                
+                Parameters:
+                    n_prior (int): Number of prior components.
+                    N_max (int): Maximum number of CPCA components considered.
+                    n_optim_idx (int or None): Index of the optimal number of components, if determined.
+                    min_prior_sim (float or None): Threshold for minimal prior similarity, if specified.
+                    Dc_W_thresh (float or None): Cosine distance threshold for timecourse components, if specified.
+                    Dc_C_thresh (float or None): Cosine distance threshold for spatial components, if specified.
+                    prior_sim_l (ndarray): Array of prior similarity values across component counts.
+                    Snet_s_l (ndarray): Array of spatial network amplitudes for orthogonal CPCA.
+                    Snet_t_l (ndarray): Array of temporal network amplitudes for non-orthogonal CPCA.
+                    Dc_Cnet (ndarray): Array of cosine distances for spatial components.
+                    Dc_Wnet (ndarray): Array of cosine distances for timecourse components.
+                    R2_s (ndarray): Redundancy metrics for orthogonal CPCA.
+                    R2_t (ndarray): Redundancy metrics for non-orthogonal CPCA.
+                
+                Returns:
+                    fig_list (list): List of matplotlib Figure objects, one per prior component.
+                """
+                fig_list = []
     for prior_idx in range(n_prior):
         
         fig,axes = plt.subplots(2,2, figsize=(8,8), constrained_layout=True)

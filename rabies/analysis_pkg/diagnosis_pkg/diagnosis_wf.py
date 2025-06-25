@@ -9,6 +9,21 @@ from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_exter
 
 def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf"):
 
+    """
+    Initializes a Nipype workflow for scan-level and dataset-level neuroimaging diagnosis analysis.
+    
+    This workflow integrates multiple processing nodes to perform diagnostic analyses on individual scans and, when sufficient data is available, on the dataset as a whole. It conditionally configures group-level diagnosis based on the presence of BOLD data in common space or a BOLD-only preprocessing flag, and the number of scans provided.
+    
+    Parameters:
+        analysis_opts: Analysis configuration options, including indices, thresholds, and figure format.
+        commonspace_bold (bool): Indicates if BOLD data is in common anatomical space.
+        preprocess_opts: Preprocessing options, including anatomical template and BOLD-only flag.
+        split_name_list (list): List of scan names used to determine dataset size.
+        name (str, optional): Name for the workflow. Defaults to "diagnosis_wf".
+    
+    Returns:
+        workflow: A Nipype Workflow object configured for neuroimaging diagnosis analysis.
+    """
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
         fields=['dict_file', 'analysis_dict']), name='inputnode')
@@ -73,6 +88,19 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
     if (commonspace_bold or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
         def prep_scan_data(dict_file, spatial_info, temporal_info):
+            """
+            Extracts and organizes diagnostic data from input files for a single scan.
+            
+            Loads a pickled dictionary from the specified file and combines selected spatial and temporal diagnostic metrics, confound and network timecourses, quality control measures, and metadata into a single dictionary for downstream dataset-level analysis.
+            
+            Parameters:
+                dict_file (str): Path to the pickled dictionary file containing scan metadata and QC metrics.
+                spatial_info (dict): Dictionary of spatial diagnostic results for the scan.
+                temporal_info (dict): Dictionary of temporal diagnostic results for the scan.
+            
+            Returns:
+                dict: Aggregated scan data including spatial and temporal metrics, timecourses, QC measures, and metadata.
+            """
             import pickle
             with open(dict_file, 'rb') as handle:
                 data_dict = pickle.load(handle)

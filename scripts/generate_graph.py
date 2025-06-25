@@ -1,4 +1,3 @@
-
 import os
 import pickle
 import SimpleITK as sitk
@@ -15,6 +14,17 @@ else:
 
 def execute_workflow(args=None):
     # generates the parser CLI and execute the workflow based on specified parameters.
+    """
+    Prepare and configure a RABIES workflow based on command-line arguments.
+    
+    Parses CLI arguments, validates output directory paths, initializes logging, verifies template installation, checks for incompatible inclusion/exclusion parameters, and sets up the specified workflow stage (preprocess, confound correction, or analysis). Saves the modified CLI options as a pickle file and returns the prepared workflow object.
+    
+    Parameters:
+        args (list, optional): List of command-line arguments to override sys.argv. If None, uses sys.argv.
+    
+    Returns:
+        workflow: The configured workflow object ready for execution.
+    """
     parser = get_parser()
     opts = read_parser(parser, args)
 

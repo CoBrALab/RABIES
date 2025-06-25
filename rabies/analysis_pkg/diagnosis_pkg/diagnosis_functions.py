@@ -39,6 +39,19 @@ Prepare the subject data
 
 
 def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
+    """
+    Extracts and organizes temporal and spatial features from fMRI timeseries and associated analysis data.
+    
+    This function processes subject-level neuroimaging data to compute and aggregate a variety of temporal and spatial metrics, including motion parameters, regional timecourses, dual regression and CPCA network features, and seed-based correlation results. The output consists of two dictionaries containing all relevant features for downstream analysis or quality control.
+    
+    Parameters:
+        prior_bold_idx (array-like): Indices specifying which components are considered BOLD-related.
+        prior_confound_idx (array-like): Indices specifying which components are considered confounds.
+    
+    Returns:
+        temporal_info (dict): Dictionary containing temporal features such as motion traces, regional timecourses, and network timecourses.
+        spatial_info (dict): Dictionary containing spatial features such as network maps, variance explained, and global signal metrics.
+    """
     temporal_info = {}
     spatial_info = {}
     temporal_info['name_source'] = data_dict['name_source']
@@ -137,6 +150,14 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
 
 
 def temporal_external_formating(temporal_info):
+    """
+    Export selected temporal metrics to a CSV file after removing large array entries.
+    
+    Removes detailed timecourse arrays from the input dictionary, then saves the remaining temporal summary information to a CSV file named after the source data. Returns the path to the generated CSV file.
+    
+    Returns:
+        temporal_info_csv (str): Absolute path to the saved CSV file containing temporal summary metrics.
+    """
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
@@ -251,6 +272,21 @@ def plot_freqs(ax,timeseries, TR):
 
 
 def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
+    """
+    Generate comprehensive quality control (QC) figures for a subject's fMRI data, visualizing temporal and spatial features.
+    
+    Creates two matplotlib figures: the first displays timeseries diagnostics including frequency spectrum, grayplot, motion parameters, framewise displacement (FD), DVARS, regional amplitudes, and network timecourse amplitudes; the second shows spatial maps such as template, temporal and predicted standard deviation, variance explained, global signal covariance, and network component maps (DR, SBC, CPCA) with thresholded overlays.
+    
+    Parameters:
+        data_dict (dict): Dictionary containing subject data, including timeseries, template, mask, and motion parameters.
+        temporal_info (dict): Dictionary of extracted temporal features and metrics.
+        spatial_info (dict): Dictionary of extracted spatial features and network maps.
+        regional_grayplot (bool, optional): If True, displays a regionally segmented grayplot (currently disabled).
+    
+    Returns:
+        fig (matplotlib.figure.Figure): Figure with temporal QC plots.
+        fig2 (matplotlib.figure.Figure): Figure with spatial maps and network overlays.
+    """
     timeseries = data_dict['timeseries']
     template_file = data_dict['template_file']
     CR_data_dict = data_dict['CR_data_dict']
