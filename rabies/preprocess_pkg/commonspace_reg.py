@@ -776,8 +776,10 @@ def inherit_unbiased_files(RABIES_output_path, opts):
 
     inherit_dict = {}
 
-    inherit_dict['resampled_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_template']
-    inherit_dict['resampled_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_mask']
+    inherit_dict['registration_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['registration_template']
+    inherit_dict['registration_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['registration_mask']
+    inherit_dict['commonspace_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['commonspace_template']
+    inherit_dict['commonspace_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['commonspace_mask']
 
     inherit_dict['unbiased_template'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_template']
     inherit_dict['unbiased_mask'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_mask']

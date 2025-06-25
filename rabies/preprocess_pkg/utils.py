@@ -109,8 +109,7 @@ def prep_bids_iter(layout, bids_filter, bold_only=False, inclusion_list=['all'],
                 else:
                     run_iter[filename_template].append(run)
 
-    number_functional_scans = len(bold_scan_list)
-    return split_name, scan_info, run_iter, structural_scan_list, number_functional_scans
+    return split_name, scan_info, run_iter, structural_scan_list, bold_scan_list
 
 
 class BIDSDataGraberInputSpec(BaseInterfaceInputSpec):
@@ -258,7 +257,7 @@ def convert_3dWarp(input):
     return output
 
 
-def resample_template(template_file, mask_file, file_list, spacing='inputs_defined', rabies_data_type=8):
+def resample_template(opts, structural_scan_list, bold_scan_list):
     import os
     import SimpleITK as sitk
     import numpy as np
@@ -266,36 +265,72 @@ def resample_template(template_file, mask_file, file_list, spacing='inputs_defin
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
 
-    if spacing == 'inputs_defined':
-        file_list = list(np.asarray(file_list).flatten())
-        img = sitk.ReadImage(file_list[0], rabies_data_type)
-        low_dim = np.asarray(img.GetSpacing()[:3]).min()
-        for file in file_list[1:]:
-            img = sitk.ReadImage(file, rabies_data_type)
-            new_low_dim = np.asarray(img.GetSpacing()[:3]).min()
-            if new_low_dim < low_dim:
-                low_dim = new_low_dim
-        spacing = (low_dim, low_dim, low_dim)
+    template_file = str(opts.anat_template)
+    mask_file = str(opts.brain_mask)
+    anatomical_resampling = opts.anatomical_resampling
+    commonspace_resampling = opts.commonspace_resampling
+    rabies_data_type = opts.data_type
+    
+    if anatomical_resampling == 'inputs_defined':
+        spacing_list = [sitk.ReadImage(f, rabies_data_type).GetSpacing()[:3] for f in structural_scan_list]
+        
+        # find the lowest dimension across all images and all axes
+        low_dim = np.asarray([spacing for spacing in spacing_list]).flatten().min()
+        registration_spacing = (low_dim, low_dim, low_dim)
 
         template_image = sitk.ReadImage(
             template_file, rabies_data_type)
         template_dim = template_image.GetSpacing()
         if np.asarray(template_dim[:3]).min() > low_dim:
-            log.info("The template retains its original resolution.")
+            log.info("The template is lower resolution than the input images; it will retains its original resolution.")
             return template_file, mask_file
     else:
-        shape = spacing.split('x')
-        spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+        shape = anatomical_resampling.split('x')
+        registration_spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
 
-    log.info(f"Resampling template to {spacing[0]}x{spacing[1]}x{spacing[2]}mm dimensions.")
-    resampled_template = os.path.abspath("resampled_template.nii.gz")
+    log.info(f"Resampling template to {registration_spacing[0]}x{registration_spacing[1]}x{registration_spacing[2]}mm dimensions for registration steps.")
+    registration_template = os.path.abspath("registration_template.nii.gz")
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
-        template_file, rabies_data_type), spacing), resampled_template)
+        template_file, rabies_data_type), registration_spacing), registration_template )
 
     # also resample the brain mask to ensure stable registrations further down
-    resampled_mask = os.path.abspath("resampled_mask.nii.gz")
-    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {resampled_template} -o {resampled_mask} --verbose -n GenericLabel'
+    registration_mask = os.path.abspath("registration_mask.nii.gz")
+    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {registration_template} -o {registration_mask} --verbose -n GenericLabel'
     rc,c_out = run_command(command)
 
-    return resampled_template, resampled_mask
+    if commonspace_resampling == 'inputs_defined':
+        # if bold_only, bold_scan_list and structural_scan_list are the same; avoid re-loading images if already computed above
+        if not (anatomical_resampling == 'inputs_defined' and opts.bold_only):
+            spacing_list = [sitk.ReadImage(f, rabies_data_type).GetSpacing()[:3] for f in bold_scan_list]
+        
+        # create a list of all the types of spacing across listed files
+        spacing_types = [spacing_list[0]]
+        for spacing in spacing_list:
+            for spacing_type in spacing_types:
+                if not spacing==spacing_type:
+                    spacing_types.append(spacing)
+
+        if len(spacing_types)>1:
+            raise ValueError(f"""The following list of image dimensions have been sampled across the input functional images: {spacing_types}. 
+                            Because of the conflicting image dimensions, a single resampling resolution cannot be inferred for commonspace. 
+                            Please manually define the desired commonspace resolution with the --commonspace_resampling parameter to pursue 
+                            preprocessing.""")
+        else:
+            commonspace_spacing = spacing_types[0]
+        
+    else:
+        shape = commonspace_resampling.split('x')
+        commonspace_spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+
+
+    log.info(f"Images will be resampled to a commonspace resolution of {commonspace_spacing[0]}x{commonspace_spacing[1]}x{commonspace_spacing[2]}mm.")
+    commonspace_template = os.path.abspath("commonspace_template.nii.gz")
+    sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
+        template_file, rabies_data_type), commonspace_spacing), commonspace_template)
+
+    commonspace_mask = os.path.abspath("commonspace_mask.nii.gz")
+    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {commonspace_template} -o {commonspace_mask} --verbose -n GenericLabel'
+    rc,c_out = run_command(command)
+
+    return registration_template, registration_mask, commonspace_template, commonspace_mask
 

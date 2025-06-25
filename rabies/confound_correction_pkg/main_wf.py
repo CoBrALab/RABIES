@@ -320,7 +320,7 @@ def read_preproc_workflow(preproc_output, nativespace=False):
                     'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
                     'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
                     'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],
-                    'commonspace_resampled_template':['main_wf.resample_template', 'resampled_template'],
+                    'commonspace_resampled_template':['main_wf.resample_template', 'commonspace_template'],
                     }
     if nativespace:
         match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.merge', 'out_file'],
