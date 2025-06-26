@@ -270,9 +270,16 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
     anatomical_resampling = opts.anatomical_resampling
     commonspace_resampling = opts.commonspace_resampling
     rabies_data_type = opts.data_type
-    
+
+    def sitk_get_spacing(f):
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(f)
+        reader.LoadPrivateTagsOn()
+        reader.ReadImageInformation()
+        return reader.GetSpacing()
+
     if anatomical_resampling == 'inputs_defined':
-        spacing_list = [sitk.ReadImage(f, rabies_data_type).GetSpacing()[:3] for f in structural_scan_list]
+        spacing_list = [sitk_get_spacing(f)[:3] for f in structural_scan_list]
         
         # find the lowest dimension across all images and all axes
         low_dim = np.asarray([spacing for spacing in spacing_list]).flatten().min()
@@ -301,7 +308,7 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
     if commonspace_resampling == 'inputs_defined':
         # if bold_only, bold_scan_list and structural_scan_list are the same; avoid re-loading images if already computed above
         if not (anatomical_resampling == 'inputs_defined' and opts.bold_only):
-            spacing_list = [sitk.ReadImage(f, rabies_data_type).GetSpacing()[:3] for f in bold_scan_list]
+            spacing_list = [sitk_get_spacing(f)[:3] for f in bold_scan_list]
         
         # create a list of all the types of spacing across listed files
         spacing_types = [spacing_list[0]]
@@ -311,9 +318,9 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
 
         if len(spacing_types)>1:
             raise ValueError(f"""The following list of image dimensions have been sampled across the input functional images: {spacing_types}. 
-                            Because of the conflicting image dimensions, a single resampling resolution cannot be inferred for commonspace. 
-                            Please manually define the desired commonspace resolution with the --commonspace_resampling parameter to pursue 
-                            preprocessing.""")
+    Because of the conflicting image dimensions, a single resampling resolution cannot be inferred for commonspace. 
+    Please manually define the desired commonspace resolution with the --commonspace_resampling parameter to pursue 
+    preprocessing.""")
         else:
             commonspace_spacing = spacing_types[0]
         
