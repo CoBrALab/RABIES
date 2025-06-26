@@ -334,9 +334,5 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
     sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
         template_file, rabies_data_type), commonspace_spacing), commonspace_template)
 
-    commonspace_mask = os.path.abspath("commonspace_mask.nii.gz")
-    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {commonspace_template} -o {commonspace_mask} --verbose -n GenericLabel'
-    rc,c_out = run_command(command)
-
-    return registration_template, registration_mask, commonspace_template, commonspace_mask
+    return registration_template, registration_mask, commonspace_template
 

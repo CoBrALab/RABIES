@@ -224,7 +224,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         # Resample the anatomical template according to the resolution of the provided input data
         resample_template_node = pe.Node(Function(input_names=['opts', 'structural_scan_list', 'bold_scan_list'],
                                                 output_names=[
-                                                    'registration_template', 'registration_mask', 'commonspace_template', 'commonspace_mask'],
+                                                    'registration_template', 'registration_mask', 'commonspace_template'],
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
         resample_template_node.inputs.opts = opts
@@ -234,12 +234,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     else: # inherit the atlas files from previous run
         inherit_unbiased=True
         opts, inherit_dict = inherit_unbiased_files(opts.inherit_unbiased_template, opts)
-        resample_template_node = pe.Node(niu.IdentityInterface(fields=['registration_template', 'registration_mask', 'commonspace_template', 'commonspace_mask']),
+        resample_template_node = pe.Node(niu.IdentityInterface(fields=['registration_template', 'registration_mask', 'commonspace_template']),
                                             name="resample_template")
         resample_template_node.inputs.registration_template = inherit_dict['registration_template']
         resample_template_node.inputs.registration_mask = inherit_dict['registration_mask']
         resample_template_node.inputs.commonspace_template = inherit_dict['commonspace_template']
-        resample_template_node.inputs.commonspace_mask = inherit_dict['commonspace_mask']
 
     # calculate the number of scans that will be registered
     num_procs = min(opts.local_threads, number_structural_scans)
