@@ -288,23 +288,15 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
         shape = anatomical_resampling.split('x')
         registration_spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
 
-    template_image = sitk.ReadImage(
-        template_file, rabies_data_type)
-    template_spacing = template_image.GetSpacing()
-    if np.asarray(template_spacing[:3]).min() > low_dim:
-        log.info("The template is lower resolution than the input images; it will retains its original resolution.")
-        registration_template = template_file
-        registration_mask = mask_file
-    else:
-        log.info(f"Resampling template to {registration_spacing[0]}x{registration_spacing[1]}x{registration_spacing[2]}mm dimensions for registration steps.")
-        registration_template = os.path.abspath("registration_template.nii.gz")
-        sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
-            template_file, rabies_data_type), registration_spacing), registration_template)
-    
-        # also resample the brain mask to ensure stable registrations further down
-        registration_mask = os.path.abspath("registration_mask.nii.gz")
-        command = f'antsApplyTransforms -d 3 -i {mask_file} -r {registration_template} -o {registration_mask} --verbose -n GenericLabel'
-        rc,c_out = run_command(command)
+    log.info(f"Resampling template to {registration_spacing[0]}x{registration_spacing[1]}x{registration_spacing[2]}mm dimensions for registration steps.")
+    registration_template = os.path.abspath("registration_template.nii.gz")
+    sitk.WriteImage(resample_image_spacing(sitk.ReadImage(
+        template_file, rabies_data_type), registration_spacing), registration_template)
+
+    # also resample the brain mask to ensure stable registrations further down
+    registration_mask = os.path.abspath("registration_mask.nii.gz")
+    command = f'antsApplyTransforms -d 3 -i {mask_file} -r {registration_template} -o {registration_mask} --verbose -n GenericLabel'
+    rc,c_out = run_command(command)
 
     if commonspace_resampling == 'inputs_defined':
         # if bold_only, bold_scan_list and structural_scan_list are the same; avoid re-loading images if already computed above
