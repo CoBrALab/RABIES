@@ -154,7 +154,7 @@ class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
     motcorr_params = File(
         exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(
-        desc="Specification for the dimension of resampling.")
+        desc="Specify the image dimension of post-resampling.")
     interpolation = traits.Str(
         desc="Select the interpolator for antsApplyTransform.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -181,14 +181,18 @@ class slice_applyTransforms(BaseInterface):
 
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
 
-        if not self.inputs.resampling_dim == 'inputs_defined':
-            shape = self.inputs.resampling_dim.split('x')
-            spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+        if self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
+            ref_file = self.inputs.ref_file
         else:
-            spacing = img.GetSpacing()[:3]
-        resampled = resample_image_spacing(sitk.ReadImage(
-            self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
-        sitk.WriteImage(resampled, 'resampled.nii.gz')
+            if not self.inputs.resampling_dim == 'inputs_defined':
+                shape = self.inputs.resampling_dim.split('x')
+                spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
+            else:
+                spacing = img.GetSpacing()[:3]
+            resampled = resample_image_spacing(sitk.ReadImage(
+                self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
+            ref_file = os.path.abspath('resampled.nii.gz')
+            sitk.WriteImage(resampled, ref_file)
 
         # Splitting bold file into lists of single volumes
         [bold_volumes, num_volumes] = split_volumes(
@@ -196,7 +200,7 @@ class slice_applyTransforms(BaseInterface):
 
         if self.inputs.apply_motcorr:
             motcorr_params = self.inputs.motcorr_params
-        ref_img = os.path.abspath('resampled.nii.gz')
+
         warped_volumes = []
 
         orig_transforms = self.inputs.transforms
@@ -216,7 +220,7 @@ class slice_applyTransforms(BaseInterface):
                 transforms = orig_transforms
                 inverses = orig_inverses
 
-            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_img, warped_vol_fname, interpolation=self.inputs.interpolation)
+            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_file, warped_vol_fname, interpolation=self.inputs.interpolation)
             # change image to specified data type
             sitk.WriteImage(sitk.ReadImage(warped_vol_fname,
                                            self.inputs.rabies_data_type), warped_vol_fname)

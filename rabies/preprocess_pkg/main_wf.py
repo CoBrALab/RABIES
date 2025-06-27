@@ -140,7 +140,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
         layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
 
-    split_name, scan_info, run_iter, structural_scan_list, number_functional_scans = prep_bids_iter(
+    split_name, scan_info, run_iter, structural_scan_list, bold_scan_list = prep_bids_iter(
         layout, opts.bids_filter, opts.bold_only, inclusion_list=opts.inclusion_ids, exclusion_list=opts.exclusion_ids)
     '''***details on outputs from prep_bids_iter:
     split_name: a list of strings, providing a sensible name to distinguish each iterable, 
@@ -150,9 +150,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     run_iter: a list of dictionary, where the keys correspond to a session split from 
         split_name, and the value is a list of runs for that split. This manages iterables
         for runs.
-    structural_scan_list: the set of structural scans; used for resample_template and managing # threads
-    number_functional_scans: the number of functional scans; used for managing # threads
+    structural_scan_list: list of structural file names used for commonspace registration; used for resample_template and managing # threads
+    bold_scan_list: list of functional file names; used for resample_template and managing # threads
     '''
+    number_structural_scans = len(structural_scan_list)
+    number_functional_scans = len(bold_scan_list)
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
@@ -220,27 +222,26 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     if opts.inherit_unbiased_template=='none':
         inherit_unbiased=False
         # Resample the anatomical template according to the resolution of the provided input data
-        resample_template_node = pe.Node(Function(input_names=['template_file', 'mask_file', 'file_list', 'spacing', 'rabies_data_type'],
+        resample_template_node = pe.Node(Function(input_names=['opts', 'structural_scan_list', 'bold_scan_list'],
                                                 output_names=[
-                                                    'resampled_template', 'resampled_mask'],
+                                                    'registration_template', 'registration_mask', 'commonspace_template'],
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
-        resample_template_node.inputs.template_file = str(opts.anat_template)
-        resample_template_node.inputs.mask_file = str(opts.brain_mask)
-        resample_template_node.inputs.spacing = opts.anatomical_resampling
-        resample_template_node.inputs.file_list = structural_scan_list
-        resample_template_node.inputs.rabies_data_type = opts.data_type
+        resample_template_node.inputs.opts = opts
+        resample_template_node.inputs.structural_scan_list = structural_scan_list
+        resample_template_node.inputs.bold_scan_list = bold_scan_list
+
     else: # inherit the atlas files from previous run
         inherit_unbiased=True
         opts, inherit_dict = inherit_unbiased_files(opts.inherit_unbiased_template, opts)
-        resample_template_node = pe.Node(niu.IdentityInterface(fields=['resampled_template', 'resampled_mask']),
+        resample_template_node = pe.Node(niu.IdentityInterface(fields=['registration_template', 'registration_mask', 'commonspace_template']),
                                             name="resample_template")
-        resample_template_node.inputs.resampled_template = inherit_dict['resampled_template']
-        resample_template_node.inputs.resampled_mask = inherit_dict['resampled_mask']
+        resample_template_node.inputs.registration_template = inherit_dict['registration_template']
+        resample_template_node.inputs.registration_mask = inherit_dict['registration_mask']
+        resample_template_node.inputs.commonspace_template = inherit_dict['commonspace_template']
 
     # calculate the number of scans that will be registered
-    num_scan = len(structural_scan_list)
-    num_procs = min(opts.local_threads, num_scan)
+    num_procs = min(opts.local_threads, number_structural_scans)
 
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
@@ -294,17 +295,17 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("formatted_bold", "inputnode.bold"),
             ]),
         (resample_template_node, template_diagnosis, [
-            ("resampled_template", "anat_template"),
+            ("registration_template", "anat_template"),
             ]),
         (resample_template_node, commonspace_reg_wf, [
-            ("resampled_template", "template_inputnode.template_anat"),
-            ("resampled_mask", "template_inputnode.template_mask"),
+            ("registration_template", "template_inputnode.template_anat"),
+            ("registration_mask", "template_inputnode.template_mask"),
             ]),
         (resample_template_node, bold_main_wf, [
-            ("resampled_template", "inputnode.commonspace_ref"),
+            ("commonspace_template", "inputnode.commonspace_ref"),
             ]),
         (resample_template_node, outputnode, [
-            ("resampled_template", "commonspace_resampled_template"),
+            ("commonspace_template", "commonspace_resampled_template"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
             ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
@@ -438,12 +439,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("formatted_anat", "inputnode.name_source"),
                 ]),
             (resample_template_node, anat_inho_cor_wf, [
-                ("resampled_template", "inputnode.anat_ref"),
-                ("resampled_mask", "inputnode.anat_mask"),
+                ("registration_template", "inputnode.anat_ref"),
+                ("registration_mask", "inputnode.anat_mask"),
                 ]),
             (resample_template_node, anat_inho_cor_wf, [
-                ("resampled_template", "template_inputnode.template_anat"),
-                ("resampled_mask", "template_inputnode.template_mask"),
+                ("registration_template", "template_inputnode.template_anat"),
+                ("registration_mask", "template_inputnode.template_mask"),
                 ]),
             (anat_inho_cor_wf, bold_main_wf, [
                 ("outputnode.corrected", "inputnode.coreg_anat"),
@@ -496,8 +497,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
         workflow.connect([
             (resample_template_node, inho_cor_bold_main_wf, [
-                ("resampled_template", "template_inputnode.template_anat"),
-                ("resampled_mask", "template_inputnode.template_mask"),
+                ("registration_template", "template_inputnode.template_anat"),
+                ("registration_mask", "template_inputnode.template_mask"),
                 ]),
             (format_bold_buffer, inho_cor_bold_main_wf, [
                 ("formatted_bold", "inputnode.bold"),
@@ -519,8 +520,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.denoise_mask", "inputnode.moving_mask"),
                 ]),
             (resample_template_node, EPI_target_buffer, [
-                ("resampled_template", "EPI_template"),
-                ("resampled_mask", "EPI_mask"),
+                ("registration_template", "EPI_template"),
+                ("registration_mask", "EPI_mask"),
                 ]),
             ])
 

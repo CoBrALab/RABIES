@@ -776,8 +776,9 @@ def inherit_unbiased_files(RABIES_output_path, opts):
 
     inherit_dict = {}
 
-    inherit_dict['resampled_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_template']
-    inherit_dict['resampled_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['resampled_mask']
+    inherit_dict['registration_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['registration_template']
+    inherit_dict['registration_mask'] = node_dict['main_wf.resample_template'].result.outputs.get()['registration_mask']
+    inherit_dict['commonspace_template'] = node_dict['main_wf.resample_template'].result.outputs.get()['commonspace_template']
 
     inherit_dict['unbiased_template'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_template']
     inherit_dict['unbiased_mask'] = node_dict['main_wf.commonspace_reg_wf.generate_template'].result.outputs.get()['unbiased_mask']
@@ -789,14 +790,17 @@ def inherit_unbiased_files(RABIES_output_path, opts):
 
     # check that the files exist
     for key in list(inherit_dict.keys()):
-        if not os.path.isfile(inherit_dict[key]):
-            if key=='unbiased_mask':
+        try:
+            if not os.path.isfile(inherit_dict[key]):
+                raise ValueError(f"File not found for {key}. {inherit_dict[key]} was found instead.")
+        except:
+            if key=='unbiased_mask': 
                 if opts.commonspace_reg['masking']: # the file is only present when masking was used
-                    raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
+                    raise ValueError(f"File not found for {key}. {inherit_dict[key]} was found instead.")
             elif key=='unbiased_to_atlas_warp' or key=='unbiased_to_atlas_inverse_warp': # if registration was rigid or affine, no warp files
                 if not inherit_dict[key]=='NULL':
-                    raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
+                    raise ValueError(f"File not found for {key}. {inherit_dict[key]} was found instead.")
             else:
-                raise ValueError(f"File {inherit_dict[key]} not found for {key}.")
-
+                raise ValueError(f"File not found for {key}. {inherit_dict[key]} was found instead.")
+                
     return opts, inherit_dict

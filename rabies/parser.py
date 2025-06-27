@@ -835,6 +835,8 @@ def get_parser():
             "Specify the indices for the priors corresponding to BOLD sources of interest from --prior_maps. \n"
             "This will determine the set of networks analyzed for --data_diagnosis. \n"
             "IMPORTANT: index counting starts at 0 (i.e. the first component is selected with 0, not 1) \n"
+            "SYNTAX: Note that the syntax should follow the example of '--prior_bold_idx 5 12 19', and not \n" 
+            "'--prior_bold_idx [5, 12, 19]'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -847,6 +849,8 @@ def get_parser():
             "Specify the indices for the confound components from --prior_maps. This is pertinent for \n" 
             "evaluating features in the --data_diagnosis outputs.\n"
             "IMPORTANT: index counting starts at 0 (i.e. the first component is selected with 0, not 1) \n"
+            "SYNTAX: Note that the syntax should follow the example of '--prior_bold_idx 5 12 19', and not \n" 
+            "'--prior_bold_idx [5, 12, 19]'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
