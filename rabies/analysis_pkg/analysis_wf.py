@@ -13,7 +13,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
     subject_inputnode = pe.Node(niu.IdentityInterface(
         fields=['dict_file', 'token']), name='subject_inputnode')
     group_inputnode = pe.Node(niu.IdentityInterface(
-        fields=['bold_file_list', 'commonspace_mask', 'token']), name='group_inputnode')
+        fields=['bold_file_list', 'commonspace_mask', 'commonspace_template', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'matrix_data_file', 'matrix_fig', 'corr_map_file', 'seed_timecourse_csv', 'joined_corr_map_file', 'joined_seed_timecourse_csv',
                                                        'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
@@ -98,7 +98,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         if not commonspace_cr:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again without --nativespace_analysis.')
-        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed'],
+        group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed', 'background_image'],
                                      output_names=['out_dir', 'IC_file'],
                                      function=run_group_ICA),
                             name='group_ICA', mem_gb=1*opts.scale_min_memory)
@@ -109,6 +109,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
             (group_inputnode, group_ICA, [
                 ("bold_file_list", "bold_file_list"),
                 ("commonspace_mask", "mask_file"),
+                ("commonspace_template", "background_image"),
                 ]),
             (group_ICA, outputnode, [
                 ("IC_file", "IC_file"),

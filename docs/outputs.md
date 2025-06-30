@@ -60,7 +60,6 @@ Important outputs from confound correction will be found in the `confound_correc
     - `frame_censoring_mask/`: contains CSV files each recording as a boolean vector which timepoints were censored if frame censoring was applied.
     - `aroma_out/`: if `--ica_aroma` is applied, this folder contains outputs from running ICA-AROMA, which includes the MELODIC ICA outputs and the component classification results
     - `plot_CR_overfit/`: will contain figures illustrating the variance explained by random regressors during confound correction, and the variance explained by the real regressors after substrating the variance from random regressors.
-    - `background_masking_fig/`: will illustrate the image background masks automatically generated if using `--image_scaling background_noise`
 
 
 ## Analysis Outputs
