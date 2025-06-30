@@ -226,12 +226,12 @@ class DatasetDiagnosis(BaseInterface):
 
         FC_maps_dict={}
         FC_maps_dict['DR']=[]
-        FC_maps_dict['NPR']=[]
+        FC_maps_dict['CPCA']=[]
         FC_maps_dict['SBC']=[]
         
         DR_conf_corr_dict={}
         DR_conf_corr_dict['DR']=[]
-        DR_conf_corr_dict['NPR']=[]
+        DR_conf_corr_dict['CPCA']=[]
         DR_conf_corr_dict['SBC']=[]
 
         for scan_data in merged:
@@ -250,14 +250,14 @@ class DatasetDiagnosis(BaseInterface):
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
             FC_maps_dict['DR'].append(scan_data['DR_BOLD'])
-            FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
+            FC_maps_dict['CPCA'].append(scan_data['CPCA_maps'])
             FC_maps_dict['SBC'].append(scan_data['seed_map_list'])
 
             # computing the temporal correlation between network and confound timecourses
             DR_confound_time = scan_data['DR_confound_time']
             for network_time,key in zip(
-                [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
-                ['DR','NPR','SBC']):
+                [scan_data['DR_network_time'],scan_data['CPCA_network_time'],scan_data['SBC_network_time']],
+                ['DR','CPCA','SBC']):
                 if len(network_time)>0:
                     # for each network, compute its confound correlation as mean across all DR confound components
                     corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
@@ -400,11 +400,11 @@ class DatasetDiagnosis(BaseInterface):
                 analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
 
-        NPR_maps_list=np.array(FC_maps_dict['NPR'])
-        if NPR_maps_list.shape[1]>0:
+        CPCA_maps_list=np.array(FC_maps_dict['CPCA'])
+        if CPCA_maps_list.shape[1]>0:
             if self.inputs.group_avg_prior:
-                num_priors = NPR_maps_list.shape[1]
-                prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
+                num_priors = CPCA_maps_list.shape[1]
+                prior_maps = np.median(CPCA_maps_list,axis=0)[:,non_zero_voxels]
             else:
                 prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
@@ -414,12 +414,12 @@ class DatasetDiagnosis(BaseInterface):
                     network_var=None
                 else:
                     # we don't apply the non_zero_voxels mask as it changes the original variance estimate
-                    network_var = np.sqrt((NPR_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
+                    network_var = np.sqrt((CPCA_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
 
-                NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
+                CPCA_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='CPCA', network_i=i, num_priors=num_priors)
 
-                FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
+                FC_maps = CPCA_maps_list[:,i,non_zero_voxels]
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['CPCA'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=CPCA_i_scan_QC_thresholds, analysis_prefix='CPCA')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:
@@ -427,7 +427,7 @@ class DatasetDiagnosis(BaseInterface):
                     FC_maps_ = FC_maps[QC_inclusion,:]
                     corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
+                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='CPCA')
 
         seed_maps_list=np.array(FC_maps_dict['SBC'])
         if seed_maps_list.shape[1]>0:
