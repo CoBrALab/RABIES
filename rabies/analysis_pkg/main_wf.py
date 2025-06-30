@@ -84,29 +84,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
 
 
-    if commonspace_bold or preprocess_opts.bold_only:
-        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
-        load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
-        load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
-        load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
-        load_maps_dict_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
-        load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
-        load_maps_dict_node.inputs.transform_list = []
-        load_maps_dict_node.inputs.inverse_list = []
-    else:
-        workflow.connect([
-            (conf_outputnode, load_maps_dict_node, [
-                ("native_brain_mask", "mask_file"),
-                ("native_WM_mask", "WM_mask_file"),
-                ("native_CSF_mask", "CSF_mask_file"),
-                ("native_labels", "atlas_file"),
-                ("anat_preproc", "preprocess_anat_template"),
-                ("commonspace_to_native_transform_list", "transform_list"),
-                ("commonspace_to_native_inverse_list", "inverse_list"),
-                ]),
-            ])
-
-
     load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
                                            output_names=[
                                                'dict_file'],
@@ -134,13 +111,34 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          joinfield=['file_list'])
 
     if commonspace_bold or preprocess_opts.bold_only:
+        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
+        load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
+        load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
+        load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
+        load_maps_dict_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
+        load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
+        load_maps_dict_node.inputs.transform_list = []
+        load_maps_dict_node.inputs.inverse_list = []
+
+        analysis_wf.inputs.group_inputnode.commonspace_template = split_dict[split_name]["commonspace_resampled_template"]
+
         workflow.connect([
             (conf_outputnode, analysis_split_joinnode, [
                 ("commonspace_mask", "mask_file"),
                 ]),
             ])
+
     else:
         workflow.connect([
+            (conf_outputnode, load_maps_dict_node, [
+                ("native_brain_mask", "mask_file"),
+                ("native_WM_mask", "WM_mask_file"),
+                ("native_CSF_mask", "CSF_mask_file"),
+                ("native_labels", "atlas_file"),
+                ("anat_preproc", "preprocess_anat_template"),
+                ("commonspace_to_native_transform_list", "transform_list"),
+                ("commonspace_to_native_inverse_list", "inverse_list"),
+                ]),
             (conf_outputnode, analysis_split_joinnode, [
                 ("native_brain_mask", "mask_file"),
                 ]),
