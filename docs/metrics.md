@@ -1,6 +1,6 @@
 # Metric definitions
 (metrics_target)=
-On this page, the L2-norm corresponds to $||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$
+On this page, the root-mean square (RMS) corresponds to $||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$
 
 (regressor_target)=
 ## Nuisance regressors for confound regression
@@ -35,8 +35,8 @@ $$
 DVARS_t = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(Y_{i,t}-Y_{i,t-1})^2}
 $$
 where $Y_{i,t}$ corresponds to the BOLD signal in brain voxel $i$ at timepoint $t$. The first timepoint is set to 0 (has no previous timepoint).
-* **Edge/WM/CSF mask**: The L2-norm across voxels within a mask, at each timepoint.
-* **$CR_{var}$**: The variance estimated by confound regression is computed for each timepoint. This is done by taking the L2-norm $CR_{var} = ||Y_{CR}||_2$ across voxels at each timepoints, where $Y_{CR}$ is the [predicted confound timeseries](CR_target).
+* **Edge/WM/CSF mask**: The RMS across voxels within a mask, at each timepoint.
+* **$CR_{var}$**: The variance estimated by confound regression is computed for each timepoint. This is done by taking $CR_{var} = RMS(Y_{CR})$ across voxels at each timepoints, where $Y_{CR}$ is the [predicted confound timeseries](CR_target).
 * **CR $R^2$**: Represents the proportion of variance explained (and removed) by confound regression. This is obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y})}{Var(Y)}$ at each timepoint, where $Y$ and $\hat{Y}$ are the timeseries pre- and post-regression respectively, and $Var(x) = \frac{1}{n}\sum_{i=1}^{n}(x_i - \mu_x)^2$ calculates the variance, with $\mu$ as the mean.
 * **Mean amplitude**: A set of timecourse are averaged as $\frac{1}{n}\sum_{i=1}^{n}|X_i|$, where $X_i$ is the timecourse $i$. Timecourses can correspond to either of the following sets:
     * DR confounds: timecourses from the first stage of dual regression, using confound components provided to `--prior_confound_idx`.

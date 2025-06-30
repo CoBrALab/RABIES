@@ -19,10 +19,10 @@ where $Y_{concat}$ are the concatenated timeseries, $\hat{S}$ are the set of spa
 (DR_target)=
 - **Dual regression (DR)** (`--prior_maps`/`--DR_ICA`) : DR builds on the group ICA decomposition to model scan-specific versions of the group-level components, thus allowing to estimate individualized connectivity for a given brain network first identified through group-ICA {cite}`Beckmann2009-cf,Nickerson2017-gq`. DR consists of two consecutive linear regression steps, where scan-specific timecourses are first derived for each ICA component, and then a scan-specific spatial map is obtained for each component timecourse. Using multivariate linear regression (with Ordinary least square (OLS)), component timecourses are obtained with 
 $${\beta}_{TC} = OLS(\hat{S},Y)$$
-describing $Y = \hat{S}{\beta}_{TC} + \epsilon$ where $Y$ are the scan timeseries, $\hat{S}$ are the ICA components and ${\beta}_{TC}$ corresponds to the estimated timecourses for each component. To accurately measure connectivity amplitude in the spatial maps derived from DR, the timecourses from the first regression step must be standardized prior to the second regression{cite}`Nickerson2017-gq`. In RABIES, timecourses are thus variance-normalized using an *L2-norm* 
+describing $Y = \hat{S}{\beta}_{TC} + \epsilon$ where $Y$ are the scan timeseries, $\hat{S}$ are the ICA components and ${\beta}_{TC}$ corresponds to the estimated timecourses for each component. To accurately measure connectivity amplitude in the spatial maps derived from DR, the timecourses from the first regression step must be standardized prior to the second regression{cite}`Nickerson2017-gq`. In RABIES, timecourses are thus variance-normalized using root-mean square (RMS) 
 $$
-{\beta}^*_{TC} = \frac{{\beta}_{TC}}{||{\beta}_{TC}||_2}
+{\beta}^*_{TC} = \frac{{\beta}_{TC}}{RMS({\beta}_{TC})}
 $$
-where $||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$ is the *L2-norm* of $x$. The normalized timecourses ${\beta}^*_{TC}$ are then inputed into a second regression step to derive the spatial maps ${\beta}_{SM}$ with 
+where $RMS(x) = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$. The normalized timecourses ${\beta}^*_{TC}$ are then inputed into a second regression step to derive the spatial maps ${\beta}_{SM}$ with 
 $${\beta}_{SM} = OLS({\beta}^*_{TC},Y^T)$$
 where $Y = {\beta}^*_{TC}{\beta}_{SM} + \epsilon$, thus completing the linear model of the timeseries. The resulting scan-specific spatial maps ${\beta}_{SM}$ will comprise information about network amplitude and shape, which may be compared across subjects or groups with further statistical tests{cite}`Nickerson2017-gq`.

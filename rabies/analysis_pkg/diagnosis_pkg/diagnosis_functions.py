@@ -91,7 +91,7 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
     '''Temporal Features'''
-    # take regional timecourse from L2-norm
+    # take regional timecourse by taking the RMS each 3D volume
     WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
     CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
     edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
@@ -362,7 +362,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3.plot(x,temporal_info['WM_trace'])
     ax3.plot(x,temporal_info['CSF_trace'])
     ax3.plot(x,temporal_info['predicted_time'])
-    ax3.set_ylabel('Amplitude \n(L2-norm)', fontsize=20)
+    ax3.set_ylabel('Amplitude \n(RMS)', fontsize=20)
     ax3_ = ax3.twinx()
     ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
     ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
