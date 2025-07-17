@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Apptainer
         run: |
@@ -22,16 +22,16 @@ jobs:
 
       - name: Get release version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Build Apptainer image from Docker URL
         run: |
           REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           VERSION=${{ steps.get_version.outputs.VERSION }}
-          sudo apptainer build app-${VERSION}.sif docker://ghcr.io/${REPO_LOWERCASE}:${VERSION}
+          sudo apptainer build "app-${VERSION}.sif" "docker://ghcr.io/${REPO_LOWERCASE}:${VERSION}"
 
       - name: Upload image to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: app-${{ steps.get_version.outputs.VERSION }}.sif
         env:
