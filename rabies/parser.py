@@ -374,7 +374,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Specify registration options for the commonspace registration.\n"
             "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
@@ -385,6 +385,8 @@ def get_parser():
             " combined masks from inhomogeneity correction. This will enhance brain edge-matching, but \n"
             " requires good quality masks. This must be selected along the 'masking' option.\n"
             "*** Specify 'true' or 'false'. \n"
+            "* winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
+            "* winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
             "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
             " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
             " (e.g. if the moving and target images don't have the same brain coverage).\n"
@@ -420,7 +422,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
@@ -431,6 +433,8 @@ def get_parser():
             " inhomogeneity correction. This will enhance brain edge-matching, but requires good quality \n"
             " masks. This must be selected along the 'masking' option.\n"
             "*** Specify 'true' or 'false'. \n"
+            "* winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option. \n"
+            "* winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option. \n"
             "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
             " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
             " (e.g. if the moving and target images don't have the same brain coverage).\n"
@@ -1090,13 +1094,13 @@ def read_parser(parser, args):
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN'},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
