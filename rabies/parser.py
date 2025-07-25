@@ -1093,13 +1093,13 @@ def read_parser(parser, args):
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
             defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
+                'registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
             defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='bold2anat_coreg')
 
