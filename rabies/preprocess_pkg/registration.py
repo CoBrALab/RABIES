@@ -68,7 +68,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     )
 
     run_reg = pe.Node(Function(input_names=["reg_method", "brain_extraction", "keep_mask_after_extract", "moving_image", "moving_mask", "fixed_image",
-                                            "fixed_mask", "rabies_data_type"],
+                                            "fixed_mask", "winsorize_lower_bound", "winsorize_upper_bound", "rabies_data_type"],
                                output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
                                              'bold_to_anat_inverse_warp', 'output_warped_bold'],
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
@@ -104,7 +104,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', rabies_data_type=8):
+def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', winsorize_lower_bound = 0.005, winsorize_upper_bound = 0.995, rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -117,7 +117,7 @@ def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_ext
             reg_call+=" --mask-extract"
             if keep_mask_after_extract:
                 reg_call+=" --keep-mask-after-extract"
-        command = f"{reg_call} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
+        command = f"{reg_call} --winsorize-image-intensities {winsorize_lower_bound},{winsorize_upper_bound} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.utils import run_command

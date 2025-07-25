@@ -129,7 +129,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                     'inverse_warp', 'warped_image']),
                                             name="atlas_reg_inherited")
     else:
-        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'winsorize_lower_bound', 'winsorize_upper_bound','rabies_data_type'],
                                         output_names=['affine', 'warp',
                                                     'inverse_warp', 'warped_image'],
                                         function=run_antsRegistration),
@@ -367,7 +367,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                                             'unbiased_to_atlas_inverse_warp', 'warped_unbiased']),
                                                 name="inherit_unbiased_inputnode")
 
-            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'winsorize_lower_bound', 'winsorize_upper_bound','rabies_data_type'],
                                             output_names=['affine', 'warp',
                                                         'inverse_warp', 'warped_image'],
                                             function=run_antsRegistration),
@@ -673,7 +673,7 @@ class GenerateTemplate(BaseInterface):
         log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine,nlin \
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
         rc,c_out = run_command(command)
 
