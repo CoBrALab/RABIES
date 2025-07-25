@@ -691,14 +691,14 @@ class GenerateTemplate(BaseInterface):
 
 
         unbiased_template = template_folder + \
-            '/nlin/1/average/template_sharpen_shapeupdate.nii.gz'
+            '/affine/1/average/template_sharpen_shapeupdate.nii.gz'
         # verify that all outputs are present
         if not os.path.isfile(unbiased_template):
             raise ValueError(unbiased_template+" doesn't exists.")
 
         if self.inputs.masking:
             unbiased_mask = template_folder + \
-                '/nlin/1/average/mask_shapeupdate.nii.gz'
+                '/affine/1/average/mask_shapeupdate.nii.gz'
             # verify that all outputs are present
             if not os.path.isfile(unbiased_mask):
                 raise ValueError(unbiased_mask+" doesn't exists.")
@@ -708,22 +708,33 @@ class GenerateTemplate(BaseInterface):
         inverse_warp_list = []
         warped_image_list = []
 
+        import SimpleITK as sitk
+        dimension = 3
+        identity = sitk.Transform(dimension, sitk.sitkIdentity)
+
         i = 0
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            native_to_unbiased_inverse_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+
+            # create a surrogate transform that takes the place of non-linear since nlin stage is not run
+            surrogate_transform_file = f'{template_folder}/{filename_template}_surrogate_identity_transform.mat'
+            sitk.WriteTransform(identity, surrogate_transform_file)
+
+            #native_to_unbiased_inverse_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+            native_to_unbiased_inverse_warp = surrogate_transform_file
             if not os.path.isfile(native_to_unbiased_inverse_warp):
                 raise ValueError(
                     native_to_unbiased_inverse_warp+" file doesn't exists.")
-            native_to_unbiased_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1Warp.nii.gz'
+            #native_to_unbiased_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1Warp.nii.gz'
+            native_to_unbiased_warp = surrogate_transform_file
             if not os.path.isfile(native_to_unbiased_warp):
                 raise ValueError(native_to_unbiased_warp+" file doesn't exists.")
-            native_to_unbiased_affine = f'{template_folder}/nlin/1/transforms/{filename_template}_0GenericAffine.mat'
+            native_to_unbiased_affine = f'{template_folder}/affine/1/transforms/{filename_template}_0GenericAffine.mat'
             if not os.path.isfile(native_to_unbiased_affine):
                 raise ValueError(native_to_unbiased_affine
                                  + " file doesn't exists.")
-            warped_image = f'{template_folder}/nlin/1/resample/{filename_template}.nii.gz'
+            warped_image = f'{template_folder}/affine/1/resample/{filename_template}.nii.gz'
             if not os.path.isfile(warped_image):
                 raise ValueError(warped_image
                                  + " file doesn't exists.")
