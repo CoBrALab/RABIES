@@ -113,11 +113,15 @@ def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_ext
     reg_call = define_reg_script(reg_method)
 
     if reg_method == 'Rigid' or reg_method == 'Affine' or reg_method == 'SyN':
+        if not 'NULL' in fixed_mask:
+            reg_call+=f" --fixed-mask {fixed_mask}"
+        if not 'NULL' in moving_mask:
+            reg_call+=f" --moving-mask {moving_mask}"
         if brain_extraction:
             reg_call+=" --mask-extract"
             if keep_mask_after_extract:
                 reg_call+=" --keep-mask-after-extract"
-        command = f"{reg_call} --winsorize-image-intensities {winsorize_lower_bound},{winsorize_upper_bound} --moving-mask {moving_mask} --fixed-mask {fixed_mask} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
+        command = f"{reg_call} --winsorize-image-intensities {winsorize_lower_bound},{winsorize_upper_bound} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.utils import run_command
