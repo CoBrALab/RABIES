@@ -246,7 +246,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'],
+            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'], winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound'],
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
