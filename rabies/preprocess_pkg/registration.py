@@ -25,6 +25,10 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                             inhomogeneity correction. This will enhance brain edge-matching, but requires good quality 
                             masks. This should be selected along the 'masking' option.
                             *** Specify 'true' or 'false'. 
+                            * winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers.
+                            *** Specify a value between 0 and 1.
+                            * winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers.
+                            *** Specify a value between 0 and 1.
                             * keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric
                             within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask
                             (e.g. if the moving and target images don't have the same brain coverage).
@@ -34,7 +38,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                             *** Affine: conducts Rigid then Affine registration.
                             *** SyN: conducts Rigid, Affine then non-linear registration.
                             *** no_reg: skip registration.
-                            (default: masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN)
+                            (default: masking=false,brain_extraction=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995,keep_mask_after_extract=false,registration=SyN)
 
     Workflow:
         parameters
@@ -74,6 +78,8 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                                function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
 
     # don't use brain extraction without a moving mask
+    run_reg.inputs.winsorize_lower_bound = opts.bold2anat_coreg['winsorize_lower_bound']
+    run_reg.inputs.winsorize_upper_bound = opts.bold2anat_coreg['winsorize_upper_bound']
     run_reg.inputs.reg_method = opts.bold2anat_coreg['registration']
     run_reg.inputs.brain_extraction = opts.bold2anat_coreg['brain_extraction']
     run_reg.inputs.keep_mask_after_extract = opts.bold2anat_coreg['keep_mask_after_extract']

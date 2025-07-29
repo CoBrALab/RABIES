@@ -61,8 +61,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                         
     Workflow:
         parameters
-            opts: command line interface parameters
-            commonspace_masking: whether masking is applied during template generation and registration
+            opts: command line interface parameters (technically all the parser args, including winsorization and brain_extraction etc are included here)
+            commonspace_masking: whether masking is applied during template generation and registration (this is kinda redundant...)
             brain_extraction: whether brain extraction is applied for template registration
             keep_mask_after_extract: whether to keep using mask to delineate metric computation after brain extraction.
             template_reg: registration method
@@ -140,6 +140,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
             if not commonspace_masking:
                 brain_extraction=False
 
+        atlas_reg.inputs.winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound']
+        atlas_reg.inputs.winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound']
         atlas_reg.inputs.brain_extraction = brain_extraction
         atlas_reg.inputs.keep_mask_after_extract = keep_mask_after_extract
         atlas_reg.inputs.rabies_data_type = opts.data_type
@@ -244,7 +246,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
+            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'], winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound'],
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -372,6 +374,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                         'inverse_warp', 'warped_image'],
                                             function=run_antsRegistration),
                                 name='inherit_unbiased_reg', mem_gb=2*opts.scale_min_memory)
+            inherit_unbiased_reg_node.inputs.winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound']
+            inherit_unbiased_reg_node.inputs.winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound']
             inherit_unbiased_reg_node.inputs.reg_method = 'Rigid' # this is the registration modelbuild conducts
             inherit_unbiased_reg_node.inputs.brain_extraction = False # brain extraction is not applied during template building
             inherit_unbiased_reg_node.inputs.keep_mask_after_extract = False # brain extraction is not applied during template building
@@ -557,6 +561,7 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
 
 
 class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
+    #these input traits are later inherited in the GenerateTemplate class
     moving_image_list = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
     moving_mask_list = traits.List(exists=True,
@@ -569,6 +574,10 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
                          desc="Reference anatomical template to define the target space.")
     cluster_type = traits.Str(
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
+    winsorize_lower_bound = traits.Float(
+        desc="")
+    winsorize_upper_bound = traits.Float(
+        desc="")
 
 class GenerateTemplateOutputSpec(TraitedSpec):
     unbiased_template = File(
@@ -675,9 +684,12 @@ class GenerateTemplate(BaseInterface):
         rc,c_out = run_command(command)
         log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
 
+        winsorize_lower_bound = self.inputs.winsorize_lower_bound
+        winsorize_upper_bound = self.inputs.winsorize_upper_bound
+
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine \
-            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path} --winsorize_lower_bound {winsorize_lower_bound}  --winsorize_upper_bound {winsorize_upper_bound}'
         rc,c_out = run_command(command)
 
 
