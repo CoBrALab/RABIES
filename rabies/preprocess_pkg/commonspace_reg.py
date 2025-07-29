@@ -246,7 +246,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'], winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound'],
+            generate_template = pe.Node(GenerateTemplate(stages=opts.commonspace_reg['stages'], masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'], winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound'],
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -566,6 +566,8 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
                             desc="List of anatomical images used for commonspace registration.")
     moving_mask_list = traits.List(exists=True,
                             desc="List of masks accompanying each image. (optional)")
+    stages = traits.Str(
+        exists=True, mandatory=True, desc="Input to --stages parameter of modelbuild.sh")
     masking = traits.Bool(
         desc="Whether to use the masking option.")
     output_folder = traits.Str(
@@ -611,6 +613,16 @@ class GenerateTemplate(BaseInterface):
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
+        winsorize_lower_bound = self.inputs.winsorize_lower_bound
+        winsorize_upper_bound = self.inputs.winsorize_upper_bound
+        stages = self.inputs.stages
+
+        # change the - split for a comma ,
+        stages = ','.join(stages.split('-'))
+
+        for stage in stages.split(','):
+            if stage not in ['rigid', 'similarity', 'affine', 'nlin']:
+                raise ValueError(f"{stage} is not a proper modelbuild.sh stage - it must be one of 'rigid', 'similarity', 'affine', 'nlin'. Review your --commonspace_reg parameter.")
 
         command = f'mkdir -p {template_folder}'
         rc,c_out = run_command(command)
@@ -621,15 +633,18 @@ class GenerateTemplate(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        merged_masks = flatten_list(list(self.inputs.moving_mask_list))
-        for mask in merged_masks:
-            if 'NULL' in mask:
-                merged_masks = ['NULL'] # there should be no NULL mask
-        if self.inputs.masking and not (merged_masks[0]=='NULL'):
-            mask_csv_path = cwd+'/commonspace_input_masks.csv'
-            df = pd.DataFrame(data=merged_masks)
-            df.to_csv(mask_csv_path, header=False, sep=',', index=False)
-            masks = f'--masks {mask_csv_path}'
+        if self.inputs.masking:
+            merged_masks = flatten_list(list(self.inputs.moving_mask_list))
+            for mask in merged_masks:
+                if 'NULL' in mask:
+                    merged_masks = ['NULL'] # there should be no NULL mask
+            if not (merged_masks[0]=='NULL'):
+                mask_csv_path = cwd+'/commonspace_input_masks.csv'
+                df = pd.DataFrame(data=merged_masks)
+                df.to_csv(mask_csv_path, header=False, sep=',', index=False)
+                masks = f'--masks {mask_csv_path}'
+            else:
+                log.info(f"Some 'NULL' input mask was found within moving_mask_list. No moving mask will be used by modelbuild.sh")
         else:
             merged_masks = ['NULL']
             masks=''
@@ -684,24 +699,22 @@ class GenerateTemplate(BaseInterface):
         rc,c_out = run_command(command)
         log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
 
-        winsorize_lower_bound = self.inputs.winsorize_lower_bound
-        winsorize_upper_bound = self.inputs.winsorize_upper_bound
-
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine \
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages {stages} \
             --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path} --winsorize_lower_bound {winsorize_lower_bound}  --winsorize_upper_bound {winsorize_upper_bound}'
         rc,c_out = run_command(command)
 
+        last_stage = stages.split(',')[-1]
 
         unbiased_template = template_folder + \
-            '/affine/1/average/template_sharpen_shapeupdate.nii.gz'
+            f'/{last_stage}/1/average/template_sharpen_shapeupdate.nii.gz'
         # verify that all outputs are present
         if not os.path.isfile(unbiased_template):
             raise ValueError(unbiased_template+" doesn't exists.")
 
-        if self.inputs.masking:
+        if self.inputs.masking and not (merged_masks[0]=='NULL'):
             unbiased_mask = template_folder + \
-                '/affine/1/average/mask_shapeupdate.nii.gz'
+                f'/{last_stage}/1/average/mask_shapeupdate.nii.gz'
             # verify that all outputs are present
             if not os.path.isfile(unbiased_mask):
                 raise ValueError(unbiased_mask+" doesn't exists.")
@@ -715,29 +728,33 @@ class GenerateTemplate(BaseInterface):
         dimension = 3
         identity = sitk.Transform(dimension, sitk.sitkIdentity)
 
+        nlin_out = last_stage=='nlin'
         i = 0
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
 
-            # create a surrogate transform that takes the place of non-linear since nlin stage is not run
-            surrogate_transform_file = f'{template_folder}/{filename_template}_surrogate_identity_transform.mat'
-            sitk.WriteTransform(identity, surrogate_transform_file)
+            if not nlin_out:
+                # create a surrogate transform that takes the place of non-linear since nlin stage is not run
+                surrogate_transform_file = f'{template_folder}/{filename_template}_surrogate_identity_transform.mat'
+                sitk.WriteTransform(identity, surrogate_transform_file)
+                native_to_unbiased_inverse_warp = surrogate_transform_file
+                native_to_unbiased_warp = surrogate_transform_file
+            else:
+                native_to_unbiased_inverse_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+                native_to_unbiased_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1Warp.nii.gz'
 
-            #native_to_unbiased_inverse_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1InverseWarp.nii.gz'
-            native_to_unbiased_inverse_warp = surrogate_transform_file
             if not os.path.isfile(native_to_unbiased_inverse_warp):
                 raise ValueError(
                     native_to_unbiased_inverse_warp+" file doesn't exists.")
-            #native_to_unbiased_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1Warp.nii.gz'
-            native_to_unbiased_warp = surrogate_transform_file
             if not os.path.isfile(native_to_unbiased_warp):
                 raise ValueError(native_to_unbiased_warp+" file doesn't exists.")
-            native_to_unbiased_affine = f'{template_folder}/affine/1/transforms/{filename_template}_0GenericAffine.mat'
+            
+            native_to_unbiased_affine = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_0GenericAffine.mat'
             if not os.path.isfile(native_to_unbiased_affine):
                 raise ValueError(native_to_unbiased_affine
                                  + " file doesn't exists.")
-            warped_image = f'{template_folder}/affine/1/resample/{filename_template}.nii.gz'
+            warped_image = f'{template_folder}/{last_stage}/1/resample/{filename_template}.nii.gz'
             if not os.path.isfile(warped_image):
                 raise ValueError(warped_image
                                  + " file doesn't exists.")

@@ -374,9 +374,11 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Specify registration options for the commonspace registration.\n"
+            "* stages: Registration stages for generating the unbiased template. \n"
+            "*** Each stage must be among the following: 'rigid','similarity','affine' or 'nlin' (non-linear). The syntax must follows this example: rigid-affine-nlin. \n"
             "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
             " registration during the generation of the unbiased template, and then during template \n"            
             " registration.\n"
@@ -1092,9 +1094,9 @@ def read_parser(parser, args):
             name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
-            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
+            key_value_pairs = {'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
@@ -1164,7 +1166,7 @@ def parse_argument(opt, key_value_pairs, defaults, name):
         [key,value] = s
         if not key in key_list:
             raise ValueError(f"The provided key {key} is not part of the available options {key_list} for --{name}.")
-        if key_value_pairs[key] in [int,float]:
+        if key_value_pairs[key] in [int,float,str]:
             value = key_value_pairs[key](value)
         else:
             if not value in key_value_pairs[key]:
