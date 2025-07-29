@@ -229,8 +229,8 @@ class InhoCorrectionInputSpec(BaseInterfaceInputSpec):
 
 class InhoCorrectionOutputSpec(TraitedSpec):
     corrected = File(exists=True, desc="Preprocessed anatomical image.")
-    denoise_mask = File(
-        exists=True, desc="resampled mask after registration")
+    denoise_mask = traits.Str(
+        desc="resampled mask after registration")
     init_denoise = File(
         exists=True, desc="Initial correction before registration.")
 
@@ -275,7 +275,7 @@ class InhoCorrection(BaseInterface):
             # outputs correspond to the inputs
             corrected=target_img
             init_denoise=corrected
-            resampled_mask=self.inputs.anat_mask
+            resampled_mask='NULL'
         elif self.inputs.inho_cor_method in ['Rigid','Affine','SyN', 'no_reg']:
             corrected = f'{cwd}/{filename_split[0]}_inho_cor.nii.gz'
             if self.inputs.image_type=='EPI':
@@ -338,6 +338,9 @@ class InhoCorrection(BaseInterface):
 
         # resample image to specified data format
         sitk.WriteImage(sitk.ReadImage(corrected, self.inputs.rabies_data_type), corrected)
+
+        if not self.inputs.inho_cor_method=='disable':
+            resampled_mask = os.path.abspath(resampled_mask)
 
         setattr(self, 'corrected', corrected)
         setattr(self, 'init_denoise', init_denoise)

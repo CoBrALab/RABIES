@@ -251,10 +251,11 @@ def inho_cor_diagnosis(raw_img,init_denoise,warped_mask,final_denoise, name_sour
     axes[0,2].set_title('Resampled Mask', fontsize=30, color='white')
     #add_filenames(axes[-1,2], {'Mask File':warped_mask,'EPI File':raw_img})
     plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='viridis')
-    sitk_mask = sitk.ReadImage(warped_mask,sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
+    if not warped_mask=='NULL':
+        sitk_mask = sitk.ReadImage(warped_mask,sitk.sitkFloat32)
+        # resample mask to match template
+        sitk_mask = sitk.Resample(sitk_mask, scaled)
+        plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     scaled = otsu_scaling(init_denoise)
     axes[0,1].set_title('Initial Correction', fontsize=30, color='white')
