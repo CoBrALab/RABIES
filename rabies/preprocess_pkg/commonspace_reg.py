@@ -612,8 +612,11 @@ class GenerateTemplate(BaseInterface):
         df = pd.DataFrame(data=merged)
         df.to_csv(csv_path, header=False, sep=',', index=False)
 
-        if self.inputs.masking:
-            merged_masks = flatten_list(list(self.inputs.moving_mask_list))
+        merged_masks = flatten_list(list(self.inputs.moving_mask_list))
+        for mask in merged_masks:
+            if 'NULL' in mask:
+                merged_masks = ['NULL'] # there should be no NULL mask
+        if self.inputs.masking and not (merged_masks[0]=='NULL'):
             mask_csv_path = cwd+'/commonspace_input_masks.csv'
             df = pd.DataFrame(data=merged_masks)
             df.to_csv(mask_csv_path, header=False, sep=',', index=False)
