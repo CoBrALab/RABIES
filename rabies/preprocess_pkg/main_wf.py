@@ -7,7 +7,7 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,log_transform_nii
 from . import preprocess_visual_QC
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
@@ -400,6 +400,15 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         format_anat_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_anat']),
                                             name="format_anat_buffer")
 
+
+        if opts.log_transform:
+            log_anat_node = pe.Node(Function(input_names=['in_nii', 'dim'],
+                                                            output_names=[
+                                                                'log_nii'],
+                                                            function=log_transform_nii),
+                                                    name='log_anat_node')
+            log_anat_node.inputs.dim = '3d'
+
         if opts.anat_autobox: # apply AFNI's 3dAutobox
             anat_autobox = pe.Node(Function(input_names=['in_file'],
                                                         output_names=['out_file'],
@@ -409,16 +418,38 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 (anat_convert_to_RAS_node, anat_autobox, [
                     ('RAS_file', 'in_file'),
                     ]),
-                (anat_autobox, format_anat_buffer, [
-                    ('out_file', 'formatted_anat'),
-                    ]),
                 ])
+            if opts.log_transform:
+                workflow.connect([
+                    (anat_autobox, log_anat_node, [
+                        ("out_file", "in_nii"),
+                        ]),
+                    (log_anat_node, format_anat_buffer, [
+                        ("log_nii", "formatted_anat"),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (anat_autobox, format_anat_buffer, [
+                        ('out_file', 'formatted_anat'),
+                        ]),
+                    ])
         else:
-            workflow.connect([
-                (anat_convert_to_RAS_node, format_anat_buffer, [
-                    ("RAS_file", "formatted_anat"),
-                    ]),
-                ])
+            if opts.log_transform:
+                workflow.connect([
+                    (anat_convert_to_RAS_node, log_anat_node, [
+                        ("RAS_file", "in_nii"),
+                        ]),
+                    (log_anat_node, format_anat_buffer, [
+                        ("log_nii", "formatted_anat"),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (anat_convert_to_RAS_node, format_anat_buffer, [
+                        ("RAS_file", "formatted_anat"),
+                        ]),
+                    ])
 
         # setting anat preprocessing nodes
         anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', output_folder=output_folder, num_procs=num_procs, name="anat_inho_cor_wf")
@@ -512,6 +543,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.init_denoise", "transitionnode.init_denoise"),
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
+                ("transitionnode.log_bold", "transitionnode.log_bold"),
                 ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode.moving_image"),

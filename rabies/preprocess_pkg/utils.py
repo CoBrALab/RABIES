@@ -332,3 +332,31 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
 
     return registration_template, registration_mask, commonspace_template
 
+
+def log_transform_nii(in_nii, dim='4d'):
+    import pathlib
+    import os
+    import SimpleITK as sitk
+    import numpy as np
+    from rabies.utils import copyInfo_4DImage,copyInfo_3DImage
+
+    split = pathlib.Path(in_nii).name.rsplit(".nii")[0]
+    log_nii = os.path.abspath(f"{split}_log.nii.gz")
+
+    in_img = sitk.ReadImage(
+            in_nii)
+    img_data = sitk.GetArrayFromImage(in_img)
+
+    img_data = np.log10(img_data)
+    img_data = np.nan_to_num(img_data, posinf=0, neginf=0, nan=0)    
+    log_img = sitk.GetImageFromArray(
+        img_data, isVector=False)
+    if dim=='3d':
+        log_img = copyInfo_3DImage(log_img, in_img)
+    elif dim=='4d':
+        log_img = copyInfo_4DImage(log_img, in_img, in_img)
+    else:
+        raise
+    sitk.WriteImage(log_img, log_nii)
+    
+    return log_nii

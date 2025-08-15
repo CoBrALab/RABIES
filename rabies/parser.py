@@ -293,6 +293,15 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    preprocess.add_argument(
+        '--log_transform', dest='log_transform', action='store_true',
+        help=
+            "The functional and structural image intensity will be log transformed before registration. \n"
+            "The preprocessed functional timeseries will retain the original intensity values. \n"
+            "This parameter can support registration of fUSI images.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     g_registration = preprocess.add_argument_group(
         title='Registration Options', 
