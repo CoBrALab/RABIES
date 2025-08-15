@@ -44,7 +44,7 @@ for i in {0..3}; do
 done
 
 if [ "$primary_success" = true ]; then
-  for f in "${out_dir}"DSURQE_40micron_*.nii; do
+  for f in "${out_dir}"/DSURQE_40micron_*.nii; do
     gzip -f "$f"
   done
 fi
