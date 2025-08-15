@@ -261,9 +261,12 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
     import os
     import SimpleITK as sitk
     import numpy as np
-    from rabies.utils import resample_image_spacing, run_command
+    from rabies.utils import resample_image_spacing, run_command, flatten_list
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
+
+    bold_scan_list = flatten_list(bold_scan_list)
+    structural_scan_list = flatten_list(structural_scan_list)
 
     template_file = str(opts.anat_template)
     mask_file = str(opts.brain_mask)

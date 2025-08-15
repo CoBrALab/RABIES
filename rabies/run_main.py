@@ -11,7 +11,7 @@ else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
 
 
-def execute_workflow(args=None):
+def execute_workflow(args=None, return_workflow=False):
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
     opts = read_parser(parser, args)
@@ -62,6 +62,8 @@ def execute_workflow(args=None):
     with open(cli_file, 'wb') as handle:
         pickle.dump(opts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+    if return_workflow:
+        return workflow
     try:
         log.info(f'Running workflow with {opts.plugin} plugin.')
         # execute workflow, with plugin_args limiting the cluster load for parallel execution

@@ -228,8 +228,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
         resample_template_node.inputs.opts = opts
-        resample_template_node.inputs.structural_scan_list = structural_scan_list
-        resample_template_node.inputs.bold_scan_list = bold_scan_list
 
     else: # inherit the atlas files from previous run
         inherit_unbiased=True
@@ -589,5 +587,37 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
             ])
+
+    if opts.inherit_unbiased_template=='none':
+        from .commonspace_reg import join_iterables
+        if not opts.bold_only:
+            joinsource_list=['run_split','main_split']
+            workflow, source_join_anat_list, merged_join_anat_list = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='anat_list', num_inputs=1)
+            workflow.connect([
+                (format_anat_buffer, source_join_anat_list, [
+                    ("formatted_anat", "file_list0"),
+                    ]),
+                (merged_join_anat_list, resample_template_node, [
+                    ("file_list0", "structural_scan_list"),
+                    ]),
+                ])
+        else:
+            joinsource_list=['main_split']
+        workflow, source_join_bold_list, merged_join_bold_list = join_iterables(workflow=workflow, joinsource_list=joinsource_list, node_prefix='bold_list', num_inputs=1)
+
+        workflow.connect([
+            (format_bold_buffer, source_join_bold_list, [
+                ("formatted_bold", "file_list0"),
+                ]),
+            (merged_join_bold_list, resample_template_node, [
+                ("file_list0", "bold_scan_list"),
+                ]),
+            ])
+        if opts.bold_only:
+            workflow.connect([
+                (merged_join_bold_list, resample_template_node, [
+                    ("file_list0", "structural_scan_list"),
+                    ]),
+                ])
 
     return workflow
