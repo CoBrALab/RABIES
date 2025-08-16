@@ -402,12 +402,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
 
         if opts.log_transform:
-            log_anat_node = pe.Node(Function(input_names=['in_nii', 'dim'],
+            log_anat_node = pe.Node(Function(input_names=['in_nii'],
                                                             output_names=[
                                                                 'log_nii'],
                                                             function=log_transform_nii),
                                                     name='log_anat_node')
-            log_anat_node.inputs.dim = '3d'
 
         if opts.anat_autobox: # apply AFNI's 3dAutobox
             anat_autobox = pe.Node(Function(input_names=['in_file'],

@@ -151,12 +151,11 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
 
         if opts.log_transform:
-            log_bold_node = pe.Node(Function(input_names=['in_nii', 'dim'],
+            log_bold_node = pe.Node(Function(input_names=['in_nii'],
                                                             output_names=[
                                                                 'log_nii'],
                                                             function=log_transform_nii),
                                                     name='log_bold_node')
-            log_bold_node.inputs.dim = '4d'
 
             workflow.connect([
                 (boldbuffer, log_bold_node, [
