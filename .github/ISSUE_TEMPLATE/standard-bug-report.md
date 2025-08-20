@@ -26,6 +26,8 @@ Attach to your issue the QC_report folder present in the output folder. If QC_re
 **Is the bug reproducible?**
 
 **Have you checked original image orientation?**
+RABIES assumes properly oriented data.
+Please ensure image orientation is correct by visualizing images with software like ITK-snap.
 
 **Additional context**
 Add any other context about the problem here.
