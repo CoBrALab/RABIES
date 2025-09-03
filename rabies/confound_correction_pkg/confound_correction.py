@@ -284,20 +284,15 @@ class Regress(BaseInterface):
         #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
         '''
         # apply detrending, after censoring
-        if cr_opts.detrending_order=='linear':
-            second_order=False
-        elif cr_opts.detrending_order=='quadratic':
-            second_order=True
-        else:
-            raise ValueError(f"--detrending_order must be 'linear' or 'quadratic', not {cr_opts.detrending_order}")
+        order = cr_opts.detrending_order
 
         # save grand mean prior to detrending
-        timeseries_ = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=True)
+        timeseries_ = remove_trend(timeseries, frame_mask, order = order, keep_intercept=True)
         grand_mean = timeseries_.mean()
         voxelwise_mean = timeseries_.mean(axis=0)
 
-        timeseries = remove_trend(timeseries, frame_mask, second_order=second_order, keep_intercept=False)
-        confounds_array = remove_trend(confounds_array, frame_mask, second_order=second_order, keep_intercept=False)
+        timeseries = remove_trend(timeseries, frame_mask, order = order, keep_intercept=False)
+        confounds_array = remove_trend(confounds_array, frame_mask, order = order, keep_intercept=False)
 
         '''
         #4 - Apply ICA-AROMA.
@@ -309,7 +304,7 @@ class Regress(BaseInterface):
             sitk.WriteImage(timeseries_img, inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, second_order=second_order, keep_intercept=False) # apply detrending to the confounds too
+            confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, order = order, keep_intercept=False) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'

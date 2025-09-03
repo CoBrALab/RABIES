@@ -46,7 +46,7 @@ def get_parser():
             "   #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)\n"
             "   #2 - If --match_number_timepoints is selected, each scan is matched to the \n"
             "       defined minimum_timepoint number of frames.\n"
-            "   #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors\n"
+            "   #3 - Detrending of fMRI timeseries and nuisance regressors\n"
             "   #4 - Apply ICA-AROMA.\n"
             "   #5 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
             "       timepoints using the Lomb-Scargle periodogram, as suggested in Power et al. (2014, \n"
@@ -673,11 +673,10 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--detrending_order', type=str,
-        default="linear",
-        choices=["linear", "quadratic"],
+        '--detrending_order', type=int,
+        default=1,
         help=
-            "Select between linear or quadratic (second-order) detrending of voxel timeseries.\n"
+            "Specify the polynomial order for detrending of voxel timeseries.\n"
             "(default: %(default)s)\n"
             "\n"
         )

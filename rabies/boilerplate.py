@@ -196,10 +196,7 @@ to enforce equal degrees of freedom across scans despite an inconsistent number 
         methods+="First, "
 
     # Detrending
-    if opts.detrending_order=='linear':
-        order="first-order"
-    elif opts.detrending_order=='quadratic':
-        order="second-order"
+    order = opts.detrending_order
     methods+=f"voxelwise detrending was applied to remove {order} drifts and the average image. "
 
     # ICA-AROMA
