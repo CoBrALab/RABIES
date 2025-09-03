@@ -252,15 +252,17 @@ def remove_trend(timeseries, frame_mask, order=1 , keep_intercept=False):
     
     # we create a centered time axis, to fit an intercept value in the center - Centering improves numerical stability when fitting polynomials (because otherwise high powers of large time indices can explode)
     time=np.linspace(-num_timepoints/2,num_timepoints/2 , num_timepoints)
+    time_postcensor = time[frame_mask]
+    num_timepoints_postcensor = len(time_postcensor)
     
     # create the design matrix of regressors to remove, essentially just polynomials of the time array, up to the user-specified order (time, time**2, etc)
     X = []
     for k in range(1, order+1):
-        X.append(time**k) #append time array to list (list of arrays)
-    X = np.column_stack(X) if X else np.empty((num_timepoints, 0)) # turn list into 2D array; if X is an empty list, will evaluate as false, and the right side ('else') will run, otherwise, the left side, the stack will run
+        X.append(time_postcensor**k) #append time array to list (list of arrays)
+    X = np.column_stack(X) if X else np.empty((num_timepoints_postcensor, 0)) # turn list into 2D array; if X is an empty list, will evaluate as false, and the right side ('else') will run, otherwise, the left side, the stack will run
 
     # Always add intercept as last column (if X is empty, the output will only be a column of intercepts)
-    X = np.column_stack([X, np.ones(num_timepoints)])
+    X = np.column_stack([X, np.ones(num_timepoints_postcensor)])
 
     #fitting 
     Y=timeseries
