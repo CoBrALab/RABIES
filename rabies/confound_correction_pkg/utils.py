@@ -246,7 +246,8 @@ def compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_fi
 
 
 
-def remove_trend(timeseries, frame_mask, order=1 , keep_intercept=False):
+def remove_trend(timeseries, frame_mask, order=1 , time_interval='all', keep_intercept=False):
+    '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
     num_timepoints = len(frame_mask)
     
@@ -266,8 +267,16 @@ def remove_trend(timeseries, frame_mask, order=1 , keep_intercept=False):
 
     #fitting 
     Y=timeseries
-    W = closed_form(X,Y) #solves the linear regression in closed form
-    predicted = X.dot(W)
+    # in most cases, we want to fit the trend to the whole timeseries
+    if time_interval == 'all':
+        W = closed_form(X,Y) #solves the linear regression in closed form
+    else:
+        #but sometimes we want to compute the trend over only a portion of the timeseries
+        lowcut = int(time_interval.split('-')[0])
+        highcut = int(time_interval.split('-')[1])
+        W = closed_form(X[lowcut:highcut, :],Y[lowcut:highcut, :])
+    predicted = X.dot(W) #always subtract the trend over the whole timeseries
+    print(f'shape of predicted {predicted.shape}')
     
     res = (Y-predicted) # add back the intercept after
     if keep_intercept:

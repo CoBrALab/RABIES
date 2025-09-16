@@ -153,7 +153,7 @@ if opts.complete:
     ####CONFOUND CORRECTION####
     command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs \
         --generate_CR_null --timeseries_interval 2,12 --TR 1 --scale_variance_voxelwise \
-        --smoothing_filter 0.3 --detrending_order quadratic --image_scaling global_variance "
+        --smoothing_filter 0.3 --detrending order=2,time_interval=3-10 --image_scaling global_variance "
     process = subprocess.run(
         command,
         check=True,
