@@ -246,26 +246,37 @@ def compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_fi
 
 
 
-def remove_trend(timeseries, frame_mask, order=1 , keep_intercept=False):
+def remove_trend(timeseries, frame_mask, order=1 , time_interval='all', keep_intercept=False):
+    '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
     num_timepoints = len(frame_mask)
     
     # we create a centered time axis, to fit an intercept value in the center - Centering improves numerical stability when fitting polynomials (because otherwise high powers of large time indices can explode)
     time=np.linspace(-num_timepoints/2,num_timepoints/2 , num_timepoints)
+    time_postcensor = time[frame_mask]
+    num_timepoints_postcensor = len(time_postcensor)
     
     # create the design matrix of regressors to remove, essentially just polynomials of the time array, up to the user-specified order (time, time**2, etc)
     X = []
     for k in range(1, order+1):
-        X.append(time**k) #append time array to list (list of arrays)
-    X = np.column_stack(X) if X else np.empty((num_timepoints, 0)) # turn list into 2D array; if X is an empty list, will evaluate as false, and the right side ('else') will run, otherwise, the left side, the stack will run
+        X.append(time_postcensor**k) #append time array to list (list of arrays)
+    X = np.column_stack(X) if X else np.empty((num_timepoints_postcensor, 0)) # turn list into 2D array; if X is an empty list, will evaluate as false, and the right side ('else') will run, otherwise, the left side, the stack will run
 
     # Always add intercept as last column (if X is empty, the output will only be a column of intercepts)
-    X = np.column_stack([X, np.ones(num_timepoints)])
+    X = np.column_stack([X, np.ones(num_timepoints_postcensor)])
 
     #fitting 
     Y=timeseries
-    W = closed_form(X,Y) #solves the linear regression in closed form
-    predicted = X.dot(W)
+    # in most cases, we want to fit the trend to the whole timeseries
+    if time_interval == 'all':
+        W = closed_form(X,Y) #solves the linear regression in closed form
+    else:
+        #but sometimes we want to compute the trend over only a portion of the timeseries
+        lowcut = int(time_interval.split('-')[0])
+        highcut = int(time_interval.split('-')[1])
+        W = closed_form(X[lowcut:highcut, :],Y[lowcut:highcut, :])
+    predicted = X.dot(W) #always subtract the trend over the whole timeseries
+    print(f'shape of predicted {predicted.shape}')
     
     res = (Y-predicted) # add back the intercept after
     if keep_intercept:

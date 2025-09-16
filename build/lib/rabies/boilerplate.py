@@ -196,8 +196,9 @@ to enforce equal degrees of freedom across scans despite an inconsistent number 
         methods+="First, "
 
     # Detrending
-    order = opts.detrending_order
-    methods+=f"voxelwise detrending was applied to remove {order} drifts and the average image. "
+    order = opts.detrending['order']
+    time_interval=opts.detrending['time_interval']
+    methods+=f"voxelwise detrending was computed over {time_interval} timepoints and applied to remove {order} drifts and the average image from whole timeseries. "
 
     # ICA-AROMA
     if opts.ica_aroma['apply']:
