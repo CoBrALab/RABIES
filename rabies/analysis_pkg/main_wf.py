@@ -163,21 +163,21 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.seed_timecourse_csv", "seed_timecourse_csv"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-            ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-            ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
-            ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
-            ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
+            ("outputnode.CPCA_prior_timecourse_csv", "CPCA_prior_timecourse_csv"),
+            ("outputnode.CPCA_extra_timecourse_csv", "CPCA_extra_timecourse_csv"),
+            ("outputnode.CPCA_prior_filename", "CPCA_prior_filename"),
+            ("outputnode.CPCA_extra_filename", "CPCA_extra_filename"),
+            ("outputnode.CPCA_optimize_report", "CPCA_optimize_report"),
             ]),
         ])
 
     if analysis_opts.data_diagnosis:
 
-        def prep_analysis_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
+        def prep_analysis_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, CPCA_prior_timecourse_csv, CPCA_extra_timecourse_csv, CPCA_prior_filename, CPCA_extra_filename):
             return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
-                    'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
-                    'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
+                    'CPCA_prior_timecourse_csv':CPCA_prior_timecourse_csv, 'CPCA_extra_timecourse_csv':CPCA_extra_timecourse_csv, 
+                    'CPCA_prior_filename':CPCA_prior_filename, 'CPCA_extra_filename':CPCA_extra_filename}
+        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'CPCA_prior_timecourse_csv', 'CPCA_extra_timecourse_csv', 'CPCA_prior_filename', 'CPCA_extra_filename'],
                                             output_names=[
                                                 'analysis_dict'],
                                         function=prep_analysis_dict),
@@ -207,20 +207,20 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ]),
             ])
-        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
+        if analysis_opts.CPCA['n']>-1:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
-                    ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-                    ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-                    ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
-                    ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
+                    ("outputnode.CPCA_prior_timecourse_csv", "CPCA_prior_timecourse_csv"),
+                    ("outputnode.CPCA_extra_timecourse_csv", "CPCA_extra_timecourse_csv"),
+                    ("outputnode.CPCA_prior_filename", "CPCA_prior_filename"),
+                    ("outputnode.CPCA_extra_filename", "CPCA_extra_filename"),
                     ]),
                 ])
         else:
-            prep_analysis_dict_node.inputs.NPR_prior_timecourse_csv = None
-            prep_analysis_dict_node.inputs.NPR_extra_timecourse_csv = None
-            prep_analysis_dict_node.inputs.NPR_prior_filename = None
-            prep_analysis_dict_node.inputs.NPR_extra_filename = None
+            prep_analysis_dict_node.inputs.CPCA_prior_timecourse_csv = None
+            prep_analysis_dict_node.inputs.CPCA_extra_timecourse_csv = None
+            prep_analysis_dict_node.inputs.CPCA_prior_filename = None
+            prep_analysis_dict_node.inputs.CPCA_extra_filename = None
 
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([
