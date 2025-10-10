@@ -309,7 +309,7 @@ def read_preproc_workflow(preproc_output, nativespace=False):
 
     node_dict = get_workflow_dict(preproc_workflow_file)
 
-    match_targets = {'input_bold':['main_wf.bold_selectfiles', 'out_file'],
+    match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
                     'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
                     'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.Brain_mask_EPI', 'EPI_mask'],
                     'commonspace_WM_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.WM_mask_EPI', 'EPI_mask'],
