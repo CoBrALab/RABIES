@@ -158,9 +158,9 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
         init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
+        robust_inho_cor_opts['fast_commonspace'] = False # this option is added manually since it is not part of the parser
         from .commonspace_reg import init_commonspace_reg_wf
-        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=robust_inho_cor_opts['masking'], brain_extraction=robust_inho_cor_opts['brain_extraction'], keep_mask_after_extract=robust_inho_cor_opts['keep_mask_after_extract'], 
-                                                     template_reg=robust_inho_cor_opts['template_registration'], fast_commonspace=False, inherit_unbiased=False, output_folder=output_folder, 
+        commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_reg_opts=robust_inho_cor_opts, inherit_unbiased=False, output_folder=output_folder, 
                                                      transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([

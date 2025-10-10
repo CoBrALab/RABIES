@@ -11,7 +11,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_mask_after_extract, template_reg, fast_commonspace, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
@@ -62,11 +62,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
     Workflow:
         parameters
             opts: command line interface parameters (technically all the parser args, including winsorization and brain_extraction etc are included here)
-            commonspace_masking: whether masking is applied during template generation and registration (this is kinda redundant...)
-            brain_extraction: whether brain extraction is applied for template registration
-            keep_mask_after_extract: whether to keep using mask to delineate metric computation after brain extraction.
-            template_reg: registration method
-            fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
+            commonspace_reg_opts: the opts that are specific to this run of commonspace_reg (there can be different parameters, for instance for the robust_inho_cor workflows)
             output_folder: specify a folder to execute the workflow and store important outputs
             transforms_datasink: datasink node where the transforms are stored
             num_procs: set the maximum number of parallel threads to launch
@@ -114,6 +110,14 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
+    modelbuild_stages = commonspace_reg_opts['stages']
+    commonspace_masking = commonspace_reg_opts['masking']
+    brain_extraction = commonspace_reg_opts['brain_extraction']
+    keep_mask_after_extract = commonspace_reg_opts['keep_mask_after_extract']
+    template_reg = commonspace_reg_opts['template_registration']
+    fast_commonspace = commonspace_reg_opts['fast_commonspace']
+    winsorize_lower_bound = commonspace_reg_opts['winsorize_lower_bound']
+    winsorize_upper_bound = commonspace_reg_opts['winsorize_upper_bound']
 
     if fast_commonspace or inherit_unbiased:
         # without modelbuild, the inputs iterables are not merged
@@ -140,8 +144,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
             if not commonspace_masking:
                 brain_extraction=False
 
-        atlas_reg.inputs.winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound']
-        atlas_reg.inputs.winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound']
+        atlas_reg.inputs.winsorize_lower_bound = winsorize_lower_bound
+        atlas_reg.inputs.winsorize_upper_bound = winsorize_upper_bound
         atlas_reg.inputs.brain_extraction = brain_extraction
         atlas_reg.inputs.keep_mask_after_extract = keep_mask_after_extract
         atlas_reg.inputs.rabies_data_type = opts.data_type
@@ -246,7 +250,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(stages=opts.commonspace_reg['stages'], masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound'], winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound'],
+            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -374,8 +378,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                         'inverse_warp', 'warped_image'],
                                             function=run_antsRegistration),
                                 name='inherit_unbiased_reg', mem_gb=2*opts.scale_min_memory)
-            inherit_unbiased_reg_node.inputs.winsorize_lower_bound = opts.commonspace_reg['winsorize_lower_bound']
-            inherit_unbiased_reg_node.inputs.winsorize_upper_bound = opts.commonspace_reg['winsorize_upper_bound']
+            inherit_unbiased_reg_node.inputs.winsorize_lower_bound = winsorize_lower_bound
+            inherit_unbiased_reg_node.inputs.winsorize_upper_bound = winsorize_upper_bound
             inherit_unbiased_reg_node.inputs.reg_method = 'Rigid' # this is the registration modelbuild conducts
             inherit_unbiased_reg_node.inputs.brain_extraction = False # brain extraction is not applied during template building
             inherit_unbiased_reg_node.inputs.keep_mask_after_extract = False # brain extraction is not applied during template building
