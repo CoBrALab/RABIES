@@ -190,7 +190,7 @@ class Regress(BaseInterface):
         import SimpleITK as sitk
         from rabies.utils import recover_3D,recover_4D
         from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors
-        from rabies.analysis_pkg.analysis_functions import closed_form
+        from rabies.analysis_pkg.analysis_math import closed_form
 
         ### set null returns in case the workflow is interrupted
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))

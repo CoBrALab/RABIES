@@ -80,14 +80,14 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             scan_data={}
 
             dict_keys = ['temporal_std', 'VE_spatial', 'predicted_std', 'GS_corr', 'GS_cov',
-                            'DR_BOLD', 'NPR_maps', 'prior_maps', 'seed_map_list']
+                            'DR_BOLD', 'CPCA_maps', 'prior_maps', 'seed_map_list']
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 
             # prepare the network and confound timecourses
             scan_data['DR_confound_time'] = temporal_info['DR_confound']
             scan_data['DR_network_time'] = temporal_info['DR_bold']
-            scan_data['NPR_network_time'] = temporal_info['NPR_time']
+            scan_data['CPCA_network_time'] = temporal_info['CPCA_time']
             scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
             scan_data['FD_trace'] = data_dict['CR_data_dict']['FD_trace']
