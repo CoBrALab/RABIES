@@ -110,7 +110,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', winsorize_lower_bound = 0.005, winsorize_upper_bound = 0.995, rabies_data_type=8):
+def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NOMASK', fixed_image='NULL', fixed_mask='NOMASK', winsorize_lower_bound = 0.005, winsorize_upper_bound = 0.995, rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
