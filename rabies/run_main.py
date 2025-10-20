@@ -5,10 +5,28 @@ from nipype import logging, config
 from .boilerplate import *
 from .parser import get_parser,read_parser
 
+# setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
 else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
+
+DSURQE_ANAT=f"{rabies_path}/DSURQE_40micron_average.nii.gz"
+DSURQE_MASK=f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+DSURQE_WM=f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz"
+DSURQE_CSF=f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz"
+DSURQE_VASC=f"{rabies_path}/vascular_mask.nii.gz"
+DSURQE_LABELS=f"{rabies_path}/DSURQE_40micron_labels.nii.gz"
+DSURQE_MAPPINGS=f"{rabies_path}/DSURQE_40micron_R_mapping.csv"
+DSURQE_ICA=f"{rabies_path}/melodic_IC.nii.gz"
+
+EPICOMMON_ANAT=f"{rabies_path}/EPI_template.nii.gz"
+EPICOMMON_MASK=f"{rabies_path}/EPI_brain_mask.nii.gz"
+EPICOMMON_WM=f"{rabies_path}/EPI_WM_mask.nii.gz"
+EPICOMMON_CSF=f"{rabies_path}/EPI_CSF_mask.nii.gz"
+EPICOMMON_VASC=f"{rabies_path}/EPI_vascular_mask.nii.gz"
+EPICOMMON_LABELS=f"{rabies_path}/EPI_labels.nii.gz"
+EPICOMMON_ICA=f"{rabies_path}/melodic_IC_resampled.nii.gz"
 
 
 def execute_workflow(args=None, return_workflow=False):
@@ -150,28 +168,28 @@ def preprocess(opts, log):
     # template options
     # if --bold_only, the default atlas files change to EPI versions
     if opts.bold_only:
-        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
-            file=f"{rabies_path}/EPI_template.nii.gz"
+        if str(opts.anat_template)==DSURQE_ANAT:
+            file=EPICOMMON_ANAT
             opts.anat_template=file
             log.info('With --bold_only, default --anat_template changed to '+file)
-        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
-            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
+        if str(opts.brain_mask)==DSURQE_MASK:
+            file=EPICOMMON_MASK
             opts.brain_mask=file
             log.info('With --bold_only, default --brain_mask changed to '+file)
-        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
-            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
+        if str(opts.WM_mask)==DSURQE_WM:
+            file=EPICOMMON_WM
             opts.WM_mask=file
             log.info('With --bold_only, default --WM_mask changed to '+file)
-        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
-            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
+        if str(opts.CSF_mask)==DSURQE_CSF:
+            file=EPICOMMON_CSF
             opts.CSF_mask=file
             log.info('With --bold_only, default --CSF_mask changed to '+file)
-        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
-            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
+        if str(opts.vascular_mask)==DSURQE_VASC:
+            file=EPICOMMON_VASC
             opts.vascular_mask=file
             log.info('With --bold_only, default --vascular_mask changed to '+file)
-        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
-            file=f"{rabies_path}/EPI_labels.nii.gz"
+        if str(opts.labels)==DSURQE_LABELS:
+            file=EPICOMMON_LABELS
             opts.labels=file
             log.info('With --bold_only, default --labels changed to '+file)
 
@@ -284,8 +302,8 @@ def analysis(opts, log):
         preprocess_opts = pickle.load(handle)
 
     if preprocess_opts.bold_only:
-        if str(opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
-            file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+        if str(opts.prior_maps)==DSURQE_ICA:
+            file=EPICOMMON_ICA
             opts.prior_maps=file
             log.info('With --bold_only, default --prior_maps changed to '+file)
 
@@ -299,36 +317,11 @@ def install_DSURQE(log):
 
     install = False
     # verifies whether default template files are installed and installs them otherwise
-    if not os.path.isfile(f"{rabies_path}/DSURQE_40micron_average.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_labels.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_R_mapping.csv"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/vascular_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/melodic_IC.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_template.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_brain_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_WM_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_CSF_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_vascular_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_labels.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/melodic_IC_resampled.nii.gz"):
-        install = True
+    for f in [DSURQE_ANAT,DSURQE_MASK,DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS,DSURQE_MAPPINGS,DSURQE_ICA,
+              EPICOMMON_ANAT,EPICOMMON_MASK,EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS,EPICOMMON_ICA]:
+        if not os.path.isfile(f):
+            install = True
+
     if install:
         from rabies.preprocess_pkg.utils import run_command
         log.info(
