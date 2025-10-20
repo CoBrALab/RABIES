@@ -332,3 +332,23 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
 
     return registration_template, registration_mask, commonspace_template
 
+
+def log_transform_nii(in_nii):
+    import pathlib
+    import os
+    import numpy as np
+    import nibabel as nib
+
+    split = pathlib.Path(in_nii).name.rsplit(".nii")[0]
+    log_nii = os.path.abspath(f"{split}_log.nii.gz")
+
+    img = nib.load(in_nii)
+    img_data = img.get_fdata()
+    # avoid -inf output by replacing 0 with very small values
+    img_data = np.clip(img_data, a_min=1e-12, a_max=None)
+    img_data = np.log10(img_data)
+    img_data = np.nan_to_num(img_data, posinf=0, neginf=0, nan=0)
+    nifti_log = nib.Nifti1Image(img_data, affine = img.affine, header = img.header)
+    nib.save(nifti_log, log_nii)
+    
+    return log_nii

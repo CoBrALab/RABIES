@@ -7,8 +7,9 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template
+from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,log_transform_nii
 from . import preprocess_visual_QC
+from .prep_input import init_prep_input_wf,match_iterables
 
 def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
@@ -163,61 +164,103 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                             ('scan_info', scan_info)]
     main_split.synchronize = True
 
-    bold_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['func']),
-                               name='bold_selectfiles')
+    '''
+    First execute a workflow that finds and formats inputs. 
+    This workflow includes a first split and merge of iterables, which is necessary to conduct separately to avoid
+    downstream errors with iterables.
+    '''
+    prep_input_wf = init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, name='prep_input_wf')
 
-    # node to conver input image to consistent RAS orientation
-    bold_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
-                                                output_names=['RAS_file'],
-                                                function=convert_to_RAS),
-                                       name='bold_convert_to_RAS')
+    '''
+    MATCHING INPUTS TO MAIN ITERABLES
+    '''
+    format_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+                                                output_names=['selected_file'],
+                                                function=match_iterables),
+                                        name='format_bold')
+    
+    input_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+                                                output_names=['selected_file'],
+                                                function=match_iterables),
+                                        name='input_bold')
 
-    if not opts.oblique2card=='none':
-        if opts.oblique2card=='3dWarp':
-            correct_oblique=convert_3dWarp
-        elif opts.oblique2card=='affine':
-            correct_oblique=correct_oblique_affine
-        bold_oblique2card_node = pe.Node(Function(input_names=['input'],
-                                                    output_names=['output'],
-                                                    function=correct_oblique),
-                                        name='bold_oblique2card')
-        workflow.connect([
-            (bold_selectfiles, bold_oblique2card_node, [
-                ('out_file', 'input'),
-                ]),
-            (bold_oblique2card_node, bold_convert_to_RAS_node, [
-                ('output', 'img_file'),
-                ]),
-            ])
+    workflow.connect([
+        (prep_input_wf, format_bold_node, [
+            ("outputnode.prep_bold_list", "joined_file_list"),
+            ("outputnode.joined_scan_info", "joined_scan_info"),
+            ]),
+        (main_split, format_bold_node, [
+            ("scan_info", "scan_info"),
+            ]),
+        (prep_input_wf, input_bold_node, [
+            ("outputnode.input_bold_list", "joined_file_list"),
+            ("outputnode.joined_scan_info", "joined_scan_info"),
+            ]),
+        (main_split, input_bold_node, [
+            ("scan_info", "scan_info"),
+            ]),
+        ])
+    
+    if opts.bold_only:
+        format_bold_node.inputs.run = None
+        input_bold_node.inputs.run = None
+        format_bold_node.inputs.joined_run = None
+        input_bold_node.inputs.joined_run = None
     else:
+        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
+                            name="run_split")
+        run_split.itersource = ('main_split', 'split_name')
+        run_split.iterables = [('run', run_iter)]
+
         workflow.connect([
-            (bold_selectfiles, bold_convert_to_RAS_node, [
-                ('out_file', 'img_file'),
+            (main_split, run_split, [
+                ("split_name", "split_name"),
+                ]),
+            (prep_input_wf, format_bold_node, [
+                ("outputnode.joined_run", "joined_run"),
+                ]),
+            (run_split, format_bold_node, [
+                ("run", "run"),
+                ]),
+            (prep_input_wf, input_bold_node, [
+                ("outputnode.joined_run", "joined_run"),
+                ]),
+            (run_split, input_bold_node, [
+                ("run", "run"),
                 ]),
             ])
 
-    format_bold_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_bold']),
-                                        name="format_bold_buffer")
+        format_anat_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+                                                    output_names=['selected_file'],
+                                                    function=match_iterables),
+                                            name='format_anat')
+        format_anat_node.inputs.run = None
+        format_anat_node.inputs.joined_run = None
+        
+        input_anat_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+                                                    output_names=['selected_file'],
+                                                    function=match_iterables),
+                                            name='input_anat')
+        input_anat_node.inputs.run = None
+        input_anat_node.inputs.joined_run = None
+        
+        workflow.connect([
+            (prep_input_wf, format_anat_node, [
+                ("outputnode.prep_anat_list", "joined_file_list"),
+                ("outputnode.anat_joined_scan_info", "joined_scan_info"),
+                ]),
+            (main_split, format_anat_node, [
+                ("scan_info", "scan_info"),
+                ]),
+            (prep_input_wf, input_anat_node, [
+                ("outputnode.input_anat_list", "joined_file_list"),
+                ("outputnode.anat_joined_scan_info", "joined_scan_info"),
+                ]),
+            (main_split, input_anat_node, [
+                ("scan_info", "scan_info"),
+                ]),
+            ])
 
-    if opts.bold_autobox: # apply AFNI's 3dAutobox
-        bold_autobox = pe.Node(Function(input_names=['in_file'],
-                                                    output_names=['out_file'],
-                                                    function=apply_autobox),
-                                        name='bold_autobox')
-        workflow.connect([
-            (bold_convert_to_RAS_node, bold_autobox, [
-                ('RAS_file', 'in_file'),
-                ]),
-            (bold_autobox, format_bold_buffer, [
-                ('out_file', 'formatted_bold'),
-                ]),
-            ])
-    else:
-        workflow.connect([
-            (bold_convert_to_RAS_node, format_bold_buffer, [
-                ("RAS_file", "formatted_bold"),
-                ]),
-            ])
 
     if opts.inherit_unbiased_template=='none':
         inherit_unbiased=False
@@ -228,6 +271,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
         resample_template_node.inputs.opts = opts
+
+        workflow.connect([
+            (prep_input_wf, resample_template_node, [
+                ("outputnode.prep_anat_list", "structural_scan_list"),
+                ("outputnode.prep_bold_list", "bold_scan_list"),
+                ]),
+            ])
 
     else: # inherit the atlas files from previous run
         inherit_unbiased=True
@@ -244,8 +294,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
-    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_masking=opts.commonspace_reg['masking'], brain_extraction=opts.commonspace_reg['brain_extraction'], keep_mask_after_extract=opts.commonspace_reg['keep_mask_after_extract'], 
-                                                 template_reg=opts.commonspace_reg['template_registration'], fast_commonspace=opts.commonspace_reg['fast_commonspace'], inherit_unbiased=inherit_unbiased,
+    commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_reg_opts=opts.commonspace_reg, inherit_unbiased=inherit_unbiased,
                                                  output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, 
                                                  joinsource_list=['main_split'], name='commonspace_reg_wf')
     if inherit_unbiased:
@@ -283,14 +332,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (main_split, bold_selectfiles, [
-            ("scan_info", "scan_info"),
-            ]),
-        (bold_selectfiles, outputnode, [
-            ('out_file', 'input_bold'),
-            ]),
-        (format_bold_buffer, bold_main_wf, [
-            ("formatted_bold", "inputnode.bold"),
+        (format_bold_node, bold_main_wf, [
+            ("selected_file", "inputnode.bold"),
             ]),
         (resample_template_node, template_diagnosis, [
             ("registration_template", "anat_template"),
@@ -343,15 +386,15 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.corrected_EPI", "final_denoise"),
             ("outputnode.denoise_mask", "warped_mask"),
             ]),
-        (bold_selectfiles, bold_inho_cor_diagnosis,
-         [("out_file", "name_source")]),
+        (input_bold_node, bold_inho_cor_diagnosis,
+         [("selected_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
             ("outputnode.commonspace_bold", "bold_file"),
             ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),
-        (bold_selectfiles, temporal_diagnosis,
-         [("out_file", "name_source")]),
+        (input_bold_node, temporal_diagnosis,
+         [("selected_file", "name_source")]),
         (temporal_diagnosis, outputnode, [
             ("tSNR_filename", "tSNR_filename"),
             ("std_filename", "std_filename"),
@@ -359,82 +402,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         ])
 
     if not opts.bold_only:
-        run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
-                            name="run_split")
-        run_split.itersource = ('main_split', 'split_name')
-        run_split.iterables = [('run', run_iter)]
-
-        anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['anat']),
-                                   name='anat_selectfiles')
-        anat_selectfiles.inputs.run = None
-
-        anat_convert_to_RAS_node = pe.Node(Function(input_names=['img_file'],
-                                                    output_names=['RAS_file'],
-                                                    function=convert_to_RAS),
-                                           name='anat_convert_to_RAS')
-
-        if not opts.oblique2card=='none':
-            if opts.oblique2card=='3dWarp':
-                correct_oblique=convert_3dWarp
-            elif opts.oblique2card=='affine':
-                correct_oblique=correct_oblique_affine
-            anat_oblique2card_node = pe.Node(Function(input_names=['input'],
-                                                        output_names=['output'],
-                                                        function=correct_oblique),
-                                            name='anat_oblique2card')
-            workflow.connect([
-                (anat_selectfiles, anat_oblique2card_node, [
-                    ('out_file', 'input'),
-                    ]),
-                (anat_oblique2card_node, anat_convert_to_RAS_node, [
-                    ('output', 'img_file'),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (anat_selectfiles, anat_convert_to_RAS_node, [
-                    ('out_file', 'img_file'),
-                    ]),
-                ])
-
-        format_anat_buffer = pe.Node(niu.IdentityInterface(fields=['formatted_anat']),
-                                            name="format_anat_buffer")
-
-        if opts.anat_autobox: # apply AFNI's 3dAutobox
-            anat_autobox = pe.Node(Function(input_names=['in_file'],
-                                                        output_names=['out_file'],
-                                                        function=apply_autobox),
-                                            name='anat_autobox')
-            workflow.connect([
-                (anat_convert_to_RAS_node, anat_autobox, [
-                    ('RAS_file', 'in_file'),
-                    ]),
-                (anat_autobox, format_anat_buffer, [
-                    ('out_file', 'formatted_anat'),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (anat_convert_to_RAS_node, format_anat_buffer, [
-                    ("RAS_file", "formatted_anat"),
-                    ]),
-                ])
-
         # setting anat preprocessing nodes
         anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', output_folder=output_folder, num_procs=num_procs, name="anat_inho_cor_wf")
 
         workflow.connect([
-            (main_split, run_split, [
-                ("split_name", "split_name"),
-                ]),
-            (main_split, anat_selectfiles,
-             [("scan_info", "scan_info")]),
-            (run_split, bold_selectfiles, [
-                ("run", "run"),
-                ]),
-            (format_anat_buffer, anat_inho_cor_wf, [
-                ("formatted_anat", "inputnode.target_img"),
-                ("formatted_anat", "inputnode.name_source"),
+            (format_anat_node, anat_inho_cor_wf, [
+                ("selected_file", "inputnode.target_img"),
+                ("selected_file", "inputnode.name_source"),
                 ]),
             (resample_template_node, anat_inho_cor_wf, [
                 ("registration_template", "inputnode.anat_ref"),
@@ -452,10 +426,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.unbiased_template", "template_inputnode.template_anat"),
                 ("outputnode.unbiased_mask", "template_inputnode.template_mask"),
                 ]),
-            (EPI_target_buffer, bold_main_wf, [
-                ("EPI_template", "inputnode.inho_cor_anat"),
-                ("EPI_mask", "inputnode.inho_cor_mask"),
-                ]),
             (anat_inho_cor_wf, commonspace_reg_wf, [
                 ("outputnode.corrected", "inputnode.moving_image"),
                 ("outputnode.denoise_mask", "inputnode.moving_mask"),
@@ -465,6 +435,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ]),
             (commonspace_reg_wf, EPI_target_buffer, [
                 ("outputnode.native_mask", 'EPI_mask'),
+                ]),
+            (EPI_target_buffer, bold_main_wf, [
+                ("EPI_template", "inputnode.inho_cor_anat"),
+                ("EPI_mask", "inputnode.inho_cor_mask"),
                 ]),
             ])
 
@@ -476,11 +450,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             anat_inho_cor_diagnosis.inputs.figure_format = opts.figure_format
 
             workflow.connect([
-                (format_anat_buffer, anat_inho_cor_diagnosis, [
-                    ("formatted_anat", "raw_img"),
+                (format_anat_node, anat_inho_cor_diagnosis, [
+                    ("selected_file", "raw_img"),
                     ]),
-                (anat_selectfiles, anat_inho_cor_diagnosis, [
-                    ("out_file", "name_source"),
+                (input_anat_node, anat_inho_cor_diagnosis, [
+                    ("selected_file", "name_source"),
                     ]),
                 (anat_inho_cor_wf, anat_inho_cor_diagnosis, [
                     ("outputnode.init_denoise", "init_denoise"),
@@ -498,8 +472,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("registration_template", "template_inputnode.template_anat"),
                 ("registration_mask", "template_inputnode.template_mask"),
                 ]),
-            (format_bold_buffer, inho_cor_bold_main_wf, [
-                ("formatted_bold", "inputnode.bold"),
+            (format_bold_node, inho_cor_bold_main_wf, [
+                ("selected_file", "inputnode.bold"),
                 ]),
             (EPI_target_buffer, inho_cor_bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -512,6 +486,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.init_denoise", "transitionnode.init_denoise"),
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
+                ("transitionnode.log_bold", "transitionnode.log_bold"),
                 ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode.moving_image"),
@@ -528,8 +503,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
         PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
         workflow.connect([
-            (bold_selectfiles, PlotOverlap_EPI2Anat_node,
-             [("out_file", "name_source")]),
+            (input_bold_node, PlotOverlap_EPI2Anat_node,
+             [("selected_file", "name_source")]),
             (anat_inho_cor_wf, PlotOverlap_EPI2Anat_node,
              [("outputnode.corrected", "fixed")]),
             (outputnode, PlotOverlap_EPI2Anat_node, [
@@ -539,8 +514,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # fill the datasinks
     workflow.connect([
-        (bold_selectfiles, bold_datasink, [
-            ("out_file", "input_bold"),
+        (input_bold_node, bold_datasink, [
+            ("selected_file", "input_bold"),
             ]),
         (outputnode, motion_datasink, [
             ("motion_params_csv", "motion_params_csv"),  # confounds file
@@ -587,37 +562,5 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ('bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
             ])
-
-    if opts.inherit_unbiased_template=='none':
-        from .commonspace_reg import join_iterables
-        if not opts.bold_only:
-            joinsource_list=['run_split','main_split']
-            workflow, source_join_anat_list, merged_join_anat_list = join_iterables(workflow=workflow, joinsource_list=['main_split'], node_prefix='anat_list', num_inputs=1)
-            workflow.connect([
-                (format_anat_buffer, source_join_anat_list, [
-                    ("formatted_anat", "file_list0"),
-                    ]),
-                (merged_join_anat_list, resample_template_node, [
-                    ("file_list0", "structural_scan_list"),
-                    ]),
-                ])
-        else:
-            joinsource_list=['main_split']
-        workflow, source_join_bold_list, merged_join_bold_list = join_iterables(workflow=workflow, joinsource_list=joinsource_list, node_prefix='bold_list', num_inputs=1)
-
-        workflow.connect([
-            (format_bold_buffer, source_join_bold_list, [
-                ("formatted_bold", "file_list0"),
-                ]),
-            (merged_join_bold_list, resample_template_node, [
-                ("file_list0", "bold_scan_list"),
-                ]),
-            ])
-        if opts.bold_only:
-            workflow.connect([
-                (merged_join_bold_list, resample_template_node, [
-                    ("file_list0", "structural_scan_list"),
-                    ]),
-                ])
 
     return workflow

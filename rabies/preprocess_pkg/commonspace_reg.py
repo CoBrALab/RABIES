@@ -11,7 +11,7 @@ from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
 
-def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_mask_after_extract, template_reg, fast_commonspace, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
@@ -61,12 +61,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                         
     Workflow:
         parameters
-            opts: command line interface parameters
-            commonspace_masking: whether masking is applied during template generation and registration
-            brain_extraction: whether brain extraction is applied for template registration
-            keep_mask_after_extract: whether to keep using mask to delineate metric computation after brain extraction.
-            template_reg: registration method
-            fast_commonspace: whether the template generation step is skipped and instead each scan is registered directly in commonspace
+            opts: command line interface parameters (technically all the parser args, including winsorization and brain_extraction etc are included here)
+            commonspace_reg_opts: the opts that are specific to this run of commonspace_reg (there can be different parameters, for instance for the robust_inho_cor workflows)
             output_folder: specify a folder to execute the workflow and store important outputs
             transforms_datasink: datasink node where the transforms are stored
             num_procs: set the maximum number of parallel threads to launch
@@ -114,6 +110,14 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
+    modelbuild_stages = commonspace_reg_opts['stages']
+    commonspace_masking = commonspace_reg_opts['masking']
+    brain_extraction = commonspace_reg_opts['brain_extraction']
+    keep_mask_after_extract = commonspace_reg_opts['keep_mask_after_extract']
+    template_reg = commonspace_reg_opts['template_registration']
+    fast_commonspace = commonspace_reg_opts['fast_commonspace']
+    winsorize_lower_bound = commonspace_reg_opts['winsorize_lower_bound']
+    winsorize_upper_bound = commonspace_reg_opts['winsorize_upper_bound']
 
     if fast_commonspace or inherit_unbiased:
         # without modelbuild, the inputs iterables are not merged
@@ -129,7 +133,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                     'inverse_warp', 'warped_image']),
                                             name="atlas_reg_inherited")
     else:
-        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+        atlas_reg = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'winsorize_lower_bound', 'winsorize_upper_bound','rabies_data_type'],
                                         output_names=['affine', 'warp',
                                                     'inverse_warp', 'warped_image'],
                                         function=run_antsRegistration),
@@ -140,6 +144,8 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
             if not commonspace_masking:
                 brain_extraction=False
 
+        atlas_reg.inputs.winsorize_lower_bound = winsorize_lower_bound
+        atlas_reg.inputs.winsorize_upper_bound = winsorize_upper_bound
         atlas_reg.inputs.brain_extraction = brain_extraction
         atlas_reg.inputs.keep_mask_after_extract = keep_mask_after_extract
         atlas_reg.inputs.rabies_data_type = opts.data_type
@@ -244,7 +250,7 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin,
+            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -367,11 +373,13 @@ def init_commonspace_reg_wf(opts, commonspace_masking, brain_extraction, keep_ma
                                                                             'unbiased_to_atlas_inverse_warp', 'warped_unbiased']),
                                                 name="inherit_unbiased_inputnode")
 
-            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'rabies_data_type'],
+            inherit_unbiased_reg_node = pe.Node(Function(input_names=['reg_method', 'brain_extraction', 'keep_mask_after_extract', 'moving_image', 'moving_mask', 'fixed_image', 'fixed_mask', 'winsorize_lower_bound', 'winsorize_upper_bound','rabies_data_type'],
                                             output_names=['affine', 'warp',
                                                         'inverse_warp', 'warped_image'],
                                             function=run_antsRegistration),
                                 name='inherit_unbiased_reg', mem_gb=2*opts.scale_min_memory)
+            inherit_unbiased_reg_node.inputs.winsorize_lower_bound = winsorize_lower_bound
+            inherit_unbiased_reg_node.inputs.winsorize_upper_bound = winsorize_upper_bound
             inherit_unbiased_reg_node.inputs.reg_method = 'Rigid' # this is the registration modelbuild conducts
             inherit_unbiased_reg_node.inputs.brain_extraction = False # brain extraction is not applied during template building
             inherit_unbiased_reg_node.inputs.keep_mask_after_extract = False # brain extraction is not applied during template building
@@ -557,10 +565,13 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
 
 
 class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
+    #these input traits are later inherited in the GenerateTemplate class
     moving_image_list = traits.List(exists=True, mandatory=True,
                             desc="List of anatomical images used for commonspace registration.")
     moving_mask_list = traits.List(exists=True,
                             desc="List of masks accompanying each image. (optional)")
+    stages = traits.Str(
+        exists=True, mandatory=True, desc="Input to --stages parameter of modelbuild.sh")
     masking = traits.Bool(
         desc="Whether to use the masking option.")
     output_folder = traits.Str(
@@ -569,6 +580,10 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
                          desc="Reference anatomical template to define the target space.")
     cluster_type = traits.Str(
         exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
+    winsorize_lower_bound = traits.Float(
+        desc="")
+    winsorize_upper_bound = traits.Float(
+        desc="")
 
 class GenerateTemplateOutputSpec(TraitedSpec):
     unbiased_template = File(
@@ -602,6 +617,16 @@ class GenerateTemplate(BaseInterface):
 
         cwd = os.getcwd()
         template_folder = self.inputs.output_folder
+        winsorize_lower_bound = self.inputs.winsorize_lower_bound
+        winsorize_upper_bound = self.inputs.winsorize_upper_bound
+        stages = self.inputs.stages
+
+        # change the - split for a comma ,
+        stages = ','.join(stages.split('-'))
+
+        for stage in stages.split(','):
+            if stage not in ['rigid', 'similarity', 'affine', 'nlin']:
+                raise ValueError(f"{stage} is not a proper modelbuild.sh stage - it must be one of 'rigid', 'similarity', 'affine', 'nlin'. Review your --commonspace_reg parameter.")
 
         command = f'mkdir -p {template_folder}'
         rc,c_out = run_command(command)
@@ -614,10 +639,16 @@ class GenerateTemplate(BaseInterface):
 
         if self.inputs.masking:
             merged_masks = flatten_list(list(self.inputs.moving_mask_list))
-            mask_csv_path = cwd+'/commonspace_input_masks.csv'
-            df = pd.DataFrame(data=merged_masks)
-            df.to_csv(mask_csv_path, header=False, sep=',', index=False)
-            masks = f'--masks {mask_csv_path}'
+            for mask in merged_masks:
+                if 'NULL' in mask:
+                    merged_masks = ['NULL'] # there should be no NULL mask
+            if not (merged_masks[0]=='NULL'):
+                mask_csv_path = cwd+'/commonspace_input_masks.csv'
+                df = pd.DataFrame(data=merged_masks)
+                df.to_csv(mask_csv_path, header=False, sep=',', index=False)
+                masks = f'--masks {mask_csv_path}'
+            else:
+                log.info(f"Some 'NULL' input mask was found within moving_mask_list. No moving mask will be used by modelbuild.sh")
         else:
             merged_masks = ['NULL']
             masks=''
@@ -673,20 +704,21 @@ class GenerateTemplate(BaseInterface):
         log.debug(f"The --starting-target template original file is {self.inputs.template_anat}, and was renamed to {template_folder}/modelbuild_starting_target.nii.gz.")
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
-            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages rigid,affine,nlin \
-            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
+            --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages {stages} \
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path} --winsorize_lower_bound {winsorize_lower_bound}  --winsorize_upper_bound {winsorize_upper_bound}'
         rc,c_out = run_command(command)
 
+        last_stage = stages.split(',')[-1]
 
         unbiased_template = template_folder + \
-            '/nlin/1/average/template_sharpen_shapeupdate.nii.gz'
+            f'/{last_stage}/1/average/template_sharpen_shapeupdate.nii.gz'
         # verify that all outputs are present
         if not os.path.isfile(unbiased_template):
             raise ValueError(unbiased_template+" doesn't exists.")
 
-        if self.inputs.masking:
+        if self.inputs.masking and not (merged_masks[0]=='NULL'):
             unbiased_mask = template_folder + \
-                '/nlin/1/average/mask_shapeupdate.nii.gz'
+                f'/{last_stage}/1/average/mask_shapeupdate.nii.gz'
             # verify that all outputs are present
             if not os.path.isfile(unbiased_mask):
                 raise ValueError(unbiased_mask+" doesn't exists.")
@@ -696,22 +728,37 @@ class GenerateTemplate(BaseInterface):
         inverse_warp_list = []
         warped_image_list = []
 
+        import SimpleITK as sitk
+        dimension = 3
+        identity = sitk.Transform(dimension, sitk.sitkIdentity)
+
+        nlin_out = last_stage=='nlin'
         i = 0
         for file in merged:
             file = str(file)
             filename_template = pathlib.Path(file).name.rsplit(".nii")[0]
-            native_to_unbiased_inverse_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+
+            if not nlin_out:
+                # create a surrogate transform that takes the place of non-linear since nlin stage is not run
+                surrogate_transform_file = f'{template_folder}/{filename_template}_surrogate_identity_transform.mat'
+                sitk.WriteTransform(identity, surrogate_transform_file)
+                native_to_unbiased_inverse_warp = surrogate_transform_file
+                native_to_unbiased_warp = surrogate_transform_file
+            else:
+                native_to_unbiased_inverse_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+                native_to_unbiased_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1Warp.nii.gz'
+
             if not os.path.isfile(native_to_unbiased_inverse_warp):
                 raise ValueError(
                     native_to_unbiased_inverse_warp+" file doesn't exists.")
-            native_to_unbiased_warp = f'{template_folder}/nlin/1/transforms/{filename_template}_1Warp.nii.gz'
             if not os.path.isfile(native_to_unbiased_warp):
                 raise ValueError(native_to_unbiased_warp+" file doesn't exists.")
-            native_to_unbiased_affine = f'{template_folder}/nlin/1/transforms/{filename_template}_0GenericAffine.mat'
+            
+            native_to_unbiased_affine = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_0GenericAffine.mat'
             if not os.path.isfile(native_to_unbiased_affine):
                 raise ValueError(native_to_unbiased_affine
                                  + " file doesn't exists.")
-            warped_image = f'{template_folder}/nlin/1/resample/{filename_template}.nii.gz'
+            warped_image = f'{template_folder}/{last_stage}/1/resample/{filename_template}.nii.gz'
             if not os.path.isfile(warped_image):
                 raise ValueError(warped_image
                                  + " file doesn't exists.")

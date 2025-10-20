@@ -1,5 +1,6 @@
 #!/bin/bash
 #Preprocessing script for mouse brains, using Dorr-steadman template and MINC files converted from DICOM from Paravision 5.x
+# It seems that this script is only used during inho_correction, not for the main registration
 
 #If using conversion from PV6, might need to remove the volflip -y command
 

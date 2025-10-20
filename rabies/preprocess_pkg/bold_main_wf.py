@@ -8,7 +8,7 @@ from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
-from .utils import apply_despike
+from .utils import apply_despike, log_transform_nii
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
     """
@@ -136,8 +136,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                          name="boldbuffer")
 
     # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI']),
-                             name="transitionnode")
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'log_bold']),
+                             name="transitionnode")        
 
     if inho_cor_only or (not opts.bold_only):
         template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
@@ -148,6 +148,23 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         num_procs = min(opts.local_threads, number_functional_scans)
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
+
+
+        if opts.log_transform:
+            log_bold_node = pe.Node(Function(input_names=['in_nii'],
+                                                            output_names=[
+                                                                'log_nii'],
+                                                            function=log_transform_nii),
+                                                    name='log_bold_node')
+
+            workflow.connect([
+                (boldbuffer, log_bold_node, [
+                    ('bold_file', 'in_nii'),
+                    ]),
+                (log_bold_node, transitionnode, [
+                    ('log_nii', 'log_bold'),
+                    ]),
+                ])
 
         if opts.isotropic_HMC:
             def resample_isotropic(bold_file, rabies_data_type):
@@ -175,9 +192,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             isotropic_resampling_node.inputs.rabies_data_type = opts.data_type
 
             workflow.connect([
-                (boldbuffer, isotropic_resampling_node, [
-                    ('bold_file', 'bold_file'),
-                    ]),
                 (isotropic_resampling_node, bold_reference_wf, [
                     ('isotropic_bold_file', 'inputnode.bold_file'),
                     ]),
@@ -185,12 +199,32 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                     ('isotropic_bold_file', 'isotropic_bold_file'),
                     ]),
                 ])
+            
+            if opts.log_transform:
+                workflow.connect([
+                    (log_bold_node, isotropic_resampling_node, [
+                        ('log_nii', 'bold_file'),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (boldbuffer, isotropic_resampling_node, [
+                        ('bold_file', 'bold_file'),
+                        ]),
+                    ])
         else:
-            workflow.connect([
-                (boldbuffer, bold_reference_wf, [
-                    ('bold_file', 'inputnode.bold_file'),
-                    ]),
-                ])
+            if opts.log_transform:
+                workflow.connect([
+                    (log_bold_node, bold_reference_wf, [
+                        ('log_nii', 'inputnode.bold_file'),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (boldbuffer, bold_reference_wf, [
+                        ('bold_file', 'inputnode.bold_file'),
+                        ]),
+                    ])
 
         if opts.apply_despiking:
             despike = pe.Node(Function(input_names=['in_file'],
@@ -463,10 +497,16 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                     ('isotropic_bold_file', 'inputnode.bold_file')]),
                 ])
         else:
-            workflow.connect([
-                (transitionnode, bold_hmc_wf, [
-                    ('bold_file', 'inputnode.bold_file')]),
-                ])
+            if opts.log_transform:
+                workflow.connect([
+                    (transitionnode, bold_hmc_wf, [
+                        ('log_bold', 'inputnode.bold_file')]),
+                    ])
+            else:
+                workflow.connect([
+                    (transitionnode, bold_hmc_wf, [
+                        ('bold_file', 'inputnode.bold_file')]),
+                    ])
 
 
     if opts.isotropic_HMC:

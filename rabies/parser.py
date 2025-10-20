@@ -293,6 +293,15 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    preprocess.add_argument(
+        '--log_transform', dest='log_transform', action='store_true',
+        help=
+            "The functional and structural image intensity will be log transformed before registration. \n"
+            "The preprocessed functional timeseries will retain the original intensity values. \n"
+            "This parameter can support registration of fUSI images.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     g_registration = preprocess.add_argument_group(
         title='Registration Options', 
@@ -325,7 +334,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--anat_robust_inho_cor', type=str,
-        default='apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
             "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
@@ -335,6 +344,8 @@ def get_parser():
             "improve the robustness of masking for inhomogeneity correction.\n"
             "* apply: select 'true' to apply this option. \n"
             " *** Specify 'true' or 'false'. \n"
+            "* stages: Registration stages for generating the unbiased template. \n"
+            "*** Each stage must be among the following: 'rigid','similarity','affine' or 'nlin' (non-linear). The syntax must follows this example: rigid-affine-nlin. \n"
             "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
             " registration during the generation of the unbiased template, and then during template \n"            
             " registration.\n"
@@ -353,6 +364,8 @@ def get_parser():
             "*** Affine: conducts Rigid then Affine registration.\n"
             "*** SyN: conducts Rigid, Affine then non-linear registration.\n"
             "*** no_reg: skip registration.\n"
+            "* winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
+            "* winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -366,7 +379,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--bold_robust_inho_cor', type=str,
-        default='apply=false,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
@@ -374,9 +387,11 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false',
+        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Specify registration options for the commonspace registration.\n"
+            "* stages: Registration stages for generating the unbiased template. \n"
+            "*** Each stage must be among the following: 'rigid','similarity','affine' or 'nlin' (non-linear). The syntax must follows this example: rigid-affine-nlin. \n"
             "* masking: Combine masks derived from the inhomogeneity correction step to support \n"
             " registration during the generation of the unbiased template, and then during template \n"            
             " registration.\n"
@@ -400,6 +415,8 @@ def get_parser():
             " template_registration. This option can be faster, but may decrease the quality of \n"
             " alignment between subjects. \n"
             "*** Specify 'true' or 'false'. \n"
+            "* winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
+            "* winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option, useful for fUS images with intensity outliers. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -420,7 +437,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
@@ -431,6 +448,8 @@ def get_parser():
             " inhomogeneity correction. This will enhance brain edge-matching, but requires good quality \n"
             " masks. This must be selected along the 'masking' option.\n"
             "*** Specify 'true' or 'false'. \n"
+            "* winsorize_lower_bound: the lower bound for the antsRegistration winsorize-image-intensities option. \n"
+            "* winsorize_upper_bound: the upper bound for the antsRegistration winsorize-image-intensities option. \n"
             "* keep_mask_after_extract: If using brain_extraction, use the mask to compute the registration metric \n"
             " within the mask only. Choose to prevent stretching of the images beyond the limit of the brain mask \n"
             " (e.g. if the moving and target images don't have the same brain coverage).\n"
@@ -1088,27 +1107,27 @@ def read_parser(parser, args):
             name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
-            key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false']},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False},
+            key_value_pairs = {'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
+            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN'},
+                'registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
-            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
-            defaults = {'apply':False,'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN'},
+            key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
-            key_value_pairs = {'apply':['true', 'false'], 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
-                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg']},
-            defaults = {'apply':False,'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN'},
+            key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
+                'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
             name='bold_robust_inho_cor')
         
         # check that masking/extraction options are well set
@@ -1160,7 +1179,7 @@ def parse_argument(opt, key_value_pairs, defaults, name):
         [key,value] = s
         if not key in key_list:
             raise ValueError(f"The provided key {key} is not part of the available options {key_list} for --{name}.")
-        if key_value_pairs[key] in [int,float]:
+        if key_value_pairs[key] in [int,float,str]:
             value = key_value_pairs[key](value)
         else:
             if not value in key_value_pairs[key]:
