@@ -19,9 +19,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
             'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.read_datasink:
-        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace'], atlas_reg_script=preprocess_opts.commonspace_reg['template_registration'], voxelwise_motion=preprocess_opts.voxelwise_motion)
+        split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, preprocess_opts=preprocess_opts)
     else:
-        split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis)
+        split_dict, split_name, target_list = read_preproc_workflow(preproc_output, nativespace=cr_opts.nativespace_analysis, preprocess_opts=preprocess_opts)
 
     # filter inclusion/exclusion lists
     from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
@@ -157,10 +157,13 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     return workflow
 
 
-
-def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=False, atlas_reg_script='SyN', voxelwise_motion=False):
+def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
     import pathlib
     import glob
+
+    fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace']
+    atlas_reg_script=preprocess_opts.commonspace_reg['template_registration']
+    voxelwise_motion=preprocess_opts.voxelwise_motion
 
     template_file = glob.glob(f'{preproc_output}/bold_datasink/commonspace_resampled_template/*')
     if len(template_file)==1:
@@ -179,30 +182,46 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
         split_dict[name]['commonspace_resampled_template']=template_file
 
     directory_list = [['bold_datasink','input_bold'],
-        ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'], ['bold_datasink','commonspace_WM_mask'],
-        ['bold_datasink','commonspace_CSF_mask'], ['bold_datasink','commonspace_vascular_mask'], ['bold_datasink','commonspace_labels'],
+        ['bold_datasink','commonspace_bold'], ['bold_datasink','commonspace_mask'],
         ['motion_datasink','motion_params_csv'], ['motion_datasink','FD_csv']]
+    # these parameters may be empty
+    for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+        opt_file = getattr(preprocess_opts, opt_key)
+        if opt_file is not None:
+            directory_list.append(['bold_datasink',f'commonspace_{opt_key}'])
+        else:
+            directory_list.append([None,f'commonspace_{opt_key}'])
+
     
     if voxelwise_motion:
         directory_list+=[['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise']]
 
     if nativespace:
-        directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'],
-            ['bold_datasink','native_WM_mask'], ['bold_datasink','native_CSF_mask'], ['bold_datasink','native_vascular_mask'], ['bold_datasink','native_labels']]
+        directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask']]
+        # these parameters may be empty
+        for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+            opt_file = getattr(preprocess_opts, opt_key)
+            if opt_file is not None:
+                directory_list.append(['bold_datasink',f'native_{opt_key}'])
+            else:
+                directory_list.append([None,f'native_{opt_key}'])
 
     target_list=['commonspace_resampled_template']
     for datasink,target in directory_list:
-
-        if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
-            raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
-                "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
         target_list.append(target)
-        file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
-        for f in file_list:
+        if datasink is None:
             for split in split_name:
-                if split in f:
-                    split_dict[split][target]=f
-                    break
+                split_dict[split][target]=None
+        else:
+            if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
+                raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
+                    "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
+            file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
+            for f in file_list:
+                for split in split_name:
+                    if split in f:
+                        split_dict[split][target]=f
+                        break
 
     if nativespace:
         ###
@@ -222,6 +241,8 @@ def read_preproc_datasinks(preproc_output, nativespace=False, fast_commonspace=F
 
         from bids.layout import parse_file_entities
         for datasink,target in directory_list:
+            if datasink is None:
+                continue # None values are attributed at the end
 
             if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
                 raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
@@ -303,7 +324,7 @@ def get_files_from_tree(startpath):
     return file_list
 
 
-def read_preproc_workflow(preproc_output, nativespace=False):
+def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
 
     preproc_workflow_file = f'{preproc_output}/rabies_preprocess_workflow.pkl'
 
@@ -311,28 +332,36 @@ def read_preproc_workflow(preproc_output, nativespace=False):
 
     match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
                     'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
-                    'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.Brain_mask_EPI', 'EPI_mask'],
-                    'commonspace_WM_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.WM_mask_EPI', 'EPI_mask'],
-                    'commonspace_CSF_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.CSF_mask_EPI', 'EPI_mask'],
-                    'commonspace_vascular_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.vascular_mask_EPI', 'EPI_mask'],
-                    'commonspace_labels':['main_wf.bold_main_wf.bold_commonspace_trans_wf.prop_labels_EPI', 'EPI_mask'],
+                    'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.brain_mask_EPI', 'EPI_mask'],
                     'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
                     'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
                     'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
                     'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],
                     'commonspace_resampled_template':['main_wf.resample_template', 'commonspace_template'],
                     }
+
+    # these parameters may be empty
+    for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+        opt_file = getattr(preprocess_opts, opt_key)
+        if opt_file is not None:
+            match_targets[f'commonspace_{opt_key}'] = [f'main_wf.bold_main_wf.bold_commonspace_trans_wf.{opt_key}_EPI', 'EPI_mask']
+        else: # None values are propagated
+            match_targets[f'commonspace_{opt_key}'] = None
+    
     if nativespace:
         match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.merge', 'out_file'],
-                        'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.Brain_mask_EPI', 'EPI_mask'],
-                        'native_WM_mask':['main_wf.bold_main_wf.bold_native_trans_wf.WM_mask_EPI', 'EPI_mask'],
-                        'native_CSF_mask':['main_wf.bold_main_wf.bold_native_trans_wf.CSF_mask_EPI', 'EPI_mask'],
-                        'native_vascular_mask':['main_wf.bold_main_wf.bold_native_trans_wf.vascular_mask_EPI', 'EPI_mask'],
-                        'native_labels':['main_wf.bold_main_wf.bold_native_trans_wf.prop_labels_EPI', 'EPI_mask'],
+                        'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_EPI', 'EPI_mask'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_inverse_list'],
                         })
+        # these parameters may be empty
+        for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+            opt_file = getattr(preprocess_opts, opt_key)
+            if opt_file is not None:
+                match_targets[f'native_{opt_key}'] = [f'main_wf.bold_main_wf.bold_native_trans_wf.{opt_key}_EPI', 'EPI_mask']
+            else: # None values are propagated
+                match_targets[f'native_{opt_key}'] = None
 
     split_dict = {}
     split_name = []
