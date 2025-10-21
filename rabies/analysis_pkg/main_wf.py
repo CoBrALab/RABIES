@@ -11,6 +11,10 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 
 def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
+    if preprocess_opts.labels is None and analysis_opts.FC_matrix and analysis_opts.ROI_type=='parcellated':
+        raise ValueError(
+            'No labels were inherited from preprocessing to derive parcellated connectivity matrices.')
+
     workflow = pe.Workflow(name='analysis_main_wf')
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))

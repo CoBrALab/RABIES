@@ -10,13 +10,11 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     from rabies.confound_correction_pkg.confound_correction import init_confound_correction_wf
 
+    check_opts_compatibility(preprocess_opts, cr_opts)
+
     workflow = pe.Workflow(name='confound_correction_main_wf')
 
     preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
-
-    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
-        raise ValueError(
-            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
 
     if cr_opts.read_datasink:
         split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace=cr_opts.nativespace_analysis, preprocess_opts=preprocess_opts)
@@ -155,6 +153,43 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
 
     return workflow
+
+
+def check_opts_compatibility(preprocess_opts, cr_opts):
+
+    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
+        raise ValueError(
+            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
+    
+    if preprocess_opts.CSF_mask is None:
+        if cr_opts.ica_aroma['apply']:
+            raise ValueError(
+                'A CSF mask is necessary for AROMA, but none was retrieved from preprocessing.')
+        if 'CSF_signal' in cr_opts.conf_list:
+            raise ValueError(
+                'CSF regression cannot be applied since no CSF mask was retrieved from preprocessing.')
+        if 'aCompCor_5' in cr_opts.conf_list:
+            raise ValueError(
+                'aCompCor regression cannot be applied since no CSF mask was retrieved from preprocessing.')
+        if 'aCompCor_percent' in cr_opts.conf_list:
+            raise ValueError(
+                'aCompCor regression cannot be applied since no CSF mask was retrieved from preprocessing.')
+
+    if preprocess_opts.WM_mask is None:
+        if 'WM_signal' in cr_opts.conf_list:
+            raise ValueError(
+                'WM regression cannot be applied since no WM mask was retrieved from preprocessing.')
+        if 'aCompCor_5' in cr_opts.conf_list:
+            raise ValueError(
+                'aCompCor regression cannot be applied since no WM mask was retrieved from preprocessing.')
+        if 'aCompCor_percent' in cr_opts.conf_list:
+            raise ValueError(
+                'aCompCor regression cannot be applied since no WM mask was retrieved from preprocessing.')
+        
+    if preprocess_opts.vascular_mask is None:
+        if 'vascular_signal' in cr_opts.conf_list:
+            raise ValueError(
+                'vascular regression cannot be applied since no vascular mask was retrieved from preprocessing.')
 
 
 def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
