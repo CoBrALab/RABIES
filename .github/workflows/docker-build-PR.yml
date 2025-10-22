@@ -2,6 +2,11 @@ name: PR Workflow - test that dockerfile will build on a PR to master
 
 on:
   workflow_dispatch:
+    inputs:
+        run_tests:
+          description: "No cache for build?"
+          required: false
+          default: "false"
   pull_request:
     branches:
       - master
@@ -23,5 +28,6 @@ jobs:
           context: .
           push: false
           tags: rabies:pr-${{ github.event.pull_request.number || 'manual' }}
+          no-cache: ${{ github.event.inputs.run_tests == 'true' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
