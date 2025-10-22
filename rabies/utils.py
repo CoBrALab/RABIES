@@ -546,19 +546,21 @@ def generate_token_data(tmppath, number_scans):
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
     
     melodic_img = sitk.ReadImage(melodic_file)
-    network1_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,5], resampled_template))
-    network2_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,19], resampled_template))
-    time1 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
-    time2 = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
-    # creating fake network timeseries
-    network1_time = (np.repeat(network1_map[np.newaxis, :, :, :], 15, axis=0).T*time1).T
-    network2_time = (np.repeat(network2_map[np.newaxis, :, :, :], 15, axis=0).T*time2).T
+    # create a new melodic with just 2 networks for low-dimensional dual regression
+    melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,5],melodic_img[:,:,:,19]]) 
+    sitk.WriteImage(melodic_networks, tmppath+'/inputs/melodic_networks.nii.gz')
+    
+    dim = melodic_img.GetSize()[-1]
+    for i in range(dim):
+        IC_map = sitk.GetArrayFromImage(sitk.Resample(melodic_img[:,:,:,i], resampled_template))
+        time = np.random.normal(0, array_4d.mean()/100, array_4d.shape[0]) # network timecourse; scale is 1% of image intensity
+        array_4d+=(np.repeat(IC_map[np.newaxis, :, :, :], 15, axis=0).T*time).T
 
     for i in range(number_scans):
         # generate anatomical scan
         sitk.WriteImage(resampled_template, tmppath+f'/inputs/sub-token{i+1}_T1w.nii.gz')
         # generate functional scan
-        array_4d_ = array_4d + network1_time + network2_time + np.random.normal(0, array_4d.mean()/ 100, array_4d.shape)  # add gaussian noise; scale is 1% of the mean intensity of the template
+        array_4d_ = array_4d + np.random.normal(0, array_4d.mean()/ 100, array_4d.shape)  # add gaussian noise; scale is 1% of the mean intensity of the template
         sitk.WriteImage(sitk.GetImageFromArray(array_4d_, isVector=False),
                         tmppath+f'/inputs/sub-token{i+1}_bold.nii.gz')
 
