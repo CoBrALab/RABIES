@@ -73,7 +73,7 @@ if opts.output_dir is None:
 else:
     tmppath = opts.output_dir
 
-generate_token_data(tmppath, number_scans=3)
+generate_token_data(tmppath, number_scans=10)
 
 if not opts.custom is None:
     minimal_preproc = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
