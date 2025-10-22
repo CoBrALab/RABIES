@@ -386,10 +386,10 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3_.spines['top'].set_visible(False)
     plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
-    ax3.legend(['global_signal', 'Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
+    ax3.legend(['Global signal\n(brain mask mean)', 'Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax3_.legend(['CR $\mathregular{R^2}$'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.1))
     ax3_.set_ylim([0,1])
 
     # we take the mean of the timecourse amplitude (absolute values) to summarized across all components

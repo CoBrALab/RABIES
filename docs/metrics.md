@@ -35,6 +35,7 @@ $$
 DVARS_t = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(Y_{i,t}-Y_{i,t-1})^2}
 $$
 where $Y_{i,t}$ corresponds to the BOLD signal in brain voxel $i$ at timepoint $t$. The first timepoint is set to 0 (has no previous timepoint).
+* **Global signal**: The mean across the whole-brain mask over time.
 * **Edge/WM/CSF mask**: The RMS across voxels within a mask, at each timepoint.
 * **$CR_{var}$**: The variance estimated by confound regression is computed for each timepoint. This is done by taking $CR_{var} = RMS(Y_{CR})$ across voxels at each timepoints, where $Y_{CR}$ is the [predicted confound timeseries](CR_target).
 * **CR $R^2$**: Represents the proportion of variance explained (and removed) by confound regression. This is obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y})}{Var(Y)}$ at each timepoint, where $Y$ and $\hat{Y}$ are the timeseries pre- and post-regression respectively, and $Var(x) = \frac{1}{n}\sum_{i=1}^{n}(x_i - \mu_x)^2$ calculates the variance, with $\mu$ as the mean.
