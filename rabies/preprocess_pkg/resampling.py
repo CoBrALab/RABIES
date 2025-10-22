@@ -93,25 +93,25 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)
 
-    WM_mask_to_EPI = pe.Node(MaskEPI(), name='WM_mask_EPI')
-    WM_mask_to_EPI.inputs.name_spec = 'EPI_WM_mask'
-    WM_mask_to_EPI.inputs.mask = str(opts.WM_mask)
+    # integrate a node to resample each mask, only if the mask exists
+    for opt_key in ['brain_mask', 'WM_mask','CSF_mask','vascular_mask','labels']:
+        opt_file = getattr(opts, opt_key)
+        if opt_file is not None:
+            mask_to_EPI = pe.Node(MaskEPI(), name=opt_key+'_EPI')
+            mask_to_EPI.inputs.name_spec = 'EPI_'+opt_key
+            mask_to_EPI.inputs.mask = str(opt_file)
 
-    CSF_mask_to_EPI = pe.Node(MaskEPI(), name='CSF_mask_EPI')
-    CSF_mask_to_EPI.inputs.name_spec = 'EPI_CSF_mask'
-    CSF_mask_to_EPI.inputs.mask = str(opts.CSF_mask)
-
-    vascular_mask_to_EPI = pe.Node(MaskEPI(), name='vascular_mask_EPI')
-    vascular_mask_to_EPI.inputs.name_spec = 'EPI_vascular_mask'
-    vascular_mask_to_EPI.inputs.mask = str(opts.vascular_mask)
-
-    brain_mask_to_EPI = pe.Node(MaskEPI(), name='Brain_mask_EPI')
-    brain_mask_to_EPI.inputs.name_spec = 'EPI_brain_mask'
-    brain_mask_to_EPI.inputs.mask = str(opts.brain_mask)
-
-    propagate_labels = pe.Node(MaskEPI(), name='prop_labels_EPI')
-    propagate_labels.inputs.name_spec = 'EPI_anat_labels'
-    propagate_labels.inputs.mask = str(opts.labels)
+            workflow.connect([
+                (inputnode, mask_to_EPI, [
+                    ('name_source', 'name_source'),
+                    ('mask_transforms_list', 'transforms'),
+                    ('mask_inverses', 'inverses'),
+                    ]),
+                (bold_reference_wf, mask_to_EPI, [
+                    ('outputnode.ref_image', 'ref_EPI')]),
+                (mask_to_EPI, outputnode, [
+                    ('EPI_mask', opt_key)]),
+            ])
 
     raw_brain_mask = pe.Node(MaskEPI(), name='raw_brain_mask')
     raw_brain_mask.inputs.name_spec = 'raw_brain_mask'
@@ -129,11 +129,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
         (bold_transform, merge, [('out_files', 'in_files')]),
         (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
         (merge, outputnode, [('out_file', 'bold')]),
-        (inputnode, brain_mask_to_EPI, [
-            ('name_source', 'name_source'),
-            ('mask_transforms_list', 'transforms'),
-            ('mask_inverses', 'inverses'),
-            ]),
         (inputnode, raw_brain_mask, [
             ('raw_bold_ref', 'ref_EPI'),
             ('name_source', 'name_source'),
@@ -142,46 +137,6 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ]),
         (raw_brain_mask, outputnode, [
             ('EPI_mask', 'raw_brain_mask')]),
-        (bold_reference_wf, brain_mask_to_EPI, [
-            ('outputnode.ref_image', 'ref_EPI')]),
-        (brain_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'brain_mask')]),
-        (inputnode, WM_mask_to_EPI, [
-            ('name_source', 'name_source'),
-            ('mask_transforms_list', 'transforms'),
-            ('mask_inverses', 'inverses'),
-            ]),
-        (bold_reference_wf, WM_mask_to_EPI, [
-            ('outputnode.ref_image', 'ref_EPI')]),
-        (WM_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'WM_mask')]),
-        (inputnode, CSF_mask_to_EPI, [
-            ('name_source', 'name_source'),
-            ('mask_transforms_list', 'transforms'),
-            ('mask_inverses', 'inverses'),
-            ]),
-        (bold_reference_wf, CSF_mask_to_EPI, [
-            ('outputnode.ref_image', 'ref_EPI')]),
-        (CSF_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'CSF_mask')]),
-        (inputnode, vascular_mask_to_EPI, [
-            ('name_source', 'name_source'),
-            ('mask_transforms_list', 'transforms'),
-            ('mask_inverses', 'inverses'),
-            ]),
-        (bold_reference_wf, vascular_mask_to_EPI, [
-            ('outputnode.ref_image', 'ref_EPI')]),
-        (vascular_mask_to_EPI, outputnode, [
-            ('EPI_mask', 'vascular_mask')]),
-        (inputnode, propagate_labels, [
-            ('name_source', 'name_source'),
-            ('mask_transforms_list', 'transforms'),
-            ('mask_inverses', 'inverses'),
-            ]),
-        (bold_reference_wf, propagate_labels, [
-            ('outputnode.ref_image', 'ref_EPI')]),
-        (propagate_labels, outputnode, [
-            ('EPI_mask', 'labels')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
     ])

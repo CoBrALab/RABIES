@@ -44,7 +44,7 @@ Simple resting-state connectivity analyses are made available after preprocessin
 - open source code <https://github.com/CoBrALab/RABIES>
 - standardized input data format with [BIDS](https://bids.neuroimaging.io/)
 - easily shared, automatically-generated visual outputs for quality control
-- containerized distribution of the software hosted on [Docker Hub](https://hub.docker.com/r/gabdesgreg/rabies) which can be downloaded via Docker and Singularity platforms
+- containerized distribution of the software hosted on [Docker Hub](https://hub.docker.com/r/gabdesgreg/rabies) which can be downloaded via Docker and Apptainer platforms
 
 ## Citation
 

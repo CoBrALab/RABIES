@@ -144,40 +144,40 @@ rabies -p MultiProc analysis confound_correction_outputs analysis_outputs/ --gro
 ```
 Finally, after conducting preprocessing and confound correction, certain analyses can be run within RABIES. In this case, the cleaned outputs found in `confound_correction_outputs/` are going to be analyzed, with analysis outputs found in `analysis_outputs/`. We perform a group independent component analysis (ICA) with 30 components by providing `--group_ica apply=true,dim=30,random_seed=1` to the command.
 
-## Execution syntax with containerized installation (Singularity and Docker)
+## Execution syntax with containerized installation (Apptainer and Docker)
 
 Containers are independent computing environments which have their own dependencies installed to ensure consistent and reliable
-execution of the software across computing platforms. Singularity containers, as opposed to Docker, can be exported to remote high-performance computing platforms (e.g. computecanada). The main difference in execution syntax when running a container, as opposed to the examples above, is that the paths between the local environment where the data is stored must be 'linked' to the container's internal paths. All relevant directories containing data that will be used by RABIES must be related to a container internal path, and this is done using `-B` for Singularity and `-v` for Docker. See below for examples:
+execution of the software across computing platforms. The main difference in execution syntax when running a container, as opposed to the examples above, is that the paths between the local environment where the data is stored must be 'linked' to the container's internal paths. All relevant directories containing data that will be used by RABIES must be related to a container internal path, and this is done using `-B` for Apptainer and `-v` for Docker. See below for examples:
 
-### Singularity execution
+### Apptainer execution
 
 **preprocess**
 ```sh
-singularity run -B $PWD/input_BIDS:/input_BIDS:ro \
+apptainer run -B $PWD/input_BIDS:/input_BIDS:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
+/path_to_apptainer_image/rabies.sif -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
-Singularity containers are stored in image files, for instance `rabies.sif`. `singularity run /path_to_singularity_image/rabies.sif` will execute the image, in this case the RABIES pipeline, and the same rules for the command line interface then apply as previously demonstrated. However, the container must gain access to the relevant folders for running RABIES, in this case an input folder and an output folder, and this is done with `-B`:
+Apptainer containers are stored in image files, for instance `rabies.sif`. `apptainer run /path_to_apptainer_image/rabies.sif` will execute the image, in this case the RABIES pipeline, and the same rules for the command line interface then apply as previously demonstrated. However, the container must gain access to the relevant folders for running RABIES, in this case an input folder and an output folder, and this is done with `-B`:
 * `-B $PWD/input_BIDS:/input_BIDS:ro`: this argument relates the BIDS input folder found in `$PWD/input_BIDS` to an internal path to the container, which we call `/input_BIDS`. The inputs are thus accessed according to this path in the RABIES arguments with `/input_BIDS/`. the `:ro` means that the container is only provided reading permissions at this location.
 * `-B $PWD/preprocess_outputs:/preprocess_outputs/`: same as with the `/input_BIDS/`, but now we are relating a desired output directory `$PWD/preprocess_outputs` to `/preprocess_outputs`, and the container has writing permissions at this path since `:ro` is not present.
 
 
 **confound_correction**
 ```sh
-singularity run -B $PWD/input_BIDS:/input_BIDS:ro \
+apptainer run -B $PWD/input_BIDS:/input_BIDS:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
 -B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
+/path_to_apptainer_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
 ```
 The required paths are similarly provided for the confound correction stage. Note here that the path to `$PWD/input_BIDS` is still linked to the container, even though it is not explicitely part of the arguments during the confound correction call. This is necessary since the paths used in the preprocessing steps still need to be accessed at later stages, and there will be an error if the paths are not kept consistent across processing steps.
 
 **analysis**
 ```sh
-singularity run -B $PWD/input_BIDS:/input_BIDS:ro \
+apptainer run -B $PWD/input_BIDS:/input_BIDS:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
 -B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
 -B $PWD/analysis_outputs:/analysis_outputs/ \
-/path_to_singularity_image/rabies.sif -p MultiProc analysis /confound_correction_outputs /analysis_outputs/ --group_ica apply=true,dim=30,random_seed=1
+/path_to_apptainer_image/rabies.sif -p MultiProc analysis /confound_correction_outputs /analysis_outputs/ --group_ica apply=true,dim=30,random_seed=1
 ```
 The same logic applies at the analysis stage.
 <br/>
@@ -189,7 +189,7 @@ docker run -it --rm --user $(id -u) \
 -v $PWD/preprocess_outputs:/preprocess_outputs/ \
 gabdesgreg/rabies:tagname -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ --apply_STC --TR 1.2 --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
-The syntax in Docker is very similar to Singularity, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). `--user $(id -u)` can be added to mitigate writing permission issues when using Docker. Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
+The syntax in Docker is very similar to Apptainer, except that `-B` is replaced by `-v`, and further parameters may be needed (e.g. `-it`, `--rm`). `--user $(id -u)` can be added to mitigate writing permission issues when using Docker. Note that 'tagname' should be replaced by the proper RABIES version you are using (e.g. 0.4.8).
 
 
 ## Additional Resources

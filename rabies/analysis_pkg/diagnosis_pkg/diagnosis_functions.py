@@ -47,12 +47,7 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
 
     timeseries = data_dict['timeseries']
     volume_indices = data_dict['volume_indices']
-    edge_idx = data_dict['edge_idx']
-    WM_idx = data_dict['WM_idx']
-    CSF_idx = data_dict['CSF_idx']
     CR_data_dict = data_dict['CR_data_dict']
-
-    not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
 
     FD_trace = CR_data_dict['FD_trace']
     DVARS = CR_data_dict['DVARS']
@@ -91,19 +86,33 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
     '''Temporal Features'''
-    # take regional timecourse by taking the RMS each 3D volume
-    WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
-    CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
-    edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
-    not_edge_trace = np.sqrt((timeseries.T[not_edge_idx]**2).mean(axis=0))
-    temporal_info['WM_trace'] = WM_trace
-    temporal_info['CSF_trace'] = CSF_trace
-    temporal_info['edge_trace'] = edge_trace
-    temporal_info['not_edge_trace'] = not_edge_trace
+    global_signal = timeseries.mean(axis=1)
+    temporal_info['global_signal'] = global_signal
     temporal_info['predicted_time'] = CR_data_dict['predicted_time']
+    # take regional timecourse by taking the RMS each 3D volume
+    edge_idx = data_dict['edge_idx']
+    edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
+    temporal_info['edge_trace'] = edge_trace
+    if data_dict['WM_idx'] is not None:
+        WM_idx = data_dict['WM_idx']
+        WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
+        temporal_info['WM_trace'] = WM_trace
+    else:
+        temporal_info['WM_trace'] = None
+    if data_dict['CSF_idx'] is not None:
+        CSF_idx = data_dict['CSF_idx']
+        CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
+        temporal_info['CSF_trace'] = CSF_trace
+    else:
+        temporal_info['CSF_trace'] = None
+    if data_dict['WM_idx'] is not None and data_dict['CSF_idx'] is not None:
+        not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
+        not_edge_trace = np.sqrt((timeseries.T[not_edge_idx]**2).mean(axis=0))
+        temporal_info['not_edge_trace'] = not_edge_trace
+    else:
+        temporal_info['not_edge_trace'] = None
 
     '''Spatial Features'''
-    global_signal = timeseries.mean(axis=1)
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
@@ -358,22 +367,29 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax2_.legend(['DVARS'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.3))
 
-    ax3.plot(x,temporal_info['edge_trace'])
-    ax3.plot(x,temporal_info['WM_trace'])
-    ax3.plot(x,temporal_info['CSF_trace'])
-    ax3.plot(x,temporal_info['predicted_time'])
+    ax3.plot(x,temporal_info['global_signal'], alpha=0.7)
+    ax3.plot(x,temporal_info['edge_trace'], alpha=0.7)
+    if temporal_info['WM_trace'] is not None:
+        ax3.plot(x,temporal_info['WM_trace'], alpha=0.7)
+    else:
+        ax3.plot([],[])
+    if temporal_info['CSF_trace'] is not None:
+        ax3.plot(x,temporal_info['CSF_trace'], alpha=0.7)
+    else:
+        ax3.plot([],[])
+    ax3.plot(x,temporal_info['predicted_time'], alpha=0.7)
     ax3.set_ylabel('Amplitude \n(RMS)', fontsize=20)
     ax3_ = ax3.twinx()
-    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
+    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet', alpha=0.7)
     ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
     plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
-    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
+    ax3.legend(['Global signal\n(brain mask mean)', 'Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax3_.legend(['CR $\mathregular{R^2}$'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.1))
     ax3_.set_ylim([0,1])
 
     # we take the mean of the timecourse amplitude (absolute values) to summarized across all components

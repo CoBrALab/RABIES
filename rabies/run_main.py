@@ -5,10 +5,28 @@ from nipype import logging, config
 from .boilerplate import *
 from .parser import get_parser,read_parser
 
+# setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
     rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
 else:
     rabies_path = os.environ['HOME']+'/.local/share/rabies'
+
+DSURQE_ANAT=f"{rabies_path}/DSURQE_40micron_average.nii.gz"
+DSURQE_MASK=f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
+DSURQE_WM=f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz"
+DSURQE_CSF=f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz"
+DSURQE_VASC=f"{rabies_path}/vascular_mask.nii.gz"
+DSURQE_LABELS=f"{rabies_path}/DSURQE_40micron_labels.nii.gz"
+DSURQE_MAPPINGS=f"{rabies_path}/DSURQE_40micron_R_mapping.csv"
+DSURQE_ICA=f"{rabies_path}/melodic_IC.nii.gz"
+
+EPICOMMON_ANAT=f"{rabies_path}/EPI_template.nii.gz"
+EPICOMMON_MASK=f"{rabies_path}/EPI_brain_mask.nii.gz"
+EPICOMMON_WM=f"{rabies_path}/EPI_WM_mask.nii.gz"
+EPICOMMON_CSF=f"{rabies_path}/EPI_CSF_mask.nii.gz"
+EPICOMMON_VASC=f"{rabies_path}/EPI_vascular_mask.nii.gz"
+EPICOMMON_LABELS=f"{rabies_path}/EPI_labels.nii.gz"
+EPICOMMON_ICA=f"{rabies_path}/melodic_IC_resampled.nii.gz"
 
 
 def execute_workflow(args=None, return_workflow=False):
@@ -145,84 +163,53 @@ def preprocess(opts, log):
         opts.data_type = sitk.sitkFloat64
     else:
         raise ValueError('Invalid --data_type provided.')
+    
+    # if the default template is not used, then brain mask input is required, 
+    # and other optional files are set to None if no input was provided 
+    # to block downstream operations dependent on those inputs, but allow preprocessing nevertheless
+    if not str(opts.anat_template)==DSURQE_ANAT:
+        if str(opts.brain_mask)==DSURQE_MASK:
+            raise ValueError("The default anatomical template was changed, but not the brain mask "
+                             "- it is necessary to provide a new brain mask matching the template.")
+        # make sure we have absolute paths
+        opts.anat_template = os.path.abspath(opts.anat_template)
+        opts.brain_mask = os.path.abspath(opts.brain_mask)
+        
+        for opt_key,default_file in zip(['WM_mask','CSF_mask','vascular_mask','labels'],
+                                         [DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS]):
+            
+            opt_file = getattr(opts, opt_key)
+            if str(opt_file)==default_file:
+                opt_file=None
+            else:
+                opt_file = os.path.abspath(opt_file) # make sure we have absolute paths
+            setattr(opts, opt_key, opt_file)
 
-
-    # template options
     # if --bold_only, the default atlas files change to EPI versions
     if opts.bold_only:
-        if str(opts.anat_template)==f"{rabies_path}/DSURQE_40micron_average.nii.gz":
-            file=f"{rabies_path}/EPI_template.nii.gz"
-            opts.anat_template=file
-            log.info('With --bold_only, default --anat_template changed to '+file)
-        if str(opts.brain_mask)==f"{rabies_path}/DSURQE_40micron_mask.nii.gz":
-            file=f"{rabies_path}/EPI_brain_mask.nii.gz"
-            opts.brain_mask=file
-            log.info('With --bold_only, default --brain_mask changed to '+file)
-        if str(opts.WM_mask)==f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz":
-            file=f"{rabies_path}/EPI_WM_mask.nii.gz"
-            opts.WM_mask=file
-            log.info('With --bold_only, default --WM_mask changed to '+file)
-        if str(opts.CSF_mask)==f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz":
-            file=f"{rabies_path}/EPI_CSF_mask.nii.gz"
-            opts.CSF_mask=file
-            log.info('With --bold_only, default --CSF_mask changed to '+file)
-        if str(opts.vascular_mask)==f"{rabies_path}/vascular_mask.nii.gz":
-            file=f"{rabies_path}/EPI_vascular_mask.nii.gz"
-            opts.vascular_mask=file
-            log.info('With --bold_only, default --vascular_mask changed to '+file)
-        if str(opts.labels)==f"{rabies_path}/DSURQE_40micron_labels.nii.gz":
-            file=f"{rabies_path}/EPI_labels.nii.gz"
-            opts.labels=file
-            log.info('With --bold_only, default --labels changed to '+file)
+        for opt_key,default_file,EPI_file in zip(['anat_template','brain_mask','WM_mask','CSF_mask','vascular_mask','labels'],
+                                         [DSURQE_ANAT, DSURQE_MASK, DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS],
+                                         [EPICOMMON_ANAT, EPICOMMON_MASK, EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS]):
+            opt_file = getattr(opts, opt_key)
+            if str(opt_file)==default_file:
+                setattr(opts, opt_key, EPI_file)
+                log.info(f'With --bold_only, default --{opt_key} changed to {EPI_file}')
 
-    # make sure we have absolute paths
-    opts.anat_template = os.path.abspath(opts.anat_template)
-    opts.brain_mask = os.path.abspath(opts.brain_mask)
-    opts.WM_mask = os.path.abspath(opts.WM_mask)
-    opts.CSF_mask = os.path.abspath(opts.CSF_mask)
-    opts.vascular_mask = os.path.abspath(opts.vascular_mask)
-    opts.labels = os.path.abspath(opts.labels)
-
-    # convert template files to RAS convention if they aren't already
+    # final check of template file formats
     from rabies.preprocess_pkg.utils import convert_to_RAS
-    if not os.path.isfile(opts.anat_template):
-        raise ValueError(f"--anat_template file {opts.anat_template} doesn't exists.")
-    opts.anat_template = convert_to_RAS(
-        str(opts.anat_template), opts.output_dir+'/template_files')
+    for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask','labels'],
+                                    [False,True,True,True,True,False]):
+        opt_file = getattr(opts, opt_key)
+        if opt_file is not None: # some masks might be set to None
+            if not os.path.isfile(opt_file):
+                raise ValueError(f"--{opt_key} file {opt_file} doesn't exists.")
+            opt_file = convert_to_RAS(
+                str(opt_file), opts.output_dir+'/template_files')
 
-    if not os.path.isfile(opts.brain_mask):
-        raise ValueError(f"--brain_mask file {opts.brain_mask} doesn't exists.")
-    check_binary_masks(opts.brain_mask)
-    opts.brain_mask = convert_to_RAS(
-        str(opts.brain_mask), opts.output_dir+'/template_files')
-    check_template_overlap(opts.anat_template, opts.brain_mask)
-
-    if not os.path.isfile(opts.WM_mask):
-        raise ValueError(f"--WM_mask file {opts.WM_mask} doesn't exists.")
-    check_binary_masks(opts.WM_mask)
-    opts.WM_mask = convert_to_RAS(
-        str(opts.WM_mask), opts.output_dir+'/template_files')
-    check_template_overlap(opts.anat_template, opts.WM_mask)
-
-    if not os.path.isfile(opts.CSF_mask):
-        raise ValueError(f"--CSF_mask file {opts.CSF_mask} doesn't exists.")
-    check_binary_masks(opts.CSF_mask)
-    opts.CSF_mask = convert_to_RAS(
-        str(opts.CSF_mask), opts.output_dir+'/template_files')
-    check_template_overlap(opts.anat_template, opts.CSF_mask)
-
-    if not os.path.isfile(opts.vascular_mask):
-        raise ValueError(f"--vascular_mask file {opts.vascular_mask} doesn't exists.")
-    check_binary_masks(opts.vascular_mask)
-    opts.vascular_mask = convert_to_RAS(
-        str(opts.vascular_mask), opts.output_dir+'/template_files')
-    check_template_overlap(opts.anat_template, opts.vascular_mask)
-
-    if not os.path.isfile(opts.labels):
-        raise ValueError(f"--labels file {opts.labels} doesn't exists.")
-    opts.labels = convert_to_RAS(
-        str(opts.labels), opts.output_dir+'/template_files')
-    check_template_overlap(opts.anat_template, opts.labels)
+            if check_binary:
+                check_binary_masks(opt_file)
+            check_template_overlap(opts.anat_template, opt_file)
+            setattr(opts, opt_key, opt_file)
 
     if not opts.inherit_unbiased_template=='none':
         opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
@@ -284,8 +271,8 @@ def analysis(opts, log):
         preprocess_opts = pickle.load(handle)
 
     if preprocess_opts.bold_only:
-        if str(opts.prior_maps)==f"{rabies_path}/melodic_IC.nii.gz":
-            file=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+        if str(opts.prior_maps)==DSURQE_ICA:
+            file=EPICOMMON_ICA
             opts.prior_maps=file
             log.info('With --bold_only, default --prior_maps changed to '+file)
 
@@ -299,36 +286,11 @@ def install_DSURQE(log):
 
     install = False
     # verifies whether default template files are installed and installs them otherwise
-    if not os.path.isfile(f"{rabies_path}/DSURQE_40micron_average.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_labels.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/DSURQE_40micron_R_mapping.csv"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/vascular_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/melodic_IC.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_template.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_brain_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_WM_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_CSF_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_vascular_mask.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/EPI_labels.nii.gz"):
-        install = True
-    elif not os.path.isfile(f"{rabies_path}/melodic_IC_resampled.nii.gz"):
-        install = True
+    for f in [DSURQE_ANAT,DSURQE_MASK,DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS,DSURQE_MAPPINGS,DSURQE_ICA,
+              EPICOMMON_ANAT,EPICOMMON_MASK,EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS,EPICOMMON_ICA]:
+        if not os.path.isfile(f):
+            install = True
+
     if install:
         from rabies.preprocess_pkg.utils import run_command
         log.info(

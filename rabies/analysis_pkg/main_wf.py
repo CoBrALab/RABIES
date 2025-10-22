@@ -11,6 +11,10 @@ from rabies.utils import fill_split_dict, get_workflow_dict
 
 def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
+    if preprocess_opts.labels is None and analysis_opts.FC_matrix and analysis_opts.ROI_type=='parcellated':
+        raise ValueError(
+            'No labels were inherited from preprocessing to derive parcellated connectivity matrices.')
+
     workflow = pe.Workflow(name='analysis_main_wf')
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
@@ -77,7 +81,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                                'maps_dict'],
                                        function=load_maps_dict),
                               name='load_maps_dict_node')
-    load_maps_dict_node.inputs.atlas_ref = str(preprocess_opts.labels)
+    load_maps_dict_node.inputs.atlas_ref = preprocess_opts.labels
     if not os.path.isfile(str(analysis_opts.prior_maps)):
         raise ValueError("--prior_maps doesn't exists.")
     else:
@@ -247,12 +251,21 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
     volume_indices = mask_array.astype(bool)
-
-    WM_idx = sitk.GetArrayFromImage(
-        sitk.ReadImage(WM_mask_file))[volume_indices].astype(bool)
-    CSF_idx = sitk.GetArrayFromImage(
-        sitk.ReadImage(CSF_mask_file))[volume_indices].astype(bool)
-    atlas_idx = sitk.GetArrayFromImage(sitk.ReadImage(atlas_file))[volume_indices]
+    
+    if WM_mask_file is None:
+        WM_idx = None
+    else:
+        WM_idx = sitk.GetArrayFromImage(
+            sitk.ReadImage(WM_mask_file))[volume_indices].astype(bool)
+    if CSF_mask_file is None:
+        CSF_idx = None
+    else:
+        CSF_idx = sitk.GetArrayFromImage(
+            sitk.ReadImage(CSF_mask_file))[volume_indices].astype(bool)
+    if atlas_file is None:
+        atlas_idx = None
+    else:
+        atlas_idx = sitk.GetArrayFromImage(sitk.ReadImage(atlas_file))[volume_indices]
 
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
@@ -267,11 +280,14 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
     # prepare the list ROI numbers from the atlas for FC matrices
     # get the complete set of original ROI integers 
-    atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(atlas_ref)).astype(int)
-    roi_list = []
-    for i in range(1, atlas_data.max()+1):
-        if np.max(i == atlas_data):  # include integers that do have labelled voxels
-            roi_list.append(i)
+    if atlas_ref is None:
+        roi_list=None
+    else:
+        atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(str(atlas_ref))).astype(int)
+        roi_list = []
+        for i in range(1, atlas_data.max()+1):
+            if np.max(i == atlas_data):  # include integers that do have labelled voxels
+                roi_list.append(i)
 
     return {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx, 
             'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}

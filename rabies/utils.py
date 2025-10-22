@@ -470,9 +470,12 @@ def fill_split_dict(d, output_bold, split_name, split_dict, keys, node_dict, mat
         split_dict[split]={}
         target_list = list(match_targets.keys())
         for target in target_list:
-            [unit, output] = match_targets[target]
-            node = retrieve_node(node_dict[unit], keys)
-            split_dict[split][target] = node.result.outputs.get()[output]
+            if match_targets[target] is None: # certain target may not have been generated, and needs to be attributed None
+                split_dict[split][target] = None
+            else:
+                [unit, output] = match_targets[target]
+                node = retrieve_node(node_dict[unit], keys)
+                split_dict[split][target] = node.result.outputs.get()[output]
         
 def retrieve_node(d, keys):
     if isinstance(d, dict):
