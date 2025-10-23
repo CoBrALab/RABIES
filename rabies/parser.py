@@ -990,7 +990,7 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1',
+        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1,disableMigp=false',
         help=
             "Perform group-ICA using FSL's MELODIC on the whole dataset's cleaned timeseries.\n"
             "Note that confound correction must have been conducted on commonspace outputs.\n"
@@ -999,6 +999,7 @@ def get_parser():
             "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
             " estimator. \n"
             "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
+            "* disableMigp: Whether to disable the MIGP method for lowering the memory load of data concatenation. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1161,8 +1162,8 @@ def read_parser(parser, args):
 
     elif opts.rabies_stage == 'analysis':
         opts.group_ica = parse_argument(opt=opts.group_ica, 
-            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
-            defaults = {'apply':False,'dim':0,'random_seed':1},
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int, 'disableMigp':['true', 'false']},
+            defaults = {'apply':False,'dim':0,'random_seed':1, 'disableMigp':False},
             name='group_ica')
         opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
             key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,

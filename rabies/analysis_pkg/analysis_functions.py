@@ -125,7 +125,7 @@ ICA
 '''
 
 
-def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image):
+def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image, disableMigp=False):
     import os
     import pandas as pd
 
@@ -139,6 +139,8 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image)
     from rabies.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
     command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)} --bgimage={background_image}'
+    if disableMigp:
+        command+=' --disableMigp'
     rc,c_out = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file
