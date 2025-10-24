@@ -227,15 +227,25 @@ def applyTransforms_4D(in_file, ref_file, transforms_3D = [], inverses_3D = [], 
     import SimpleITK as sitk
     import os
 
-    # Splitting 4D file into lists of 3D volumes
-    [volumes_list, num_volumes] = split_volumes(
-        in_file, "", rabies_data_type)
-
-    warped_volumes = []
+    img_4D = sitk.ReadImage(in_file, rabies_data_type)
+    num_dimensions = len(img_4D.GetSize())
+    num_volumes = img_4D.GetSize()[3]
+    if num_dimensions != 4:
+        raise ValueError("the input file must be of dimensions 4")
+    # Splitting 4D file into a list of 3D volumes
+    volumes_list = []
     for x in range(0, num_volumes):
-        warped_vol_fname = os.path.abspath(
+        volume_img = img_4D[:,:,:,x]
+        slice_fname = os.path.abspath(
+            "volume" + str(x) + ".nii.gz")
+        sitk.WriteImage(volume_img, slice_fname)
+        volumes_list.append(slice_fname)
+
+    resampled_volumes = []
+    for x in range(0, num_volumes):
+        resampled_vol_fname = os.path.abspath(
             "deformed_volume" + str(x) + ".nii.gz")
-        warped_volumes.append(warped_vol_fname)
+        resampled_volumes.append(resampled_vol_fname)
 
         if motcorr_affine_list is None:
             transforms = transforms_3D
@@ -244,13 +254,13 @@ def applyTransforms_4D(in_file, ref_file, transforms_3D = [], inverses_3D = [], 
             transforms = transforms_3D+[motcorr_affine_list[x]]
             inverses = inverses_3D+[0]
 
-        applyTransforms_3D(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_filename=warped_vol_fname, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=clip_negative)
+        applyTransforms_3D(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_filename=resampled_vol_fname, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=clip_negative)
 
     # merge the resampled volume into a new 4D image
-    resampled_4D_img = sitk.JoinSeries([sitk.ReadImage(file) for file in warped_volumes])
+    resampled_4D_img = sitk.JoinSeries([sitk.ReadImage(file) for file in resampled_volumes])
     # propagate the info regarding the 4th dimension from the input file
     resampled_4D_img = copyInfo_4DImage(
-        resampled_4D_img, resampled_4D_img[:,:,:,0], sitk.ReadImage(in_file))
+        resampled_4D_img, resampled_4D_img[:,:,:,0], img_4D)
 
     return resampled_4D_img
 
@@ -287,25 +297,24 @@ def applyTransforms_3D(transforms, inverses, input_image, ref_image, output_file
         raise ValueError(
             "Missing output image. Transform call failed: "+command)
 
-def split_volumes(in_file, output_prefix, rabies_data_type):
+def split_volumes(img_4D, output_prefix):
     '''
     Takes as input a 4D .nii file and splits it into separate time series
     volumes by splitting on the 4th dimension
     '''
-    in_nii = sitk.ReadImage(in_file, rabies_data_type)
-    num_dimensions = len(in_nii.GetSize())
-    num_volumes = in_nii.GetSize()[3]
+    num_dimensions = len(img_4D.GetSize())
+    num_volumes = img_4D.GetSize()[3]
 
     if num_dimensions != 4:
         raise ValueError("the input file must be of dimensions 4")
 
     volumes = []
     for x in range(0, num_volumes):
-        data_slice = sitk.GetArrayFromImage(in_nii)[x, :, :, :]
+        data_slice = sitk.GetArrayFromImage(img_4D)[x, :, :, :]
         slice_fname = os.path.abspath(
             output_prefix + "volume" + str(x) + ".nii.gz")
         image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-            data_slice, isVector=False), in_nii)
+            data_slice, isVector=False), img_4D)
         sitk.WriteImage(image_3d, slice_fname)
         volumes.append(slice_fname)
 
