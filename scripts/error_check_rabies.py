@@ -96,7 +96,7 @@ if not opts.custom is None:
                 check=True,
                 shell=True,
                 )
-        if 'analysis' in command:
+        if ' analysis ' in command:
             if not os.path.isfile(f'{tmppath}/outputs/rabies_confound_correction_workflow.pkl'):
                 # provide cc outputs to run analysis stage
                 process = subprocess.run(
@@ -104,7 +104,8 @@ if not opts.custom is None:
                     check=True,
                     shell=True,
                     )
-        command += f" {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1"
+            command += f" --prior_bold_idx 0 1 --prior_confound_idx 0 1 --prior_maps {tmppath}/inputs/melodic_networks.nii.gz "
+        command += f" {tmppath}/outputs {tmppath}/outputs"
 
     process = subprocess.run(
         command,

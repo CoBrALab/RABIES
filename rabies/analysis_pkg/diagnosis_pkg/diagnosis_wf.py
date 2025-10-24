@@ -7,7 +7,7 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, DatasetD
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
@@ -70,7 +70,7 @@ def init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_na
             ]),
         ])
 
-    if (commonspace_bold or preprocess_opts.bold_only) and not len(split_name_list)<3:
+    if (not nativespace_analysis or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
         def prep_scan_data(dict_file, spatial_info, temporal_info):
             import pickle

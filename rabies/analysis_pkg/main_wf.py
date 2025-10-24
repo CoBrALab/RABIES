@@ -121,23 +121,33 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
-    commonspace_bold = not cr_opts.nativespace_analysis
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold)
+        opts=analysis_opts, nativespace_analysis=cr_opts.nativespace_analysis)
 
-    # prepare analysis datasink
-    analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container="analysis_datasink"),
-                                name="analysis_datasink")
+
+    if cr_opts.nativespace_analysis:
+        # prepare analysis datasink for nativespace computations
+        nativespace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                            container="nativespace_analysis_datasink"),
+                                    name="nativespace_analysis_datasink")
+        main_analysis_datasink = nativespace_analysis_datasink
+
+    else:
+        # prepare analysis datasink for commonspace computations OR nativespace computations resampled to commonspace
+        commonspace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                            container="commonspace_analysis_datasink"),
+                                    name="commonspace_analysis_datasink")
+        main_analysis_datasink = commonspace_analysis_datasink
+
     if analysis_opts.FC_matrix:
         if os.path.isfile(str(analysis_opts.ROI_csv)):
-            analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
+            main_analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
 
-    if commonspace_bold or preprocess_opts.bold_only:
+    if not cr_opts.nativespace_analysis or preprocess_opts.bold_only:
         split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
         load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
         load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
@@ -184,8 +194,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("file_list", "group_inputnode.bold_file_list"),
             ("mask_file", "group_inputnode.commonspace_mask"),
             ]),
-        (analysis_wf, analysis_datasink, [
-            ("outputnode.group_ICA_dir", "group_ICA_dir"),
+        (analysis_wf, main_analysis_datasink, [
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
@@ -199,6 +208,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
             ]),
         ])
+    
+    if not cr_opts.nativespace_analysis:
+        workflow.connect([
+            (analysis_wf, commonspace_analysis_datasink, [
+                ("outputnode.group_ICA_dir", "group_ICA_dir"),
+                ]),
+            ])
 
     if analysis_opts.data_diagnosis:
 
@@ -212,7 +228,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                         function=prep_analysis_dict),
                                 name='analysis_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, cr_opts.nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf")
 
         workflow.connect([
             (load_sub_dict_node, diagnosis_wf, [

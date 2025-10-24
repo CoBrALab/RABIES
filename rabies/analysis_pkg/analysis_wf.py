@@ -7,7 +7,7 @@ from nipype import Function
 from .analysis_functions import run_group_ICA, run_DR_ICA, run_FC_matrix, seed_based_FC
 
 
-def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
+def init_analysis_wf(opts, nativespace_analysis=False, name="analysis_wf"):
 
     workflow = pe.Workflow(name=name)
     subject_inputnode = pe.Node(niu.IdentityInterface(
@@ -81,7 +81,7 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
 
 
     if opts.group_ica['apply']:
-        if not commonspace_cr:
+        if nativespace_analysis:
             raise ValueError(
                 'Outputs from confound regression must be in commonspace to run group-ICA. Try running confound regression again without --nativespace_analysis.')
         group_ICA = pe.Node(Function(input_names=['bold_file_list', 'mask_file', 'dim', 'random_seed', 'background_image', 'disableMigp'],
