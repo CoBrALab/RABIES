@@ -366,7 +366,7 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
     node_dict = get_workflow_dict(preproc_workflow_file)
 
     match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
-                    'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.merge', 'out_file'],
+                    'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.bold_transform', 'resampled_file'],
                     'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.brain_mask_EPI', 'EPI_mask'],
                     'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
                     'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
@@ -384,7 +384,7 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
             match_targets[f'commonspace_{opt_key}'] = None
     
     if nativespace:
-        match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.merge', 'out_file'],
+        match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.bold_transform', 'resampled_file'],
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_EPI', 'EPI_mask'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],

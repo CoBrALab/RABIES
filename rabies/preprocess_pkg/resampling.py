@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
 )
 
 from .bold_ref import init_bold_reference_wf
-from rabies.utils import slice_applyTransforms, Merge
+from rabies.utils import ResampleTimeseries
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
     # resampling_head_start
@@ -80,14 +80,12 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask']),
         name='outputnode')
 
-    bold_transform = pe.Node(slice_applyTransforms(
-        rabies_data_type=opts.data_type), name='bold_transform', mem_gb=1*opts.scale_min_memory)
+    bold_transform = pe.Node(ResampleTimeseries(
+        rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
     bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
     bold_transform.inputs.interpolation = opts.interpolation
-
-    merge = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), name='merge', mem_gb=4*opts.scale_min_memory)
-    merge.plugin_args = {
+    bold_transform.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -118,17 +116,16 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     raw_brain_mask.inputs.mask = str(opts.brain_mask)
 
     workflow.connect([
-        (inputnode, merge, [('name_source', 'header_source')]),
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
             ('transforms_list', 'transforms'),
             ('inverses', 'inverses'),
-            ('ref_file', 'ref_file')
+            ('ref_file', 'ref_file'),
+            ('name_source', 'name_source'),
             ]),
-        (bold_transform, merge, [('out_files', 'in_files')]),
-        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
-        (merge, outputnode, [('out_file', 'bold')]),
+        (bold_transform, bold_reference_wf, [('resampled_file', 'inputnode.bold_file')]),
+        (bold_transform, outputnode, [('resampled_file', 'bold')]),
         (inputnode, raw_brain_mask, [
             ('raw_bold_ref', 'ref_EPI'),
             ('name_source', 'name_source'),
@@ -168,7 +165,7 @@ class MaskEPI(BaseInterface):
     def _run_interface(self, runtime):
         import os
         import SimpleITK as sitk
-        from rabies.utils import exec_applyTransforms
+        from rabies.utils import applyTransforms_3D
 
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(
@@ -180,7 +177,8 @@ class MaskEPI(BaseInterface):
         else:
             new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_spec}.nii.gz')
 
-        exec_applyTransforms(self.inputs.transforms, self.inputs.inverses, self.inputs.mask, self.inputs.ref_EPI, new_mask_path, interpolation='GenericLabel')
+        applyTransforms_3D(transforms = self.inputs.transforms, inverses = self.inputs.inverses, 
+                        input_image = self.inputs.mask, ref_image = self.inputs.ref_EPI, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
         sitk.WriteImage(sitk.ReadImage(
             new_mask_path, sitk.sitkInt16), new_mask_path)
 

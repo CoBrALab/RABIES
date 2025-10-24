@@ -268,12 +268,12 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             filename_split = pathlib.Path(
                 unbiased_template).name.rsplit(".nii")
             unbiased_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-            from rabies.utils import exec_applyTransforms
-            # resample the atlas brain mask to native space
+            from rabies.utils import applyTransforms_3D
             transform_list=[to_atlas_affine,to_atlas_inverse_warp]
             inverse_list=[1,0]
-            exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
-                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, interpolation='GenericLabel')
+            applyTransforms_3D(transforms = transform_list, inverses = inverse_list, 
+                            input_image = template_mask, ref_image = unbiased_template, output_filename = unbiased_mask, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
+            
             return unbiased_mask
 
         resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
@@ -556,10 +556,10 @@ def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine
     filename_split = pathlib.Path(
         native_ref).name.rsplit(".nii")
     native_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-    from rabies.utils import exec_applyTransforms
+    from rabies.utils import applyTransforms_3D
     # resample the atlas brain mask to native space
-    exec_applyTransforms(transforms = commonspace_to_native_transform_list, inverses = commonspace_to_native_inverse_list, 
-        input_image = atlas_mask, ref_image = native_ref, output_image = native_mask, interpolation='GenericLabel')
+    applyTransforms_3D(transforms = commonspace_to_native_transform_list, inverses = commonspace_to_native_inverse_list, 
+                       input_image = atlas_mask, ref_image = native_ref, output_filename = native_mask, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
 
     return native_mask, native_to_commonspace_transform_list,native_to_commonspace_inverse_list,commonspace_to_native_transform_list,commonspace_to_native_inverse_list
 
