@@ -3,74 +3,10 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
-
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
-
-class PrepMasksInputSpec(BaseInterfaceInputSpec):
-    mask_dict_list = traits.List(
-        exists=True, mandatory=True, desc="Brain mask.")
-    prior_maps = File(exists=True, mandatory=True,
-                      desc="MELODIC ICA components to use.")
-    DSURQE_regions = traits.Bool(
-        desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
-
-
-class PrepMasksOutputSpec(TraitedSpec):
-    mask_file_dict = traits.Dict(
-        desc="A dictionary regrouping the all required accompanying files.")
-
-
-class PrepMasks(BaseInterface):
-    """
-
-    """
-
-    input_spec = PrepMasksInputSpec
-    output_spec = PrepMasksOutputSpec
-
-    def _run_interface(self, runtime):
-        from rabies.utils import flatten_list,resample_image_spacing
-        merged = flatten_list(list(self.inputs.mask_dict_list))
-        mask_dict = merged[0]  # all mask files are assumed to be identical
-        brain_mask_file = mask_dict['mask_file']
-        WM_mask_file = mask_dict['WM_mask_file']
-        CSF_mask_file = mask_dict['CSF_mask_file']
-
-        # resample the template to the EPI dimensions
-        resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(
-            brain_mask_file).GetSpacing())
-        template_file = os.path.abspath('display_template.nii.gz')
-        sitk.WriteImage(resampled, template_file)
-
-        if self.inputs.DSURQE_regions:
-            if 'XDG_DATA_HOME' in os.environ.keys():
-                rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
-            else:
-                rabies_path = os.environ['HOME']+'/.local/share/rabies'
-            right_hem_mask_file = diagnosis_functions.resample_mask(rabies_path+'/DSURQE_40micron_right_hem_mask.nii.gz',
-                                                brain_mask_file)
-            left_hem_mask_file = diagnosis_functions.resample_mask(rabies_path+'/DSURQE_40micron_left_hem_mask.nii.gz',
-                                               brain_mask_file)
-        else:
-            right_hem_mask_file = ''
-            left_hem_mask_file = ''
-
-        from rabies.analysis_pkg.analysis_functions import resample_IC_file
-        prior_maps = resample_IC_file(self.inputs.prior_maps, brain_mask_file)
-
-        edge_mask_file = os.path.abspath('edge_mask.nii.gz')
-        diagnosis_functions.compute_edge_mask(brain_mask_file, edge_mask_file, num_edge_voxels=1)
-        mask_file_dict = {'template_file': template_file, 'brain_mask': brain_mask_file, 'WM_mask': WM_mask_file, 'CSF_mask': CSF_mask_file,
-                          'edge_mask': edge_mask_file, 'right_hem_mask': right_hem_mask_file, 'left_hem_mask': left_hem_mask_file, 'prior_maps': prior_maps}
-
-        setattr(self, 'mask_file_dict', mask_file_dict)
-        return runtime
-
-    def _list_outputs(self):
-        return {'mask_file_dict': getattr(self, 'mask_file_dict')}
 
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):

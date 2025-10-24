@@ -20,7 +20,6 @@ confound_correction:
     --highpass/lowpass/edge_cutoff; since filtering doesn't work with 3 timepoints
 
 analysis:
-    --prior_maps: not available for token data
     --ROI_csv: no such file for token data
     --ROI_type parcellated: no parcellation for token data
     --seed_prior_list: not available for token data
@@ -60,7 +59,7 @@ def get_parser():
             "   --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz  \ \n"
             "   --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \ \n"
             "   --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \ \n"
-            "   --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16 \n"
+            "   --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \n"
         )
     
     return parser
@@ -76,17 +75,17 @@ else:
 generate_token_data(tmppath, number_scans=3)
 
 if not opts.custom is None:
-    minimal_preproc = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+    minimal_preproc = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-        --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16"
-    minimal_cc = f"rabies --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs"
+        --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995"
+    minimal_cc = f"rabies --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs"
 
     import sys
     command = opts.custom
     if 'preprocess' in command:
         command += f" --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16"
+    --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995"
         command += f" {tmppath}/inputs {tmppath}/outputs"
 
     if 'confound_correction' in command or 'analysis' in command:
@@ -131,9 +130,9 @@ def repeat_attempts(command, number_attempts=3):
                 raise ValueError("All retries failed. Crashing now.")
             
 
-command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16 --bold_only --detect_dummy \
+    --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --bold_only --detect_dummy \
     --tpattern seq-z --apply_STC --voxelwise_motion --isotropic_HMC --interp_method linear --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 1x1x1 --oblique2card 3dWarp"
 process = subprocess.run(
     command,
@@ -141,9 +140,9 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=true,brain_extraction=true,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16  \
+    --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=true,brain_extraction=true,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
     --HMC_option 0 --apply_despiking --anat_autobox --bold_autobox --oblique2card affine --log_transform"
 process = subprocess.run(
     command,
@@ -151,7 +150,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list aCompCor_5 --nativespace_analysis"
+command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list aCompCor_5 --nativespace_analysis"
 process = subprocess.run(
     command,
     check=True,
@@ -159,7 +158,7 @@ process = subprocess.run(
     )
 
 # testing --data_diagnosis in native space
-command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1"
+command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --seed_list {tmppath}/inputs/token_mask_half.nii.gz --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1"
 process = subprocess.run(
     command,
     check=True,
@@ -168,13 +167,13 @@ process = subprocess.run(
 
 if opts.complete:
     ####CONFOUND CORRECTION####
-    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs \
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs \
         --generate_CR_null --TR 1 --scale_variance_voxelwise \
         --smoothing_filter 0.3 --detrending_order quadratic --image_scaling global_variance "
     repeat_attempts(command, number_attempts=3)
 
     # testing censoring on its own, since it removes all scans and prevent further testing
-    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --frame_censoring FD_censoring=true,FD_threshold=0.05,DVARS_censoring=true,minimum_timepoint=3 --timeseries_interval 2,12"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --frame_censoring FD_censoring=true,FD_threshold=0.05,DVARS_censoring=true,minimum_timepoint=3 --timeseries_interval 2,12"
     process = subprocess.run(
         command,
         check=True,
@@ -182,7 +181,7 @@ if opts.complete:
         )
 
     # testing AROMA on its own to retain degrees of freedom
-    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --ica_aroma apply=true,dim=2,random_seed=1"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --ica_aroma apply=true,dim=2,random_seed=1"
     process = subprocess.run(
         command,
         check=True,
@@ -190,7 +189,7 @@ if opts.complete:
         )
 
     # testing --conf_list on its own to retain degrees of freedom
-    command = f"rabies --force --verbose 1 confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs \
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs \
         --conf_list mot_24 aCompCor_percent global_signal"
     repeat_attempts(command, number_attempts=3)
 
@@ -205,9 +204,9 @@ if opts.complete:
         )
 
     ####GROUP LEVEL, RUNNING ALL 3 SCANS####
-    command = f"rabies --force --verbose 1 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+    command = f"rabies --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-        --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --data_type int16  \
+        --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
         --HMC_option 0"
     process = subprocess.run(
         command,
@@ -215,7 +214,7 @@ if opts.complete:
         shell=True,
         )
 
-    command = f"rabies --force --verbose 1 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list mot_6"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list mot_6"
     process = subprocess.run(
         command,
         check=True,
@@ -233,7 +232,7 @@ if opts.complete:
 
     # test for the scan QC thresholds
     scan_QC="'{DR:{Dice:[0.5],Conf:[0.1],Amp:true},SBC:{Dice:[0.3]}}'"
-    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 --prior_confound_idx 0 1 \
+    command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 --prior_confound_idx 0 1 \
         --data_diagnosis --extended_QC --scan_QC_thresholds {scan_QC}"
     process = subprocess.run(
         command,
@@ -242,7 +241,7 @@ if opts.complete:
         )
 
     # test group ICA
-    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
+    command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
     process = subprocess.run(
         command,
         check=True,

@@ -57,36 +57,41 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ]),
         ])
 
-
-    # prepare analysis workflow
-    analysis_output = os.path.abspath(str(analysis_opts.output_dir))
-    commonspace_bold = not cr_opts.nativespace_analysis
-    analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold)
-
-    # prepare analysis datasink
-    analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container="analysis_datasink"),
-                                name="analysis_datasink")
-    if analysis_opts.FC_matrix:
-        if os.path.isfile(str(analysis_opts.ROI_csv)):
-            analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
-
-    data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container="data_diagnosis_datasink"),
-                                name="data_diagnosis_datasink")
-
-    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps', 'transform_list','inverse_list', 'name_source'],
+    load_maps_dict_node = pe.Node(Function(input_names=['opts', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 
+                                                        'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source'],
                                            output_names=[
-                                               'maps_dict_file'],
+                                               'maps_dict_file', 'template_file'],
                                        function=load_maps_dict),
                               name='load_maps_dict_node')
+    load_maps_dict_node.inputs.opts = analysis_opts
     load_maps_dict_node.inputs.atlas_ref = preprocess_opts.labels
     if not os.path.isfile(str(analysis_opts.prior_maps)):
         raise ValueError("--prior_maps doesn't exists.")
     else:
         load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
 
+    # prepare seeds
+    seed_dict = {}
+    seed_name_list = []
+    for file in analysis_opts.seed_list:
+        file = os.path.abspath(file)
+        if not os.path.isfile(file):
+            raise ValueError(
+                f"Provide seed file path {file} doesn't exists.")
+        seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
+        seed_name_list.append(seed_name)
+        seed_dict[seed_name] = file
+    analysis_opts.seed_name_list = seed_name_list # store for developing iterables later
+    load_maps_dict_node.inputs.seed_dict = seed_dict
+
+    # an interface to prevent the deletion of the template_file, which is an entry of maps_dict_file
+    hold_template_file = pe.Node(niu.IdentityInterface(fields=['template_file']),
+                         name="hold_template_file")
+    workflow.connect([
+        (load_maps_dict_node, hold_template_file, [
+            ("template_file", "template_file"),
+            ]),
+        ])
 
     load_sub_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
                                            output_names=[
@@ -113,6 +118,24 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          name='analysis_split_joinnode',
                                          joinsource='main_split',
                                          joinfield=['file_list'])
+
+    # prepare analysis workflow
+    analysis_output = os.path.abspath(str(analysis_opts.output_dir))
+    commonspace_bold = not cr_opts.nativespace_analysis
+    analysis_wf = init_analysis_wf(
+        opts=analysis_opts, commonspace_cr=commonspace_bold)
+
+    # prepare analysis datasink
+    analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                         container="analysis_datasink"),
+                                name="analysis_datasink")
+    if analysis_opts.FC_matrix:
+        if os.path.isfile(str(analysis_opts.ROI_csv)):
+            analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
+
+    data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                         container="data_diagnosis_datasink"),
+                                name="data_diagnosis_datasink")
 
     if commonspace_bold or preprocess_opts.bold_only:
         split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
@@ -244,15 +267,15 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
 # this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces for nativespace analyses
 # in the case of commonspace, this node only runs once, hence saving computations
-def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, 
-                   prior_maps, transform_list, inverse_list, name_source):
+def load_maps_dict(opts, mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, 
+                   seed_dict, prior_maps, transform_list, inverse_list, name_source):
     import pickle
     import numpy as np
     import SimpleITK as sitk
     import os
     import pathlib  # Better path manipulation
-    from rabies.utils import resample_image_spacing
-    from rabies.analysis_pkg.utils import resample_prior_maps, compute_edge_mask
+    from rabies.utils import resample_image_spacing, applyTransforms_4D, applyTransforms_3D
+    from rabies.analysis_pkg.utils import compute_edge_mask
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
     volume_indices = mask_array.astype(bool)
@@ -280,8 +303,20 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
     sitk.WriteImage(resampled, template_file)
 
-    resampled_maps = resample_prior_maps(prior_maps, mask_file, transforms = transform_list, inverses = inverse_list)
+    resampled_4D_img = applyTransforms_4D(in_file=prior_maps, ref_file=template_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
+                                          motcorr_affine_list=None, interpolation=opts.interpolation, rabies_data_type=opts.data_type, clip_negative=False)
+    resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
+
+    # resample each seed into the right space and then load the seed as an array
+    seed_arr_dict = {}
+    seed_name_list = list(seed_dict.keys())
+    for seed_name in seed_name_list:
+        seed_file = seed_dict[seed_name]
+        resampled_seed_file = os.path.abspath(f'{seed_name}_resampled.nii.gz')
+        applyTransforms_3D(transforms = transform_list, inverses = inverse_list, 
+                        input_image = seed_file, ref_image = template_file, output_filename = resampled_seed_file, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+        seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
 
     # prepare the list ROI numbers from the atlas for FC matrices
     # get the complete set of original ROI integers 
@@ -296,14 +331,14 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
     maps_dict = {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx,
                  'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 
-                 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
+                 'seed_arr_dict':seed_arr_dict, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
     
     filename_split = pathlib.Path(name_source).name.rsplit(".nii")
     maps_dict_file = os.path.abspath(f'{filename_split[0]}_maps_dict.pkl')
     with open(maps_dict_file, 'wb') as handle:
         pickle.dump(maps_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return maps_dict_file
+    return maps_dict_file, template_file # the template file need to be an output, or it will be deleted
 
 
 # this function loads subject-specific data

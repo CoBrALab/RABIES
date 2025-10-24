@@ -64,6 +64,17 @@ def execute_workflow(args=None, return_workflow=False):
            Either an inclusion list (--inclusion_ids) or exclusion list (--exclusion_ids)
            can be provided, not both.
            """)
+    
+    if str(opts.data_type) == 'int16':
+        opts.data_type = sitk.sitkInt16
+    elif str(opts.data_type) == 'int32':
+        opts.data_type = sitk.sitkInt32
+    elif str(opts.data_type) == 'float32':
+        opts.data_type = sitk.sitkFloat32
+    elif str(opts.data_type) == 'float64':
+        opts.data_type = sitk.sitkFloat64
+    else:
+        raise ValueError('Invalid --data_type provided.')
 
     if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)
@@ -152,17 +163,6 @@ def preprocess(opts, log):
     else:
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(opts.bids_dir))
-
-    if str(opts.data_type) == 'int16':
-        opts.data_type = sitk.sitkInt16
-    elif str(opts.data_type) == 'int32':
-        opts.data_type = sitk.sitkInt32
-    elif str(opts.data_type) == 'float32':
-        opts.data_type = sitk.sitkFloat32
-    elif str(opts.data_type) == 'float64':
-        opts.data_type = sitk.sitkFloat64
-    else:
-        raise ValueError('Invalid --data_type provided.')
     
     # if the default template is not used, then brain mask input is required, 
     # and other optional files are set to None if no input was provided 

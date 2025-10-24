@@ -30,25 +30,11 @@ def init_analysis_wf(opts, commonspace_cr=False, name="analysis_wf"):
         ])
 
     if len(opts.seed_list) > 0:
-        if not commonspace_cr:
-            raise ValueError(
-                'Outputs from confound regression must be in commonspace to run seed-based analysis. Try running confound regression again without --nativespace_analysis.')
-        seed_based_FC_node = pe.Node(Function(input_names=['dict_file', 'seed_dict', 'seed_name'],
+        seed_based_FC_node = pe.Node(Function(input_names=['dict_file', 'seed_name'],
                                               output_names=['corr_map_file', 'seed_timecourse_csv'],
                                               function=seed_based_FC),
                                      name='seed_based_FC', mem_gb=1*opts.scale_min_memory)
-        seed_dict = {}
-        name_list = []
-        for file in opts.seed_list:
-            file = os.path.abspath(file)
-            if not os.path.isfile(file):
-                raise ValueError(
-                    f"Provide seed file path {file} doesn't exists.")
-            seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
-            name_list.append(seed_name)
-            seed_dict[seed_name] = file
-        seed_based_FC_node.iterables = ('seed_name', name_list)
-        seed_based_FC_node.inputs.seed_dict = seed_dict
+        seed_based_FC_node.iterables = ('seed_name', opts.seed_name_list)
 
         # create a joinnode to provide also combined seed maps
         seed_FC_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['joined_corr_map_file', 'joined_seed_timecourse_csv']),

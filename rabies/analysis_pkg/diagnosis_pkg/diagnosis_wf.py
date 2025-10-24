@@ -3,7 +3,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
 
-from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, PrepMasks, DatasetDiagnosis
+from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, DatasetDiagnosis
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 

@@ -160,6 +160,22 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_execution.add_argument(
+        "--data_type", type=str, default='float32',
+        choices=['int16', 'int32', 'float32', 'float64'],
+        help=
+            "Specify data format outputs to control for file size.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "--interpolation", type=str, default='Linear',
+        help=
+            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
+            "for any image resampling operation conducted for this RABIES stage. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )    
 
 
     ####Preprocessing
@@ -277,14 +293,6 @@ def get_parser():
         help=
             "Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on\n"
             "these volumes if detected. Dummy volumes will be removed from the output preprocessed EPI.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        "--data_type", type=str, default='float32',
-        choices=['int16', 'int32', 'float32', 'float64'],
-        help=
-            "Specify data format outputs to control for file size.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -494,14 +502,6 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-    g_resampling.add_argument(
-        "--interpolation", type=str, default='Linear',
-        help=
-            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
-            "to resample preprocessed timeseries. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )    
 
     g_stc = preprocess.add_argument_group(
         title='STC Options', 

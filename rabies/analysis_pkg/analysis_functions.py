@@ -7,12 +7,12 @@ from .analysis_math import vcorrcoef,closed_form
 seed-based FC
 '''
 
-def seed_based_FC(dict_file, seed_dict, seed_name):
+def seed_based_FC(dict_file, seed_name):
     import os
     import numpy as np
     import SimpleITK as sitk
     import pathlib
-    from rabies.utils import run_command, recover_3D
+    from rabies.utils import recover_3D
     from rabies.analysis_pkg.analysis_math import vcorrcoef
 
     import pickle
@@ -21,13 +21,8 @@ def seed_based_FC(dict_file, seed_dict, seed_name):
     bold_file = data_dict['bold_file']
     mask_file = data_dict['mask_file']
     timeseries = data_dict['timeseries']
-    volume_indices = data_dict['volume_indices']
-
-    seed_file = seed_dict[seed_name]
-    resampled = os.path.abspath('resampled.nii.gz')
-    command=f'antsApplyTransforms -i {seed_file} -r {mask_file} -o {resampled} -n GenericLabel'
-    rc,c_out = run_command(command)
-    roi_mask = sitk.GetArrayFromImage(sitk.ReadImage(resampled))[volume_indices].astype(bool)
+    seed_arr_dict = data_dict['seed_arr_dict']
+    roi_mask = seed_arr_dict[seed_name].astype(bool)
 
     # extract the voxel timeseries within the mask, and take the mean ROI timeseries
     seed_timeseries = timeseries[:,roi_mask].mean(axis=1)
