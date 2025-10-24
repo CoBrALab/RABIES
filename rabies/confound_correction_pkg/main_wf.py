@@ -367,7 +367,7 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
 
     match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
                     'commonspace_bold':['main_wf.bold_main_wf.bold_commonspace_trans_wf.bold_transform', 'resampled_file'],
-                    'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.brain_mask_EPI', 'EPI_mask'],
+                    'commonspace_mask':['main_wf.bold_main_wf.bold_commonspace_trans_wf.brain_mask_resample', 'resampled_file'],
                     'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
                     'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
                     'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
@@ -379,13 +379,13 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
     for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
         opt_file = getattr(preprocess_opts, opt_key)
         if opt_file is not None:
-            match_targets[f'commonspace_{opt_key}'] = [f'main_wf.bold_main_wf.bold_commonspace_trans_wf.{opt_key}_EPI', 'EPI_mask']
+            match_targets[f'commonspace_{opt_key}'] = [f'main_wf.bold_main_wf.bold_commonspace_trans_wf.{opt_key}_resample', 'resampled_file']
         else: # None values are propagated
             match_targets[f'commonspace_{opt_key}'] = None
     
     if nativespace:
         match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.bold_transform', 'resampled_file'],
-                        'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_EPI', 'EPI_mask'],
+                        'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_resample', 'resampled_file'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_inverse_list'],
@@ -394,7 +394,7 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
         for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
             opt_file = getattr(preprocess_opts, opt_key)
             if opt_file is not None:
-                match_targets[f'native_{opt_key}'] = [f'main_wf.bold_main_wf.bold_native_trans_wf.{opt_key}_EPI', 'EPI_mask']
+                match_targets[f'native_{opt_key}'] = [f'main_wf.bold_main_wf.bold_native_trans_wf.{opt_key}_resample', 'resampled_file']
             else: # None values are propagated
                 match_targets[f'native_{opt_key}'] = None
 

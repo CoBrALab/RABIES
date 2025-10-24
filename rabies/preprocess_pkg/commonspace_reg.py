@@ -6,7 +6,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 from nipype.interfaces.io import DataSink
-from rabies.utils import run_command, flatten_list
+from rabies.utils import run_command, flatten_list, ResampleMask
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
@@ -262,25 +262,18 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
         PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
-        def resample_unbiased_mask(unbiased_template, template_mask,to_atlas_affine,to_atlas_inverse_warp):
-            import os
-            import pathlib  # Better path manipulation
-            filename_split = pathlib.Path(
-                unbiased_template).name.rsplit(".nii")
-            unbiased_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-            from rabies.utils import applyTransforms_3D
+        def prep_atlas_to_unbiased_transforms(to_atlas_affine,to_atlas_inverse_warp):
             transform_list=[to_atlas_affine,to_atlas_inverse_warp]
             inverse_list=[1,0]
-            applyTransforms_3D(transforms = transform_list, inverses = inverse_list, 
-                            input_image = template_mask, ref_image = unbiased_template, output_filename = unbiased_mask, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
-            
-            return unbiased_mask
-
-        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
+            return transform_list,inverse_list
+        atlas_to_unbiased_transforms_node = pe.Node(Function(input_names=['to_atlas_affine','to_atlas_inverse_warp'],
                                                 output_names=[
-                                                    'unbiased_mask'],
-                                                function=resample_unbiased_mask),
-                                        name='resample_unbiased_mask')
+                                                    'transform_list','inverse_list'],
+                                                function=prep_atlas_to_unbiased_transforms),
+                                        name='atlas_to_unbiased_transforms')
+
+        resample_unbiased_mask_node = pe.Node(ResampleMask(), name='resample_unbiased_mask')
+        resample_unbiased_mask_node.inputs.name_suffix = 'unbiased_mask_resampled'
 
         if brain_extraction and commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir', 'figure_format'],
@@ -315,18 +308,22 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             (generate_template, outputnode, [
                 ("unbiased_template", "unbiased_template"),
                 ]),
-            (generate_template, resample_unbiased_mask_node, [
-                ("unbiased_template", "unbiased_template"),
-                ]),
-            (template_inputnode, resample_unbiased_mask_node, [
-                ("template_mask", "template_mask"),
-                ]),
-            (atlas_reg, resample_unbiased_mask_node, [
+            (atlas_reg, atlas_to_unbiased_transforms_node, [
                 ("affine", "to_atlas_affine"),
                 ("inverse_warp", "to_atlas_inverse_warp"),
                 ]),
+            (atlas_to_unbiased_transforms_node, resample_unbiased_mask_node, [
+                ("transform_list", "transforms"),
+                ("inverse_list", "inverses"),
+                ]),
+            (generate_template, resample_unbiased_mask_node, [
+                ("unbiased_template", "ref_file"),
+                ]),
+            (template_inputnode, resample_unbiased_mask_node, [
+                ("template_mask", "mask_file"),
+                ]),
             (resample_unbiased_mask_node, outputnode, [
-                ("unbiased_mask", "unbiased_mask"),
+                ("resampled_file", "unbiased_mask"),
                 ]),
             (generate_template, PlotOverlap_Native2Unbiased_node, [
                 ("unbiased_template", "fixed"),

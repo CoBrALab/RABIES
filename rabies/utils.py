@@ -223,6 +223,51 @@ class ResampleTimeseries(BaseInterface):
         return {'resampled_file': getattr(self, 'resampled_file')}
 
 
+class ResampleMaskInputSpec(BaseInterfaceInputSpec):
+    mask_file = File(exists=True, mandatory=True,
+                desc="Input mask.")
+    ref_file = File(exists=True, mandatory=True,
+                   desc="Target file defining resampling space.")
+    transforms = traits.List(desc="List of transforms to resample the mask.")
+    inverses = traits.List(
+        desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
+    name_suffix = traits.Str(desc="Suffix added at the output file.")
+    name_source = File(exists=True, mandatory=True,
+                       desc='Reference file for prefix of the output file.')
+
+
+class ResampleMaskOutputSpec(TraitedSpec):
+    resampled_file = traits.File(desc="The resampled mask file.")
+
+
+class ResampleMask(BaseInterface):
+
+    input_spec = ResampleMaskInputSpec
+    output_spec = ResampleMaskOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        from rabies.utils import applyTransforms_3D
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(
+            self.inputs.name_source).name.rsplit(".nii")
+
+        if self.inputs.name_suffix is None:
+            new_mask_path = os.path.abspath(
+                f'{filename_split[0]}_resampled.nii.gz')
+        else:
+            new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_suffix}.nii.gz')
+
+        applyTransforms_3D(transforms = self.inputs.transforms, inverses = self.inputs.inverses, 
+                        input_image = self.inputs.mask_file, ref_image = self.inputs.ref_file, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+
+        setattr(self, 'resampled_file', new_mask_path)
+        return runtime
+
+    def _list_outputs(self):
+        return {'resampled_file': getattr(self, 'resampled_file')}
+
+
 def applyTransforms_4D(in_file, ref_file, transforms_3D = [], inverses_3D = [], motcorr_affine_list = None, interpolation='Linear', rabies_data_type=8, clip_negative=False):
     import SimpleITK as sitk
     import os
