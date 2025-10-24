@@ -76,9 +76,9 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
 
-    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps', 'transform_list','inverse_list'],
+    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps', 'transform_list','inverse_list', 'name_source'],
                                            output_names=[
-                                               'maps_dict'],
+                                               'maps_dict_file'],
                                        function=load_maps_dict),
                               name='load_maps_dict_node')
     load_maps_dict_node.inputs.atlas_ref = preprocess_opts.labels
@@ -88,7 +88,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
 
 
-    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
+    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
                                            output_names=[
                                                'dict_file'],
                                        function=load_sub_input_dict),
@@ -104,7 +104,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("input_bold", "name_source"),
             ]),
         (load_maps_dict_node, load_sub_dict_node, [
-            ("maps_dict", "maps_dict"),
+            ("maps_dict_file", "maps_dict_file"),
             ]),
         ])
 
@@ -123,6 +123,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
         load_maps_dict_node.inputs.transform_list = []
         load_maps_dict_node.inputs.inverse_list = []
+        load_maps_dict_node.inputs.name_source = 'commonspace.nii'
 
         analysis_wf.inputs.group_inputnode.commonspace_template = split_dict[split_name]["commonspace_resampled_template"]
 
@@ -142,6 +143,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("anat_preproc", "preprocess_anat_template"),
                 ("commonspace_to_native_transform_list", "transform_list"),
                 ("commonspace_to_native_inverse_list", "inverse_list"),
+                ("input_bold", "name_source"),
                 ]),
             (conf_outputnode, analysis_split_joinnode, [
                 ("native_brain_mask", "mask_file"),
@@ -240,8 +242,11 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     return workflow
 
 
-# this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
-def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps, transform_list, inverse_list):
+# this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces for nativespace analyses
+# in the case of commonspace, this node only runs once, hence saving computations
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, 
+                   prior_maps, transform_list, inverse_list, name_source):
+    import pickle
     import numpy as np
     import SimpleITK as sitk
     import os
@@ -289,17 +294,28 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
             if np.max(i == atlas_data):  # include integers that do have labelled voxels
                 roi_list.append(i)
 
-    return {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx, 
-            'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
+    maps_dict = {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx,
+                 'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 
+                 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
+    
+    filename_split = pathlib.Path(name_source).name.rsplit(".nii")
+    maps_dict_file = os.path.abspath(f'{filename_split[0]}_maps_dict.pkl')
+    with open(maps_dict_file, 'wb') as handle:
+        pickle.dump(maps_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return maps_dict_file
 
 
 # this function loads subject-specific data
-def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
+def load_sub_input_dict(maps_dict_file, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
     import pickle
     import pathlib
     import os
     import numpy as np
     import SimpleITK as sitk
+
+    with open(maps_dict_file, 'rb') as handle:
+        maps_dict = pickle.load(handle)
 
     volume_indices = maps_dict['volume_indices']
 
@@ -325,7 +341,7 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
     for k in maps_dict.keys():
         sub_dict[k] = maps_dict[k]
 
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    filename_split = pathlib.Path(name_source).name.rsplit(".nii")
     dict_file = os.path.abspath(f'{filename_split[0]}_data_dict.pkl')
     with open(dict_file, 'wb') as handle:
         pickle.dump(sub_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
