@@ -142,15 +142,15 @@ def copyInfo_3DImage(image_3d, ref_3d):
     return image_3d
 
 
-class ResampleTimeseriesInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
+class ResampleVolumesInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc="Input 3D or 4D file to resample")
     ref_file = File(exists=True, mandatory=True,
                     desc="The reference 3D space to which the EPI will be warped.")
     transforms = traits.List(desc="List of transforms to apply to every volume.")
     inverses = traits.List(
         desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(
-        default=True, desc="Whether to apply motion realignment.")
+        default=True, desc="Whether to apply motion realignment, only for 4D file.")
     motcorr_params = File(
         exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(
@@ -165,23 +165,22 @@ class ResampleTimeseriesInputSpec(BaseInterfaceInputSpec):
                                   desc="Integer specifying SimpleITK data type.")
 
 
-class ResampleTimeseriesOutputSpec(TraitedSpec):
+class ResampleVolumesOutputSpec(TraitedSpec):
     resampled_file = File(exists=True, desc='output 4D resampled file')
 
 
-class ResampleTimeseries(BaseInterface):
+class ResampleVolumes(BaseInterface):
     """
     This interface will apply a set of transforms to an input 4D EPI as well as motion realignment if specified.
     Susceptibility distortion correction can be applied through the provided transforms. A list of the corrected
     single volumes will be provided as outputs, and these volumes require to be merged to recover timeseries.
     """
 
-    input_spec = ResampleTimeseriesInputSpec
-    output_spec = ResampleTimeseriesOutputSpec
+    input_spec = ResampleVolumesInputSpec
+    output_spec = ResampleVolumesOutputSpec
 
     def _run_interface(self, runtime):
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
-        num_volumes = img.GetSize()[3]
         # preparing the resampling dimensions of the reference space
         if self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
             ref_file = self.inputs.ref_file
@@ -196,25 +195,33 @@ class ResampleTimeseries(BaseInterface):
             ref_file = os.path.abspath('resampled.nii.gz')
             sitk.WriteImage(resampled, ref_file)
 
-        if self.inputs.apply_motcorr:
-            motcorr_params = self.inputs.motcorr_params
-            motcorr_affine_list = []
-            for x in range(0, num_volumes):
-                motcorr_affine_f = os.path.abspath(f"motcorr_vol{x}.mat")
-                command = f'antsMotionCorrStats -m {motcorr_params} -o {motcorr_affine_f} -t {x}'
-                rc,c_out = run_command(command)
-                motcorr_affine_list+=[motcorr_affine_f]
-        else:
-            motcorr_affine_list = None
-
-        resampled_4D_img = applyTransforms_4D(self.inputs.in_file, ref_file, transforms_3D = self.inputs.transforms, inverses_3D = self.inputs.inverses, motcorr_affine_list = motcorr_affine_list, 
-                           interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
-        
+        # prepare output name
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")
         resampled_file = os.path.abspath(
             f"{filename_split[0]}_resampled.nii.gz")
-        sitk.WriteImage(resampled_4D_img, resampled_file)
+
+        if img.GetDimension()==3:
+            applyTransforms_3D(transforms = self.inputs.transforms, inverses = self.inputs.inverses, 
+                            input_image = self.inputs.in_file, ref_image = ref_file, output_filename = resampled_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
+                                        
+        elif img.GetDimension()==4:
+            num_volumes = img.GetSize()[3]
+
+            if self.inputs.apply_motcorr:
+                motcorr_params = self.inputs.motcorr_params
+                motcorr_affine_list = []
+                for x in range(0, num_volumes):
+                    motcorr_affine_f = os.path.abspath(f"motcorr_vol{x}.mat")
+                    command = f'antsMotionCorrStats -m {motcorr_params} -o {motcorr_affine_f} -t {x}'
+                    rc,c_out = run_command(command)
+                    motcorr_affine_list+=[motcorr_affine_f]
+            else:
+                motcorr_affine_list = None
+
+            resampled_4D_img = applyTransforms_4D(self.inputs.in_file, ref_file, transforms_3D = self.inputs.transforms, inverses_3D = self.inputs.inverses, motcorr_affine_list = motcorr_affine_list, 
+                            interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
+            sitk.WriteImage(resampled_4D_img, resampled_file)
 
         setattr(self, 'resampled_file', resampled_file)
         return runtime

@@ -47,7 +47,8 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
         FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, 
         native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
-        anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None):
+        anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
+        native_to_commonspace_transform_list=None, native_to_commonspace_inverse_list=None):
         return
     buffer_outputnode_node = pe.Node(Function(input_names=target_list,
                                            output_names=[],
@@ -268,11 +269,14 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
             directory_list+=[['transforms_datasink','native_to_atlas_affine']]
             if atlas_reg_script=='SyN':
                 directory_list+=[['transforms_datasink','native_to_atlas_inverse_warp']]
+                directory_list+=[['transforms_datasink','native_to_atlas_warp']]
         else:
             directory_list+=[['transforms_datasink','unbiased_to_atlas_affine'], 
-                ['transforms_datasink','native_to_unbiased_affine'], ['transforms_datasink','native_to_unbiased_inverse_warp']]
+                ['transforms_datasink','native_to_unbiased_affine'], ['transforms_datasink','native_to_unbiased_inverse_warp'],
+                ['transforms_datasink','native_to_unbiased_warp']]
             if atlas_reg_script=='SyN':
                 directory_list+=[['transforms_datasink','unbiased_to_atlas_inverse_warp']]
+                directory_list+=[['transforms_datasink','unbiased_to_atlas_warp']]
 
         from bids.layout import parse_file_entities
         for datasink,target in directory_list:
@@ -286,7 +290,7 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
             file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
             for split in split_name:
                 # for the unbiased to atlas transforms it is not subject-specific
-                if target in ['unbiased_to_atlas_affine', 'unbiased_to_atlas_inverse_warp']:
+                if target in ['unbiased_to_atlas_affine', 'unbiased_to_atlas_inverse_warp', 'unbiased_to_atlas_warp']:
                     if not len(file_list)==1:
                         raise ValueError(f"There should be only a single transform from unbiased to atlas space. Instead there is {file_list}.")
                     split_dict[split][target]=file_list[0]
@@ -316,36 +320,53 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
                 to_atlas_affine = split_dict[split]['native_to_atlas_affine']
                 if atlas_reg_script=='SyN':
                     to_atlas_inverse_warp = split_dict[split]['native_to_atlas_inverse_warp']
+                    to_atlas_warp = split_dict[split]['native_to_atlas_warp']
                     commonspace_to_native_transform_list=[to_atlas_affine,to_atlas_inverse_warp]
                     commonspace_to_native_inverse_list=[1,0]
+                    native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine]
+                    native_to_commonspace_inverse_list=[0,0]
                 else:
                     commonspace_to_native_transform_list=[to_atlas_affine]
                     commonspace_to_native_inverse_list=[1]
+                    native_to_commonspace_transform_list=[to_atlas_affine]
+                    native_to_commonspace_inverse_list=[0]
             else:
                 native_to_unbiased_inverse_warp = split_dict[split]['native_to_unbiased_inverse_warp']
+                native_to_unbiased_warp = split_dict[split]['native_to_unbiased_warp']
                 native_to_unbiased_affine = split_dict[split]['native_to_unbiased_affine']
                 to_atlas_affine = split_dict[split]['unbiased_to_atlas_affine']
                 if atlas_reg_script=='SyN':
                     to_atlas_inverse_warp = split_dict[split]['unbiased_to_atlas_inverse_warp']
+                    to_atlas_warp = split_dict[split]['unbiased_to_atlas_warp']
                     commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine,to_atlas_inverse_warp]
                     commonspace_to_native_inverse_list=[1,0,1,0]
+                    native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine,native_to_unbiased_warp,native_to_unbiased_affine]
+                    native_to_commonspace_inverse_list=[0,0,0,0]
                 else:
                     commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine]
                     commonspace_to_native_inverse_list=[1,0,1]
+                    native_to_commonspace_transform_list=[to_atlas_affine,native_to_unbiased_warp,native_to_unbiased_affine]
+                    native_to_commonspace_inverse_list=[0,0,0]
 
             split_dict[split]['commonspace_to_native_transform_list'] = commonspace_to_native_transform_list
             split_dict[split]['commonspace_to_native_inverse_list'] = commonspace_to_native_inverse_list
+            split_dict[split]['native_to_commonspace_transform_list'] = native_to_commonspace_transform_list
+            split_dict[split]['native_to_commonspace_inverse_list'] = native_to_commonspace_inverse_list
         target_list += ['commonspace_to_native_transform_list', 'commonspace_to_native_inverse_list']
+        target_list += ['native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']
 
         if fast_commonspace:
             if atlas_reg_script=='SyN':
                 target_list.remove('native_to_atlas_inverse_warp')
+                target_list.remove('native_to_atlas_warp')
             target_list.remove('native_to_atlas_affine')
         else:
             target_list.remove('native_to_unbiased_inverse_warp')
+            target_list.remove('native_to_unbiased_warp')
             target_list.remove('native_to_unbiased_affine')
             if atlas_reg_script=='SyN':
                 target_list.remove('unbiased_to_atlas_inverse_warp')
+                target_list.remove('unbiased_to_atlas_warp')
             target_list.remove('unbiased_to_atlas_affine')
 
     return split_dict, split_name, target_list
@@ -389,6 +410,8 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_inverse_list'],
+                        'native_to_commonspace_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'native_to_commonspace_transform_list'],
+                        'native_to_commonspace_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'native_to_commonspace_inverse_list'],
                         })
         # these parameters may be empty
         for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:

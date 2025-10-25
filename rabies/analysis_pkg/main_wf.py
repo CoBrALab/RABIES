@@ -132,12 +132,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                     name="nativespace_analysis_datasink")
         main_analysis_datasink = nativespace_analysis_datasink
 
-    else:
+    if analysis_opts.resample_to_commonspace or not cr_opts.nativespace_analysis:
         # prepare analysis datasink for commonspace computations OR nativespace computations resampled to commonspace
         commonspace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                             container="commonspace_analysis_datasink"),
                                     name="commonspace_analysis_datasink")
-        main_analysis_datasink = commonspace_analysis_datasink
+        if not cr_opts.nativespace_analysis:
+            main_analysis_datasink = commonspace_analysis_datasink
 
     if analysis_opts.FC_matrix:
         if os.path.isfile(str(analysis_opts.ROI_csv)):
@@ -215,6 +216,59 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.group_ICA_dir", "group_ICA_dir"),
                 ]),
             ])
+
+    # handling the resampling of nativespace computations into commonspace outputs        
+    if cr_opts.nativespace_analysis and analysis_opts.resample_to_commonspace:
+        from rabies.utils import ResampleVolumes
+        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
+        commonspace_ref_file = split_dict[split_name]["commonspace_resampled_template"]
+
+        if len(analysis_opts.seed_list)>0:
+            '''
+            SBC
+            '''
+            SBC_transform_node = pe.Node(ResampleVolumes(
+                ref_file = commonspace_ref_file, resampling_dim='ref_file', interpolation=analysis_opts.interpolation,
+                rabies_data_type=analysis_opts.data_type, apply_motcorr=False, clip_negative=False), 
+                name='SBC_to_commonspace')
+            
+            workflow.connect([
+                (conf_outputnode, SBC_transform_node, [
+                    ("native_to_commonspace_transform_list", "transforms"),
+                    ("native_to_commonspace_inverse_list", "inverses"),
+                    ]),
+                (analysis_wf, SBC_transform_node, [
+                    ("outputnode.corr_map_file", "in_file"),
+                    ("outputnode.corr_map_file", "name_source"),
+                    ]),
+                (SBC_transform_node, commonspace_analysis_datasink, [
+                    ("resampled_file", "seed_correlation_maps_resampled"),
+                    ]),
+                ])
+
+        if analysis_opts.DR_ICA:
+            '''
+            Dual regression
+            '''
+            DR_transform_node = pe.Node(ResampleVolumes(
+                ref_file = commonspace_ref_file, resampling_dim='ref_file', interpolation=analysis_opts.interpolation,
+                rabies_data_type=analysis_opts.data_type, apply_motcorr=False, clip_negative=False), 
+                name='DR_to_commonspace')
+            
+            workflow.connect([
+                (conf_outputnode, DR_transform_node, [
+                    ("native_to_commonspace_transform_list", "transforms"),
+                    ("native_to_commonspace_inverse_list", "inverses"),
+                    ]),
+                (analysis_wf, DR_transform_node, [
+                    ("outputnode.DR_nii_file", "in_file"),
+                    ("outputnode.DR_nii_file", "name_source"),
+                    ]),
+                (DR_transform_node, commonspace_analysis_datasink, [
+                    ("resampled_file", "dual_regression_nii_resampled"),
+                    ]),
+                ])
+
 
     if analysis_opts.data_diagnosis:
 
@@ -437,6 +491,8 @@ def read_confound_workflow(conf_output, nativespace=False):
                         'anat_preproc':[preproc_outputnode_name, 'anat_preproc'],
                         'commonspace_to_native_transform_list':[preproc_outputnode_name, 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':[preproc_outputnode_name, 'commonspace_to_native_inverse_list'],
+                        'native_to_commonspace_transform_list':[preproc_outputnode_name, 'native_to_commonspace_transform_list'],
+                        'native_to_commonspace_inverse_list':[preproc_outputnode_name, 'native_to_commonspace_inverse_list'],
                         })
 
     split_dict = {}

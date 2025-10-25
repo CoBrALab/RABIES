@@ -2,7 +2,7 @@ from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
 from .bold_ref import init_bold_reference_wf
-from rabies.utils import ResampleTimeseries,ResampleMask
+from rabies.utils import ResampleVolumes,ResampleMask
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
     # resampling_head_start
@@ -76,7 +76,7 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask']),
         name='outputnode')
 
-    bold_transform = pe.Node(ResampleTimeseries(
+    bold_transform = pe.Node(ResampleVolumes(
         rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
     bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim

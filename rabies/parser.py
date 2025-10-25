@@ -842,6 +842,15 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        "--resample_to_commonspace", dest='resample_to_commonspace', action='store_true',
+        help=
+            "If the input cleaned timeseries are in nativespace, meaning that connectivity is computed in nativespace, \n"
+            "this option will resample analysis outputs into commonspace (both nativespace and commonspace versions \n"
+            "are thus generated).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         '--prior_maps', action='store', type=Path,
         default=run_main.DSURQE_ICA,
         help=
