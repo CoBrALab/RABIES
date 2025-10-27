@@ -19,7 +19,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
-    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, nativespace=cr_opts.nativespace_analysis)
+    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts)
 
     if len(split_name_list)==0:
         raise ValueError(f"""
@@ -28,6 +28,10 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             when applying --frame_censoring. Outputs will be named empty.nii.gz if this is 
             the case.
             """)
+
+    if analysis_opts.group_ica['apply'] and cr_opts.nativespace_analysis and not cr_opts.resample_to_commonspace:
+        raise ValueError(
+            'No commonspace timeseries are found for running group-ICA. Try applying --resample_to_commonspace to generate these timeseries when using --nativespace_analysis.')
 
     if analysis_opts.data_diagnosis and cr_opts.nativespace_analysis:
         analysis_opts.resample_to_commonspace = True # resampling to common is necessary for --data_diagnosis report
@@ -96,13 +100,19 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                     name="nativespace_analysis_datasink")
         main_analysis_datasink = nativespace_analysis_datasink
 
-    if analysis_opts.resample_to_commonspace or not cr_opts.nativespace_analysis:
+    if analysis_opts.resample_to_commonspace or not cr_opts.nativespace_analysis or analysis_opts.group_ica['apply']:
         # prepare analysis datasink for commonspace computations OR nativespace computations resampled to commonspace
         commonspace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                             container="commonspace_analysis_datasink"),
                                     name="commonspace_analysis_datasink")
         if not cr_opts.nativespace_analysis:
             main_analysis_datasink = commonspace_analysis_datasink
+        if analysis_opts.group_ica['apply']:
+            workflow.connect([
+                (analysis_wf, commonspace_analysis_datasink, [
+                    ("outputnode.group_ICA_dir", "group_ICA_dir"),
+                    ]),
+                ])
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
@@ -128,7 +138,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("CR_dict_file", "subject_inputnode.CR_dict_file"),
             ]),
         (conf_outputnode, analysis_split_joinnode, [
-            ("cleaned_path", "file_list"),
+            ("commonspace_mask", "mask_file"),
             ]),
         (analysis_split_joinnode, analysis_wf, [
             ("file_list", "group_inputnode.bold_file_list"),
@@ -229,17 +239,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     if not cr_opts.nativespace_analysis:
         workflow.connect([
             (conf_outputnode, analysis_split_joinnode, [
-                ("commonspace_mask", "mask_file"),
-                ]),
-            (analysis_wf, commonspace_analysis_datasink, [
-                ("outputnode.group_ICA_dir", "group_ICA_dir"),
+                ("cleaned_path", "file_list"),
                 ]),
             ])
-
-    else:
+    elif cr_opts.resample_to_commonspace:
         workflow.connect([
             (conf_outputnode, analysis_split_joinnode, [
-                ("native_brain_mask", "mask_file"),
+                ("cleaned_timeseries_commonspace", "file_list"),
                 ]),
             ])
 
@@ -454,7 +460,7 @@ def load_CR_input_dict(maps_dict_file, cleaned_bold_file, CR_data_dict, VE_file,
     return CR_dict_file
 
 
-def read_confound_workflow(conf_output, nativespace=False):
+def read_confound_workflow(conf_output, cr_opts):
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
 
@@ -482,7 +488,7 @@ def read_confound_workflow(conf_output, nativespace=False):
                     'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
                     }
 
-    if nativespace:
+    if cr_opts.nativespace_analysis:
         match_targets.update({'native_bold':[preproc_outputnode_name, 'native_bold'],
                         'native_bold_ref':[preproc_outputnode_name, 'native_bold_ref'],
                         'native_brain_mask':[preproc_outputnode_name, 'native_brain_mask'],
@@ -494,6 +500,9 @@ def read_confound_workflow(conf_output, nativespace=False):
                         'commonspace_to_native_inverse_list':[preproc_outputnode_name, 'commonspace_to_native_inverse_list'],
                         'native_to_commonspace_transform_list':[preproc_outputnode_name, 'native_to_commonspace_transform_list'],
                         'native_to_commonspace_inverse_list':[preproc_outputnode_name, 'native_to_commonspace_inverse_list'],
+                        })
+        if cr_opts.resample_to_commonspace:
+            match_targets.update({'cleaned_timeseries_commonspace':['confound_correction_main_wf.cleaned_bold_to_commonspace', 'resampled_file'],
                         })
 
     split_dict = {}

@@ -651,6 +651,15 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
+        "--resample_to_commonspace", dest='resample_to_commonspace', action='store_true',
+        help=
+            "If using --nativespace_analysis, use this parameter to also generate cleaned timeseries \n"
+            "resampled to commonspace after denoising is carried in nativespace. \n"
+            "Using this option is necessary to enable group ICA at the analysis stage after using --nativespace_analysis.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
         '--image_scaling', type=str,
         default="grand_mean_scaling",
         choices=["None", "global_variance", "voxelwise_standardization", 
