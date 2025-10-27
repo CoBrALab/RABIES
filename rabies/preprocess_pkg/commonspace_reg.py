@@ -321,6 +321,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                 ]),
             (template_inputnode, resample_unbiased_mask_node, [
                 ("template_mask", "mask_file"),
+                ("template_mask", "name_source"),
                 ]),
             (resample_unbiased_mask_node, outputnode, [
                 ("resampled_file", "unbiased_mask"),

@@ -10,7 +10,9 @@ from nipype.interfaces.base import (
 
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
+    CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
+    common_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the commonspace")
+    sub_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the subject' space, either native or common.")
     analysis_dict = traits.Dict(
         desc="A dictionary regrouping relevant outputs from analysis.")
     prior_bold_idx = traits.List(
@@ -21,6 +23,16 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
     figure_format = traits.Str(
         desc="Select file format for figures.")
+    nativespace_analysis = traits.Bool(
+        desc="Whether input timeseries are in nativespace.")
+    native_to_common_transforms = traits.List(
+        desc="Transforms to move nativespace computations to commonspace")
+    native_to_common_inverses = traits.List(
+        desc="Inverses to move nativespace computations to commonspace")
+    interpolation = traits.Str(
+        desc="Select the interpolator for antsApplyTransform.")
+    rabies_data_type = traits.Int(
+        desc="Integer specifying SimpleITK data type.")
 
 
 class ScanDiagnosisOutputSpec(TraitedSpec):
@@ -49,8 +61,12 @@ class ScanDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         import pickle
-        with open(self.inputs.dict_file, 'rb') as handle:
-            data_dict = pickle.load(handle)
+        with open(self.inputs.CR_dict_file, 'rb') as handle:
+            CR_data_dict = pickle.load(handle)
+        with open(self.inputs.common_maps_dict_file, 'rb') as handle:
+            common_maps_data_dict = pickle.load(handle)
+        with open(self.inputs.sub_maps_dict_file, 'rb') as handle:
+            sub_maps_data_dict = pickle.load(handle)
 
         figure_format = self.inputs.figure_format
 
@@ -58,14 +74,25 @@ class ScanDiagnosis(BaseInterface):
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
-        temporal_info, spatial_info = diagnosis_functions.process_data(
-            data_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx)
+        if self.inputs.nativespace_analysis:
+            resampling_specs = {'transforms':self.inputs.native_to_common_transforms,
+                                'inverses':self.inputs.native_to_common_inverses,
+                                'interpolation':self.inputs.interpolation,
+                                'data_type':self.inputs.rabies_data_type,
+                                }
+        else:
+            resampling_specs = {}
 
-        fig, fig2 = diagnosis_functions.scan_diagnosis(data_dict, temporal_info,
+        temporal_info, spatial_info = diagnosis_functions.compute_spatiotemporal_features(
+            CR_data_dict, sub_maps_data_dict, common_maps_data_dict, self.inputs.analysis_dict, 
+            prior_bold_idx, prior_confound_idx,
+            nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
+
+        fig, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
                                    spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
-        filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
+        filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
         fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
         fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
@@ -147,7 +174,7 @@ class DatasetDiagnosis(BaseInterface):
                     out_dir_global)
             return runtime
 
-        template_file = merged[0]['template_file']
+        template_file = merged[0]['anat_ref_file']
         mask_file = merged[0]['mask_file']
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)

@@ -11,7 +11,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['dict_file', 'analysis_dict']), name='inputnode')
+        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
                                                        'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
@@ -25,16 +25,19 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
         prior_confound_idx=analysis_opts.prior_confound_idx,
             DSURQE_regions=DSURQE_regions,
             figure_format=analysis_opts.figure_format, 
+            nativespace_analysis=nativespace_analysis, 
+            interpolation=analysis_opts.interpolation,
+            rabies_data_type=analysis_opts.data_type,
             ),
         name='ScanDiagnosis')
 
-    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info', 'dict_file'],
+    temporal_external_formating_node = pe.Node(Function(input_names=['temporal_info'],
                                             output_names=[
                                                 'temporal_info_csv'],
                                         function=temporal_external_formating),
                                 name='temporal_external_formating')
 
-    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info', 'dict_file'],
+    spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info'],
                                             output_names=[
                                                 'VE_filename', 'std_filename', 'predicted_std_filename', 
                                                 'GS_corr_filename', 'GS_cov_filename'],
@@ -42,8 +45,12 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
                                 name='spatial_external_formating')
     workflow.connect([
         (inputnode, ScanDiagnosis_node, [
-            ("dict_file", "dict_file"),
+            ("CR_dict_file", "CR_dict_file"),
+            ("common_maps_dict_file", "common_maps_dict_file"),
+            ("sub_maps_dict_file", "sub_maps_dict_file"),
             ("analysis_dict", "analysis_dict"),
+            ("native_to_commonspace_transform_list", "native_to_common_transforms"),
+            ("native_to_commonspace_inverse_list", "native_to_common_inverses"),
             ]),
         (ScanDiagnosis_node, temporal_external_formating_node, [
             ("temporal_info", "temporal_info"),
@@ -72,10 +79,13 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
 
     if (not nativespace_analysis or preprocess_opts.bold_only) and not len(split_name_list)<3:
 
-        def prep_scan_data(dict_file, spatial_info, temporal_info):
+        # this function prepares a dictionary with necessary scan-level inputs for group diagnosis
+        def prep_scan_data(CR_dict_file, maps_dict_file, spatial_info, temporal_info):
             import pickle
-            with open(dict_file, 'rb') as handle:
-                data_dict = pickle.load(handle)
+            with open(CR_dict_file, 'rb') as handle:
+                CR_data_dict = pickle.load(handle)
+            with open(maps_dict_file, 'rb') as handle:
+                maps_data_dict = pickle.load(handle)
 
             scan_data={}
 
@@ -90,18 +100,18 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             scan_data['NPR_network_time'] = temporal_info['NPR_time']
             scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
-            scan_data['FD_trace'] = data_dict['CR_data_dict']['FD_trace']
-            scan_data['tDOF'] = data_dict['CR_data_dict']['tDOF']
-            scan_data['CR_global_std'] = data_dict['CR_data_dict']['CR_global_std']
-            scan_data['VE_total_ratio'] = data_dict['CR_data_dict']['VE_total_ratio']
-            scan_data['voxelwise_mean'] = data_dict['CR_data_dict']['voxelwise_mean']
+            scan_data['FD_trace'] = CR_data_dict['CR_data_dict']['FD_trace']
+            scan_data['tDOF'] = CR_data_dict['CR_data_dict']['tDOF']
+            scan_data['CR_global_std'] = CR_data_dict['CR_data_dict']['CR_global_std']
+            scan_data['VE_total_ratio'] = CR_data_dict['CR_data_dict']['VE_total_ratio']
+            scan_data['voxelwise_mean'] = CR_data_dict['CR_data_dict']['voxelwise_mean']
 
-            scan_data['name_source'] = data_dict['name_source']
-            scan_data['template_file'] = data_dict['template_file']
-            scan_data['mask_file'] = data_dict['mask_file']
+            scan_data['name_source'] = CR_data_dict['name_source']
+            scan_data['anat_ref_file'] = maps_data_dict['anat_ref_file']
+            scan_data['mask_file'] = maps_data_dict['mask_file']
             return scan_data
 
-        prep_scan_data_node = pe.Node(Function(input_names=['dict_file', 'spatial_info', 'temporal_info'],
+        prep_scan_data_node = pe.Node(Function(input_names=['CR_dict_file', 'maps_dict_file', 'spatial_info', 'temporal_info'],
                                             output_names=['scan_data'],
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
@@ -129,7 +139,8 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [
-                ("dict_file", "dict_file"),
+                ("CR_dict_file", "CR_dict_file"),
+                ("common_maps_dict_file", "maps_dict_file"),
                 ]),
             (ScanDiagnosis_node, prep_scan_data_node, [
                 ("spatial_info", "spatial_info"),

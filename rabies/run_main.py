@@ -184,6 +184,9 @@ def preprocess(opts, log):
             else:
                 opt_file = os.path.abspath(opt_file) # make sure we have absolute paths
             setattr(opts, opt_key, opt_file)
+    else:
+        opts.anat_template = os.path.abspath(opts.anat_template)
+        opts.brain_mask = os.path.abspath(opts.brain_mask)
 
     # if --bold_only, the default atlas files change to EPI versions
     if opts.bold_only:

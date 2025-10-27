@@ -45,7 +45,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     # so that it is saved in the workflow graph and can be read later during analysis
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
-        FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, 
+        FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, native_bold_ref=None, 
         native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
         anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
         native_to_commonspace_transform_list=None, native_to_commonspace_inverse_list=None):
@@ -233,7 +233,7 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
         directory_list+=[['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise']]
 
     if nativespace:
-        directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask']]
+        directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'], ['bold_datasink', 'native_bold_ref']]
         # these parameters may be empty
         for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
             opt_file = getattr(preprocess_opts, opt_key)
@@ -406,6 +406,7 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
     
     if nativespace:
         match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.bold_transform', 'resampled_file'],
+                        'native_bold_ref':['main_wf.bold_main_wf.bold_native_trans_wf.gen_bold_ref.gen_ref', 'ref_image'],                              
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_resample', 'resampled_file'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],

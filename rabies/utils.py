@@ -328,7 +328,7 @@ def applyTransforms_3D(transforms, inverses, input_image, ref_image, output_file
         else:
             transform_string += f"-t {transform} "
 
-    command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_filename}'
+    command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_filename} -v'
     rc,c_out = run_command(command)
 
     if clip_negative or rabies_data_type is not None: # rabies_data_type can be set to None to avoid re-writing the image

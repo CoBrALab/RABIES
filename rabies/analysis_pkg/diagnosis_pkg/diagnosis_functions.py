@@ -8,52 +8,30 @@ import SimpleITK as sitk
 import nilearn.plotting
 from .analysis_QC import masked_plot, percent_threshold
 
-def resample_mask(in_file, ref_file):
-    transforms = []
-    inverses = []
-    # resampling the reference image to the dimension of the EPI
-    from rabies.utils import run_command
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(
-        in_file).name.rsplit(".nii")
-    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
-
-    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
-    transform_string = ""
-    for transform, inverse in zip(transforms, inverses):
-        if transform == 'NULL':
-            continue
-        elif bool(inverse):
-            transform_string += f"-t [{transform},1] "
-        else:
-            transform_string += f"-t {transform} "
-
-    command = f'antsApplyTransforms -i {in_file} {transform_string}-n GenericLabel -r {ref_file} -o {out_file}'
-    rc,c_out = run_command(command)
-    return out_file
-
-
-'''
-Prepare the subject data
-'''
-
-
-def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
+def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
+                                    prior_bold_idx, prior_confound_idx,
+                                    nativespace_analysis=False,resampling_specs={},
+                                    ):
+    # sub_maps_data_dict is the maps_data_dict that overlaps with the subject, either in native or common space depending on confound correction
+    # common_maps_data_dict contains files in commonspace
     temporal_info = {}
     spatial_info = {}
-    temporal_info['name_source'] = data_dict['name_source']
-    spatial_info['name_source'] = data_dict['name_source']
-    spatial_info['mask_file'] = data_dict['mask_file']
+    temporal_info['name_source'] = CR_data_dict['name_source']
+    spatial_info['name_source'] = CR_data_dict['name_source']
+    # spatial maps will always be in commonspace for display
+    spatial_info['mask_file'] = common_maps_data_dict['mask_file']
 
-    timeseries = data_dict['timeseries']
-    volume_indices = data_dict['volume_indices']
-    CR_data_dict = data_dict['CR_data_dict']
+    # these timeseries can be in nativespace or commonspace depending on confound correction stage
+    timeseries = CR_data_dict['timeseries']
+    volume_indices = common_maps_data_dict['volume_indices']
 
-    FD_trace = CR_data_dict['FD_trace']
-    DVARS = CR_data_dict['DVARS']
+    CR_CR_data_dict = CR_data_dict['CR_data_dict']
+
+    FD_trace = CR_CR_data_dict['FD_trace']
+    DVARS = CR_CR_data_dict['DVARS']
     temporal_info['FD_trace'] = FD_trace
     temporal_info['DVARS'] = DVARS
-    temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
+    temporal_info['VE_temporal'] = CR_CR_data_dict['VE_temporal']
 
 
     ### SBC analysis
@@ -88,29 +66,23 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     '''Temporal Features'''
     global_signal = timeseries.mean(axis=1)
     temporal_info['global_signal'] = global_signal
-    temporal_info['predicted_time'] = CR_data_dict['predicted_time']
+    temporal_info['predicted_time'] = CR_CR_data_dict['predicted_time']
     # take regional timecourse by taking the RMS each 3D volume
-    edge_idx = data_dict['edge_idx']
+    edge_idx = sub_maps_data_dict['edge_idx']
     edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
     temporal_info['edge_trace'] = edge_trace
-    if data_dict['WM_idx'] is not None:
-        WM_idx = data_dict['WM_idx']
+    if sub_maps_data_dict['WM_idx'] is not None:
+        WM_idx = sub_maps_data_dict['WM_idx']
         WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
         temporal_info['WM_trace'] = WM_trace
     else:
         temporal_info['WM_trace'] = None
-    if data_dict['CSF_idx'] is not None:
-        CSF_idx = data_dict['CSF_idx']
+    if sub_maps_data_dict['CSF_idx'] is not None:
+        CSF_idx = sub_maps_data_dict['CSF_idx']
         CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
         temporal_info['CSF_trace'] = CSF_trace
     else:
         temporal_info['CSF_trace'] = None
-    if data_dict['WM_idx'] is not None and data_dict['CSF_idx'] is not None:
-        not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
-        not_edge_trace = np.sqrt((timeseries.T[not_edge_idx]**2).mean(axis=0))
-        temporal_info['not_edge_trace'] = not_edge_trace
-    else:
-        temporal_info['not_edge_trace'] = None
 
     '''Spatial Features'''
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
@@ -129,16 +101,40 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
         prior_fit_out['C'] = C
 
-    spatial_info['prior_maps'] = data_dict['prior_map_vectors'][prior_bold_idx]
+    if nativespace_analysis: # certain spatial maps were computed in nativespace and need resampling
+        from rabies.utils import applyTransforms_3D
+        import tempfile
+        tmppath = tempfile.mkdtemp()
+        def resample_brain_map(brain_map):
+            temp_fname = f'{tmppath}/brain_map.nii.gz'
+            temp_out_fname = f'{tmppath}/brain_map_resampled.nii.gz'
+            image_3d = recover_3D(mask_file=sub_maps_data_dict['mask_file'], vector_map=brain_map)
+            sitk.WriteImage(image_3d, temp_fname)
+            applyTransforms_3D(transforms = resampling_specs['transforms'], inverses = resampling_specs['inverses'], 
+                        input_image = temp_fname, ref_image = common_maps_data_dict['anat_ref_file'], output_filename = temp_out_fname, 
+                        interpolation=resampling_specs['interpolation'], rabies_data_type=resampling_specs['data_type'], clip_negative=False)
+            resampled_brain_map = sitk.GetArrayFromImage(sitk.ReadImage(temp_out_fname, resampling_specs['data_type']), 
+                                                         )[common_maps_data_dict['volume_indices']]
+            return resampled_brain_map
+            
+        [GS_cov, GS_corr, VE_spatial, temporal_std, predicted_std] = [
+            resample_brain_map(brain_map) for brain_map in [GS_cov, GS_corr, CR_data_dict['VE_spatial'], 
+                                                            CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
+            ]
+    else:
+        VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
+
+
+    spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']
 
-    spatial_info['VE_spatial'] = data_dict['VE_spatial']
-    spatial_info['temporal_std'] = data_dict['temporal_std']
-    spatial_info['predicted_std'] = data_dict['predicted_std']
+    spatial_info['VE_spatial'] = VE_spatial
+    spatial_info['temporal_std'] = temporal_std
+    spatial_info['predicted_std'] = predicted_std
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
@@ -259,10 +255,10 @@ def plot_freqs(ax,timeseries, TR):
     ax.set_xticks(xticks)    
 
 
-def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
-    timeseries = data_dict['timeseries']
-    template_file = data_dict['template_file']
-    CR_data_dict = data_dict['CR_data_dict']
+def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, regional_grayplot=False):
+    timeseries = CR_data_dict['timeseries']
+    template_file = maps_data_dict['anat_ref_file']
+    CR_CR_data_dict = CR_data_dict['CR_data_dict']
     
     fig = plt.figure(figsize=(12, 24))
 
@@ -275,7 +271,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3 = fig.add_subplot(8,2,13)
     ax4 = fig.add_subplot(8,2,15)
 
-    plot_freqs(ax0_f,timeseries, CR_data_dict['TR'])
+    plot_freqs(ax0_f,timeseries, CR_CR_data_dict['TR'])
     plt.setp(ax0_f.get_yticklabels(), visible=False)
     plt.setp(ax0_f.get_xticklabels(), fontsize=12)
     ax0_f.set_xlabel('Frequency (Hz)', fontsize=20)
@@ -323,9 +319,9 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax4.set_xlim([0, len(y)-1])
 
     # plot the motion timecourses
-    motion_params_csv = CR_data_dict['motion_params_csv']
-    time_range = CR_data_dict['time_range']
-    frame_mask = CR_data_dict['frame_mask']
+    motion_params_csv = CR_CR_data_dict['motion_params_csv']
+    time_range = CR_CR_data_dict['time_range']
+    frame_mask = CR_CR_data_dict['frame_mask']
     df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
     ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
@@ -434,7 +430,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     dr_maps = spatial_info['DR_BOLD']
     SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
-    mask_file = data_dict['mask_file']
+    mask_file = maps_data_dict['mask_file']
 
     nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 
