@@ -77,7 +77,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             ]),
         ])
 
-    if (not nativespace_analysis or preprocess_opts.bold_only) and not len(split_name_list)<3:
+    if not len(split_name_list)<3:
 
         # this function prepares a dictionary with necessary scan-level inputs for group diagnosis
         def prep_scan_data(CR_dict_file, maps_dict_file, spatial_info, temporal_info):

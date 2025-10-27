@@ -176,10 +176,6 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
 
 def check_opts_compatibility(preprocess_opts, cr_opts):
-
-    if preprocess_opts.bold_only and cr_opts.nativespace_analysis:
-        raise ValueError(
-            'Must not select --nativespace_analysis option for running confound regression on outputs from --bold_only.')
     
     if preprocess_opts.CSF_mask is None:
         if cr_opts.ica_aroma['apply']:
@@ -270,7 +266,7 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
         else:
             if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
                 raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
-                    "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
+                    "datasink outputs are available.")
             file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
             for f in file_list:
                 for split in split_name:
@@ -304,7 +300,7 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
 
             if not os.path.isdir(f'{preproc_output}/{datasink}/{target}'):
                 raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
-                    "datasink outputs are available. If --bold_only was selected, there are no native space outputs available.")
+                    "datasink outputs are available.")
             target_list.append(target)
             file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
             for split in split_name:
