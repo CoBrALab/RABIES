@@ -58,8 +58,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         inho_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
-            Preprocessed EPI resampled to match the anatomical space for
-            susceptibility distortion correction
+            Preprocessed EPI resampled to nativespace
         corrected_bold_ref
             3D ref EPI volume from the native EPI timeseries
         motion_params_csv
@@ -111,7 +110,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'boldspace_brain_mask']),
         name='outputnode')
 
     # Datasink - creates output folder for important outputs
@@ -349,10 +348,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("commonspace_template", "commonspace_resampled_template"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
-            ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
-            ("outputnode.native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
-            ("outputnode.commonspace_to_native_transform_list", "inputnode.commonspace_to_native_transform_list"),
-            ("outputnode.commonspace_to_native_inverse_list", "inputnode.commonspace_to_native_inverse_list"),
+            ("outputnode.anat_to_commonspace_transform_list", "inputnode.anat_to_commonspace_transform_list"),
+            ("outputnode.anat_to_commonspace_inverse_list", "inputnode.anat_to_commonspace_inverse_list"),
+            ("outputnode.commonspace_to_anat_transform_list", "inputnode.commonspace_to_anat_transform_list"),
+            ("outputnode.commonspace_to_anat_inverse_list", "inputnode.commonspace_to_anat_inverse_list"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
@@ -378,7 +377,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
-            ("outputnode.raw_brain_mask", "raw_brain_mask"),
+            ("outputnode.boldspace_brain_mask", "boldspace_brain_mask"),
             ]),
         (bold_main_wf, bold_inho_cor_diagnosis, [
             ("outputnode.bold_ref", "raw_img"),
@@ -422,7 +421,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "inputnode.coreg_anat"),
                 ]),
             (commonspace_reg_wf, bold_main_wf, [
-                ("outputnode.native_mask", "inputnode.coreg_mask"),
+                ("outputnode.anatspace_mask", "inputnode.coreg_mask"),
                 ("outputnode.unbiased_template", "template_inputnode.template_anat"),
                 ("outputnode.unbiased_mask", "template_inputnode.template_mask"),
                 ]),
@@ -434,7 +433,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "EPI_template"),
                 ]),
             (commonspace_reg_wf, EPI_target_buffer, [
-                ("outputnode.native_mask", 'EPI_mask'),
+                ("outputnode.anatspace_mask", 'EPI_mask'),
                 ]),
             (EPI_target_buffer, bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -547,7 +546,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("tSNR_filename", "tSNR_map_preprocess"),
             ("std_filename", "std_map_preprocess"),
             ("commonspace_resampled_template", "commonspace_resampled_template"),
-            ("raw_brain_mask", "raw_brain_mask"),
+            ("boldspace_brain_mask", "boldspace_brain_mask"),
             ]),
         ])
 

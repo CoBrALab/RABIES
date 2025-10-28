@@ -207,7 +207,7 @@ if opts.complete:
     command = f"rabies --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
         --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
-        --HMC_option 0"
+        --HMC_option 0 --bold_nativespace"
     process = subprocess.run(
         command,
         check=True,

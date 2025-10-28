@@ -281,18 +281,23 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
         ###
         directory_list=[['anat_datasink','anat_preproc']]
         if fast_commonspace:
-            directory_list+=[['transforms_datasink','native_to_atlas_affine']]
+            directory_list+=[['transforms_datasink','anat_to_atlas_affine']]
             if atlas_reg_script=='SyN':
-                directory_list+=[['transforms_datasink','native_to_atlas_inverse_warp']]
-                directory_list+=[['transforms_datasink','native_to_atlas_warp']]
+                directory_list+=[['transforms_datasink','anat_to_atlas_inverse_warp']]
+                directory_list+=[['transforms_datasink','anat_to_atlas_warp']]
         else:
             directory_list+=[['transforms_datasink','unbiased_to_atlas_affine'], 
-                ['transforms_datasink','native_to_unbiased_affine'], ['transforms_datasink','native_to_unbiased_inverse_warp'],
-                ['transforms_datasink','native_to_unbiased_warp']]
+                ['transforms_datasink','anat_to_unbiased_affine'], ['transforms_datasink','anat_to_unbiased_inverse_warp'],
+                ['transforms_datasink','anat_to_unbiased_warp']]
             if atlas_reg_script=='SyN':
                 directory_list+=[['transforms_datasink','unbiased_to_atlas_inverse_warp']]
                 directory_list+=[['transforms_datasink','unbiased_to_atlas_warp']]
-
+        if not preprocess_opts.bold_only:
+            directory_list+=[['transforms_datasink','bold_to_anat_affine']]
+            if preprocess_opts.bold2anat_coreg['registration']=='SyN':
+                directory_list+=[['transforms_datasink','bold_to_anat_inverse_warp']]
+                directory_list+=[['transforms_datasink','bold_to_anat_warp']]
+            
         from bids.layout import parse_file_entities
         for datasink,target in directory_list:
             if datasink is None:
@@ -332,36 +337,56 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
 
         for split in split_name:
             if fast_commonspace:
-                to_atlas_affine = split_dict[split]['native_to_atlas_affine']
+                anat_to_atlas_affine = split_dict[split]['anat_to_atlas_affine']
                 if atlas_reg_script=='SyN':
-                    to_atlas_inverse_warp = split_dict[split]['native_to_atlas_inverse_warp']
-                    to_atlas_warp = split_dict[split]['native_to_atlas_warp']
-                    commonspace_to_native_transform_list=[to_atlas_affine,to_atlas_inverse_warp]
-                    commonspace_to_native_inverse_list=[1,0]
-                    native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine]
-                    native_to_commonspace_inverse_list=[0,0]
+                    anat_to_atlas_inverse_warp = split_dict[split]['anat_to_atlas_inverse_warp']
+                    anat_to_atlas_warp = split_dict[split]['anat_to_atlas_warp']
+                    commonspace_to_anat_transform_list=[anat_to_atlas_affine,anat_to_atlas_inverse_warp]
+                    commonspace_to_anat_inverse_list=[1,0]
+                    anat_to_commonspace_transform_list=[anat_to_atlas_warp,anat_to_atlas_affine]
+                    anat_to_commonspace_inverse_list=[0,0]
                 else:
-                    commonspace_to_native_transform_list=[to_atlas_affine]
-                    commonspace_to_native_inverse_list=[1]
-                    native_to_commonspace_transform_list=[to_atlas_affine]
-                    native_to_commonspace_inverse_list=[0]
+                    commonspace_to_anat_transform_list=[anat_to_atlas_affine]
+                    commonspace_to_anat_inverse_list=[1]
+                    anat_to_commonspace_transform_list=[anat_to_atlas_affine]
+                    anat_to_commonspace_inverse_list=[0]
             else:
-                native_to_unbiased_inverse_warp = split_dict[split]['native_to_unbiased_inverse_warp']
-                native_to_unbiased_warp = split_dict[split]['native_to_unbiased_warp']
-                native_to_unbiased_affine = split_dict[split]['native_to_unbiased_affine']
-                to_atlas_affine = split_dict[split]['unbiased_to_atlas_affine']
+                anat_to_unbiased_inverse_warp = split_dict[split]['anat_to_unbiased_inverse_warp']
+                anat_to_unbiased_warp = split_dict[split]['anat_to_unbiased_warp']
+                anat_to_unbiased_affine = split_dict[split]['anat_to_unbiased_affine']
+                unbiased_to_atlas_affine = split_dict[split]['unbiased_to_atlas_affine']
                 if atlas_reg_script=='SyN':
-                    to_atlas_inverse_warp = split_dict[split]['unbiased_to_atlas_inverse_warp']
-                    to_atlas_warp = split_dict[split]['unbiased_to_atlas_warp']
-                    commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine,to_atlas_inverse_warp]
-                    commonspace_to_native_inverse_list=[1,0,1,0]
-                    native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine,native_to_unbiased_warp,native_to_unbiased_affine]
-                    native_to_commonspace_inverse_list=[0,0,0,0]
+                    unbiased_to_atlas_inverse_warp = split_dict[split]['unbiased_to_atlas_inverse_warp']
+                    unbiased_to_atlas_warp = split_dict[split]['unbiased_to_atlas_warp']
+                    commonspace_to_anat_transform_list=[anat_to_unbiased_affine,anat_to_unbiased_inverse_warp,unbiased_to_atlas_affine,unbiased_to_atlas_inverse_warp]
+                    commonspace_to_anat_inverse_list=[1,0,1,0]
+                    anat_to_commonspace_transform_list=[unbiased_to_atlas_warp,unbiased_to_atlas_affine,anat_to_unbiased_warp,anat_to_unbiased_affine]
+                    anat_to_commonspace_inverse_list=[0,0,0,0]
                 else:
-                    commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine]
-                    commonspace_to_native_inverse_list=[1,0,1]
-                    native_to_commonspace_transform_list=[to_atlas_affine,native_to_unbiased_warp,native_to_unbiased_affine]
-                    native_to_commonspace_inverse_list=[0,0,0]
+                    commonspace_to_anat_transform_list=[anat_to_unbiased_affine,anat_to_unbiased_inverse_warp,unbiased_to_atlas_affine]
+                    commonspace_to_anat_inverse_list=[1,0,1]
+                    anat_to_commonspace_transform_list=[unbiased_to_atlas_affine,anat_to_unbiased_warp,anat_to_unbiased_affine]
+                    anat_to_commonspace_inverse_list=[0,0,0]
+            if preprocess_opts.bold_only:
+                bold_to_anat_warp = None
+                bold_to_anat_inverse_warp = None
+                bold_to_anat_affine = None
+            else:
+                bold_to_anat_affine = split_dict[split]['bold_to_anat_affine']
+                if preprocess_opts.bold2anat_coreg['registration']=='SyN':
+                    bold_to_anat_inverse_warp = split_dict[split]['bold_to_anat_inverse_warp']
+                    bold_to_anat_warp = split_dict[split]['bold_to_anat_warp']
+                else:
+                    bold_to_anat_inverse_warp = 'NULL'
+                    bold_to_anat_warp = 'NULL'
+
+            from rabies.preprocess_pkg.bold_main_wf import prep_transforms_between_spaces
+            [bold_to_commonspace_transform_list, bold_to_commonspace_inverse_list, 
+            commonspace_to_bold_transform_list, commonspace_to_bold_inverse_list,
+            native_to_commonspace_transform_list, native_to_commonspace_inverse_list, 
+            commonspace_to_native_transform_list, commonspace_to_native_inverse_list,
+            bold_to_native_transform_list, bold_to_native_inverse_list] = prep_transforms_between_spaces(anat_to_commonspace_transform_list,anat_to_commonspace_inverse_list, bold_to_anat_warp, bold_to_anat_inverse_warp, bold_to_anat_affine, 
+                                commonspace_to_anat_transform_list, commonspace_to_anat_inverse_list, bold_only=preprocess_opts.bold_only, bold_nativespace=preprocess_opts.bold_nativespace)
 
             split_dict[split]['commonspace_to_native_transform_list'] = commonspace_to_native_transform_list
             split_dict[split]['commonspace_to_native_inverse_list'] = commonspace_to_native_inverse_list
@@ -372,13 +397,13 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
 
         if fast_commonspace:
             if atlas_reg_script=='SyN':
-                target_list.remove('native_to_atlas_inverse_warp')
-                target_list.remove('native_to_atlas_warp')
-            target_list.remove('native_to_atlas_affine')
+                target_list.remove('anat_to_atlas_inverse_warp')
+                target_list.remove('anat_to_atlas_warp')
+            target_list.remove('anat_to_atlas_affine')
         else:
-            target_list.remove('native_to_unbiased_inverse_warp')
-            target_list.remove('native_to_unbiased_warp')
-            target_list.remove('native_to_unbiased_affine')
+            target_list.remove('anat_to_unbiased_inverse_warp')
+            target_list.remove('anat_to_unbiased_warp')
+            target_list.remove('anat_to_unbiased_affine')
             if atlas_reg_script=='SyN':
                 target_list.remove('unbiased_to_atlas_inverse_warp')
                 target_list.remove('unbiased_to_atlas_warp')
@@ -409,6 +434,10 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
                     'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
                     'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],
                     'commonspace_resampled_template':['main_wf.resample_template', 'commonspace_template'],
+                    'commonspace_to_native_transform_list':['main_wf.bold_main_wf.prep_transforms_between_spaces', 'commonspace_to_native_transform_list'],
+                    'commonspace_to_native_inverse_list':['main_wf.bold_main_wf.prep_transforms_between_spaces', 'commonspace_to_native_inverse_list'],
+                    'native_to_commonspace_transform_list':['main_wf.bold_main_wf.prep_transforms_between_spaces', 'native_to_commonspace_transform_list'],
+                    'native_to_commonspace_inverse_list':['main_wf.bold_main_wf.prep_transforms_between_spaces', 'native_to_commonspace_inverse_list'],
                     }
 
     # these parameters may be empty
@@ -424,10 +453,6 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
                         'native_bold_ref':['main_wf.bold_main_wf.bold_native_trans_wf.gen_bold_ref.gen_ref', 'ref_image'],                              
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_resample', 'resampled_file'],
                         'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
-                        'commonspace_to_native_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_transform_list'],
-                        'commonspace_to_native_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'commonspace_to_native_inverse_list'],
-                        'native_to_commonspace_transform_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'native_to_commonspace_transform_list'],
-                        'native_to_commonspace_inverse_list':['main_wf.commonspace_reg_wf.prep_commonspace_transform', 'native_to_commonspace_inverse_list'],
                         })
         # these parameters may be empty
         for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:

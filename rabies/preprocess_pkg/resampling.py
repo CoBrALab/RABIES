@@ -66,14 +66,14 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file',
-        'mask_transforms_list', 'mask_inverses', 'commonspace_to_raw_transform_list', 'commonspace_to_raw_inverse_list',
-        'raw_bold_ref']),
+        'mask_transforms_list', 'mask_inverses', 'commonspace_to_bold_transform_list', 'commonspace_to_bold_inverse_list',
+        'boldspace_bold_ref']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask']),
+            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'boldspace_brain_mask']),
         name='outputnode')
 
     bold_transform = pe.Node(ResampleVolumes(
@@ -107,9 +107,9 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
                     ('resampled_file', opt_key)]),
             ])
 
-    raw_brain_mask = pe.Node(ResampleMask(), name='raw_mask_resample')
-    raw_brain_mask.inputs.name_suffix = 'raw_mask_resampled'
-    raw_brain_mask.inputs.mask_file = str(opts.brain_mask)
+    boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')
+    boldspace_brain_mask.inputs.name_suffix = 'boldspace_mask_resampled'
+    boldspace_brain_mask.inputs.mask_file = str(opts.brain_mask)
 
     workflow.connect([
         (inputnode, bold_transform, [
@@ -122,14 +122,14 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             ]),
         (bold_transform, bold_reference_wf, [('resampled_file', 'inputnode.bold_file')]),
         (bold_transform, outputnode, [('resampled_file', 'bold')]),
-        (inputnode, raw_brain_mask, [
-            ('raw_bold_ref', 'ref_file'),
+        (inputnode, boldspace_brain_mask, [
+            ('boldspace_bold_ref', 'ref_file'),
             ('name_source', 'name_source'),
-            ('commonspace_to_raw_transform_list', 'transforms'),
-            ('commonspace_to_raw_inverse_list', 'inverses'),
+            ('commonspace_to_bold_transform_list', 'transforms'),
+            ('commonspace_to_bold_inverse_list', 'inverses'),
             ]),
-        (raw_brain_mask, outputnode, [
-            ('resampled_file', 'raw_brain_mask')]),
+        (boldspace_brain_mask, outputnode, [
+            ('resampled_file', 'boldspace_brain_mask')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
     ])

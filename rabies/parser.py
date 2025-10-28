@@ -207,7 +207,18 @@ def get_parser():
         help=
             "Apply preprocessing with only EPI scans. Commonspace registration is executed directly using\n"
             "the corrected EPI 3D reference images. The commonspace registration simultaneously applies\n"
-            "distortion correction, this option will produce only commonspace outputs.\n"
+            "distortion correction. Nativespace is always the original EPI space.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        "--bold_nativespace", dest='bold_nativespace', action='store_true',
+        help=
+            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
+            "to the anatomical space of the structural scan which is by default the nativespace.\n"
+            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
+            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
+            "If using --bold_only, this parameter has no effect. \n"
             "(default: %(default)s)\n"
             "\n"
         )
