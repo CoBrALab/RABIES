@@ -704,7 +704,11 @@ class GenerateTemplate(BaseInterface):
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages {stages} \
-            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path} --winsorize_lower_bound {winsorize_lower_bound}  --winsorize_upper_bound {winsorize_upper_bound}'
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
+        if winsorize_lower_bound>0.0: # only specify an input if they differ from the default
+            command+=f" --winsorize_lower_bound {winsorize_lower_bound}"
+        if winsorize_upper_bound<1.0: # only specify an input if they differ from the default
+            command+=f" --winsorize_upper_bound {winsorize_upper_bound}"
         rc,c_out = run_command(command)
 
         last_stage = stages.split(',')[-1]

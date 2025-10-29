@@ -348,7 +348,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--anat_robust_inho_cor', type=str,
-        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
             "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
@@ -393,7 +393,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--bold_robust_inho_cor', type=str,
-        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
@@ -401,7 +401,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Specify registration options for the commonspace registration.\n"
             "* stages: Registration stages for generating the unbiased template. \n"
@@ -451,7 +451,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
@@ -1146,25 +1146,25 @@ def read_parser(parser, args):
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
         # check that masking/extraction options are well set
