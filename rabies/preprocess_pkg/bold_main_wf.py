@@ -495,7 +495,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         (transitionnode, bold_commonspace_trans_wf, [
             ('bold_ref', 'inputnode.boldspace_bold_ref'),
             ]),
-        (bold_commonspace_trans_wf, estimate_motion_node, [
+        (bold_native_trans_wf, estimate_motion_node, [
             ('outputnode.boldspace_brain_mask', 'boldspace_brain_mask'),
             ]),
         (bold_hmc_wf, bold_native_trans_wf, [

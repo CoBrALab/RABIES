@@ -180,7 +180,10 @@ class ResampleVolumes(BaseInterface):
     output_spec = ResampleVolumesOutputSpec
 
     def _run_interface(self, runtime):
+        # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+        sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
+
         # preparing the resampling dimensions of the reference space
         if self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
             ref_file = self.inputs.ref_file
@@ -287,12 +290,11 @@ def applyTransforms_4D(in_file, ref_file, transforms_3D = [], inverses_3D = [], 
     # Splitting 4D file into a list of 3D volumes
     volumes_list = []
     for x in range(0, num_volumes):
-        volume_img = img_4D[:,:,:,x]
         slice_fname = os.path.abspath(
             "volume" + str(x) + ".nii.gz")
+        volume_img = img_4D[:,:,:,x]
         sitk.WriteImage(volume_img, slice_fname)
         volumes_list.append(slice_fname)
-
     resampled_volumes = []
     for x in range(0, num_volumes):
         resampled_vol_fname = os.path.abspath(
