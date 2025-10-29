@@ -250,7 +250,10 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
+            import os
+            # the plugin is set here instead of as a node input to avoid re-running the nipype workflow if plugin is changed 
+            os.environ['MODELBUILD_PLUGIN'] = opts.plugin
+            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
@@ -576,8 +579,6 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Path to output folder.")
     template_anat = File(exists=True, mandatory=True,
                          desc="Reference anatomical template to define the target space.")
-    cluster_type = traits.Str(
-        exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
     winsorize_lower_bound = traits.Float(
         desc="")
     winsorize_upper_bound = traits.Float(
@@ -678,7 +679,7 @@ class GenerateTemplate(BaseInterface):
 
 
         # convert nipype plugin spec to match QBATCH
-        plugin = self.inputs.cluster_type
+        plugin = os.environ['MODELBUILD_PLUGIN']
         if plugin=='MultiProc' or plugin=='Linear':
             cluster_type='local'
             num_threads = multiprocessing.cpu_count()
