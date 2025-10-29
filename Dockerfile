@@ -67,8 +67,9 @@ COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
 COPY optimized_antsMultivariateTemplateConstruction $RABIES/optimized_antsMultivariateTemplateConstruction
 COPY scripts $RABIES/scripts
 
-RUN micromamba install -y -n base -f $RABIES/rabies_environment.yml && \
-    micromamba run -n base pip install -e $RABIES && \
+RUN micromamba install -y -n base -f $RABIES/rabies_environment.yml 
+# this is run separately from the python environment setup, in case only the RABIES code has changed
+RUN micromamba run -n base pip install -e $RABIES && \
     micromamba clean --all --yes
 
 # FSL conda packages don't properly setup FSL, do it manually

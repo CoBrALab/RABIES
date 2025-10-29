@@ -383,7 +383,7 @@ def load_maps_dict(opts, mask_file, WM_mask_file, CSF_mask_file, atlas_file, atl
 
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
-    resampled_4D_img = applyTransforms_4D(in_file=prior_maps, ref_file=anat_ref_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
+    resampled_4D_img = applyTransforms_4D(in_img=prior_maps, ref_file=anat_ref_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
                                           motcorr_affine_list=None, interpolation=opts.interpolation, rabies_data_type=opts.data_type, clip_negative=False)
     resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
