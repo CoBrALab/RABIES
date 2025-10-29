@@ -7,7 +7,7 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,log_transform_nii
+from .utils import prep_bids_iter, resample_template
 from . import preprocess_visual_QC
 from .prep_input import init_prep_input_wf,match_iterables
 
@@ -264,12 +264,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     if opts.inherit_unbiased_template=='none':
         inherit_unbiased=False
         # Resample the anatomical template according to the resolution of the provided input data
-        resample_template_node = pe.Node(Function(input_names=['opts', 'structural_scan_list', 'bold_scan_list'],
+        resample_template_node = pe.Node(Function(input_names=['structural_scan_list', 'bold_scan_list', 'template_file', 
+                                                               'mask_file', 'anatomical_resampling', 'commonspace_resampling', 
+                                                               'rabies_data_type', 'bold_only'],
                                                 output_names=[
                                                     'registration_template', 'registration_mask', 'commonspace_template'],
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
-        resample_template_node.inputs.opts = opts
+        resample_template_node.inputs.template_file = opts.anat_template
+        resample_template_node.inputs.mask_file = opts.brain_mask
+        resample_template_node.inputs.anatomical_resampling = opts.anatomical_resampling
+        resample_template_node.inputs.commonspace_resampling = opts.commonspace_resampling
+        resample_template_node.inputs.rabies_data_type = opts.data_type
+        resample_template_node.inputs.bold_only = opts.bold_only
 
         workflow.connect([
             (prep_input_wf, resample_template_node, [

@@ -257,7 +257,7 @@ def convert_3dWarp(input):
     return output
 
 
-def resample_template(opts, structural_scan_list, bold_scan_list):
+def resample_template(structural_scan_list, bold_scan_list, template_file, mask_file, anatomical_resampling, commonspace_resampling, rabies_data_type, bold_only):
     import os
     import SimpleITK as sitk
     import numpy as np
@@ -267,12 +267,6 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
 
     bold_scan_list = flatten_list(bold_scan_list)
     structural_scan_list = flatten_list(structural_scan_list)
-
-    template_file = str(opts.anat_template)
-    mask_file = str(opts.brain_mask)
-    anatomical_resampling = opts.anatomical_resampling
-    commonspace_resampling = opts.commonspace_resampling
-    rabies_data_type = opts.data_type
 
     def sitk_get_spacing(f):
         reader = sitk.ImageFileReader()
@@ -303,7 +297,7 @@ def resample_template(opts, structural_scan_list, bold_scan_list):
 
     if commonspace_resampling == 'inputs_defined':
         # if bold_only, bold_scan_list and structural_scan_list are the same; avoid re-loading images if already computed above
-        if not (anatomical_resampling == 'inputs_defined' and opts.bold_only):
+        if not (anatomical_resampling == 'inputs_defined' and bold_only):
             spacing_list = [sitk_get_spacing(f)[:3] for f in bold_scan_list]
         
         # create a list of all the types of spacing across listed files
