@@ -222,7 +222,7 @@ class ResampleVolumes(BaseInterface):
             else:
                 motcorr_affine_list = None
 
-            resampled_4D_img = applyTransforms_4D(self.inputs.in_file, ref_file, transforms_3D = self.inputs.transforms, inverses_3D = self.inputs.inverses, motcorr_affine_list = motcorr_affine_list, 
+            resampled_4D_img = applyTransforms_4D(img, ref_file, transforms_3D = self.inputs.transforms, inverses_3D = self.inputs.inverses, motcorr_affine_list = motcorr_affine_list, 
                             interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
             sitk.WriteImage(resampled_4D_img, resampled_file)
 
@@ -278,11 +278,16 @@ class ResampleMask(BaseInterface):
         return {'resampled_file': getattr(self, 'resampled_file')}
 
 
-def applyTransforms_4D(in_file, ref_file, transforms_3D = [], inverses_3D = [], motcorr_affine_list = None, interpolation='Linear', rabies_data_type=8, clip_negative=False):
+def applyTransforms_4D(in_img, ref_file, transforms_3D = [], inverses_3D = [], motcorr_affine_list = None, interpolation='Linear', rabies_data_type=8, clip_negative=False):
     import SimpleITK as sitk
     import os
 
-    img_4D = sitk.ReadImage(in_file, rabies_data_type)
+    # the input can be either a nifti file or an SITK image
+    if isinstance(in_img, sitk.Image):
+        img_4D = in_img
+    elif os.path.isfile(in_img):
+        img_4D = sitk.ReadImage(in_img, rabies_data_type)
+
     num_dimensions = len(img_4D.GetSize())
     num_volumes = img_4D.GetSize()[3]
     if num_dimensions != 4:
