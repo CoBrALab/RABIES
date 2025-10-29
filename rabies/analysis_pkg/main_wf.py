@@ -495,7 +495,6 @@ def read_confound_workflow(conf_output, cr_opts):
                         'native_WM_mask':[preproc_outputnode_name, 'native_WM_mask'],
                         'native_CSF_mask':[preproc_outputnode_name, 'native_CSF_mask'],
                         'native_labels':[preproc_outputnode_name, 'native_labels'],
-                        'anat_preproc':[preproc_outputnode_name, 'anat_preproc'],
                         'commonspace_to_native_transform_list':[preproc_outputnode_name, 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':[preproc_outputnode_name, 'commonspace_to_native_inverse_list'],
                         'native_to_commonspace_transform_list':[preproc_outputnode_name, 'native_to_commonspace_transform_list'],

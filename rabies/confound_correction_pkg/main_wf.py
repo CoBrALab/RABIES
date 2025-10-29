@@ -47,7 +47,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
         FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, native_bold_ref=None, 
         native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
-        anat_preproc=None, commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
+        commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
         native_to_commonspace_transform_list=None, native_to_commonspace_inverse_list=None):
         return
     buffer_outputnode_node = pe.Node(Function(input_names=target_list,
@@ -276,10 +276,9 @@ def read_preproc_datasinks(preproc_output, nativespace, preprocess_opts):
 
     if nativespace:
         ###
-        # For the anat_preproc and transforms, there needs to be a different file matching, where files may be named based on the anat
+        # For the transforms, there needs to be a different file matching, where files may be named based on the anat
         # scan, so here we match the BIDS specs. The transforms to native space are put together into a prepared list of transforms.
         ###
-        directory_list=[['anat_datasink','anat_preproc']]
         if fast_commonspace:
             directory_list+=[['transforms_datasink','anat_to_atlas_affine']]
             if atlas_reg_script=='SyN':
@@ -452,7 +451,6 @@ def read_preproc_workflow(preproc_output, nativespace, preprocess_opts):
         match_targets.update({'native_bold':['main_wf.bold_main_wf.bold_native_trans_wf.bold_transform', 'resampled_file'],
                         'native_bold_ref':['main_wf.bold_main_wf.bold_native_trans_wf.gen_bold_ref.gen_ref', 'ref_image'],                              
                         'native_brain_mask':['main_wf.bold_main_wf.bold_native_trans_wf.brain_mask_resample', 'resampled_file'],
-                        'anat_preproc':['main_wf.anat_inho_cor_wf.InhoCorrection', 'corrected'],
                         })
         # these parameters may be empty
         for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
