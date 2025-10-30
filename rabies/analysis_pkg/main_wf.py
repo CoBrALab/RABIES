@@ -88,7 +88,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, nativespace_analysis=cr_opts.nativespace_analysis)
+        opts=analysis_opts)
 
     '''
     PREPARE DATASINKS
@@ -168,16 +168,17 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     # if inputs are in commmonspace, then analysis is computed with commonspace files
     # if --data_diagnosis, then commonspace files are needed for plotting results
     if not cr_opts.nativespace_analysis or analysis_opts.data_diagnosis:
-        load_maps_dict_common_node = pe.Node(Function(input_names=['opts', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file',
-                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source'],
+        load_maps_dict_common_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file',
+                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
                                             output_names=[
                                                 'maps_dict_file'],
                                         function=load_maps_dict),
                                 name='load_maps_dict_common_node')
-        load_maps_dict_common_node.inputs.opts = analysis_opts
         load_maps_dict_common_node.inputs.atlas_ref = preprocess_opts.labels
         load_maps_dict_common_node.inputs.seed_dict = seed_dict
         load_maps_dict_common_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_common_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_common_node.inputs.rabies_data_type = analysis_opts.data_type
 
         split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
         load_maps_dict_common_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
@@ -202,8 +203,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     # if inputs are in native space, then subject specific maps are loaded
     if cr_opts.nativespace_analysis:
-        load_maps_dict_native_node = pe.Node(Function(input_names=['opts', 'mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file', 
-                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source'],
+        load_maps_dict_native_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file', 
+                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
                                             output_names=[
                                                 'maps_dict_file'],
                                         function=load_maps_dict),
@@ -212,6 +213,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_native_node.inputs.atlas_ref = preprocess_opts.labels
         load_maps_dict_native_node.inputs.seed_dict = seed_dict
         load_maps_dict_native_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_native_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_native_node.inputs.rabies_data_type = analysis_opts.data_type
 
         workflow.connect([
             (conf_outputnode, load_maps_dict_native_node, [
@@ -353,8 +356,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 # this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces for nativespace analyses
 # in the case of commonspace, this node only runs once, hence saving computations
 # anat_ref_file is an anatomical 3D image that defines the resampling space inputted to antsApplyTransform
-def load_maps_dict(opts, mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, anat_ref_file,
-                   seed_dict, prior_maps, transform_list, inverse_list, name_source):
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, anat_ref_file,
+                   seed_dict, prior_maps, transform_list, inverse_list, name_source, interpolation, rabies_data_type):
     import pickle
     import numpy as np
     import SimpleITK as sitk
@@ -384,7 +387,7 @@ def load_maps_dict(opts, mask_file, WM_mask_file, CSF_mask_file, atlas_file, atl
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
     resampled_4D_img = applyTransforms_4D(in_img=prior_maps, ref_file=anat_ref_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
-                                          motcorr_affine_list=None, interpolation=opts.interpolation, rabies_data_type=opts.data_type, clip_negative=False)
+                                          motcorr_affine_list=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
     resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
 
