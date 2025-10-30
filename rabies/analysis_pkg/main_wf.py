@@ -80,11 +80,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                        function=load_CR_input_dict),
                               name='load_CR_dict_node')
 
-    analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                                         name='analysis_split_joinnode',
-                                         joinsource='main_split',
-                                         joinfield=['file_list'])
-
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
     analysis_wf = init_analysis_wf(
@@ -136,13 +131,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ]),
         (load_CR_dict_node, analysis_wf, [
             ("CR_dict_file", "subject_inputnode.CR_dict_file"),
-            ]),
-        (conf_outputnode, analysis_split_joinnode, [
-            ("commonspace_mask", "mask_file"),
-            ]),
-        (analysis_split_joinnode, analysis_wf, [
-            ("file_list", "group_inputnode.bold_file_list"),
-            ("mask_file", "group_inputnode.commonspace_mask"),
             ]),
         (analysis_wf, main_analysis_datasink, [
             ("outputnode.matrix_data_file", "matrix_data_file"),
@@ -239,18 +227,35 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ]),
             ])
 
-    if not cr_opts.nativespace_analysis:
+    if not cr_opts.nativespace_analysis or cr_opts.resample_to_commonspace:
+        # this node can only exist if commonspace timeseries were previously generated
+        analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                                            name='analysis_split_joinnode',
+                                            joinsource='main_split',
+                                            joinfield=['file_list'])
+
         workflow.connect([
             (conf_outputnode, analysis_split_joinnode, [
-                ("cleaned_path", "file_list"),
+                ("commonspace_mask", "mask_file"),
+                ]),
+            (analysis_split_joinnode, analysis_wf, [
+                ("file_list", "group_inputnode.bold_file_list"),
+                ("mask_file", "group_inputnode.commonspace_mask"),
                 ]),
             ])
-    elif cr_opts.resample_to_commonspace:
-        workflow.connect([
-            (conf_outputnode, analysis_split_joinnode, [
-                ("cleaned_timeseries_commonspace", "file_list"),
-                ]),
-            ])
+
+        if not cr_opts.nativespace_analysis:
+            workflow.connect([
+                (conf_outputnode, analysis_split_joinnode, [
+                    ("cleaned_path", "file_list"),
+                    ]),
+                ])
+        elif cr_opts.resample_to_commonspace:
+            workflow.connect([
+                (conf_outputnode, analysis_split_joinnode, [
+                    ("cleaned_timeseries_commonspace", "file_list"),
+                    ]),
+                ])
 
     # handling the resampling of nativespace computations into commonspace outputs        
     if cr_opts.nativespace_analysis and analysis_opts.resample_to_commonspace:
