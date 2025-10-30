@@ -236,12 +236,19 @@ def grayplot(timeseries, ax):
     return im
 
 
-def plot_freqs(ax,timeseries, TR):
-    freqs = np.fft.fftfreq(timeseries.shape[0], TR)
+def plot_freqs(ax,timeseries, TR, frame_mask):
+
+    if (frame_mask==0).sum()>0: # only simulate data points if some censoring was applied
+        from rabies.confound_correction_pkg.utils import lombscargle_fill
+        timeseries_ = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+    else:
+        timeseries_ = timeseries
+
+    freqs = np.fft.fftfreq(timeseries_.shape[0], TR)
     idx = np.argsort(freqs)
     pos_idx = idx[freqs[idx]>0]
 
-    ps = np.abs(np.fft.fft(timeseries.T))**2
+    ps = np.abs(np.fft.fft(timeseries_.T))**2
     ps_mean = ps.mean(axis=0)
     ps_std = ps.std(axis=0)
 
@@ -259,6 +266,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, re
     timeseries = CR_data_dict['timeseries']
     template_file = maps_data_dict['anat_ref_file']
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
+    frame_mask = CR_CR_data_dict['frame_mask']
     
     fig = plt.figure(figsize=(12, 24))
 
@@ -271,7 +279,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, re
     ax3 = fig.add_subplot(8,2,13)
     ax4 = fig.add_subplot(8,2,15)
 
-    plot_freqs(ax0_f,timeseries, CR_CR_data_dict['TR'])
+    plot_freqs(ax0_f,timeseries, CR_CR_data_dict['TR'], frame_mask)
     plt.setp(ax0_f.get_yticklabels(), visible=False)
     plt.setp(ax0_f.get_xticklabels(), fontsize=12)
     ax0_f.set_xlabel('Frequency (Hz)', fontsize=20)
@@ -321,7 +329,6 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, re
     # plot the motion timecourses
     motion_params_csv = CR_CR_data_dict['motion_params_csv']
     time_range = CR_CR_data_dict['time_range']
-    frame_mask = CR_CR_data_dict['frame_mask']
     df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
     ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
