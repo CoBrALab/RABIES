@@ -244,6 +244,9 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     else:
         timeseries_ = timeseries
 
+    # voxels that have a NaN value are set to 0
+    timeseries_[np.isnan(timeseries_)] = 0
+
     freqs = np.fft.fftfreq(timeseries_.shape[0], TR)
     idx = np.argsort(freqs)
     pos_idx = idx[freqs[idx]>0]

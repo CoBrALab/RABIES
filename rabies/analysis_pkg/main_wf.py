@@ -197,7 +197,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                                 'maps_dict_file'],
                                         function=load_maps_dict),
                                 name='load_maps_dict_native_node')
-        load_maps_dict_native_node.inputs.opts = analysis_opts
         load_maps_dict_native_node.inputs.atlas_ref = preprocess_opts.labels
         load_maps_dict_native_node.inputs.seed_dict = seed_dict
         load_maps_dict_native_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
