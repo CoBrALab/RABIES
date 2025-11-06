@@ -180,6 +180,12 @@ class ResampleVolumes(BaseInterface):
     output_spec = ResampleVolumesOutputSpec
 
     def _run_interface(self, runtime):
+
+        # avoid crashes if receiving an empty file
+        if pathlib.Path(self.inputs.in_file).name=='empty.nii.gz':
+            setattr(self, 'resampled_file', self.inputs.in_file)
+            return runtime
+
         # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
         sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
