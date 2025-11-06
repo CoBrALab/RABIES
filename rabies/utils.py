@@ -188,11 +188,11 @@ class ResampleVolumes(BaseInterface):
         if self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
             ref_file = self.inputs.ref_file
         else:
-            if not self.inputs.resampling_dim == 'inputs_defined':
+            if self.inputs.resampling_dim == 'inputs_defined':
+                spacing = img.GetSpacing()[:3]
+            else:
                 shape = self.inputs.resampling_dim.split('x')
                 spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
-            else:
-                spacing = img.GetSpacing()[:3]
             resampled = resample_image_spacing(sitk.ReadImage(
                 self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
             ref_file = os.path.abspath('resampled.nii.gz')

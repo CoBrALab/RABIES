@@ -431,9 +431,20 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ('outputnode.bold_to_anat_warp', 'bold_to_anat_warp'),
                 ('outputnode.bold_to_anat_inverse_warp', 'bold_to_anat_inverse_warp'),
                 ]),
-            (cross_modal_reg_wf, bold_native_trans_wf, [
-                ('outputnode.output_warped_bold', 'inputnode.ref_file')]),
             ])
+        
+        if opts.bold_nativespace:
+            workflow.connect([
+                (transitionnode, bold_native_trans_wf, [
+                    ('bold_ref', 'inputnode.ref_file'),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (cross_modal_reg_wf, bold_native_trans_wf, [
+                    ('outputnode.output_warped_bold', 'inputnode.ref_file'),
+                    ]),
+                ])
 
     else:
         prep_transforms_between_spaces_node.inputs.bold_to_anat_warp = None
