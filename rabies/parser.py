@@ -913,10 +913,12 @@ def get_parser():
     analysis.add_argument(
         "--data_diagnosis", dest='data_diagnosis', action='store_true',
         help=
-            "Generates a set of data quality assessment reports as described in Desrosiers-Gregoire et al. 2023. \n"
+            "Generates a set of data quality assessment reports as described in Desrosiers-Gregoire et al. 2024. \n"
             "These reports aim to support interpreting connectivity results and account for data quality issues, \n"
-            "and include: 1-a scan-level qualitative diagnosis report, 2-a quantitative distribution report, 3-a \n"
+            "and include: 1) a scan-level qualitative diagnosis report, 2) a quantitative distribution report, 3) a \n"
             "group-level statistical report for network analysis. \n"
+            "Note that all brain maps are displayed in commonspace, and analysis outputs in nativespace are thus \n"
+            "first resampled before plotting.\n"
             "(default: %(default)s)\n"
             "\n"
         )

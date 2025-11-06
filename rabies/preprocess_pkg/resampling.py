@@ -9,11 +9,11 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     """
     This workflow carries out the resampling of the original EPI timeseries into preprocessed timeseries.
     This is accomplished by applying at each frame a combined transform which accounts for previously estimated 
-    motion correction and susceptibility distortion correction, together with the alignment to common space if
-    the outputs are desired in common space. All transforms are concatenated into a single resampling operation
-    to mitigate interpolation effects from repeated resampling.
-    This workflow also carries the resampling of brain masks and labels from the reference atlas onto the 
-    preprocessed EPI timeseries.
+    motion correction and susceptibility distortion correction, together with the alignment to common space (the
+    exact combination of transforms depends on which anatomical preprocessed timeseries are resampled into). 
+    All transforms are concatenated into a single resampling operation to mitigate interpolation effects from 
+    repeated resampling. This workflow also carries the resampling of brain masks and labels from the reference 
+    atlas onto the preprocessed EPI timeseries.
 
     Command line interface parameters:
         Resampling Options:
