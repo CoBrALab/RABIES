@@ -1,3 +1,4 @@
+import os
 from nipype.interfaces import utility as niu
 import nipype.pipeline.engine as pe  # pypeline engine
 from nipype.interfaces.utility import Function
@@ -9,7 +10,6 @@ from nipype.interfaces.io import DataSink
 from rabies.utils import run_command, flatten_list, ResampleMask
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
-
 
 def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
@@ -137,7 +137,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                                         output_names=['affine', 'warp',
                                                     'inverse_warp', 'warped_image'],
                                         function=run_antsRegistration),
-                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
+                            name='atlas_reg', mem_gb=2*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
 
         # don't use brain extraction without a moving mask
         if brain_extraction:
@@ -250,7 +250,6 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            import os
             # the plugin is set here instead of as a node input to avoid re-running the nipype workflow if plugin is changed 
             os.environ['MODELBUILD_PLUGIN'] = opts.plugin
             generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,

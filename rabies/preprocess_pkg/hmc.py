@@ -59,7 +59,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
 
     # Head motion correction (hmc)
     motion_estimation = pe.Node(antsMotionCorr(prebuilt_option=opts.HMC_option,transform_type='Rigid', second=False, rabies_data_type=opts.data_type),
-                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory)
+                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 

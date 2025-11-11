@@ -65,6 +65,8 @@ def execute_workflow(args=None, return_workflow=False):
            can be provided, not both.
            """)
     
+    os.environ['RABIES_ITK_THREADS_STATE']='OFF' # This is turned off by default
+
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
     elif str(opts.data_type) == 'int32':

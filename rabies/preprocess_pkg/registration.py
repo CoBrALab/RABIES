@@ -1,7 +1,7 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
-
+import os
 
 def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     # cross_modal_reg_head_start
@@ -75,7 +75,8 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                                             "fixed_mask", "winsorize_lower_bound", "winsorize_upper_bound", "rabies_data_type"],
                                output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
                                              'bold_to_anat_inverse_warp', 'output_warped_bold'],
-                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
+                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory,
+                               n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
 
     # don't use brain extraction without a moving mask
     run_reg.inputs.winsorize_lower_bound = opts.bold2anat_coreg['winsorize_lower_bound']

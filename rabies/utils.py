@@ -4,7 +4,7 @@ import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, InputMultiPath, BaseInterface
+    File, BaseInterface
 )
 
 ######################
@@ -399,10 +399,13 @@ def run_command(command, verbose = False):
 
     import subprocess
     try:
+        if os.environ['RABIES_ITK_THREADS_STATE']=='ON':
+            os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = os.environ['RABIES_ITK_NUM_THREADS']
         process = subprocess.run(
             command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             check=True,
             shell=True,
+            env=os.environ,
             )
     except Exception as e:
         log.warning(e.output.decode("utf-8"))

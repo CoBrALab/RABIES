@@ -122,6 +122,21 @@ def get_parser():
             "\n"
         )
     g_execution.add_argument(
+        '--num_ITK_threads', type=str, default='optimal',
+        help=
+            "Number of threads to provide for antsRegistration and antsMotionCorr commands.\n"
+            "The nipype parallelization will be impacted accordingly, i.e. nodes running these commands \n"
+            "will require this number of threads from --local_threads. \n"
+            "This can take the value of 'optimal', 'off' or an integer value: \n"
+            "optimal: The number of threads will be set to '# --local_threads/# of functional scans', \n"
+            "         which will maximize the distribution of available threads across scans. \n"
+            "int: an integer can be provided to manually set the number of ITK threads. \n"
+            "off: This will turn off ITK threading management, and maximize parallelization (as in previous RABIES \n"
+            "     versions), which will maximize computational efficiency but risks memory overloads and crashes. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
         "--scale_min_memory", type=float, default=1.0,
         help=
             "For --plugin MultiProc, set the memory scaling factor attributed to nodes during\n"

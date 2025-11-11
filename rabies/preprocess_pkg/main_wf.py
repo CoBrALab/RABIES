@@ -130,13 +130,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                           container="motion_datasink"),
                                  name="motion_datasink")
 
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
     import bids
     bids.config.set_option('extension_initial_dot', True)
     try:
         layout = bids.layout.BIDSLayout(data_dir_path, validate=True)
     except Exception as e:
-        from nipype import logging
-        log = logging.getLogger('nipype.workflow')
         log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
         layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
 
@@ -155,6 +155,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     number_structural_scans = len(structural_scan_list)
     number_functional_scans = len(bold_scan_list)
+
+    # this is set as an os.environ variable instead of a nipype node input, to avoid re-running nodes when changing this parameter
+    if opts.num_ITK_threads=='optimal':
+        num_ITK_threads=max(int(opts.local_threads/number_functional_scans),1)
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+        log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
+    elif opts.num_ITK_threads=='off':
+        num_ITK_threads=1 # set to 1 to maximize parallelization
+        os.environ['RABIES_ITK_THREADS_STATE']='OFF'
+    else:
+        num_ITK_threads=int(opts.num_ITK_threads)
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+    os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
