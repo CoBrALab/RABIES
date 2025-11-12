@@ -260,9 +260,13 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     ax.plot(freqs[pos_idx], ps_mean[pos_idx])
     ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
     ax.set_ylim([0,y_max])
-    ax.set_xlim([0,freqs.max()])
     xticks = np.arange(0,freqs.max(),0.05)
     ax.set_xticks(xticks)    
+
+    x_max = freqs.max()
+    xlim_edge_percent = 0.02
+    x_lim = [-(x_max*xlim_edge_percent),x_max+(x_max*xlim_edge_percent)]
+    ax.set_xlim(x_lim)
 
 
 def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, regional_grayplot=False):
@@ -321,13 +325,16 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, re
     plt.setp(ax1.get_xticklabels(), visible=False)
 
     y = temporal_info['FD_trace'].to_numpy()
-    x = range(len(y))
-    ax0.set_xlim([0, len(y)-1])
-    ax1.set_xlim([0, len(y)-1])
-    ax1_.set_xlim([0, len(y)-1])
-    ax2.set_xlim([0, len(y)-1])
-    ax3.set_xlim([0, len(y)-1])
-    ax4.set_xlim([0, len(y)-1])
+    num_timepoints = len(y)
+    x = range(num_timepoints)
+    xlim_edge_percent = 0.02
+    x_lim = [-(num_timepoints*xlim_edge_percent),(num_timepoints-1)+(num_timepoints*xlim_edge_percent)]
+    ax0.set_xlim(x_lim)
+    ax1.set_xlim(x_lim)
+    ax1_.set_xlim(x_lim)
+    ax2.set_xlim(x_lim)
+    ax3.set_xlim(x_lim)
+    ax4.set_xlim(x_lim)
 
     # plot the motion timecourses
     motion_params_csv = CR_CR_data_dict['motion_params_csv']
