@@ -18,22 +18,15 @@ plt.rcParams.update({
     "savefig.facecolor": "black",
     "savefig.edgecolor": "black"})
 
-from rabies.utils import run_command
-
 
 def otsu_scaling(image_file):
+    from skimage.filters import threshold_multiotsu
     img = sitk.ReadImage(image_file)
     array = sitk.GetArrayFromImage(img)
 
-    # select a smart vmax for the image display to enhance contrast
-    command = f'ThresholdImage 3 {image_file} otsu_weight.nii.gz Otsu 4'
-    rc,c_out = run_command(command)
-
-    # clip off the background
-    mask = sitk.GetArrayFromImage(sitk.ReadImage('otsu_weight.nii.gz'))
-    voxel_subset=array[mask>1.0]
-
-    # select a maximal value which encompasses 90% of the voxels in the mask
+    thresholds = threshold_multiotsu(array.astype(float).flatten(), classes=5, nbins=100)
+    voxel_subset=array[array>thresholds[1]] # clip off the background using otsu thresholds
+    # select a maximal value which encompasses 90% of the voxels
     voxel_subset.sort()
     vmax=voxel_subset[int(len(voxel_subset)*0.9)]
 
