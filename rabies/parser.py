@@ -122,6 +122,21 @@ def get_parser():
             "\n"
         )
     g_execution.add_argument(
+        '--num_ITK_threads', type=str, default='optimal',
+        help=
+            "Number of threads to provide for antsRegistration and antsMotionCorr commands.\n"
+            "The nipype parallelization will be impacted accordingly, i.e. nodes running these commands \n"
+            "will require this number of threads from --local_threads. \n"
+            "This can take the value of 'optimal', 'off' or an integer value: \n"
+            "optimal: The number of threads will be set to '# --local_threads/# of functional scans', \n"
+            "         which will maximize the distribution of available threads across scans. \n"
+            "int: an integer can be provided to manually set the number of ITK threads. \n"
+            "off: This will turn off ITK threading management, and maximize parallelization (as in previous RABIES \n"
+            "     versions), which will maximize computational efficiency but risks memory overloads and crashes. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
         "--scale_min_memory", type=float, default=1.0,
         help=
             "For --plugin MultiProc, set the memory scaling factor attributed to nodes during\n"
@@ -160,6 +175,22 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_execution.add_argument(
+        "--data_type", type=str, default='float32',
+        choices=['int16', 'int32', 'float32', 'float64'],
+        help=
+            "Specify data format outputs to control for file size.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_execution.add_argument(
+        "--interpolation", type=str, default='Linear',
+        help=
+            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
+            "for any image resampling operation conducted for this RABIES stage. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )    
 
 
     ####Preprocessing
@@ -191,7 +222,18 @@ def get_parser():
         help=
             "Apply preprocessing with only EPI scans. Commonspace registration is executed directly using\n"
             "the corrected EPI 3D reference images. The commonspace registration simultaneously applies\n"
-            "distortion correction, this option will produce only commonspace outputs.\n"
+            "distortion correction. Nativespace is always the original EPI space.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
+        "--bold_nativespace", dest='bold_nativespace', action='store_true',
+        help=
+            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
+            "to the anatomical space of the structural scan which is by default the nativespace.\n"
+            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
+            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
+            "If using --bold_only, this parameter has no effect. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -281,14 +323,6 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--data_type", type=str, default='float32',
-        choices=['int16', 'int32', 'float32', 'float64'],
-        help=
-            "Specify data format outputs to control for file size.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
         '--log_transform', dest='log_transform', action='store_true',
         help=
             "The functional and structural image intensity will be log transformed before registration. \n"
@@ -329,7 +363,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--anat_robust_inho_cor', type=str,
-        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "When selecting this option, inhomogeneity correction is executed twice to optimize \n"
             "outcomes. After completing an initial inhomogeneity correction step, the corrected outputs \n"
@@ -374,7 +408,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--bold_robust_inho_cor', type=str,
-        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='apply=false,stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Same as --anat_robust_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
@@ -382,7 +416,7 @@ def get_parser():
         )
     g_registration.add_argument(
         '--commonspace_reg', type=str,
-        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='stages=rigid-affine-nlin,masking=false,brain_extraction=false,keep_mask_after_extract=false,template_registration=SyN,fast_commonspace=false,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Specify registration options for the commonspace registration.\n"
             "* stages: Registration stages for generating the unbiased template. \n"
@@ -432,7 +466,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold2anat_coreg", type=str, 
-        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995',
+        default='masking=false,brain_extraction=false,keep_mask_after_extract=false,registration=SyN,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0',
         help=
             "Specify the registration script for cross-modal alignment between the EPI and structural\n"
             "images. This operation is responsible for correcting EPI susceptibility distortions.\n"
@@ -494,14 +528,6 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-    g_resampling.add_argument(
-        "--interpolation", type=str, default='Linear',
-        help=
-            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
-            "to resample preprocessed timeseries. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )    
 
     g_stc = preprocess.add_argument_group(
         title='STC Options', 
@@ -647,6 +673,15 @@ def get_parser():
         '--nativespace_analysis', dest='nativespace_analysis', action='store_true',
         help=
             "Conduct confound correction and analysis in native space.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        "--resample_to_commonspace", dest='resample_to_commonspace', action='store_true',
+        help=
+            "If using --nativespace_analysis, use this parameter to also generate cleaned timeseries \n"
+            "resampled to commonspace after denoising is carried in nativespace. \n"
+            "Using this option is necessary to enable group ICA at the analysis stage after using --nativespace_analysis.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -842,6 +877,15 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        "--resample_to_commonspace", dest='resample_to_commonspace', action='store_true',
+        help=
+            "If the input cleaned timeseries are in nativespace, meaning that connectivity is computed in nativespace, \n"
+            "this option will resample analysis outputs into commonspace (both nativespace and commonspace versions \n"
+            "are thus generated).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         '--prior_maps', action='store', type=Path,
         default=run_main.DSURQE_ICA,
         help=
@@ -884,10 +928,12 @@ def get_parser():
     analysis.add_argument(
         "--data_diagnosis", dest='data_diagnosis', action='store_true',
         help=
-            "Generates a set of data quality assessment reports as described in Desrosiers-Gregoire et al. 2023. \n"
+            "Generates a set of data quality assessment reports as described in Desrosiers-Gregoire et al. 2024. \n"
             "These reports aim to support interpreting connectivity results and account for data quality issues, \n"
-            "and include: 1-a scan-level qualitative diagnosis report, 2-a quantitative distribution report, 3-a \n"
+            "and include: 1) a scan-level qualitative diagnosis report, 2) a quantitative distribution report, 3) a \n"
             "group-level statistical report for network analysis. \n"
+            "Note that all brain maps are displayed in commonspace, and analysis outputs in nativespace are thus \n"
+            "first resampled before plotting.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -965,6 +1011,17 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--plot_seed_frequencies', type=str, default="",
+        help=
+            "With this option it is possible to plot the frequency spectrum of specific seed timecourses obtained from \n"
+            "--seed_list in the --data_diagnosis report. \n"
+            "The input must follow this example syntax SS=0,ACA=1, which defines a set of seed_name=seed_index (e.g. SS=0) \n" 
+            "pairs, where the seed name will be used for plotting in the legend and the seed index (starting from 0) will \n" 
+            "select the associated seed from --seed_list based on the order of seed provided. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     analysis.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
         help=
             "Compute whole-brain connectivity matrices using Pearson's r between ROI timeseries.\n"
@@ -990,7 +1047,7 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1',
+        '--group_ica', type=str, default='apply=false,dim=0,random_seed=1,disableMigp=false',
         help=
             "Perform group-ICA using FSL's MELODIC on the whole dataset's cleaned timeseries.\n"
             "Note that confound correction must have been conducted on commonspace outputs.\n"
@@ -999,6 +1056,7 @@ def get_parser():
             "* dim: Specify a pre-determined number of MELODIC components to derive. '0' will use an automatic \n"
             " estimator. \n"
             "* random_seed: For reproducibility, this option sets a fixed random seed for MELODIC. \n"
+            "* disableMigp: Whether to disable the MIGP method for lowering the memory load of data concatenation. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1079,6 +1137,15 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--brainmap_percent_threshold', type=float, default=10,
+        help=
+            "Specify the percentage of voxels with highest intensity included when thresholding brain maps \n"
+            "(e.g. an input of 10 means that the top 10 percent of voxels with highest values are included).\n"
+            "This is used within --data_diagnosis for plotting brain maps and computing Dice overlap coefficients. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     return parser
 
@@ -1116,25 +1183,25 @@ def read_parser(parser, args):
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
             key_value_pairs = {'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'fast_commonspace':['true', 'false'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'stages':'rigid-affine-nlin', 'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','fast_commonspace':False,'winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='commonspace_reg')
 
         opts.bold2anat_coreg = parse_argument(opt=opts.bold2anat_coreg, 
             key_value_pairs = {'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold2anat_coreg')
 
         opts.anat_robust_inho_cor = parse_argument(opt=opts.anat_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='anat_robust_inho_cor')
 
         opts.bold_robust_inho_cor = parse_argument(opt=opts.bold_robust_inho_cor, 
             key_value_pairs = {'apply':['true', 'false'], 'stages':str, 'masking':['true', 'false'], 'brain_extraction':['true', 'false'], 'keep_mask_after_extract':['true', 'false'], 
                 'template_registration':['Rigid', 'Affine', 'SyN', 'no_reg'], 'winsorize_lower_bound':float,'winsorize_upper_bound':float},
-            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.005,'winsorize_upper_bound':0.995},
+            defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
         # check that masking/extraction options are well set
@@ -1161,8 +1228,8 @@ def read_parser(parser, args):
 
     elif opts.rabies_stage == 'analysis':
         opts.group_ica = parse_argument(opt=opts.group_ica, 
-            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
-            defaults = {'apply':False,'dim':0,'random_seed':1},
+            key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int, 'disableMigp':['true', 'false']},
+            defaults = {'apply':False,'dim':0,'random_seed':1, 'disableMigp':False},
             name='group_ica')
         opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
             key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,
@@ -1170,6 +1237,7 @@ def read_parser(parser, args):
             defaults = {'apply':False,'window_size':5,'min_prior_corr':0.5,'diff_thresh':0.03,'max_iter':20,'compute_max':False},
             name='optimize_NPR')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
+        opts.plot_seed_frequencies = parse_dict_str(opts.plot_seed_frequencies)
 
     return opts
 
@@ -1259,4 +1327,18 @@ def parse_scan_QC_thresholds(opt):
             raise ValueError(f"Amplitude is not computed with SBC. Do not specify 'Amp' for 'SBC' with --scan_QC_thresholds.")
 
 
+    return opt_dict
+
+
+def parse_dict_str(opt):
+    opt_dict = {}
+    if opt=='': # return if empty
+        return opt_dict
+    split1 = opt.split(',')
+    for split in split1:
+        split2 = split.split('=')
+        if not len(split2)==2:
+            raise ValueError(f"{split2} does not contain a key-value pair.")
+        key,value = split2
+        opt_dict[key]=int(value)
     return opt_dict

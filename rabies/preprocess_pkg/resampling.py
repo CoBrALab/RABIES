@@ -1,23 +1,19 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
 
 from .bold_ref import init_bold_reference_wf
-from rabies.utils import slice_applyTransforms, Merge
+from rabies.utils import ResampleVolumes,ResampleMask
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
     # resampling_head_start
     """
     This workflow carries out the resampling of the original EPI timeseries into preprocessed timeseries.
     This is accomplished by applying at each frame a combined transform which accounts for previously estimated 
-    motion correction and susceptibility distortion correction, together with the alignment to common space if
-    the outputs are desired in common space. All transforms are concatenated into a single resampling operation
-    to mitigate interpolation effects from repeated resampling.
-    This workflow also carries the resampling of brain masks and labels from the reference atlas onto the 
-    preprocessed EPI timeseries.
+    motion correction and susceptibility distortion correction, together with the alignment to common space (the
+    exact combination of transforms depends on which anatomical preprocessed timeseries are resampled into). 
+    All transforms are concatenated into a single resampling operation to mitigate interpolation effects from 
+    repeated resampling. This workflow also carries the resampling of brain masks and labels from the reference 
+    atlas onto the preprocessed EPI timeseries.
 
     Command line interface parameters:
         Resampling Options:
@@ -70,24 +66,22 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
         'name_source', 'bold_file', 'motcorr_params', 'transforms_list', 'inverses', 'ref_file',
-        'mask_transforms_list', 'mask_inverses', 'commonspace_to_raw_transform_list', 'commonspace_to_raw_inverse_list',
-        'raw_bold_ref']),
+        'mask_transforms_list', 'mask_inverses', 'commonspace_to_bold_transform_list', 'commonspace_to_bold_inverse_list',
+        'boldspace_bold_ref']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'raw_brain_mask']),
+            fields=['bold', 'bold_ref', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels', 'boldspace_brain_mask']),
         name='outputnode')
 
-    bold_transform = pe.Node(slice_applyTransforms(
-        rabies_data_type=opts.data_type), name='bold_transform', mem_gb=1*opts.scale_min_memory)
+    bold_transform = pe.Node(ResampleVolumes(
+        rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
     bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
     bold_transform.inputs.interpolation = opts.interpolation
-
-    merge = pe.Node(Merge(rabies_data_type=opts.data_type, clip_negative=True), name='merge', mem_gb=4*opts.scale_min_memory)
-    merge.plugin_args = {
+    bold_transform.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
     # Generate a new BOLD reference
@@ -97,9 +91,9 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     for opt_key in ['brain_mask', 'WM_mask','CSF_mask','vascular_mask','labels']:
         opt_file = getattr(opts, opt_key)
         if opt_file is not None:
-            mask_to_EPI = pe.Node(MaskEPI(), name=opt_key+'_EPI')
-            mask_to_EPI.inputs.name_spec = 'EPI_'+opt_key
-            mask_to_EPI.inputs.mask = str(opt_file)
+            mask_to_EPI = pe.Node(ResampleMask(), name=opt_key+'_resample')
+            mask_to_EPI.inputs.name_suffix = opt_key+'_resampled'
+            mask_to_EPI.inputs.mask_file = str(opt_file)
 
             workflow.connect([
                 (inputnode, mask_to_EPI, [
@@ -108,84 +102,36 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
                     ('mask_inverses', 'inverses'),
                     ]),
                 (bold_reference_wf, mask_to_EPI, [
-                    ('outputnode.ref_image', 'ref_EPI')]),
+                    ('outputnode.ref_image', 'ref_file')]),
                 (mask_to_EPI, outputnode, [
-                    ('EPI_mask', opt_key)]),
+                    ('resampled_file', opt_key)]),
             ])
 
-    raw_brain_mask = pe.Node(MaskEPI(), name='raw_brain_mask')
-    raw_brain_mask.inputs.name_spec = 'raw_brain_mask'
-    raw_brain_mask.inputs.mask = str(opts.brain_mask)
+    boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')
+    boldspace_brain_mask.inputs.name_suffix = 'boldspace_mask_resampled'
+    boldspace_brain_mask.inputs.mask_file = str(opts.brain_mask)
 
     workflow.connect([
-        (inputnode, merge, [('name_source', 'header_source')]),
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
             ('transforms_list', 'transforms'),
             ('inverses', 'inverses'),
-            ('ref_file', 'ref_file')
-            ]),
-        (bold_transform, merge, [('out_files', 'in_files')]),
-        (merge, bold_reference_wf, [('out_file', 'inputnode.bold_file')]),
-        (merge, outputnode, [('out_file', 'bold')]),
-        (inputnode, raw_brain_mask, [
-            ('raw_bold_ref', 'ref_EPI'),
+            ('ref_file', 'ref_file'),
             ('name_source', 'name_source'),
-            ('commonspace_to_raw_transform_list', 'transforms'),
-            ('commonspace_to_raw_inverse_list', 'inverses'),
             ]),
-        (raw_brain_mask, outputnode, [
-            ('EPI_mask', 'raw_brain_mask')]),
+        (bold_transform, bold_reference_wf, [('resampled_file', 'inputnode.bold_file')]),
+        (bold_transform, outputnode, [('resampled_file', 'bold')]),
+        (inputnode, boldspace_brain_mask, [
+            ('boldspace_bold_ref', 'ref_file'),
+            ('name_source', 'name_source'),
+            ('commonspace_to_bold_transform_list', 'transforms'),
+            ('commonspace_to_bold_inverse_list', 'inverses'),
+            ]),
+        (boldspace_brain_mask, outputnode, [
+            ('resampled_file', 'boldspace_brain_mask')]),
         (bold_reference_wf, outputnode, [
             ('outputnode.ref_image', 'bold_ref')]),
     ])
 
     return workflow
-
-class MaskEPIInputSpec(BaseInterfaceInputSpec):
-    mask = File(exists=True, mandatory=True,
-                desc="Mask to transfer to EPI space.")
-    ref_EPI = File(exists=True, mandatory=True,
-                   desc="Motion-realigned and SDC-corrected reference 3D EPI.")
-    transforms = traits.List(desc="List of transforms to apply to every volume.")
-    inverses = traits.List(
-        desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
-    name_spec = traits.Str(desc="Specify the name of the mask.")
-    name_source = File(exists=True, mandatory=True,
-                       desc='Reference BOLD file for naming the output.')
-
-
-class MaskEPIOutputSpec(TraitedSpec):
-    EPI_mask = traits.File(desc="The generated EPI mask.")
-
-
-class MaskEPI(BaseInterface):
-
-    input_spec = MaskEPIInputSpec
-    output_spec = MaskEPIOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        import SimpleITK as sitk
-        from rabies.utils import exec_applyTransforms
-
-        import pathlib  # Better path manipulation
-        filename_split = pathlib.Path(
-            self.inputs.name_source).name.rsplit(".nii")
-
-        if self.inputs.name_spec is None:
-            new_mask_path = os.path.abspath(
-                f'{filename_split[0]}_EPI_mask.nii.gz')
-        else:
-            new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_spec}.nii.gz')
-
-        exec_applyTransforms(self.inputs.transforms, self.inputs.inverses, self.inputs.mask, self.inputs.ref_EPI, new_mask_path, interpolation='GenericLabel')
-        sitk.WriteImage(sitk.ReadImage(
-            new_mask_path, sitk.sitkInt16), new_mask_path)
-
-        setattr(self, 'EPI_mask', new_mask_path)
-        return runtime
-
-    def _list_outputs(self):
-        return {'EPI_mask': getattr(self, 'EPI_mask')}

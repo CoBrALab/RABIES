@@ -7,7 +7,7 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import BIDSDataGraber, prep_bids_iter, convert_to_RAS, correct_oblique_affine, convert_3dWarp, apply_autobox, resample_template,log_transform_nii
+from .utils import prep_bids_iter, resample_template
 from . import preprocess_visual_QC
 from .prep_input import init_prep_input_wf,match_iterables
 
@@ -58,8 +58,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         inho_cor_bold_warped2anat
             Bias field corrected 3D EPI volume warped to the anatomical space
         native_corrected_bold
-            Preprocessed EPI resampled to match the anatomical space for
-            susceptibility distortion correction
+            Preprocessed EPI resampled to nativespace
         corrected_bold_ref
             3D ref EPI volume from the native EPI timeseries
         motion_params_csv
@@ -111,7 +110,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'raw_brain_mask']),
+                'commonspace_labels', 'std_filename', 'tSNR_filename', 'boldspace_brain_mask']),
         name='outputnode')
 
     # Datasink - creates output folder for important outputs
@@ -131,13 +130,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                           container="motion_datasink"),
                                  name="motion_datasink")
 
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
     import bids
     bids.config.set_option('extension_initial_dot', True)
     try:
         layout = bids.layout.BIDSLayout(data_dir_path, validate=True)
     except Exception as e:
-        from nipype import logging
-        log = logging.getLogger('nipype.workflow')
         log.warning(f"The BIDS compliance failed: {e} \n\nRABIES will run anyway; double-check that the right files were picked up for processing.\n")
         layout = bids.layout.BIDSLayout(data_dir_path, validate=False)
 
@@ -156,6 +155,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     number_structural_scans = len(structural_scan_list)
     number_functional_scans = len(bold_scan_list)
+
+    # this is set as an os.environ variable instead of a nipype node input, to avoid re-running nodes when changing this parameter
+    if opts.num_ITK_threads=='optimal':
+        num_ITK_threads=max(int(opts.local_threads/number_functional_scans),1)
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+        log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
+    elif opts.num_ITK_threads=='off':
+        num_ITK_threads=1 # set to 1 to maximize parallelization
+        os.environ['RABIES_ITK_THREADS_STATE']='OFF'
+    else:
+        num_ITK_threads=int(opts.num_ITK_threads)
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+    os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
@@ -265,12 +277,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     if opts.inherit_unbiased_template=='none':
         inherit_unbiased=False
         # Resample the anatomical template according to the resolution of the provided input data
-        resample_template_node = pe.Node(Function(input_names=['opts', 'structural_scan_list', 'bold_scan_list'],
+        resample_template_node = pe.Node(Function(input_names=['structural_scan_list', 'bold_scan_list', 'template_file', 
+                                                               'mask_file', 'anatomical_resampling', 'commonspace_resampling', 
+                                                               'rabies_data_type', 'bold_only'],
                                                 output_names=[
                                                     'registration_template', 'registration_mask', 'commonspace_template'],
                                                 function=resample_template),
                                         name='resample_template', mem_gb=1*opts.scale_min_memory)
-        resample_template_node.inputs.opts = opts
+        resample_template_node.inputs.template_file = opts.anat_template
+        resample_template_node.inputs.mask_file = opts.brain_mask
+        resample_template_node.inputs.anatomical_resampling = opts.anatomical_resampling
+        resample_template_node.inputs.commonspace_resampling = opts.commonspace_resampling
+        resample_template_node.inputs.rabies_data_type = opts.data_type
+        resample_template_node.inputs.bold_only = opts.bold_only
 
         workflow.connect([
             (prep_input_wf, resample_template_node, [
@@ -349,10 +368,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("commonspace_template", "commonspace_resampled_template"),
             ]),
         (commonspace_reg_wf, bold_main_wf, [
-            ("outputnode.native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
-            ("outputnode.native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
-            ("outputnode.commonspace_to_native_transform_list", "inputnode.commonspace_to_native_transform_list"),
-            ("outputnode.commonspace_to_native_inverse_list", "inputnode.commonspace_to_native_inverse_list"),
+            ("outputnode.anat_to_commonspace_transform_list", "inputnode.anat_to_commonspace_transform_list"),
+            ("outputnode.anat_to_commonspace_inverse_list", "inputnode.anat_to_commonspace_inverse_list"),
+            ("outputnode.commonspace_to_anat_transform_list", "inputnode.commonspace_to_anat_transform_list"),
+            ("outputnode.commonspace_to_anat_inverse_list", "inputnode.commonspace_to_anat_inverse_list"),
             ]),
         (bold_main_wf, outputnode, [
             ("outputnode.bold_ref", "initial_bold_ref"),
@@ -378,7 +397,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
             ("outputnode.commonspace_labels", "commonspace_labels"),
-            ("outputnode.raw_brain_mask", "raw_brain_mask"),
+            ("outputnode.boldspace_brain_mask", "boldspace_brain_mask"),
             ]),
         (bold_main_wf, bold_inho_cor_diagnosis, [
             ("outputnode.bold_ref", "raw_img"),
@@ -422,7 +441,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "inputnode.coreg_anat"),
                 ]),
             (commonspace_reg_wf, bold_main_wf, [
-                ("outputnode.native_mask", "inputnode.coreg_mask"),
+                ("outputnode.anatspace_mask", "inputnode.coreg_mask"),
                 ("outputnode.unbiased_template", "template_inputnode.template_anat"),
                 ("outputnode.unbiased_mask", "template_inputnode.template_mask"),
                 ]),
@@ -434,7 +453,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.corrected", "EPI_template"),
                 ]),
             (commonspace_reg_wf, EPI_target_buffer, [
-                ("outputnode.native_mask", 'EPI_mask'),
+                ("outputnode.anatspace_mask", 'EPI_mask'),
                 ]),
             (EPI_target_buffer, bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -547,7 +566,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("tSNR_filename", "tSNR_map_preprocess"),
             ("std_filename", "std_map_preprocess"),
             ("commonspace_resampled_template", "commonspace_resampled_template"),
-            ("raw_brain_mask", "raw_brain_mask"),
+            ("boldspace_brain_mask", "boldspace_brain_mask"),
             ]),
         ])
 

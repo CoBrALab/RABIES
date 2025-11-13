@@ -118,10 +118,11 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
         ])
 
     if not opts.bold_only:
-        input_run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
+        input_run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name', 'scan_info']),
                             name="input_run_split")
         input_run_split.itersource = ('input_main_split', 'split_name')
         input_run_split.iterables = [('run', run_iter)]
+        input_run_split.synchronize = True
 
         anat_selectfiles = pe.Node(BIDSDataGraber(bids_dir=data_dir_path, bids_filter=opts.bids_filter['anat']),
                                    name='anat_selectfiles')
@@ -213,6 +214,7 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
         workflow.connect([
             (input_main_split, input_run_split, [
                 ("split_name", "split_name"),
+                ("scan_info", "scan_info"),
                 ]),
             (input_main_split, anat_selectfiles,
              [("scan_info", "scan_info")]),
@@ -253,9 +255,6 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
         (bold_selectfiles, source_join_bold_list, [
             ("out_file", "file_list1"),
             ]),
-        (input_main_split, source_join_bold_list, [
-            ("scan_info", "file_list2"),
-            ]),
         (merged_join_bold_list, outputnode, [
             ("file_list0", "prep_bold_list"),
             ("file_list1", "input_bold_list"),
@@ -269,10 +268,14 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
                 ("file_list1", "input_anat_list"),
                 ("file_list2", "anat_joined_scan_info"),
                 ]),
+            (input_main_split, source_join_bold_list, [
+                ("scan_info", "file_list2"),
+                ]),
             ])
     else:
         workflow.connect([
             (input_run_split, source_join_bold_list, [
+                ("scan_info", "file_list2"),
                 ("run", "file_list3"),
                 ]),
             (merged_join_bold_list, outputnode, [

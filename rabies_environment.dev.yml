@@ -16,6 +16,7 @@ dependencies:
   - pathos
   - pybids
   - scikit-learn
+  - scikit-image
   - scipy
   - seaborn
   - simpleitk

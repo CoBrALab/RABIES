@@ -1,3 +1,4 @@
+import os
 from nipype.interfaces import utility as niu
 import nipype.pipeline.engine as pe  # pypeline engine
 from nipype.interfaces.utility import Function
@@ -6,10 +7,9 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 from nipype.interfaces.io import DataSink
-from rabies.utils import run_command, flatten_list
+from rabies.utils import run_command, flatten_list, ResampleMask
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
-
 
 def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
@@ -79,21 +79,21 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
         outputs
             unbiased_template: the generated unbiased template
             unbiased_mask: brain mask resampled over the unbiased template
-            native_mask: the atlas brain mask resampled to an associated MRI session in native space
+            anatspace_mask: the atlas brain mask resampled to an associated MRI session in anat space
             to_atlas_affine: affine transform for registration to the atlas
             to_atlas_warp: non-linear transform for registration to the atlas
             to_atlas_inverse_warp: inverse of the non-linear transform for registration to the atlas
-            native_to_unbiased_affine: affine transform from native space to the unbiased template
-            native_to_unbiased_warp: non-linear transform from native space to the unbiased template
-            native_to_unbiased_inverse_warp: inverse of the non-linear transform from native space to the unbiased template
-            native_to_commonspace_transform_list: ordered list of the transforms to apply to move from the
-                native space to the common space
-            native_to_commonspace_inverse_list: list defining whether the inverse of affine transforms should
-                be applied for native_to_commonspace_transform_list
-            commonspace_to_native_transform_list: ordered list of the transforms to apply to move from the
-                common space to the natiev space
-            commonspace_to_native_inverse_list: list defining whether the inverse of affine transforms should
-                be applied for commonspace_to_native_transform_list
+            anat_to_unbiased_affine: affine transform from anat space to the unbiased template
+            anat_to_unbiased_warp: non-linear transform from anat space to the unbiased template
+            anat_to_unbiased_inverse_warp: inverse of the non-linear transform from anat space to the unbiased template
+            anat_to_commonspace_transform_list: ordered list of the transforms to apply to move from the
+                anat space to the common space
+            anat_to_commonspace_inverse_list: list defining whether the inverse of affine transforms should
+                be applied for anat_to_commonspace_transform_list
+            commonspace_to_anat_transform_list: ordered list of the transforms to apply to move from the
+                common space to the anat space
+            commonspace_to_anat_inverse_list: list defining whether the inverse of affine transforms should
+                be applied for commonspace_to_anat_transform_list
     """
     # commonspace_wf_head_end
 
@@ -103,10 +103,10 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
 
     template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
                                         name="template_inputnode")
-    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'native_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
-                                                       'native_to_unbiased_affine', 'native_to_unbiased_warp', 'native_to_unbiased_inverse_warp',
-                                                       'native_to_commonspace_transform_list','native_to_commonspace_inverse_list',
-                                                       'commonspace_to_native_transform_list','commonspace_to_native_inverse_list']),
+    outputnode = pe.Node(niu.IdentityInterface(fields=['unbiased_template', 'unbiased_mask', 'anatspace_mask', 'to_atlas_affine', 'to_atlas_warp', 'to_atlas_inverse_warp',
+                                                       'anat_to_unbiased_affine', 'anat_to_unbiased_warp', 'anat_to_unbiased_inverse_warp',
+                                                       'anat_to_commonspace_transform_list','anat_to_commonspace_inverse_list',
+                                                       'commonspace_to_anat_transform_list','commonspace_to_anat_inverse_list']),
                                         name="outputnode")
     workflow = pe.Workflow(name=name)
 
@@ -137,7 +137,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                                         output_names=['affine', 'warp',
                                                     'inverse_warp', 'warped_image'],
                                         function=run_antsRegistration),
-                            name='atlas_reg', mem_gb=2*opts.scale_min_memory)
+                            name='atlas_reg', mem_gb=2*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
 
         # don't use brain extraction without a moving mask
         if brain_extraction:
@@ -153,12 +153,12 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
         atlas_reg.inputs.reg_method = template_reg
 
-    prep_commonspace_transform_node = pe.Node(Function(input_names=['native_ref', 'atlas_mask', 'native_to_unbiased_affine',
-                                                               'native_to_unbiased_warp','native_to_unbiased_inverse_warp',
+    prep_commonspace_transform_node = pe.Node(Function(input_names=['anatspace_ref', 'atlas_mask', 'anat_to_unbiased_affine',
+                                                               'anat_to_unbiased_warp','anat_to_unbiased_inverse_warp',
                                                                'to_atlas_affine','to_atlas_warp','to_atlas_inverse_warp',
                                                                'fast_commonspace'],
                                                output_names=[
-                                                   'native_mask', 'native_to_commonspace_transform_list','native_to_commonspace_inverse_list','commonspace_to_native_transform_list','commonspace_to_native_inverse_list'],
+                                                   'anatspace_mask', 'anat_to_commonspace_transform_list','anat_to_commonspace_inverse_list','commonspace_to_anat_transform_list','commonspace_to_anat_inverse_list'],
                                                function=prep_commonspace_transform),
                                       name='prep_commonspace_transform')
     prep_commonspace_transform_node.inputs.atlas_mask = str(opts.brain_mask)
@@ -184,37 +184,37 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             ("inverse_warp", "to_atlas_inverse_warp"),
             ]),
         (prep_commonspace_transform_node, outputnode, [
-            ('native_to_commonspace_transform_list', 'native_to_commonspace_transform_list'),
-            ('native_to_commonspace_inverse_list', 'native_to_commonspace_inverse_list'),
-            ('commonspace_to_native_transform_list', 'commonspace_to_native_transform_list'),
-            ('commonspace_to_native_inverse_list', 'commonspace_to_native_inverse_list'),
-            ('native_mask', 'native_mask'),
+            ('anat_to_commonspace_transform_list', 'anat_to_commonspace_transform_list'),
+            ('anat_to_commonspace_inverse_list', 'anat_to_commonspace_inverse_list'),
+            ('commonspace_to_anat_transform_list', 'commonspace_to_anat_transform_list'),
+            ('commonspace_to_anat_inverse_list', 'commonspace_to_anat_inverse_list'),
+            ('anatspace_mask', 'anatspace_mask'),
             ]),
         ])
 
     if fast_commonspace:
-        prep_commonspace_transform_node.inputs.native_to_unbiased_affine = None
-        prep_commonspace_transform_node.inputs.native_to_unbiased_warp = None
-        prep_commonspace_transform_node.inputs.native_to_unbiased_inverse_warp = None
+        prep_commonspace_transform_node.inputs.anat_to_unbiased_affine = None
+        prep_commonspace_transform_node.inputs.anat_to_unbiased_warp = None
+        prep_commonspace_transform_node.inputs.anat_to_unbiased_inverse_warp = None
 
-        PlotOverlap_Native2Atlas_node = pe.Node(
-            PlotOverlap(), name='PlotOverlap_Native2Atlas')
-        PlotOverlap_Native2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Atlas/'
+        PlotOverlap_Anat2Atlas_node = pe.Node(
+            PlotOverlap(), name='PlotOverlap_Anat2Atlas')
+        PlotOverlap_Anat2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Anat2Atlas/'
 
         workflow.connect([
             (merged_join_common_reg, atlas_reg, [
                 ("file_list0", "moving_image"),
                 ]),
             (merged_join_common_reg, prep_commonspace_transform_node, [
-                ("file_list0", "native_ref"),
+                ("file_list0", "anatspace_ref"),
                 ]),
-            (inputnode, PlotOverlap_Native2Atlas_node, [
+            (inputnode, PlotOverlap_Anat2Atlas_node, [
                 ("moving_image", "name_source"),
                 ]),
-            (template_inputnode, PlotOverlap_Native2Atlas_node,[
+            (template_inputnode, PlotOverlap_Anat2Atlas_node,[
                 ("template_anat", "fixed"),
                 ]),
-            (atlas_reg, PlotOverlap_Native2Atlas_node, [
+            (atlas_reg, PlotOverlap_Anat2Atlas_node, [
                 ("warped_image", "moving"),
                 ]),
             ])
@@ -227,9 +227,9 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
         if output_datasinks:
             workflow.connect([
                 (atlas_reg, transforms_datasink, [
-                    ("affine", "native_to_atlas_affine"),
-                    ("warp", "native_to_atlas_warp"),
-                    ("inverse_warp", "native_to_atlas_inverse_warp"),
+                    ("affine", "anat_to_atlas_affine"),
+                    ("warp", "anat_to_atlas_warp"),
+                    ("inverse_warp", "anat_to_atlas_inverse_warp"),
                     ]),
                 ])
 
@@ -243,44 +243,39 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                                                 name="generate_template_inherited")
         else:
             # setup a node to select the proper files associated with a given input scan for commonspace registration
-            commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'native_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_native_list'],
+            commonspace_selectfiles = pe.Node(Function(input_names=['filename', 'anat_list', 'affine_list', 'warp_list', 'inverse_warp_list', 'warped_anat_list'],
                                                     output_names=[
-                                                        'native_ref', 'warped_native', 'native_to_unbiased_affine','native_to_unbiased_warp','native_to_unbiased_inverse_warp'],
+                                                        'anatspace_ref', 'warped_anat', 'anat_to_unbiased_affine','anat_to_unbiased_warp','anat_to_unbiased_inverse_warp'],
                                                     function=select_commonspace_outputs),
                                             name='commonspace_selectfiles')
 
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
-            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, cluster_type=opts.plugin, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
+            # the plugin is set here instead of as a node input to avoid re-running the nipype workflow if plugin is changed 
+            os.environ['MODELBUILD_PLUGIN'] = opts.plugin
+            generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
                                                 ),
                                         name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
 
-        PlotOverlap_Native2Unbiased_node = pe.Node(
-            PlotOverlap(), name='PlotOverlap_Native2Unbiased')
-        PlotOverlap_Native2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Native2Unbiased/'
+        PlotOverlap_Anat2Unbiased_node = pe.Node(
+            PlotOverlap(), name='PlotOverlap_Anat2Unbiased')
+        PlotOverlap_Anat2Unbiased_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Anat2Unbiased/'
         PlotOverlap_Unbiased2Atlas_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Unbiased2Atlas')
         PlotOverlap_Unbiased2Atlas_node.inputs.out_dir = output_folder+f'/preprocess_QC_report/{name}.Unbiased2Atlas'
         PlotOverlap_Unbiased2Atlas_node.inputs.name_source = ''
 
-        def resample_unbiased_mask(unbiased_template, template_mask,to_atlas_affine,to_atlas_inverse_warp):
-            import os
-            import pathlib  # Better path manipulation
-            filename_split = pathlib.Path(
-                unbiased_template).name.rsplit(".nii")
-            unbiased_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-            from rabies.utils import exec_applyTransforms
-            # resample the atlas brain mask to native space
+        def prep_atlas_to_unbiased_transforms(to_atlas_affine,to_atlas_inverse_warp):
             transform_list=[to_atlas_affine,to_atlas_inverse_warp]
             inverse_list=[1,0]
-            exec_applyTransforms(transforms = transform_list, inverses = inverse_list, 
-                input_image = template_mask, ref_image = unbiased_template, output_image = unbiased_mask, interpolation='GenericLabel')
-            return unbiased_mask
-
-        resample_unbiased_mask_node = pe.Node(Function(input_names=['unbiased_template', 'template_mask','to_atlas_affine','to_atlas_inverse_warp'],
+            return transform_list,inverse_list
+        atlas_to_unbiased_transforms_node = pe.Node(Function(input_names=['to_atlas_affine','to_atlas_inverse_warp'],
                                                 output_names=[
-                                                    'unbiased_mask'],
-                                                function=resample_unbiased_mask),
-                                        name='resample_unbiased_mask')
+                                                    'transform_list','inverse_list'],
+                                                function=prep_atlas_to_unbiased_transforms),
+                                        name='atlas_to_unbiased_transforms')
+
+        resample_unbiased_mask_node = pe.Node(ResampleMask(), name='resample_unbiased_mask')
+        resample_unbiased_mask_node.inputs.name_suffix = 'unbiased_mask_resampled'
 
         if brain_extraction and commonspace_masking:
             template_masking_node = pe.Node(Function(input_names=['template', 'mask', 'out_dir', 'figure_format'],
@@ -306,7 +301,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             (template_inputnode, PlotOverlap_Unbiased2Atlas_node,[
                 ("template_anat", "fixed"),
                 ]),
-            (inputnode, PlotOverlap_Native2Unbiased_node, [
+            (inputnode, PlotOverlap_Anat2Unbiased_node, [
                 ("moving_image", "name_source"),
                 ]),
             (generate_template, atlas_reg, [
@@ -315,20 +310,25 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             (generate_template, outputnode, [
                 ("unbiased_template", "unbiased_template"),
                 ]),
-            (generate_template, resample_unbiased_mask_node, [
-                ("unbiased_template", "unbiased_template"),
-                ]),
-            (template_inputnode, resample_unbiased_mask_node, [
-                ("template_mask", "template_mask"),
-                ]),
-            (atlas_reg, resample_unbiased_mask_node, [
+            (atlas_reg, atlas_to_unbiased_transforms_node, [
                 ("affine", "to_atlas_affine"),
                 ("inverse_warp", "to_atlas_inverse_warp"),
                 ]),
-            (resample_unbiased_mask_node, outputnode, [
-                ("unbiased_mask", "unbiased_mask"),
+            (atlas_to_unbiased_transforms_node, resample_unbiased_mask_node, [
+                ("transform_list", "transforms"),
+                ("inverse_list", "inverses"),
                 ]),
-            (generate_template, PlotOverlap_Native2Unbiased_node, [
+            (generate_template, resample_unbiased_mask_node, [
+                ("unbiased_template", "ref_file"),
+                ]),
+            (template_inputnode, resample_unbiased_mask_node, [
+                ("template_mask", "mask_file"),
+                ("template_mask", "name_source"),
+                ]),
+            (resample_unbiased_mask_node, outputnode, [
+                ("resampled_file", "unbiased_mask"),
+                ]),
+            (generate_template, PlotOverlap_Anat2Unbiased_node, [
                 ("unbiased_template", "fixed"),
                 ]),
             (atlas_reg, PlotOverlap_Unbiased2Atlas_node, [
@@ -416,19 +416,19 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                     ("unbiased_template", "fixed_image"),
                     ]),
                 (inherit_unbiased_reg_node, prep_commonspace_transform_node, [
-                    ("affine", "native_to_unbiased_affine"),
-                    ("warp", "native_to_unbiased_warp"),
-                    ("inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ("affine", "anat_to_unbiased_affine"),
+                    ("warp", "anat_to_unbiased_warp"),
+                    ("inverse_warp", "anat_to_unbiased_inverse_warp"),
                     ]),
                 (inherit_unbiased_reg_node, outputnode, [
-                    ("affine", "native_to_unbiased_affine"),
-                    ("warp", "native_to_unbiased_warp"),
-                    ("inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ("affine", "anat_to_unbiased_affine"),
+                    ("warp", "anat_to_unbiased_warp"),
+                    ("inverse_warp", "anat_to_unbiased_inverse_warp"),
                     ]),
                 (merged_join_common_reg, prep_commonspace_transform_node, [
-                    ("file_list0", "native_ref"),
+                    ("file_list0", "anatspace_ref"),
                     ]),
-                (inherit_unbiased_reg_node, PlotOverlap_Native2Unbiased_node, [
+                (inherit_unbiased_reg_node, PlotOverlap_Anat2Unbiased_node, [
                     ("warped_image", "moving"),
                     ]),
                 ])
@@ -436,7 +436,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
         else:
             workflow.connect([
                 (merged_join_common_reg, commonspace_selectfiles, [
-                    ("file_list0", "native_list"),
+                    ("file_list0", "anat_list"),
                     ]),
                 (inputnode, commonspace_selectfiles, [
                     ("moving_image", "filename"),
@@ -445,30 +445,30 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
                     ("affine_list", "affine_list"),
                     ("warp_list", "warp_list"),
                     ("inverse_warp_list", "inverse_warp_list"),
-                    ("warped_image_list", "warped_native_list"),
+                    ("warped_image_list", "warped_anat_list"),
                     ]),
                 (commonspace_selectfiles, prep_commonspace_transform_node, [
-                    ("native_ref", "native_ref"),
-                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ("anatspace_ref", "anatspace_ref"),
+                    ("anat_to_unbiased_affine", "anat_to_unbiased_affine"),
+                    ("anat_to_unbiased_warp", "anat_to_unbiased_warp"),
+                    ("anat_to_unbiased_inverse_warp", "anat_to_unbiased_inverse_warp"),
                     ]),
                 (commonspace_selectfiles, outputnode, [
-                    ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                    ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                    ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                    ("anat_to_unbiased_affine", "anat_to_unbiased_affine"),
+                    ("anat_to_unbiased_warp", "anat_to_unbiased_warp"),
+                    ("anat_to_unbiased_inverse_warp", "anat_to_unbiased_inverse_warp"),
                     ]),
-                (commonspace_selectfiles, PlotOverlap_Native2Unbiased_node, [
-                    ("warped_native", "moving"),
+                (commonspace_selectfiles, PlotOverlap_Anat2Unbiased_node, [
+                    ("warped_anat", "moving"),
                     ]),
                 ])
             
             if output_datasinks:
                 workflow.connect([
                     (commonspace_selectfiles, transforms_datasink, [
-                        ("native_to_unbiased_affine", "native_to_unbiased_affine"),
-                        ("native_to_unbiased_warp", "native_to_unbiased_warp"),
-                        ("native_to_unbiased_inverse_warp", "native_to_unbiased_inverse_warp"),
+                        ("anat_to_unbiased_affine", "anat_to_unbiased_affine"),
+                        ("anat_to_unbiased_warp", "anat_to_unbiased_warp"),
+                        ("anat_to_unbiased_inverse_warp", "anat_to_unbiased_inverse_warp"),
                         ]),
                     ])
 
@@ -506,15 +506,15 @@ def join_iterables(workflow, joinsource_list, node_prefix, num_inputs=1):
     return workflow, source_join, merged_join
 
 
-def select_commonspace_outputs(filename, native_list, affine_list, warp_list, inverse_warp_list, warped_native_list):
+def select_commonspace_outputs(filename, anat_list, affine_list, warp_list, inverse_warp_list, warped_anat_list):
     from rabies.preprocess_pkg.commonspace_reg import select_from_list
-    native_to_unbiased_affine = select_from_list(filename, affine_list)
-    native_to_unbiased_warp = select_from_list(filename, warp_list)
-    native_to_unbiased_inverse_warp = select_from_list(
+    anat_to_unbiased_affine = select_from_list(filename, affine_list)
+    anat_to_unbiased_warp = select_from_list(filename, warp_list)
+    anat_to_unbiased_inverse_warp = select_from_list(
         filename, inverse_warp_list)
-    warped_native = select_from_list(filename, warped_native_list)
-    native_ref = select_from_list(filename, native_list)
-    return native_ref, warped_native, native_to_unbiased_affine, native_to_unbiased_warp, native_to_unbiased_inverse_warp
+    warped_anat = select_from_list(filename, warped_anat_list)
+    anatspace_ref = select_from_list(filename, anat_list)
+    return anatspace_ref, warped_anat, anat_to_unbiased_affine, anat_to_unbiased_warp, anat_to_unbiased_inverse_warp
 
 
 def select_from_list(filename, filelist):
@@ -536,32 +536,32 @@ def select_from_list(filename, filelist):
         return selected_file
 
 
-def prep_commonspace_transform(native_ref, atlas_mask, native_to_unbiased_affine,
-                               native_to_unbiased_warp,native_to_unbiased_inverse_warp,
+def prep_commonspace_transform(anatspace_ref, atlas_mask, anat_to_unbiased_affine,
+                               anat_to_unbiased_warp,anat_to_unbiased_inverse_warp,
                                to_atlas_affine,to_atlas_warp,to_atlas_inverse_warp, fast_commonspace=False):
 
     if fast_commonspace:
-        native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine]
-        native_to_commonspace_inverse_list=[0,0]
-        commonspace_to_native_transform_list=[to_atlas_affine,to_atlas_inverse_warp]
-        commonspace_to_native_inverse_list=[1,0]
+        anat_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine]
+        anat_to_commonspace_inverse_list=[0,0]
+        commonspace_to_anat_transform_list=[to_atlas_affine,to_atlas_inverse_warp]
+        commonspace_to_anat_inverse_list=[1,0]
     else:
-        native_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine,native_to_unbiased_warp,native_to_unbiased_affine]
-        native_to_commonspace_inverse_list=[0,0,0,0]
-        commonspace_to_native_transform_list=[native_to_unbiased_affine,native_to_unbiased_inverse_warp,to_atlas_affine,to_atlas_inverse_warp]
-        commonspace_to_native_inverse_list=[1,0,1,0]
+        anat_to_commonspace_transform_list=[to_atlas_warp,to_atlas_affine,anat_to_unbiased_warp,anat_to_unbiased_affine]
+        anat_to_commonspace_inverse_list=[0,0,0,0]
+        commonspace_to_anat_transform_list=[anat_to_unbiased_affine,anat_to_unbiased_inverse_warp,to_atlas_affine,to_atlas_inverse_warp]
+        commonspace_to_anat_inverse_list=[1,0,1,0]
 
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(
-        native_ref).name.rsplit(".nii")
-    native_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-    from rabies.utils import exec_applyTransforms
-    # resample the atlas brain mask to native space
-    exec_applyTransforms(transforms = commonspace_to_native_transform_list, inverses = commonspace_to_native_inverse_list, 
-        input_image = atlas_mask, ref_image = native_ref, output_image = native_mask, interpolation='GenericLabel')
+        anatspace_ref).name.rsplit(".nii")
+    anatspace_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
+    from rabies.utils import applyTransforms_3D
+    # resample the atlas brain mask to anat space
+    applyTransforms_3D(transforms = commonspace_to_anat_transform_list, inverses = commonspace_to_anat_inverse_list, 
+                       input_image = atlas_mask, ref_image = anatspace_ref, output_filename = anatspace_mask, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
 
-    return native_mask, native_to_commonspace_transform_list,native_to_commonspace_inverse_list,commonspace_to_native_transform_list,commonspace_to_native_inverse_list
+    return anatspace_mask, anat_to_commonspace_transform_list,anat_to_commonspace_inverse_list,commonspace_to_anat_transform_list,commonspace_to_anat_inverse_list
 
 
 class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
@@ -578,8 +578,6 @@ class GenerateTemplateInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Path to output folder.")
     template_anat = File(exists=True, mandatory=True,
                          desc="Reference anatomical template to define the target space.")
-    cluster_type = traits.Str(
-        exists=True, mandatory=True, desc="Choose the type of cluster system to submit jobs to. Choices are local, sge, pbs, slurm.")
     winsorize_lower_bound = traits.Float(
         desc="")
     winsorize_upper_bound = traits.Float(
@@ -680,7 +678,7 @@ class GenerateTemplate(BaseInterface):
 
 
         # convert nipype plugin spec to match QBATCH
-        plugin = self.inputs.cluster_type
+        plugin = os.environ['MODELBUILD_PLUGIN']
         if plugin=='MultiProc' or plugin=='Linear':
             cluster_type='local'
             num_threads = multiprocessing.cpu_count()
@@ -705,7 +703,11 @@ class GenerateTemplate(BaseInterface):
 
         command = f'QBATCH_SYSTEM={cluster_type} QBATCH_CORES={num_threads} modelbuild.sh \
             --float --average-type median --gradient-step 0.25 --iterations 2 --starting-target {template_folder}/modelbuild_starting_target.nii.gz --stages {stages} \
-            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path} --winsorize_lower_bound {winsorize_lower_bound}  --winsorize_upper_bound {winsorize_upper_bound}'
+            --output-dir {template_folder} --sharpen-type unsharp --block --debug {masks} {csv_path}'
+        if winsorize_lower_bound>0.0: # only specify an input if they differ from the default
+            command+=f" --winsorize_lower_bound {winsorize_lower_bound}"
+        if winsorize_upper_bound<1.0: # only specify an input if they differ from the default
+            command+=f" --winsorize_upper_bound {winsorize_upper_bound}"
         rc,c_out = run_command(command)
 
         last_stage = stages.split(',')[-1]
@@ -742,29 +744,29 @@ class GenerateTemplate(BaseInterface):
                 # create a surrogate transform that takes the place of non-linear since nlin stage is not run
                 surrogate_transform_file = f'{template_folder}/{filename_template}_surrogate_identity_transform.mat'
                 sitk.WriteTransform(identity, surrogate_transform_file)
-                native_to_unbiased_inverse_warp = surrogate_transform_file
-                native_to_unbiased_warp = surrogate_transform_file
+                anat_to_unbiased_inverse_warp = surrogate_transform_file
+                anat_to_unbiased_warp = surrogate_transform_file
             else:
-                native_to_unbiased_inverse_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1InverseWarp.nii.gz'
-                native_to_unbiased_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1Warp.nii.gz'
+                anat_to_unbiased_inverse_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1InverseWarp.nii.gz'
+                anat_to_unbiased_warp = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_1Warp.nii.gz'
 
-            if not os.path.isfile(native_to_unbiased_inverse_warp):
+            if not os.path.isfile(anat_to_unbiased_inverse_warp):
                 raise ValueError(
-                    native_to_unbiased_inverse_warp+" file doesn't exists.")
-            if not os.path.isfile(native_to_unbiased_warp):
-                raise ValueError(native_to_unbiased_warp+" file doesn't exists.")
+                    anat_to_unbiased_inverse_warp+" file doesn't exists.")
+            if not os.path.isfile(anat_to_unbiased_warp):
+                raise ValueError(anat_to_unbiased_warp+" file doesn't exists.")
             
-            native_to_unbiased_affine = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_0GenericAffine.mat'
-            if not os.path.isfile(native_to_unbiased_affine):
-                raise ValueError(native_to_unbiased_affine
+            anat_to_unbiased_affine = f'{template_folder}/{last_stage}/1/transforms/{filename_template}_0GenericAffine.mat'
+            if not os.path.isfile(anat_to_unbiased_affine):
+                raise ValueError(anat_to_unbiased_affine
                                  + " file doesn't exists.")
             warped_image = f'{template_folder}/{last_stage}/1/resample/{filename_template}.nii.gz'
             if not os.path.isfile(warped_image):
                 raise ValueError(warped_image
                                  + " file doesn't exists.")
-            inverse_warp_list.append(native_to_unbiased_inverse_warp)
-            warp_list.append(native_to_unbiased_warp)
-            affine_list.append(native_to_unbiased_affine)
+            inverse_warp_list.append(anat_to_unbiased_inverse_warp)
+            warp_list.append(anat_to_unbiased_warp)
+            affine_list.append(anat_to_unbiased_affine)
             warped_image_list.append(warped_image)
             i += 1
 

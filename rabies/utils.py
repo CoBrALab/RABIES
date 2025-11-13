@@ -4,7 +4,7 @@ import SimpleITK as sitk
 import numpy as np
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, InputMultiPath, BaseInterface
+    File, BaseInterface
 )
 
 ######################
@@ -142,97 +142,205 @@ def copyInfo_3DImage(image_3d, ref_3d):
     return image_3d
 
 
-class slice_applyTransformsInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc="Input 4D EPI")
+class ResampleVolumesInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc="Input 3D or 4D file to resample")
     ref_file = File(exists=True, mandatory=True,
                     desc="The reference 3D space to which the EPI will be warped.")
     transforms = traits.List(desc="List of transforms to apply to every volume.")
     inverses = traits.List(
         desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
     apply_motcorr = traits.Bool(
-        default=True, desc="Whether to apply motion realignment.")
+        default=True, desc="Whether to apply motion realignment, only for 4D file.")
     motcorr_params = File(
         exists=True, desc="xforms from head motion estimation .csv file")
     resampling_dim = traits.Str(
         desc="Specify the image dimension of post-resampling.")
     interpolation = traits.Str(
         desc="Select the interpolator for antsApplyTransform.")
+    name_source = File(exists=True, mandatory=True,
+                         desc='a Nifti file from which the header should be copied')
+    clip_negative = traits.Bool(
+        desc="Whether to clip out negative values after resampling.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
 
-class slice_applyTransformsOutputSpec(TraitedSpec):
-    out_files = traits.List(
-        desc="warped images after the application of the transforms")
+class ResampleVolumesOutputSpec(TraitedSpec):
+    resampled_file = File(exists=True, desc='output 4D resampled file')
 
 
-class slice_applyTransforms(BaseInterface):
+class ResampleVolumes(BaseInterface):
     """
     This interface will apply a set of transforms to an input 4D EPI as well as motion realignment if specified.
     Susceptibility distortion correction can be applied through the provided transforms. A list of the corrected
     single volumes will be provided as outputs, and these volumes require to be merged to recover timeseries.
     """
 
-    input_spec = slice_applyTransformsInputSpec
-    output_spec = slice_applyTransformsOutputSpec
+    input_spec = ResampleVolumesInputSpec
+    output_spec = ResampleVolumesOutputSpec
 
     def _run_interface(self, runtime):
-        # resampling the reference image to the dimension of the EPI
 
+        # avoid crashes if receiving an empty file
+        if pathlib.Path(self.inputs.in_file).name=='empty.nii.gz':
+            setattr(self, 'resampled_file', self.inputs.in_file)
+            return runtime
+
+        # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
+        sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
         img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
 
+        # preparing the resampling dimensions of the reference space
         if self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
             ref_file = self.inputs.ref_file
         else:
-            if not self.inputs.resampling_dim == 'inputs_defined':
+            if self.inputs.resampling_dim == 'inputs_defined':
+                spacing = img.GetSpacing()[:3]
+            else:
                 shape = self.inputs.resampling_dim.split('x')
                 spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
-            else:
-                spacing = img.GetSpacing()[:3]
             resampled = resample_image_spacing(sitk.ReadImage(
                 self.inputs.ref_file, self.inputs.rabies_data_type), spacing)
             ref_file = os.path.abspath('resampled.nii.gz')
             sitk.WriteImage(resampled, ref_file)
 
-        # Splitting bold file into lists of single volumes
-        [bold_volumes, num_volumes] = split_volumes(
-            self.inputs.in_file, "bold_", self.inputs.rabies_data_type)
+        # prepare output name
+        filename_split = pathlib.Path(
+            self.inputs.name_source).name.rsplit(".nii")
+        resampled_file = os.path.abspath(
+            f"{filename_split[0]}_resampled.nii.gz")
 
-        if self.inputs.apply_motcorr:
-            motcorr_params = self.inputs.motcorr_params
+        # replace undefined inputs for an empty list to avoid crashes
+        from nipype.interfaces.base import isdefined
+        transforms = self.inputs.transforms if isdefined(self.inputs.transforms) else []
+        inverses = self.inputs.inverses if isdefined(self.inputs.inverses) else []
 
-        warped_volumes = []
-
-        orig_transforms = self.inputs.transforms
-        orig_inverses = self.inputs.inverses
-        for x in range(0, num_volumes):
-            warped_vol_fname = os.path.abspath(
-                "deformed_volume" + str(x) + ".nii.gz")
-            warped_volumes.append(warped_vol_fname)
+        if img.GetDimension()==3:
+            applyTransforms_3D(transforms = transforms, inverses = inverses, 
+                            input_image = self.inputs.in_file, ref_image = ref_file, output_filename = resampled_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
+                                        
+        elif img.GetDimension()==4:
+            num_volumes = img.GetSize()[3]
 
             if self.inputs.apply_motcorr:
-                command = f'antsMotionCorrStats -m {motcorr_params} -o motcorr_vol{x}.mat -t {x}'
-                rc,c_out = run_command(command)
-
-                transforms = orig_transforms+[f'motcorr_vol{x}.mat']
-                inverses = orig_inverses+[0]
+                motcorr_params = self.inputs.motcorr_params
+                motcorr_affine_list = []
+                for x in range(0, num_volumes):
+                    motcorr_affine_f = os.path.abspath(f"motcorr_vol{x}.mat")
+                    command = f'antsMotionCorrStats -m {motcorr_params} -o {motcorr_affine_f} -t {x}'
+                    rc,c_out = run_command(command)
+                    motcorr_affine_list+=[motcorr_affine_f]
             else:
-                transforms = orig_transforms
-                inverses = orig_inverses
+                motcorr_affine_list = None
 
-            exec_applyTransforms(transforms, inverses, bold_volumes[x], ref_file, warped_vol_fname, interpolation=self.inputs.interpolation)
-            # change image to specified data type
-            sitk.WriteImage(sitk.ReadImage(warped_vol_fname,
-                                           self.inputs.rabies_data_type), warped_vol_fname)
+            resampled_4D_img = applyTransforms_4D(img, ref_file, transforms_3D = transforms, inverses_3D = inverses, motcorr_affine_list = motcorr_affine_list, 
+                            interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
+            sitk.WriteImage(resampled_4D_img, resampled_file)
 
-        setattr(self, 'out_files', warped_volumes)
+        setattr(self, 'resampled_file', resampled_file)
         return runtime
 
     def _list_outputs(self):
-        return {'out_files': getattr(self, 'out_files')}
+        return {'resampled_file': getattr(self, 'resampled_file')}
 
 
-def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_image, interpolation):
+class ResampleMaskInputSpec(BaseInterfaceInputSpec):
+    mask_file = File(exists=True, mandatory=True,
+                desc="Input mask.")
+    ref_file = File(exists=True, mandatory=True,
+                   desc="Target file defining resampling space.")
+    transforms = traits.List(desc="List of transforms to resample the mask.")
+    inverses = traits.List(
+        desc="Define whether some transforms must be inverse, with a boolean list where true defines inverse e.g.[0,1,0]")
+    name_suffix = traits.Str(desc="Suffix added at the output file.")
+    name_source = File(exists=True, mandatory=True,
+                       desc='Reference file for prefix of the output file.')
+
+
+class ResampleMaskOutputSpec(TraitedSpec):
+    resampled_file = traits.File(desc="The resampled mask file.")
+
+
+class ResampleMask(BaseInterface):
+
+    input_spec = ResampleMaskInputSpec
+    output_spec = ResampleMaskOutputSpec
+
+    def _run_interface(self, runtime):
+        import os
+        from rabies.utils import applyTransforms_3D
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(
+            self.inputs.name_source).name.rsplit(".nii")
+
+        if self.inputs.name_suffix is None:
+            new_mask_path = os.path.abspath(
+                f'{filename_split[0]}_resampled.nii.gz')
+        else:
+            new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_suffix}.nii.gz')
+
+        # replace undefined inputs for an empty list to avoid crashes
+        from nipype.interfaces.base import isdefined
+        transforms = self.inputs.transforms if isdefined(self.inputs.transforms) else []
+        inverses = self.inputs.inverses if isdefined(self.inputs.inverses) else []
+
+        applyTransforms_3D(transforms = transforms, inverses = inverses, 
+                        input_image = self.inputs.mask_file, ref_image = self.inputs.ref_file, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+
+        setattr(self, 'resampled_file', new_mask_path)
+        return runtime
+
+    def _list_outputs(self):
+        return {'resampled_file': getattr(self, 'resampled_file')}
+
+
+def applyTransforms_4D(in_img, ref_file, transforms_3D = [], inverses_3D = [], motcorr_affine_list = None, interpolation='Linear', rabies_data_type=8, clip_negative=False):
+    import SimpleITK as sitk
+    import os
+
+    # the input can be either a nifti file or an SITK image
+    if isinstance(in_img, sitk.Image):
+        img_4D = in_img
+    elif os.path.isfile(in_img):
+        img_4D = sitk.ReadImage(in_img, rabies_data_type)
+
+    num_dimensions = len(img_4D.GetSize())
+    num_volumes = img_4D.GetSize()[3]
+    if num_dimensions != 4:
+        raise ValueError("the input file must be of dimensions 4")
+    # Splitting 4D file into a list of 3D volumes
+    volumes_list = []
+    for x in range(0, num_volumes):
+        slice_fname = os.path.abspath(
+            "volume" + str(x) + ".nii.gz")
+        volume_img = img_4D[:,:,:,x]
+        sitk.WriteImage(volume_img, slice_fname)
+        volumes_list.append(slice_fname)
+    resampled_volumes = []
+    for x in range(0, num_volumes):
+        resampled_vol_fname = os.path.abspath(
+            "deformed_volume" + str(x) + ".nii.gz")
+        resampled_volumes.append(resampled_vol_fname)
+
+        if motcorr_affine_list is None:
+            transforms = transforms_3D
+            inverses = inverses_3D
+        else:
+            transforms = transforms_3D+[motcorr_affine_list[x]]
+            inverses = inverses_3D+[0]
+
+        applyTransforms_3D(transforms=transforms, inverses=inverses, input_image=volumes_list[x], ref_image=ref_file, output_filename=resampled_vol_fname, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=clip_negative)
+
+    # merge the resampled volume into a new 4D image
+    resampled_4D_img = sitk.JoinSeries([sitk.ReadImage(file) for file in resampled_volumes])
+    # propagate the info regarding the 4th dimension from the input file
+    resampled_4D_img = copyInfo_4DImage(
+        resampled_4D_img, resampled_4D_img[:,:,:,0], img_4D)
+
+    return resampled_4D_img
+
+
+def applyTransforms_3D(transforms, inverses, input_image, ref_image, output_filename, interpolation, rabies_data_type=8, clip_negative=False):
     # tranforms is a list of transform files, set in order of call within antsApplyTransforms
     transform_string = ""
     for transform, inverse in zip(transforms, inverses):
@@ -243,98 +351,49 @@ def exec_applyTransforms(transforms, inverses, input_image, ref_image, output_im
         else:
             transform_string += f"-t {transform} "
 
-    command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_image}'
+    command = f'antsApplyTransforms -i {input_image} {transform_string}-n {interpolation} -r {ref_image} -o {output_filename} -v'
     rc,c_out = run_command(command)
-    if not os.path.isfile(output_image):
+
+    if clip_negative or rabies_data_type is not None: # rabies_data_type can be set to None to avoid re-writing the image
+        if rabies_data_type is not None:
+            # need to reload/save the image to switch to rabies_data_type
+            resampled_img = sitk.ReadImage(output_filename, rabies_data_type)
+        else:
+            resampled_img = sitk.ReadImage(output_filename)
+        if clip_negative:
+            # clip potential negative values
+            array = sitk.GetArrayFromImage(resampled_img)
+            array[(array < 0).astype(bool)] = 0
+            pos_resampled_image = sitk.GetImageFromArray(array, isVector=False)
+            pos_resampled_image.CopyInformation(resampled_img)
+            resampled_img = pos_resampled_image
+        sitk.WriteImage(resampled_img, output_filename)
+    if not os.path.isfile(output_filename):
         raise ValueError(
             "Missing output image. Transform call failed: "+command)
 
-
-def split_volumes(in_file, output_prefix, rabies_data_type):
+def split_volumes(img_4D, output_prefix):
     '''
     Takes as input a 4D .nii file and splits it into separate time series
     volumes by splitting on the 4th dimension
     '''
-    in_nii = sitk.ReadImage(in_file, rabies_data_type)
-    num_dimensions = len(in_nii.GetSize())
-    num_volumes = in_nii.GetSize()[3]
+    num_dimensions = len(img_4D.GetSize())
+    num_volumes = img_4D.GetSize()[3]
 
     if num_dimensions != 4:
         raise ValueError("the input file must be of dimensions 4")
 
     volumes = []
     for x in range(0, num_volumes):
-        data_slice = sitk.GetArrayFromImage(in_nii)[x, :, :, :]
+        data_slice = sitk.GetArrayFromImage(img_4D)[x, :, :, :]
         slice_fname = os.path.abspath(
-            output_prefix + "vol" + str(x) + ".nii.gz")
+            output_prefix + "volume" + str(x) + ".nii.gz")
         image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-            data_slice, isVector=False), in_nii)
+            data_slice, isVector=False), img_4D)
         sitk.WriteImage(image_3d, slice_fname)
         volumes.append(slice_fname)
 
     return [volumes, num_volumes]
-
-
-class MergeInputSpec(BaseInterfaceInputSpec):
-    in_files = InputMultiPath(File(exists=True), mandatory=True,
-                              desc='input list of files to merge, listed in the order to merge')
-    header_source = File(exists=True, mandatory=True,
-                         desc='a Nifti file from which the header should be copied')
-    clip_negative = traits.Bool(
-        desc="Whether to clip out negative values.")
-    rabies_data_type = traits.Int(mandatory=True,
-                                  desc="Integer specifying SimpleITK data type.")
-
-
-class MergeOutputSpec(TraitedSpec):
-    out_file = File(exists=True, desc='output merged file')
-
-
-class Merge(BaseInterface):
-    """
-    Takes a list of 3D Nifti files and merge them in the order listed.
-    """
-
-    input_spec = MergeInputSpec
-    output_spec = MergeOutputSpec
-
-    def _run_interface(self, runtime):
-        filename_split = pathlib.Path(
-            self.inputs.header_source).name.rsplit(".nii")
-
-        sample_volume = sitk.ReadImage(
-            self.inputs.in_files[0], self.inputs.rabies_data_type)
-        length = len(self.inputs.in_files)
-        shape = sitk.GetArrayFromImage(sample_volume).shape
-        combined = np.zeros((length, shape[0], shape[1], shape[2]))
-
-        i = 0
-        for file in self.inputs.in_files:
-            combined[i, :, :, :] = sitk.GetArrayFromImage(
-                sitk.ReadImage(file, self.inputs.rabies_data_type))[:, :, :]
-            i = i+1
-        if (i != length):
-            raise ValueError("Error occured with Merge.")
-        combined_files = os.path.abspath(
-            f"{filename_split[0]}_combined.nii.gz")
-
-        if self.inputs.clip_negative:
-            # clip potential negative values
-            combined[(combined < 0).astype(bool)] = 0
-        combined_image = sitk.GetImageFromArray(combined, isVector=False)
-
-        # set metadata and affine for the newly constructed 4D image
-        header_source = sitk.ReadImage(
-            self.inputs.header_source, self.inputs.rabies_data_type)
-        combined_image = copyInfo_4DImage(
-            combined_image, sample_volume, header_source)
-        sitk.WriteImage(combined_image, combined_files)
-
-        setattr(self, 'out_file', combined_files)
-        return runtime
-
-    def _list_outputs(self):
-        return {'out_file': getattr(self, 'out_file')}
 
 
 ######################
@@ -350,10 +409,16 @@ def run_command(command, verbose = False):
 
     import subprocess
     try:
+        if os.environ.get('RABIES_ITK_THREADS_STATE') == 'ON':
+            itk_threads = os.environ.get('RABIES_ITK_NUM_THREADS')
+            if itk_threads is None:
+                raise ValueError("RABIES_ITK_NUM_THREADS must be set when enabling ITK threading control.")
+            os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = itk_threads        
         process = subprocess.run(
             command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             check=True,
             shell=True,
+            env=os.environ,
             )
     except Exception as e:
         log.warning(e.output.decode("utf-8"))

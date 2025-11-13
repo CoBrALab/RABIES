@@ -19,7 +19,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
-    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, nativespace=cr_opts.nativespace_analysis)
+    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts)
 
     if len(split_name_list)==0:
         raise ValueError(f"""
@@ -28,6 +28,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             when applying --frame_censoring. Outputs will be named empty.nii.gz if this is 
             the case.
             """)
+
+    if analysis_opts.group_ica['apply'] and cr_opts.nativespace_analysis and not cr_opts.resample_to_commonspace:
+        raise ValueError(
+            'No commonspace timeseries are found for running group-ICA. Try applying --resample_to_commonspace to generate these timeseries when using --nativespace_analysis.')
+
+    if analysis_opts.data_diagnosis and cr_opts.nativespace_analysis:
+        analysis_opts.resample_to_commonspace = True # resampling to common is necessary for --data_diagnosis report
 
     # filter inclusion/exclusion lists
     from rabies.utils import filter_scan_inclusion, filter_scan_exclusion
@@ -51,116 +58,81 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     conf_outputnode.inputs.split_dict = split_dict
     conf_outputnode.inputs.target_list = target_list
 
-    workflow.connect([
-        (main_split, conf_outputnode, [
-            ("split_name", "split_name"),
-            ]),
-        ])
+    # prepare dictionary for seed files
+    seed_dict = {}
+    seed_name_list = []
+    for file in analysis_opts.seed_list:
+        file = os.path.abspath(file)
+        if not os.path.isfile(file):
+            raise ValueError(
+                f"Provide seed file path {file} doesn't exists.")
+        seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
+        seed_name_list.append(seed_name)
+        seed_dict[seed_name] = file
+    analysis_opts.seed_name_list = seed_name_list # store for developing iterables later
 
+    if not os.path.isfile(str(analysis_opts.prior_maps)):
+        raise ValueError("--prior_maps doesn't exists.")
+
+    load_CR_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'cleaned_bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
+                                           output_names=[
+                                               'CR_dict_file'],
+                                       function=load_CR_input_dict),
+                              name='load_CR_dict_node')
 
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
-    commonspace_bold = not cr_opts.nativespace_analysis
     analysis_wf = init_analysis_wf(
-        opts=analysis_opts, commonspace_cr=commonspace_bold)
+        opts=analysis_opts)
 
-    # prepare analysis datasink
-    analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
-                                         container="analysis_datasink"),
-                                name="analysis_datasink")
-    if analysis_opts.FC_matrix:
-        if os.path.isfile(str(analysis_opts.ROI_csv)):
-            analysis_datasink.inputs.matrix_ROI_csv = str(analysis_opts.ROI_csv)
+    '''
+    PREPARE DATASINKS
+    '''
+    if cr_opts.nativespace_analysis:
+        # prepare analysis datasink for nativespace computations
+        nativespace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                            container="nativespace_analysis_datasink"),
+                                    name="nativespace_analysis_datasink")
+        main_analysis_datasink = nativespace_analysis_datasink
+
+    if analysis_opts.resample_to_commonspace or not cr_opts.nativespace_analysis or analysis_opts.group_ica['apply']:
+        # prepare analysis datasink for commonspace computations OR nativespace computations resampled to commonspace
+        commonspace_analysis_datasink = pe.Node(DataSink(base_directory=analysis_output,
+                                            container="commonspace_analysis_datasink"),
+                                    name="commonspace_analysis_datasink")
+        if not cr_opts.nativespace_analysis:
+            main_analysis_datasink = commonspace_analysis_datasink
+        if analysis_opts.group_ica['apply']:
+            workflow.connect([
+                (analysis_wf, commonspace_analysis_datasink, [
+                    ("outputnode.group_ICA_dir", "group_ICA_dir"),
+                    ]),
+                ])
 
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
-
-    load_maps_dict_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'preprocess_anat_template', 'prior_maps', 'transform_list','inverse_list'],
-                                           output_names=[
-                                               'maps_dict'],
-                                       function=load_maps_dict),
-                              name='load_maps_dict_node')
-    load_maps_dict_node.inputs.atlas_ref = preprocess_opts.labels
-    if not os.path.isfile(str(analysis_opts.prior_maps)):
-        raise ValueError("--prior_maps doesn't exists.")
-    else:
-        load_maps_dict_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
-
-
-    load_sub_dict_node = pe.Node(Function(input_names=['maps_dict', 'bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
-                                           output_names=[
-                                               'dict_file'],
-                                       function=load_sub_input_dict),
-                              name='load_sub_dict_node')
+    
+    '''
+    CORE WORKFLOW CONNECTIONS
+    '''
 
     workflow.connect([
-        (conf_outputnode, load_sub_dict_node, [
-            ("cleaned_path", "bold_file"),
+        (main_split, conf_outputnode, [
+            ("split_name", "split_name"),
+            ]),
+        (conf_outputnode, load_CR_dict_node, [
+            ("cleaned_path", "cleaned_bold_file"),
             ("data_dict", "CR_data_dict"),
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
             ("CR_STD_file_path", "CR_STD_file"),
             ("input_bold", "name_source"),
             ]),
-        (load_maps_dict_node, load_sub_dict_node, [
-            ("maps_dict", "maps_dict"),
+        (load_CR_dict_node, analysis_wf, [
+            ("CR_dict_file", "subject_inputnode.CR_dict_file"),
             ]),
-        ])
-
-
-    analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
-                                         name='analysis_split_joinnode',
-                                         joinsource='main_split',
-                                         joinfield=['file_list'])
-
-    if commonspace_bold or preprocess_opts.bold_only:
-        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
-        load_maps_dict_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
-        load_maps_dict_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
-        load_maps_dict_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
-        load_maps_dict_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
-        load_maps_dict_node.inputs.preprocess_anat_template = split_dict[split_name]["commonspace_resampled_template"]
-        load_maps_dict_node.inputs.transform_list = []
-        load_maps_dict_node.inputs.inverse_list = []
-
-        analysis_wf.inputs.group_inputnode.commonspace_template = split_dict[split_name]["commonspace_resampled_template"]
-
-        workflow.connect([
-            (conf_outputnode, analysis_split_joinnode, [
-                ("commonspace_mask", "mask_file"),
-                ]),
-            ])
-
-    else:
-        workflow.connect([
-            (conf_outputnode, load_maps_dict_node, [
-                ("native_brain_mask", "mask_file"),
-                ("native_WM_mask", "WM_mask_file"),
-                ("native_CSF_mask", "CSF_mask_file"),
-                ("native_labels", "atlas_file"),
-                ("anat_preproc", "preprocess_anat_template"),
-                ("commonspace_to_native_transform_list", "transform_list"),
-                ("commonspace_to_native_inverse_list", "inverse_list"),
-                ]),
-            (conf_outputnode, analysis_split_joinnode, [
-                ("native_brain_mask", "mask_file"),
-                ]),
-            ])
-
-    workflow.connect([
-        (conf_outputnode, analysis_split_joinnode, [
-            ("cleaned_path", "file_list"),
-            ]),
-        (load_sub_dict_node, analysis_wf, [
-            ("dict_file", "subject_inputnode.dict_file"),
-            ]),
-        (analysis_split_joinnode, analysis_wf, [
-            ("file_list", "group_inputnode.bold_file_list"),
-            ("mask_file", "group_inputnode.commonspace_mask"),
-            ]),
-        (analysis_wf, analysis_datasink, [
-            ("outputnode.group_ICA_dir", "group_ICA_dir"),
+        (analysis_wf, main_analysis_datasink, [
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
             ("outputnode.corr_map_file", "seed_correlation_maps"),
@@ -174,6 +146,126 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
             ]),
         ])
+    
+    analysis_wf.inputs.group_inputnode.commonspace_template = split_dict[split_name_list[0]]["commonspace_resampled_template"]
+
+    '''
+    CONDITIONAL NODES AND CONNECTIONS
+    '''
+
+    # if inputs are in commmonspace, then analysis is computed with commonspace files
+    # if --data_diagnosis, then commonspace files are needed for plotting results
+    if not cr_opts.nativespace_analysis or analysis_opts.data_diagnosis:
+        load_maps_dict_common_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file',
+                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
+                                            output_names=[
+                                                'maps_dict_file'],
+                                        function=load_maps_dict),
+                                name='load_maps_dict_common_node')
+        load_maps_dict_common_node.inputs.atlas_ref = preprocess_opts.labels
+        load_maps_dict_common_node.inputs.seed_dict = seed_dict
+        load_maps_dict_common_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_common_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_common_node.inputs.rabies_data_type = analysis_opts.data_type
+
+        split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
+        load_maps_dict_common_node.inputs.mask_file = split_dict[split_name]["commonspace_mask"]
+        load_maps_dict_common_node.inputs.WM_mask_file = split_dict[split_name]["commonspace_WM_mask"]
+        load_maps_dict_common_node.inputs.CSF_mask_file = split_dict[split_name]["commonspace_CSF_mask"]
+        load_maps_dict_common_node.inputs.atlas_file = split_dict[split_name]["commonspace_labels"]
+        load_maps_dict_common_node.inputs.anat_ref_file = split_dict[split_name]["commonspace_resampled_template"]
+        load_maps_dict_common_node.inputs.transform_list = []
+        load_maps_dict_common_node.inputs.inverse_list = []
+        load_maps_dict_common_node.inputs.name_source = 'commonspace.nii'
+
+        # only if inputs are in commonspace then analysis computations are also in commonspace
+        if not cr_opts.nativespace_analysis:
+            workflow.connect([
+                (load_maps_dict_common_node, analysis_wf, [
+                    ("maps_dict_file", "subject_inputnode.maps_dict_file"),
+                    ]),
+                (load_maps_dict_common_node, load_CR_dict_node, [
+                    ("maps_dict_file", "maps_dict_file"),
+                    ]),
+                ])
+
+    # if inputs are in native space, then subject specific maps are loaded
+    if cr_opts.nativespace_analysis:
+        load_maps_dict_native_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'atlas_ref', 'anat_ref_file', 
+                                                            'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
+                                            output_names=[
+                                                'maps_dict_file'],
+                                        function=load_maps_dict),
+                                name='load_maps_dict_native_node')
+        load_maps_dict_native_node.inputs.atlas_ref = preprocess_opts.labels
+        load_maps_dict_native_node.inputs.seed_dict = seed_dict
+        load_maps_dict_native_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_native_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_native_node.inputs.rabies_data_type = analysis_opts.data_type
+
+        workflow.connect([
+            (conf_outputnode, load_maps_dict_native_node, [
+                ("native_brain_mask", "mask_file"),
+                ("native_WM_mask", "WM_mask_file"),
+                ("native_CSF_mask", "CSF_mask_file"),
+                ("native_labels", "atlas_file"),
+                ("native_bold_ref", "anat_ref_file"),
+                ("commonspace_to_native_transform_list", "transform_list"),
+                ("commonspace_to_native_inverse_list", "inverse_list"),
+                ("input_bold", "name_source"),
+                ]),
+            (load_maps_dict_native_node, analysis_wf, [
+                ("maps_dict_file", "subject_inputnode.maps_dict_file"),
+                ]),
+            (load_maps_dict_native_node, load_CR_dict_node, [
+                ("maps_dict_file", "maps_dict_file"),
+                ]),
+            (conf_outputnode, analysis_wf, [
+                ("native_to_commonspace_transform_list", "subject_inputnode.native_to_commonspace_transform_list"),
+                ("native_to_commonspace_inverse_list", "subject_inputnode.native_to_commonspace_inverse_list"),
+                ]),
+            ])
+
+    if not cr_opts.nativespace_analysis or cr_opts.resample_to_commonspace:
+        # this node can only exist if commonspace timeseries were previously generated
+        analysis_split_joinnode = pe.JoinNode(niu.IdentityInterface(fields=['file_list', 'mask_file']),
+                                            name='analysis_split_joinnode',
+                                            joinsource='main_split',
+                                            joinfield=['file_list'])
+
+        workflow.connect([
+            (conf_outputnode, analysis_split_joinnode, [
+                ("commonspace_mask", "mask_file"),
+                ]),
+            (analysis_split_joinnode, analysis_wf, [
+                ("file_list", "group_inputnode.bold_file_list"),
+                ("mask_file", "group_inputnode.commonspace_mask"),
+                ]),
+            ])
+
+        if not cr_opts.nativespace_analysis:
+            workflow.connect([
+                (conf_outputnode, analysis_split_joinnode, [
+                    ("cleaned_path", "file_list"),
+                    ]),
+                ])
+        elif cr_opts.resample_to_commonspace:
+            workflow.connect([
+                (conf_outputnode, analysis_split_joinnode, [
+                    ("cleaned_timeseries_commonspace", "file_list"),
+                    ]),
+                ])
+
+    # handling the resampling of nativespace computations into commonspace outputs        
+    if cr_opts.nativespace_analysis and analysis_opts.resample_to_commonspace:
+        workflow.connect([
+            (analysis_wf, commonspace_analysis_datasink, [
+                ("outputnode.corr_map_file_resampled", "seed_correlation_maps_resampled"),
+                ]),
+            (analysis_wf, commonspace_analysis_datasink, [
+                ("outputnode.DR_nii_file_resampled", "dual_regression_nii_resampled"),
+                ]),
+            ])
 
     if analysis_opts.data_diagnosis:
 
@@ -187,14 +279,16 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                         function=prep_analysis_dict),
                                 name='analysis_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, commonspace_bold, preprocess_opts, split_name_list, name="diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, cr_opts.nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf")
 
         workflow.connect([
-            (load_sub_dict_node, diagnosis_wf, [
-                ("dict_file", "inputnode.dict_file"),
+            (load_CR_dict_node, diagnosis_wf, [
+                ("CR_dict_file", "inputnode.CR_dict_file"),
+                ]),
+            (load_maps_dict_common_node, diagnosis_wf, [
+                ("maps_dict_file", "inputnode.common_maps_dict_file"),
                 ]),
             (analysis_wf, prep_analysis_dict_node, [
-                ("outputnode.DR_nii_file", "dual_regression_nii"),
                 ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
                 ]),
             (prep_analysis_dict_node, diagnosis_wf, [
@@ -211,6 +305,29 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("outputnode.GS_cov_nii", "GS_cov_nii"),
                 ]),
             ])
+        if cr_opts.nativespace_analysis:
+            workflow.connect([
+                (load_maps_dict_native_node, diagnosis_wf, [
+                    ("maps_dict_file", "inputnode.sub_maps_dict_file"),
+                    ]),
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.DR_nii_file_resampled", "dual_regression_nii"),
+                    ]),
+                (conf_outputnode, diagnosis_wf, [
+                    ("native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
+                    ("native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (load_maps_dict_common_node, diagnosis_wf, [
+                    ("maps_dict_file", "inputnode.sub_maps_dict_file"),
+                    ]),
+                (analysis_wf, prep_analysis_dict_node, [
+                    ("outputnode.DR_nii_file", "dual_regression_nii"),
+                    ]),
+                ])
+
         if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
@@ -240,14 +357,18 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     return workflow
 
 
-# this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces
-def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, preprocess_anat_template, prior_maps, transform_list, inverse_list):
+# this function handles masks/maps that can be either common across subjects in commonspace, or resampled into individual spaces for nativespace analyses
+# in the case of commonspace, this node only runs once, hence saving computations
+# anat_ref_file is an anatomical 3D image that defines the resampling space inputted to antsApplyTransform
+def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref, anat_ref_file,
+                   seed_dict, prior_maps, transform_list, inverse_list, name_source, interpolation, rabies_data_type):
+    import pickle
     import numpy as np
     import SimpleITK as sitk
     import os
     import pathlib  # Better path manipulation
-    from rabies.utils import resample_image_spacing
-    from rabies.analysis_pkg.utils import resample_prior_maps, compute_edge_mask
+    from rabies.utils import applyTransforms_4D, applyTransforms_3D
+    from rabies.analysis_pkg.utils import compute_edge_mask
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
     volume_indices = mask_array.astype(bool)
@@ -269,14 +390,20 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
-    # the reference anatomical image (either the native space anat scan or commonspace template) is resampled to match the EPI resolution for plotting during --data_diagnosis
-    resampled = resample_image_spacing(sitk.ReadImage(preprocess_anat_template), mask_img.GetSpacing())
-    filename_split = pathlib.Path(preprocess_anat_template).name.rsplit(".nii")
-    template_file = os.path.abspath(f'{filename_split[0]}_display_template.nii.gz')
-    sitk.WriteImage(resampled, template_file)
-
-    resampled_maps = resample_prior_maps(prior_maps, mask_file, transforms = transform_list, inverses = inverse_list)
+    resampled_4D_img = applyTransforms_4D(in_img=prior_maps, ref_file=anat_ref_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
+                                          motcorr_affine_list=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
+    resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
+
+    # resample each seed into the right space and then load the seed as an array
+    seed_arr_dict = {}
+    seed_name_list = list(seed_dict.keys())
+    for seed_name in seed_name_list:
+        seed_file = seed_dict[seed_name]
+        resampled_seed_file = os.path.abspath(f'{seed_name}_resampled.nii.gz')
+        applyTransforms_3D(transforms = transform_list, inverses = inverse_list, 
+                        input_image = seed_file, ref_image = anat_ref_file, output_filename = resampled_seed_file, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+        seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
 
     # prepare the list ROI numbers from the atlas for FC matrices
     # get the complete set of original ROI integers 
@@ -289,21 +416,32 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
             if np.max(i == atlas_data):  # include integers that do have labelled voxels
                 roi_list.append(i)
 
-    return {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx, 
-            'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'template_file':template_file, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
+    maps_dict = {'mask_file':mask_file, 'volume_indices':volume_indices, 'WM_idx':WM_idx, 'CSF_idx':CSF_idx,
+                 'atlas_idx':atlas_idx, 'edge_idx':edge_idx, 'anat_ref_file':anat_ref_file,
+                 'seed_arr_dict':seed_arr_dict, 'prior_map_vectors':prior_map_vectors, 'roi_list':roi_list}
+    
+    filename_split = pathlib.Path(name_source).name.rsplit(".nii")
+    maps_dict_file = os.path.abspath(f'{filename_split[0]}_maps_dict.pkl')
+    with open(maps_dict_file, 'wb') as handle:
+        pickle.dump(maps_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return maps_dict_file
 
 
-# this function loads subject-specific data
-def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
+# this function loads subject-specific data from confound correction
+def load_CR_input_dict(maps_dict_file, cleaned_bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
     import pickle
     import pathlib
     import os
     import numpy as np
     import SimpleITK as sitk
 
+    with open(maps_dict_file, 'rb') as handle:
+        maps_dict = pickle.load(handle)
+
     volume_indices = maps_dict['volume_indices']
 
-    data_img = sitk.ReadImage(bold_file)
+    data_img = sitk.ReadImage(cleaned_bold_file)
     data_array = sitk.GetArrayFromImage(data_img)
     num_volumes = data_array.shape[0]
     timeseries = np.zeros([num_volumes, volume_indices.sum()])
@@ -317,23 +455,19 @@ def load_sub_input_dict(maps_dict, bold_file, CR_data_dict, VE_file, STD_file, C
     predicted_std = sitk.GetArrayFromImage(
         sitk.ReadImage(CR_STD_file))[volume_indices]
 
-    sub_dict = {'bold_file':bold_file, 'name_source':name_source, 'CR_data_dict':CR_data_dict, 
+    sub_dict = {'bold_file':cleaned_bold_file, 'name_source':name_source, 'CR_data_dict':CR_data_dict, 
             'timeseries':timeseries, 'VE_spatial':VE_spatial, 'temporal_std':temporal_std,
             'predicted_std':predicted_std}
     
-    # add all the maps_dict into the sub_dict
-    for k in maps_dict.keys():
-        sub_dict[k] = maps_dict[k]
-
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    dict_file = os.path.abspath(f'{filename_split[0]}_data_dict.pkl')
-    with open(dict_file, 'wb') as handle:
+    filename_split = pathlib.Path(name_source).name.rsplit(".nii")
+    CR_dict_file = os.path.abspath(f'{filename_split[0]}_data_dict.pkl')
+    with open(CR_dict_file, 'wb') as handle:
         pickle.dump(sub_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return dict_file
+    return CR_dict_file
 
 
-def read_confound_workflow(conf_output, nativespace=False):
+def read_confound_workflow(conf_output, cr_opts):
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
 
@@ -361,15 +495,20 @@ def read_confound_workflow(conf_output, nativespace=False):
                     'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
                     }
 
-    if nativespace:
+    if cr_opts.nativespace_analysis:
         match_targets.update({'native_bold':[preproc_outputnode_name, 'native_bold'],
+                        'native_bold_ref':[preproc_outputnode_name, 'native_bold_ref'],
                         'native_brain_mask':[preproc_outputnode_name, 'native_brain_mask'],
                         'native_WM_mask':[preproc_outputnode_name, 'native_WM_mask'],
                         'native_CSF_mask':[preproc_outputnode_name, 'native_CSF_mask'],
                         'native_labels':[preproc_outputnode_name, 'native_labels'],
-                        'anat_preproc':[preproc_outputnode_name, 'anat_preproc'],
                         'commonspace_to_native_transform_list':[preproc_outputnode_name, 'commonspace_to_native_transform_list'],
                         'commonspace_to_native_inverse_list':[preproc_outputnode_name, 'commonspace_to_native_inverse_list'],
+                        'native_to_commonspace_transform_list':[preproc_outputnode_name, 'native_to_commonspace_transform_list'],
+                        'native_to_commonspace_inverse_list':[preproc_outputnode_name, 'native_to_commonspace_inverse_list'],
+                        })
+        if cr_opts.resample_to_commonspace:
+            match_targets.update({'cleaned_timeseries_commonspace':['confound_correction_main_wf.cleaned_bold_to_commonspace', 'resampled_file'],
                         })
 
     split_dict = {}
