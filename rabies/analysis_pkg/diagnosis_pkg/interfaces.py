@@ -33,6 +33,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Inverses to move nativespace computations to commonspace")
     interpolation = traits.Str(
         desc="Select the interpolator for antsApplyTransform.")
+    brainmap_percent_threshold = traits.Float(
+        desc="Input percentage value for thresholding images.")
     rabies_data_type = traits.Int(
         desc="Integer specifying SimpleITK data type.")
 
@@ -91,7 +93,8 @@ class ScanDiagnosis(BaseInterface):
             nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
-                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, regional_grayplot=self.inputs.DSURQE_regions)
+                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, 
+                                   regional_grayplot=self.inputs.DSURQE_regions, brainmap_percent_threshold=self.inputs.brainmap_percent_threshold)
 
         import pathlib
         filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]
@@ -132,6 +135,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Select file format for figures.")
     extended_QC = traits.Bool(
         desc="Whether to include image intensity and BOLDsd in the group stats.")
+    brainmap_percent_threshold = traits.Float(
+        desc="Input percentage value for thresholding images.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -284,7 +289,7 @@ class DatasetDiagnosis(BaseInterface):
         def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
 
             for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
-                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
@@ -298,7 +303,7 @@ class DatasetDiagnosis(BaseInterface):
 
         def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold)
+            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')

@@ -1137,6 +1137,15 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--brainmap_percent_threshold', type=float, default=10,
+        help=
+            "Specify the percentage of voxels with highest intensity included when thresholding brain maps \n"
+            "(e.g. an input of 10 means that the top 10 percent of voxels with highest values are included).\n"
+            "This is used within --data_diagnosis for plotting brain maps and computing Dice overlap coefficients. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
     return parser
 

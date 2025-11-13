@@ -28,6 +28,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             figure_format=analysis_opts.figure_format, 
             nativespace_analysis=nativespace_analysis, 
             interpolation=analysis_opts.interpolation,
+            brainmap_percent_threshold=analysis_opts.brainmap_percent_threshold,
             rabies_data_type=analysis_opts.data_type,
             ),
         name='ScanDiagnosis')
@@ -137,6 +138,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
         DatasetDiagnosis_node.inputs.figure_format = analysis_opts.figure_format
         DatasetDiagnosis_node.inputs.extended_QC = analysis_opts.extended_QC
         DatasetDiagnosis_node.inputs.group_avg_prior = analysis_opts.group_avg_prior
+        DatasetDiagnosis_node.inputs.brainmap_percent_threshold = analysis_opts.brainmap_percent_threshold
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [

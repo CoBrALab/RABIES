@@ -6,7 +6,7 @@ from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
-from .analysis_QC import masked_plot, percent_threshold
+from .analysis_QC import masked_plot, threshold_top_percent
 
 def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
                                     prior_bold_idx, prior_confound_idx,
@@ -273,7 +273,7 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     ax.set_xlim(x_lim)
 
 
-def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, regional_grayplot=False):
+def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, regional_grayplot=False, brainmap_percent_threshold=10):
     timeseries = CR_data_dict['timeseries']
     template_file = maps_data_dict['anat_ref_file']
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
@@ -551,7 +551,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         axes = axes2[i+4, :]
 
         map = dr_maps[i, :]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
@@ -569,7 +569,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         axes = axes2[i+4+dr_maps.shape[0], :]
 
         map = SBC_maps[i]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
@@ -587,7 +587,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
 
         map = NPR_maps[i, :]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
