@@ -210,8 +210,13 @@ class ResampleVolumes(BaseInterface):
         resampled_file = os.path.abspath(
             f"{filename_split[0]}_resampled.nii.gz")
 
+        # replace undefined inputs for an empty list to avoid crashes
+        from nipype.interfaces.base import isdefined
+        transforms = self.inputs.transforms if isdefined(self.inputs.transforms) else []
+        inverses = self.inputs.inverses if isdefined(self.inputs.inverses) else []
+
         if img.GetDimension()==3:
-            applyTransforms_3D(transforms = self.inputs.transforms, inverses = self.inputs.inverses, 
+            applyTransforms_3D(transforms = transforms, inverses = inverses, 
                             input_image = self.inputs.in_file, ref_image = ref_file, output_filename = resampled_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
                                         
         elif img.GetDimension()==4:
@@ -228,7 +233,7 @@ class ResampleVolumes(BaseInterface):
             else:
                 motcorr_affine_list = None
 
-            resampled_4D_img = applyTransforms_4D(img, ref_file, transforms_3D = self.inputs.transforms, inverses_3D = self.inputs.inverses, motcorr_affine_list = motcorr_affine_list, 
+            resampled_4D_img = applyTransforms_4D(img, ref_file, transforms_3D = transforms, inverses_3D = inverses, motcorr_affine_list = motcorr_affine_list, 
                             interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
             sitk.WriteImage(resampled_4D_img, resampled_file)
 
@@ -274,7 +279,12 @@ class ResampleMask(BaseInterface):
         else:
             new_mask_path = os.path.abspath(f'{filename_split[0]}_{self.inputs.name_suffix}.nii.gz')
 
-        applyTransforms_3D(transforms = self.inputs.transforms, inverses = self.inputs.inverses, 
+        # replace undefined inputs for an empty list to avoid crashes
+        from nipype.interfaces.base import isdefined
+        transforms = self.inputs.transforms if isdefined(self.inputs.transforms) else []
+        inverses = self.inputs.inverses if isdefined(self.inputs.inverses) else []
+
+        applyTransforms_3D(transforms = transforms, inverses = inverses, 
                         input_image = self.inputs.mask_file, ref_image = self.inputs.ref_file, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
 
         setattr(self, 'resampled_file', new_mask_path)
@@ -399,8 +409,11 @@ def run_command(command, verbose = False):
 
     import subprocess
     try:
-        if os.environ['RABIES_ITK_THREADS_STATE']=='ON':
-            os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = os.environ['RABIES_ITK_NUM_THREADS']
+        if os.environ.get('RABIES_ITK_THREADS_STATE') == 'ON':
+            itk_threads = os.environ.get('RABIES_ITK_NUM_THREADS')
+            if itk_threads is None:
+                raise ValueError("RABIES_ITK_NUM_THREADS must be set when enabling ITK threading control.")
+            os.environ['ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS'] = itk_threads        
         process = subprocess.run(
             command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             check=True,

@@ -10,8 +10,10 @@ from .analysis_QC import masked_plot, percent_threshold
 
 def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
                                     prior_bold_idx, prior_confound_idx,
-                                    nativespace_analysis=False,resampling_specs={},
+                                    nativespace_analysis=False,resampling_specs=None,
                                     ):
+    if resampling_specs is None:
+        resampling_specs={}
     # sub_maps_data_dict is the maps_data_dict that overlaps with the subject, either in native or common space depending on confound correction
     # common_maps_data_dict contains files in commonspace
     temporal_info = {}
@@ -121,6 +123,8 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
             resample_brain_map(brain_map) for brain_map in [GS_cov, GS_corr, CR_data_dict['VE_spatial'], 
                                                             CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
             ]
+        import shutil
+        shutil.rmtree(tmppath, ignore_errors=True)
     else:
         VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
 
