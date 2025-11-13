@@ -19,6 +19,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
         desc="The index for the ICA components that correspond to confounding sources.")
+    plot_seed_frequencies = traits.Dict(
+        desc="Dictionary that pairs a seed name and its index within --seed_list to plot the frequency spectrum")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
     figure_format = traits.Str(
@@ -89,7 +91,7 @@ class ScanDiagnosis(BaseInterface):
             nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
 
         fig, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
-                                   spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
+                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, regional_grayplot=self.inputs.DSURQE_regions)
 
         import pathlib
         filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]

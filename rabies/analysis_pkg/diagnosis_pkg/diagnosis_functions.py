@@ -269,7 +269,7 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     ax.set_xlim(x_lim)
 
 
-def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, regional_grayplot=False):
+def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, regional_grayplot=False):
     timeseries = CR_data_dict['timeseries']
     template_file = maps_data_dict['anat_ref_file']
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
@@ -291,6 +291,17 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, re
     plt.setp(ax0_f.get_xticklabels(), fontsize=12)
     ax0_f.set_xlabel('Frequency (Hz)', fontsize=20)
     ax0_f.set_ylabel('Power (a.u.)', fontsize=20)
+
+    freq_legend = ['Whole brain']
+    # plot the spectrum for specific seeds
+    seed_time_arr = temporal_info['SBC_time']
+    seed_names = list(plot_seed_frequencies.keys())
+    for seed_name in seed_names:
+        seed_idx = plot_seed_frequencies[seed_name]
+        plot_freqs(ax0_f,seed_time_arr[:,[seed_idx]], CR_CR_data_dict['TR'], frame_mask)
+        freq_legend.append(seed_name)
+    ax0_f.legend(freq_legend,
+                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
 
     # disable function
     regional_grayplot=False

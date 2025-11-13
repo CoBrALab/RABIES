@@ -1011,6 +1011,17 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        '--plot_seed_frequencies', type=str, default="",
+        help=
+            "With this option it is possible to plot the frequency spectrum of specific seed timecourses obtained from \n"
+            "--seed_list in the --data_diagnosis report. \n"
+            "The input must follow this example syntax SS=0,ACA=1, which defines a set of seed_name=seed_index (e.g. SS=0) \n" 
+            "pairs, where the seed name will be used for plotting in the legend and the seed index (starting from 0) will \n" 
+            "select the associated seed from --seed_list based on the order of seed provided. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     analysis.add_argument("--FC_matrix", dest='FC_matrix', action='store_true',
         help=
             "Compute whole-brain connectivity matrices using Pearson's r between ROI timeseries.\n"
@@ -1217,6 +1228,7 @@ def read_parser(parser, args):
             defaults = {'apply':False,'window_size':5,'min_prior_corr':0.5,'diff_thresh':0.03,'max_iter':20,'compute_max':False},
             name='optimize_NPR')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
+        opts.plot_seed_frequencies = parse_dict_str(opts.plot_seed_frequencies)
 
     return opts
 
@@ -1306,4 +1318,18 @@ def parse_scan_QC_thresholds(opt):
             raise ValueError(f"Amplitude is not computed with SBC. Do not specify 'Amp' for 'SBC' with --scan_QC_thresholds.")
 
 
+    return opt_dict
+
+
+def parse_dict_str(opt):
+    opt_dict = {}
+    if opt=='': # return if empty
+        return opt_dict
+    split1 = opt.split(',')
+    for split in split1:
+        split2 = split.split('=')
+        if not len(split2)==2:
+            raise ValueError(f"{split2} does not contain a key-value pair.")
+        key,value = split2
+        opt_dict[key]=int(value)
     return opt_dict

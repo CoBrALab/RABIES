@@ -24,6 +24,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
             DSURQE_regions=DSURQE_regions,
+            plot_seed_frequencies=analysis_opts.plot_seed_frequencies,
             figure_format=analysis_opts.figure_format, 
             nativespace_analysis=nativespace_analysis, 
             interpolation=analysis_opts.interpolation,
