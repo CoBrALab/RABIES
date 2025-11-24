@@ -19,7 +19,7 @@ Since RABIES expects RAS orientation (Right–Anterior–Superior), you should a
 
 1. **Open your image in ITK-SNAP**
    - Go to **File → Open Main Image…**
-   - Load your NIfTI/MINC anatomical scan.
+   - Load your NIfTI anatomical scan.
 
 2. **Verify anatomical orientation**
    - ITK-SNAP shows three orthogonal views (Axial, Coronal, Sagittal).
