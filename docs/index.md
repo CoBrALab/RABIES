@@ -15,5 +15,6 @@ analysis.md
 analysis_QC.md
 outputs.md
 metrics.md
+troubleshooting.md
 contributing.md
 bibliography.md
