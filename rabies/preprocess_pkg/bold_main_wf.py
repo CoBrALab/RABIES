@@ -3,12 +3,13 @@ from nipype.interfaces import utility as niu
 
 from .hmc import init_bold_hmc_wf,EstimateMotionParams
 from .bold_ref import init_bold_reference_wf
-from .resampling import init_bold_preproc_trans_wf
+from .resampling import init_bold_preproc_trans_wf,init_mask_preproc_trans_wf
 from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
 from .utils import apply_despike, log_transform_nii
+from ..utils import ResampleMask
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
     """
@@ -315,11 +316,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     # HMC on the BOLD
     bold_hmc_wf = init_bold_hmc_wf(opts=opts)
 
-    bold_native_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.nativespace_resampling, name='bold_native_trans_wf')
-    bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim='ref_file', name='bold_commonspace_trans_wf')
-    bold_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
-    bold_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
-
     estimate_motion_node = pe.Node(EstimateMotionParams(),
                                 name='estimate_motion_node', mem_gb=2.3*opts.scale_min_memory)
     estimate_motion_node.plugin_args = {
@@ -433,29 +429,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ]),
             ])
         
-        if opts.bold_nativespace:
-            workflow.connect([
-                (transitionnode, bold_native_trans_wf, [
-                    ('bold_ref', 'inputnode.ref_file'),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (cross_modal_reg_wf, bold_native_trans_wf, [
-                    ('outputnode.output_warped_bold', 'inputnode.ref_file'),
-                    ]),
-                ])
-
     else:
         prep_transforms_between_spaces_node.inputs.bold_to_anat_warp = None
         prep_transforms_between_spaces_node.inputs.bold_to_anat_inverse_warp = None
         prep_transforms_between_spaces_node.inputs.bold_to_anat_affine = None
-        # for bold_only, the nativespace is basically the original EPI image space
-        workflow.connect([
-            (transitionnode, bold_native_trans_wf, [
-                ('bold_ref', 'inputnode.ref_file'),
-                ]),
-            ])
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
@@ -486,76 +463,14 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('motion_params_csv', 'motion_params_csv'),
             ('FD_csv', 'FD_csv'),
             ]),
-        (prep_transforms_between_spaces_node, bold_native_trans_wf, [
-            ('bold_to_native_transform_list', 'inputnode.transforms_list'),
-            ('bold_to_native_inverse_list', 'inputnode.inverses'),
-            ('commonspace_to_bold_transform_list', 'inputnode.commonspace_to_bold_transform_list'),
-            ('commonspace_to_bold_inverse_list', 'inputnode.commonspace_to_bold_inverse_list'),
-            ('commonspace_to_native_transform_list', 'inputnode.mask_transforms_list'),
-            ('commonspace_to_native_inverse_list', 'inputnode.mask_inverses'),
-            ]),
-        (prep_transforms_between_spaces_node, bold_commonspace_trans_wf, [
-            ('bold_to_commonspace_transform_list', 'inputnode.transforms_list'),
-            ('bold_to_commonspace_inverse_list', 'inputnode.inverses'),
-            ('commonspace_to_bold_transform_list', 'inputnode.commonspace_to_bold_transform_list'),
-            ('commonspace_to_bold_inverse_list', 'inputnode.commonspace_to_bold_inverse_list'),
-            ]),
-        (transitionnode, bold_native_trans_wf, [
-            ('bold_ref', 'inputnode.boldspace_bold_ref'),
-            ]),
-        (transitionnode, bold_commonspace_trans_wf, [
-            ('bold_ref', 'inputnode.boldspace_bold_ref'),
-            ]),
-        (bold_native_trans_wf, estimate_motion_node, [
-            ('outputnode.boldspace_brain_mask', 'boldspace_brain_mask'),
-            ]),
-        (bold_hmc_wf, bold_native_trans_wf, [
-            ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
-        (bold_hmc_wf, bold_commonspace_trans_wf, [
-         ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
-        (inputnode, bold_native_trans_wf, [
-            ('bold', 'inputnode.name_source'),
-            ]),
-        (inputnode, bold_commonspace_trans_wf, [
-            ('bold', 'inputnode.name_source'),
-            ('commonspace_ref', 'inputnode.ref_file'),
-            ]),
-        (bold_native_trans_wf, outputnode, [
-            ('outputnode.bold', 'native_bold'),
-            ('outputnode.bold_ref','native_bold_ref'),
-            ('outputnode.brain_mask', 'native_brain_mask'),
-            ('outputnode.WM_mask', 'native_WM_mask'),
-            ('outputnode.CSF_mask', 'native_CSF_mask'),
-            ('outputnode.vascular_mask', 'native_vascular_mask'),
-            ('outputnode.labels', 'native_labels'),
-            ]),
-        (bold_commonspace_trans_wf, outputnode, [
-            ('outputnode.bold', 'commonspace_bold'),
-            ('outputnode.brain_mask', 'commonspace_mask'),
-            ('outputnode.WM_mask', 'commonspace_WM_mask'),
-            ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
-            ('outputnode.vascular_mask', 'commonspace_vascular_mask'),
-            ('outputnode.labels', 'commonspace_labels'),
-            ('outputnode.boldspace_brain_mask', 'boldspace_brain_mask'),
-            ]),
         ])
 
     if opts.apply_slice_mc:
         workflow.connect([
             (bold_stc_wf, bold_hmc_wf, [
              ('outputnode.stc_file', 'inputnode.bold_file')]),
-            (bold_hmc_wf, bold_commonspace_trans_wf, [
-             ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
-            (bold_hmc_wf, bold_native_trans_wf, [
-                ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
         ])
     else:
-        workflow.connect([
-            (bold_stc_wf, bold_commonspace_trans_wf, [
-             ('outputnode.stc_file', 'inputnode.bold_file')]),
-            (bold_stc_wf, bold_native_trans_wf, [
-                ('outputnode.stc_file', 'inputnode.bold_file')]),
-        ])
         if opts.isotropic_HMC:
             workflow.connect([
                 (transitionnode, bold_hmc_wf, [
@@ -592,6 +507,145 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             (estimate_motion_node, outputnode, [
                 ('FD_voxelwise', 'FD_voxelwise'),
                 ('pos_voxelwise', 'pos_voxelwise'),
+                ]),
+            ])
+
+    ####MANAGE GENERATING COMMON AND/OR NATIVESPACE OUTPUTS
+    boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')
+    boldspace_brain_mask.inputs.name_suffix = 'boldspace_mask_resampled'
+    boldspace_brain_mask.inputs.mask_file = str(opts.brain_mask)
+
+    workflow.connect([
+        (inputnode, boldspace_brain_mask, [
+            ('bold', 'name_source'),
+            ]),
+        (transitionnode, boldspace_brain_mask, [
+            ('bold_ref', 'ref_file'),
+            ]),
+        (prep_transforms_between_spaces_node, boldspace_brain_mask, [
+            ('commonspace_to_bold_transform_list', 'transforms'),
+            ('commonspace_to_bold_inverse_list', 'inverses'),
+            ]),
+        (boldspace_brain_mask, estimate_motion_node, [
+            ('resampled_file', 'boldspace_brain_mask'),
+            ]),
+        (boldspace_brain_mask, outputnode, [
+            ('resampled_file', 'boldspace_brain_mask')]),
+    ])
+        
+    mask_commonspace_trans_wf = init_mask_preproc_trans_wf(opts=opts, name='mask_commonspace_trans_wf')
+    mask_commonspace_trans_wf.inputs.inputnode.mask_transforms_list = []
+    mask_commonspace_trans_wf.inputs.inputnode.mask_inverses = []
+    workflow.connect([
+        (inputnode, mask_commonspace_trans_wf, [
+            ('commonspace_ref', 'inputnode.name_source'),
+            ('commonspace_ref', 'inputnode.ref_file'),
+            ]),
+        (mask_commonspace_trans_wf, outputnode, [
+            ('outputnode.brain_mask', 'commonspace_mask'),
+            ('outputnode.WM_mask', 'commonspace_WM_mask'),
+            ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
+            ('outputnode.vascular_mask', 'commonspace_vascular_mask'),
+            ('outputnode.labels', 'commonspace_labels'),
+            ]),
+        ])
+
+    if opts.generate_nativespace:
+        bold_native_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim=opts.nativespace_resampling, name='bold_native_trans_wf')
+        mask_native_trans_wf = init_mask_preproc_trans_wf(opts=opts, name='mask_native_trans_wf')
+
+        if not opts.bold_only:
+            if opts.bold_nativespace:
+                workflow.connect([
+                    (transitionnode, bold_native_trans_wf, [
+                        ('bold_ref', 'inputnode.ref_file'),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (cross_modal_reg_wf, bold_native_trans_wf, [
+                        ('outputnode.output_warped_bold', 'inputnode.ref_file'),
+                        ]),
+                    ])
+        else:
+            # for bold_only, the nativespace is basically the original EPI image space
+            workflow.connect([
+                (transitionnode, bold_native_trans_wf, [
+                    ('bold_ref', 'inputnode.ref_file'),
+                    ]),
+                ])
+
+        if opts.apply_slice_mc:
+            workflow.connect([
+                (bold_hmc_wf, bold_native_trans_wf, [
+                    ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+            ])
+        else:
+            workflow.connect([
+                (bold_stc_wf, bold_native_trans_wf, [
+                    ('outputnode.stc_file', 'inputnode.bold_file')]),
+            ])
+
+        workflow.connect([
+            (prep_transforms_between_spaces_node, bold_native_trans_wf, [
+                ('bold_to_native_transform_list', 'inputnode.transforms_list'),
+                ('bold_to_native_inverse_list', 'inputnode.inverses'),
+                ]),
+            (prep_transforms_between_spaces_node, mask_native_trans_wf, [
+                ('commonspace_to_native_transform_list', 'inputnode.mask_transforms_list'),
+                ('commonspace_to_native_inverse_list', 'inputnode.mask_inverses'),
+                ]),
+            (bold_hmc_wf, bold_native_trans_wf, [
+                ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+            (inputnode, bold_native_trans_wf, [
+                ('bold', 'inputnode.name_source'),
+                ]),
+            (inputnode, mask_native_trans_wf, [
+                ('bold', 'inputnode.name_source'),
+                ]),
+            (bold_native_trans_wf, mask_native_trans_wf, [
+                ('outputnode.bold_ref','inputnode.ref_file'),
+                ]),
+            (bold_native_trans_wf, outputnode, [
+                ('outputnode.bold', 'native_bold'),
+                ('outputnode.bold_ref','native_bold_ref'),
+                ]),
+            (mask_native_trans_wf, outputnode, [
+                ('outputnode.brain_mask', 'native_brain_mask'),
+                ('outputnode.WM_mask', 'native_WM_mask'),
+                ('outputnode.CSF_mask', 'native_CSF_mask'),
+                ('outputnode.vascular_mask', 'native_vascular_mask'),
+                ('outputnode.labels', 'native_labels'),
+                ]),
+            ])
+
+    if opts.generate_commonspace:
+        bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim='ref_file', name='bold_commonspace_trans_wf')
+
+        if opts.apply_slice_mc:
+            workflow.connect([
+                (bold_hmc_wf, bold_commonspace_trans_wf, [
+                ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
+                ])
+        else:
+            workflow.connect([
+                (bold_stc_wf, bold_commonspace_trans_wf, [
+                ('outputnode.stc_file', 'inputnode.bold_file')]),
+                ])
+
+        workflow.connect([
+            (prep_transforms_between_spaces_node, bold_commonspace_trans_wf, [
+                ('bold_to_commonspace_transform_list', 'inputnode.transforms_list'),
+                ('bold_to_commonspace_inverse_list', 'inputnode.inverses'),
+                ]),
+            (bold_hmc_wf, bold_commonspace_trans_wf, [
+            ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
+            (inputnode, bold_commonspace_trans_wf, [
+                ('bold', 'inputnode.name_source'),
+                ('commonspace_ref', 'inputnode.ref_file'),
+                ]),
+            (bold_commonspace_trans_wf, outputnode, [
+                ('outputnode.bold', 'commonspace_bold'),
                 ]),
             ])
 

@@ -408,7 +408,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         (input_bold_node, bold_inho_cor_diagnosis,
          [("selected_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
-            ("outputnode.commonspace_bold", "bold_file"),
             ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),
@@ -419,6 +418,19 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("std_filename", "std_filename"),
             ]),
         ])
+    
+    if opts.generate_commonspace: 
+        workflow.connect([
+            (bold_main_wf, temporal_diagnosis, [
+                ("outputnode.commonspace_bold", "bold_file"),
+                ]),
+            ])
+    else: 
+        workflow.connect([
+            (bold_main_wf, temporal_diagnosis, [
+                ("outputnode.native_bold", "bold_file"),
+                ]),
+            ])
 
     if not opts.bold_only:
         # setting anat preprocessing nodes
