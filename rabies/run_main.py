@@ -225,6 +225,17 @@ def preprocess(opts, log):
     check_resampling_syntax(opts.commonspace_resampling)
     check_resampling_syntax(opts.anatomical_resampling)
 
+    # prepare nativespace/commonspace resampling arguments
+    if opts.resampling_space=='both':
+        opts.generate_commonspace = True
+        opts.generate_nativespace = True
+    elif opts.resampling_space=='common_only':
+        opts.generate_commonspace = True
+        opts.generate_nativespace = False
+    elif opts.resampling_space=='native_only':
+        opts.generate_commonspace = False
+        opts.generate_nativespace = True
+
     # write boilerplate
     boilerplate_file = f'{opts.output_dir}/boilerplate.txt'
 

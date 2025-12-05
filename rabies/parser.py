@@ -496,11 +496,20 @@ def get_parser():
     g_resampling = preprocess.add_argument_group(
         title='Resampling Options', 
         description=
-            "The following options allow to resample the voxel dimensions for the preprocessed EPIs\n"
-            "or for the anatomical images during registration.\n"
-            "The resampling syntax must be 'dim1xdim2xdim3' (in mm), follwing the RAS axis convention\n"
+            "The following options handle resampling to common and/or nativespaces and the resolution for registration.\n"
+            "The resampling syntax for voxel dimensions must be 'dim1xdim2xdim3' (in mm), follwing the RAS axis convention\n"
             "(dim1=Right-Left, dim2=Anterior-Posterior, dim3=Superior-Inferior). If 'inputs_defined'\n"
             "is provided instead of axis dimensions, the original dimensions are preserved.\n"
+        )
+    g_resampling.add_argument(
+        "--resampling_space", type=str, default='common_only',
+        choices=['common_only', 'native_only', 'both'],
+        help=
+            "Determine whether preprocessed timeseries should be generated in commonspace only ('common_only'), \n"
+            "nativespace only ('native_only'), or for both native and commonspaces ('both'). Generating timeseries \n"
+            "only in the desired space will save memory and computational time.\n"
+            "(default: %(default)s)\n"
+            "\n"
         )
     g_resampling.add_argument(
         '--nativespace_resampling', type=str, default='inputs_defined',

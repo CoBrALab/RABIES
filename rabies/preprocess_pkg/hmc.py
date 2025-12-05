@@ -434,7 +434,10 @@ def motion_24_params(movpar_csv):
     motioncorr_24params: 6 head motion parameters, their temporal derivative, and the 12 corresponding squared items (Friston et al. 1996, Magn. Reson. Med.)
     '''
     import numpy as np
-    rigid_params = extract_rigid_movpar(movpar_csv)
+    import pandas as pd
+    MOCO_df = pd.read_csv(movpar_csv)
+    rigid_params = np.array([MOCO_df[param].values for param in ['MOCOparam0','MOCOparam1','MOCOparam2','MOCOparam3','MOCOparam4','MOCOparam5']]).T
+
     rotations = rigid_params[:,:3] # rotations are listed first
     translations = rigid_params[:,3:] # translations are last
 
@@ -453,20 +456,3 @@ def motion_24_params(movpar_csv):
                     'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
 
     return movpar,motion_24_header
-
-
-def extract_rigid_movpar(movpar_csv):
-    import numpy as np
-    import csv
-    temp = []
-    with open(movpar_csv) as csvfile:
-        motcorr = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in motcorr:
-            temp.append(row)
-    movpar = np.zeros([(len(temp)-1), 6])
-    j = 0
-    for row in temp[1:]:
-        for i in range(2, len(row)):
-            movpar[j, i-2] = float(row[i])
-        j = j+1
-    return movpar
