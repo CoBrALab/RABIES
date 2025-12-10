@@ -477,7 +477,6 @@ def read_confound_workflow(conf_output, cr_opts):
 
     preproc_outputnode_name = 'confound_correction_main_wf.preproc_outputnode'
     match_targets = {'input_bold':[preproc_outputnode_name, 'input_bold'],
-                    'commonspace_bold':[preproc_outputnode_name, 'commonspace_bold'],
                     'commonspace_mask':[preproc_outputnode_name, 'commonspace_mask'],
                     'commonspace_WM_mask':[preproc_outputnode_name, 'commonspace_WM_mask'],
                     'commonspace_CSF_mask':[preproc_outputnode_name, 'commonspace_CSF_mask'],
@@ -495,7 +494,11 @@ def read_confound_workflow(conf_output, cr_opts):
                     'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
                     }
 
-    if cr_opts.nativespace_analysis:
+    if not cr_opts.nativespace_analysis:
+        match_targets.update({
+                        'commonspace_bold':[preproc_outputnode_name, 'commonspace_bold'],
+                        })
+    else:
         match_targets.update({'native_bold':[preproc_outputnode_name, 'native_bold'],
                         'native_bold_ref':[preproc_outputnode_name, 'native_bold_ref'],
                         'native_brain_mask':[preproc_outputnode_name, 'native_brain_mask'],

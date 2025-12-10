@@ -81,8 +81,17 @@ The workflow is the same as the **structural inhomogeneity correction**.
 ### rabies.preprocess_pkg.resampling.init_bold_preproc_trans_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
 
 ```{literalinclude} ../rabies/preprocess_pkg/resampling.py
-:start-after: resampling_head_start
-:end-before: resampling_head_end
+:start-after: bold_resampling_head_start
+:end-before: bold_resampling_head_end
+```
+
+## Resampling of masks and labels
+
+### rabies.preprocess_pkg.resampling.init_mask_preproc_trans_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
+
+```{literalinclude} ../rabies/preprocess_pkg/resampling.py
+:start-after: mask_resampling_head_start
+:end-before: mask_resampling_head_end
 ```
 
 ## Adapted workflow without structural scans (i.e. --bold_only)
