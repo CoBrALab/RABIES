@@ -4,3 +4,6 @@
 [submodule "optimized_antsMultivariateTemplateConstruction"]
 	path = optimized_antsMultivariateTemplateConstruction
 	url = https://github.com/Gab-D-G/optimized_antsMultivariateTemplateConstruction.git
+[submodule "rabies/simpleitk_timeseries_motion_correction"]
+	path = rabies/simpleitk_timeseries_motion_correction
+	url = https://github.com/CoBrALab/simpleitk_timeseries_motion_correction.git
