@@ -1,3 +1,0 @@
-#!/home/murosevic/miniconda3/envs/rabies/bin/python 
-from rabies.run_main import execute_workflow 
-execute_workflow()
