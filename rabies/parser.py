@@ -41,7 +41,7 @@ def get_parser():
             "   #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)\n"
             "   #2 - If --match_number_timepoints is selected, each scan is matched to the \n"
             "       defined minimum_timepoint number of frames.\n"
-            "   #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors\n"
+            "   #3 - Detrending of fMRI timeseries and nuisance regressors\n"
             "   #4 - Apply ICA-AROMA.\n"
             "   #5 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
             "       timepoints using the Lomb-Scargle periodogram, as suggested in Power et al. (2014, \n"
@@ -728,11 +728,15 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--detrending_order', type=str,
-        default="linear",
-        choices=["linear", "quadratic"],
+        '--detrending', type=str,
+        default='order=1,time_interval=all',
         help=
-            "Select between linear or quadratic (second-order) detrending of voxel timeseries.\n"
+            "Detrend the voxel timeseries. \n"
+            "* order: Specify the polynomial order for detrending as a integer. \n"
+            "*** 0 for no detrending, 1 for linear detrending, 2 for quadratic etc. \n"
+            "* time_interval: the time interval over which the trend is computed. \n "
+            "Note the trend is always subtracted from the whole timeseries. \n"
+            "*** 0-80 will take the first 80 timepoints (e.g. baseline), compute their trend, then subtract it from the whole timeseries."
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1229,6 +1233,11 @@ def read_parser(parser, args):
                 'minimum_timepoint':int},
             defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'minimum_timepoint':3},
             name='frame_censoring')
+        
+        opts.detrending = parse_argument(opt=opts.detrending, 
+            key_value_pairs = {'order':int, 'time_interval':str},
+            defaults = {'order':1,'time_interval':'all'},
+            name='detrending')
 
         opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},

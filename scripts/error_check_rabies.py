@@ -176,7 +176,7 @@ if opts.complete:
     ####CONFOUND CORRECTION####
     command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs \
         --generate_CR_null --TR 1 --scale_variance_voxelwise \
-        --smoothing_filter 0.3 --detrending_order quadratic --image_scaling global_variance "
+        --smoothing_filter 0.3 --detrending order=2,time_interval=3-10 --image_scaling global_variance "
     repeat_attempts(command, number_attempts=3)
 
     # testing censoring on its own, since it removes all scans and prevent further testing
