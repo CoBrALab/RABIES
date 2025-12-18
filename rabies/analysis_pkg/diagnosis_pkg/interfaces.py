@@ -3,88 +3,40 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 from rabies.analysis_pkg.diagnosis_pkg import diagnosis_functions
-
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
 )
 
-class PrepMasksInputSpec(BaseInterfaceInputSpec):
-    mask_dict_list = traits.List(
-        exists=True, mandatory=True, desc="Brain mask.")
-    prior_maps = File(exists=True, mandatory=True,
-                      desc="MELODIC ICA components to use.")
-    DSURQE_regions = traits.Bool(
-        desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
-
-
-class PrepMasksOutputSpec(TraitedSpec):
-    mask_file_dict = traits.Dict(
-        desc="A dictionary regrouping the all required accompanying files.")
-
-
-class PrepMasks(BaseInterface):
-    """
-
-    """
-
-    input_spec = PrepMasksInputSpec
-    output_spec = PrepMasksOutputSpec
-
-    def _run_interface(self, runtime):
-        from rabies.utils import flatten_list,resample_image_spacing
-        merged = flatten_list(list(self.inputs.mask_dict_list))
-        mask_dict = merged[0]  # all mask files are assumed to be identical
-        brain_mask_file = mask_dict['mask_file']
-        WM_mask_file = mask_dict['WM_mask_file']
-        CSF_mask_file = mask_dict['CSF_mask_file']
-
-        # resample the template to the EPI dimensions
-        resampled = resample_image_spacing(sitk.ReadImage(mask_dict['preprocess_anat_template']), sitk.ReadImage(
-            brain_mask_file).GetSpacing())
-        template_file = os.path.abspath('display_template.nii.gz')
-        sitk.WriteImage(resampled, template_file)
-
-        if self.inputs.DSURQE_regions:
-            if 'XDG_DATA_HOME' in os.environ.keys():
-                rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
-            else:
-                rabies_path = os.environ['HOME']+'/.local/share/rabies'
-            right_hem_mask_file = diagnosis_functions.resample_mask(rabies_path+'/DSURQE_40micron_right_hem_mask.nii.gz',
-                                                brain_mask_file)
-            left_hem_mask_file = diagnosis_functions.resample_mask(rabies_path+'/DSURQE_40micron_left_hem_mask.nii.gz',
-                                               brain_mask_file)
-        else:
-            right_hem_mask_file = ''
-            left_hem_mask_file = ''
-
-        from rabies.analysis_pkg.analysis_functions import resample_IC_file
-        prior_maps = resample_IC_file(self.inputs.prior_maps, brain_mask_file)
-
-        edge_mask_file = os.path.abspath('edge_mask.nii.gz')
-        diagnosis_functions.compute_edge_mask(brain_mask_file, edge_mask_file, num_edge_voxels=1)
-        mask_file_dict = {'template_file': template_file, 'brain_mask': brain_mask_file, 'WM_mask': WM_mask_file, 'CSF_mask': CSF_mask_file,
-                          'edge_mask': edge_mask_file, 'right_hem_mask': right_hem_mask_file, 'left_hem_mask': left_hem_mask_file, 'prior_maps': prior_maps}
-
-        setattr(self, 'mask_file_dict', mask_file_dict)
-        return runtime
-
-    def _list_outputs(self):
-        return {'mask_file_dict': getattr(self, 'mask_file_dict')}
-
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
+    CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
+    common_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the commonspace")
+    sub_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the subject' space, either native or common.")
     analysis_dict = traits.Dict(
         desc="A dictionary regrouping relevant outputs from analysis.")
     prior_bold_idx = traits.List(
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
         desc="The index for the ICA components that correspond to confounding sources.")
+    plot_seed_frequencies = traits.Dict(
+        desc="Dictionary that pairs a seed name and its index within --seed_list to plot the frequency spectrum")
     DSURQE_regions = traits.Bool(
         desc="Whether to use the regional masks generated from the DSURQE atlas for the grayplots outputs. Requires using the DSURQE template for preprocessing.")
     figure_format = traits.Str(
         desc="Select file format for figures.")
+    nativespace_analysis = traits.Bool(
+        desc="Whether input timeseries are in nativespace.")
+    native_to_common_transforms = traits.List(
+        desc="Transforms to move nativespace computations to commonspace")
+    native_to_common_inverses = traits.List(
+        desc="Inverses to move nativespace computations to commonspace")
+    interpolation = traits.Str(
+        desc="Select the interpolator for antsApplyTransform.")
+    brainmap_percent_threshold = traits.Float(
+        desc="Input percentage value for thresholding images.")
+    rabies_data_type = traits.Int(
+        desc="Integer specifying SimpleITK data type.")
 
 
 class ScanDiagnosisOutputSpec(TraitedSpec):
@@ -113,8 +65,12 @@ class ScanDiagnosis(BaseInterface):
 
     def _run_interface(self, runtime):
         import pickle
-        with open(self.inputs.dict_file, 'rb') as handle:
-            data_dict = pickle.load(handle)
+        with open(self.inputs.CR_dict_file, 'rb') as handle:
+            CR_data_dict = pickle.load(handle)
+        with open(self.inputs.common_maps_dict_file, 'rb') as handle:
+            common_maps_data_dict = pickle.load(handle)
+        with open(self.inputs.sub_maps_dict_file, 'rb') as handle:
+            sub_maps_data_dict = pickle.load(handle)
 
         figure_format = self.inputs.figure_format
 
@@ -122,14 +78,26 @@ class ScanDiagnosis(BaseInterface):
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
-        temporal_info, spatial_info = diagnosis_functions.process_data(
-            data_dict, self.inputs.analysis_dict, prior_bold_idx, prior_confound_idx)
+        if self.inputs.nativespace_analysis:
+            resampling_specs = {'transforms':self.inputs.native_to_common_transforms,
+                                'inverses':self.inputs.native_to_common_inverses,
+                                'interpolation':self.inputs.interpolation,
+                                'data_type':self.inputs.rabies_data_type,
+                                }
+        else:
+            resampling_specs = {}
 
-        fig, fig2 = diagnosis_functions.scan_diagnosis(data_dict, temporal_info,
-                                   spatial_info, regional_grayplot=self.inputs.DSURQE_regions)
+        temporal_info, spatial_info = diagnosis_functions.compute_spatiotemporal_features(
+            CR_data_dict, sub_maps_data_dict, common_maps_data_dict, self.inputs.analysis_dict, 
+            prior_bold_idx, prior_confound_idx,
+            nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
+
+        fig, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
+                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, 
+                                   regional_grayplot=self.inputs.DSURQE_regions, brainmap_percent_threshold=self.inputs.brainmap_percent_threshold)
 
         import pathlib
-        filename_template = pathlib.Path(data_dict['name_source']).name.rsplit(".nii")[0]
+        filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
         fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
         fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
@@ -167,6 +135,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Select file format for figures.")
     extended_QC = traits.Bool(
         desc="Whether to include image intensity and BOLDsd in the group stats.")
+    brainmap_percent_threshold = traits.Float(
+        desc="Input percentage value for thresholding images.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -211,7 +181,7 @@ class DatasetDiagnosis(BaseInterface):
                     out_dir_global)
             return runtime
 
-        template_file = merged[0]['template_file']
+        template_file = merged[0]['anat_ref_file']
         mask_file = merged[0]['mask_file']
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
         volume_indices = brain_mask.astype(bool)
@@ -319,7 +289,7 @@ class DatasetDiagnosis(BaseInterface):
         def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
 
             for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
-                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric)
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
@@ -333,7 +303,7 @@ class DatasetDiagnosis(BaseInterface):
 
         def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold)
+            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')

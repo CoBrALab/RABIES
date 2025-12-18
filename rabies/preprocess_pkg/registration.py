@@ -1,7 +1,7 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype import Function
-
+import os
 
 def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     # cross_modal_reg_head_start
@@ -38,7 +38,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                             *** Affine: conducts Rigid then Affine registration.
                             *** SyN: conducts Rigid, Affine then non-linear registration.
                             *** no_reg: skip registration.
-                            (default: masking=false,brain_extraction=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995,keep_mask_after_extract=false,registration=SyN)
+                            (default: masking=false,brain_extraction=false,winsorize_lower_bound=0.0,winsorize_upper_bound=1.0,keep_mask_after_extract=false,registration=SyN)
 
     Workflow:
         parameters
@@ -75,7 +75,8 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
                                             "fixed_mask", "winsorize_lower_bound", "winsorize_upper_bound", "rabies_data_type"],
                                output_names=['bold_to_anat_affine', 'bold_to_anat_warp',
                                              'bold_to_anat_inverse_warp', 'output_warped_bold'],
-                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory)
+                               function=run_antsRegistration), name='EPI_Coregistration', mem_gb=3*opts.scale_min_memory,
+                               n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
 
     # don't use brain extraction without a moving mask
     run_reg.inputs.winsorize_lower_bound = opts.bold2anat_coreg['winsorize_lower_bound']
@@ -110,7 +111,7 @@ def init_cross_modal_reg_wf(opts, name='cross_modal_reg_wf'):
     return workflow
 
 
-def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NULL', fixed_image='NULL', fixed_mask='NULL', winsorize_lower_bound = 0.005, winsorize_upper_bound = 0.995, rabies_data_type=8):
+def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_extract=False, moving_image='NULL', moving_mask='NOMASK', fixed_image='NULL', fixed_mask='NOMASK', winsorize_lower_bound = 0.0, winsorize_upper_bound = 1.0, rabies_data_type=8):
     import os
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(moving_image).name.rsplit(".nii")
@@ -127,7 +128,10 @@ def run_antsRegistration(reg_method, brain_extraction=False, keep_mask_after_ext
             reg_call+=" --mask-extract"
             if keep_mask_after_extract:
                 reg_call+=" --keep-mask-after-extract"
-        command = f"{reg_call} --winsorize-image-intensities {winsorize_lower_bound},{winsorize_upper_bound} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
+        if winsorize_lower_bound>0.0 or winsorize_upper_bound<1.0: # only specify an input if they differ from the default
+            reg_call+=f" --winsorize-image-intensities {winsorize_lower_bound},{winsorize_upper_bound}"
+
+        command = f"{reg_call} --resampled-output {filename_split[0]}_output_warped_image.nii.gz {moving_image} {fixed_image} {filename_split[0]}_output_"
     else:
         command = f'{reg_call} {moving_image} {moving_mask} {fixed_image} {fixed_mask} {filename_split[0]}'
     from rabies.utils import run_command

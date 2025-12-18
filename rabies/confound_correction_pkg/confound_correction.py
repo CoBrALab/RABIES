@@ -117,11 +117,11 @@ class RegressInputSpec(BaseInterfaceInputSpec):
         exists=True, mandatory=True, desc="Dictionary with extra inputs.")
     brain_mask_file = File(exists=True, mandatory=True,
                       desc="Brain mask.")
-    WM_mask_file = File(exists=True, mandatory=True,
+    WM_mask_file = traits.Any(mandatory=True,
                       desc="WM mask.")
-    CSF_mask_file = File(exists=True, mandatory=True,
+    CSF_mask_file = traits.Any(mandatory=True,
                       desc="CSF mask.")
-    vascular_mask_file = File(exists=True, mandatory=True,
+    vascular_mask_file = traits.Any(mandatory=True,
                       desc="vascular mask.")
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")

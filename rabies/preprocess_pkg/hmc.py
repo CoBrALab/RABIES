@@ -59,7 +59,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
 
     # Head motion correction (hmc)
     motion_estimation = pe.Node(antsMotionCorr(prebuilt_option=opts.HMC_option,transform_type='Rigid', second=False, rabies_data_type=opts.data_type),
-                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory)
+                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
@@ -349,10 +349,10 @@ class SliceMotionCorrection(BaseInterface):
 class EstimateMotionParamsInputSpec(BaseInterfaceInputSpec):
     motcorr_params = File(exists=True, mandatory=True,
                        desc="CSV file with the 6 rigid body parameters")
-    raw_bold = File(exists=True, mandatory=True,
-                      desc="Raw EPI before resampling.")
-    raw_brain_mask = File(exists=True, mandatory=True,
-                      desc="Brain mask of the raw EPI.")
+    boldspace_bold = File(exists=True, mandatory=True,
+                      desc="BOLD image in its original space.")
+    boldspace_brain_mask = File(exists=True, mandatory=True,
+                      desc="Brain mask in the BOLD space.")
 
 
 class EstimateMotionParamsOutputSpec(TraitedSpec):
@@ -389,19 +389,19 @@ class EstimateMotionParams(BaseInterface):
         import os
         from rabies.utils import run_command
         import pathlib  # Better path manipulation
-        filename_split = pathlib.Path(self.inputs.raw_bold).name.rsplit(".nii")
+        filename_split = pathlib.Path(self.inputs.boldspace_bold).name.rsplit(".nii")
 
         # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
         # first the voxelwise positioning map
-        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.raw_brain_mask} \
-                    -d {self.inputs.raw_bold}'
+        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.boldspace_brain_mask} \
+                    -d {self.inputs.boldspace_bold}'
         rc,c_out = run_command(command)
         pos_voxelwise = os.path.abspath(
             f"{filename_split[0]}_pos_file.nii.gz")
 
         # then the voxelwise framewise displacement map
-        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.raw_brain_mask} \
-                    -d {self.inputs.raw_bold} -f 1'
+        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.boldspace_brain_mask} \
+                    -d {self.inputs.boldspace_bold} -f 1'
         rc,c_out = run_command(command)
 
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
@@ -434,7 +434,10 @@ def motion_24_params(movpar_csv):
     motioncorr_24params: 6 head motion parameters, their temporal derivative, and the 12 corresponding squared items (Friston et al. 1996, Magn. Reson. Med.)
     '''
     import numpy as np
-    rigid_params = extract_rigid_movpar(movpar_csv)
+    import pandas as pd
+    MOCO_df = pd.read_csv(movpar_csv)
+    rigid_params = np.array([MOCO_df[param].values for param in ['MOCOparam0','MOCOparam1','MOCOparam2','MOCOparam3','MOCOparam4','MOCOparam5']]).T
+
     rotations = rigid_params[:,:3] # rotations are listed first
     translations = rigid_params[:,3:] # translations are last
 
@@ -453,20 +456,3 @@ def motion_24_params(movpar_csv):
                     'mov1^2', 'mov2^2', 'mov3^2', 'rot1^2', 'rot2^2', 'rot3^2', 'mov1_der^2', 'mov2_der^2', 'mov3_der^2', 'rot1_der^2', 'rot2_der^2', 'rot3_der^2']
 
     return movpar,motion_24_header
-
-
-def extract_rigid_movpar(movpar_csv):
-    import numpy as np
-    import csv
-    temp = []
-    with open(movpar_csv) as csvfile:
-        motcorr = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in motcorr:
-            temp.append(row)
-    movpar = np.zeros([(len(temp)-1), 6])
-    j = 0
-    for row in temp[1:]:
-        for i in range(2, len(row)):
-            movpar[j, i-2] = float(row[i])
-        j = j+1
-    return movpar

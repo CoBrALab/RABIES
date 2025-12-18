@@ -1,12 +1,12 @@
 # Installation
 
-## Container (Singularity/Docker) \*\*RECOMMENDED\*\*
-For most uses, we recommend instead using a containerized installation with [Singularity](https://singularity.lbl.gov) or [Docker](https://www.docker.com). Containers allow to build entire computing environments, grouping all dependencies required to run the software. This in turn reduces the burden of installing dependencies manually and ensures reproducible behavior of the software. Singularity is generally preferred over Docker since it requires less permission, and can thus be imported from most computing environment (e.g. high performance computing clusters such as Compute Canada.)
+## Container (Apptainer/Docker) \*\*RECOMMENDED\*\*
+For most uses, we recommend instead using a containerized installation with [Apptainer](https://apptainer.org/) when possible on a Linux system (here's their [quick start guidelines](https://apptainer.org/docs/user/main/quick_start.html)), or [Docker](https://www.docker.com) on other platforms. Containers allow to build entire computing environments, grouping all dependencies required to run the software. This in turn reduces the burden of installing dependencies manually and ensures reproducible behavior of the software. Apptainer is generally preferred over Docker since root permissions are not required, and is thus generally compatible across computing platforms (e.g. high performance computing clusters).
 
-A [containerized version](https://github.com/CoBrALab/RABIES/pkgs/container/rabies) of RABIES is available from Github. After installing Singularity or Docker, the following command will pull and build the container:
-* Install Singularity .sif file: 
+A [containerized version](https://github.com/CoBrALab/RABIES/pkgs/container/rabies) of RABIES is available from Github. After installing Apptainer or Docker, the following command will pull and build the container:
+* Install Apptainer .sif file: 
 ```
-singularity build rabies.sif docker://ghcr.io/cobralab/rabies:latest
+apptainer build rabies-latest.sif docker://ghcr.io/cobralab/rabies:latest
 ```
 * Install Docker image: 
 ```

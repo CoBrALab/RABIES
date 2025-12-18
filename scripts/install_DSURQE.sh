@@ -34,22 +34,27 @@ fallback_urls=(
     "https://github.com/CoBrALab/RABIES/releases/download/0.5.1/DSURQE_40micron_R_mapping.csv"
 )
 
-# Try to download from mouseimaging first, if that doesn't work download from github
-primary_success=true
-for i in {0..3}; do
-    if ! curl -L --retry 5 --fail --silent --show-error -o "${out_dir}/${files[$i]}" "${primary_urls[$i]}"; then
-        primary_success=false
-        break
-    fi
-done
+# # Try to download from mouseimaging first, if that doesn't work download from github
+# primary_success=true
+# for i in {0..3}; do
+#     if ! curl -L --retry 5 --fail --silent --show-error -o "${out_dir}/${files[$i]}" "${primary_urls[$i]}"; then
+#         primary_success=false
+#         break
+#     fi
+# done
+#
+# if [ "$primary_success" = true ]; then
+#   for f in "${out_dir}"/DSURQE_40micron_*.nii; do
+#     gzip -f "$f"
+#   done
+# fi
 
-if [ "$primary_success" = true ]; then
-  for f in "${out_dir}"/DSURQE_40micron_*.nii; do
-    gzip -f "$f"
-  done
-fi
 
 # if these fail too exit 1
+#
+# temporary hotfix to force download from fallback_urls
+# remove line 57 when primary_urls can be used again and uncomment lines 38-50
+primary_success=false
 if [ "$primary_success" = false ]; then
     for i in {0..3}; do
         if ! curl -L --retry 5 --fail --silent --show-error -o "${out_dir}/${fallback_files[$i]}" "${fallback_urls[$i]}"; then

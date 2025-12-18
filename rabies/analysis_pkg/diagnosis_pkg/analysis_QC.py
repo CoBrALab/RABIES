@@ -9,7 +9,7 @@ from rabies.confound_correction_pkg.utils import smooth_image
 import tempfile
 
 
-def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False):
+def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False, top_percent=10):
 
     scaled = otsu_scaling(template_file)
         
@@ -22,7 +22,7 @@ def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_n
         measure_list = ["Mean", "Standard \nDeviation", "Pearson r"]
     
     maps = get_maps(consensus_network, FC_maps, corr_variable, mask_file, smoothing, non_parametric=non_parametric)
-    dataset_stats, map_masks=eval_relationships(maps, name_list)
+    dataset_stats, map_masks=eval_relationships(maps, name_list, top_percent=top_percent)
 
     fig = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list, thresholded=True)
     fig_unthresholded = plot_relationships(mask_file, scaled, maps, map_masks, name_list, measure_list, thresholded=False)
@@ -66,13 +66,13 @@ def get_maps(prior, prior_list, corr_variable, mask_file, smoothing=False, non_p
     return maps
 
 
-def eval_relationships(maps, name_list):
+def eval_relationships(maps, name_list, top_percent=10):
     dataset_stats = {}
     map_masks=[]
     
     for i in range(len(maps)):
         map = maps[i]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=top_percent)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         map_masks.append(mask)
         if i>0: #once we're past the prior, evaluate Dice relative to it
@@ -157,12 +157,15 @@ def threshold_distribution(array):
     return threshold
 '''
 
-def percent_threshold(array): # set threshold to be the top 4% of all voxels
-    flat=array.flatten()
+
+def threshold_top_percent(array, top_percent=10):
+    # we take absolute values, since high negative values are also counted
+    flat=np.abs(array).flatten()
     flat.sort()
-    idx=int((0.96)*len(flat))
+    idx=int((1 - (top_percent/100))*len(flat))
     threshold = flat[idx]
     return threshold
+
 
 def masked_plot(fig,axes, img, scaled, mask_img, vmax=None):
     masked = img*mask_img
@@ -417,13 +420,13 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mea
 
 
 def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, 
-                     scan_name_list, scan_QC_thresholds, outlier_threshold=3.5):
+                     scan_name_list, scan_QC_thresholds, outlier_threshold=3.5, top_percent=10):
 
-    threshold = percent_threshold(prior_map)
+    threshold = threshold_top_percent(prior_map, top_percent=top_percent)
     prior_mask=np.abs(prior_map)>=threshold # taking absolute values to include negative weights
     dice_list=[]
     for i in range(len(scan_name_list)):
-        threshold = percent_threshold(FC_maps[i,:])
+        threshold = threshold_top_percent(FC_maps[i,:], top_percent=top_percent)
         fit_mask=np.abs(FC_maps[i,:])>=threshold # taking absolute values to include negative weights
         dice = dice_coefficient(prior_mask,fit_mask)
         dice_list.append(dice)

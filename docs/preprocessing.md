@@ -81,10 +81,19 @@ The workflow is the same as the **structural inhomogeneity correction**.
 ### rabies.preprocess_pkg.resampling.init_bold_preproc_trans_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
 
 ```{literalinclude} ../rabies/preprocess_pkg/resampling.py
-:start-after: resampling_head_start
-:end-before: resampling_head_end
+:start-after: bold_resampling_head_start
+:end-before: bold_resampling_head_end
+```
+
+## Resampling of masks and labels
+
+### rabies.preprocess_pkg.resampling.init_mask_preproc_trans_wf [[source code](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/resampling.py)]
+
+```{literalinclude} ../rabies/preprocess_pkg/resampling.py
+:start-after: mask_resampling_head_start
+:end-before: mask_resampling_head_end
 ```
 
 ## Adapted workflow without structural scans (i.e. --bold_only)
-Structural scans are recommended, but not required to complete preprocessing with RABIES. An alternative workflow is also implemented to preprocess a input dataset which contains only EPI functional images, and can be selected with the `--bold_only` option. In this alternative workflow, the volumetric EPI corrected for inhomogeneity during **Functional inhomogeneity correction** replaces the structural image for the purpose of common space alignment, and is thus used for generating the unbiased template, in turn, this template is registered to the reference atlas. This final registration to the atlas accounts for estimation of susceptibility distortions instead of the registration to a structural image from the same MRI session. Given that this atlas registration must be applied to account for susceptibility distortions, only preprocessed timeseries in common space are provided when running this workflow. 
+Structural scans are recommended, but not required to complete preprocessing with RABIES. An alternative workflow is also implemented to preprocess a input dataset which contains only EPI functional images, and can be selected with the `--bold_only` option. In this alternative workflow, the volumetric EPI corrected for inhomogeneity during **Functional inhomogeneity correction** replaces the structural image for the purpose of common space alignment, and is thus used for generating the unbiased template, in turn, this template is registered to the reference atlas. This final registration to the atlas accounts for estimation of susceptibility distortions instead of the registration to a structural image from the same MRI session. 
 If using the RABIES default mouse atlas, the default template is changed to a EPI reference template, which offers a more robust target for EPI registration than a structural image as reference template.

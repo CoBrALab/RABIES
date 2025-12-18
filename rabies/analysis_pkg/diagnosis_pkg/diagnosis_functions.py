@@ -6,59 +6,34 @@ from rabies.utils import copyInfo_3DImage, recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
-from .analysis_QC import masked_plot, percent_threshold
+from .analysis_QC import masked_plot, threshold_top_percent
 
-def resample_mask(in_file, ref_file):
-    transforms = []
-    inverses = []
-    # resampling the reference image to the dimension of the EPI
-    from rabies.utils import run_command
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(
-        in_file).name.rsplit(".nii")
-    out_file = os.path.abspath(filename_split[0])+'_resampled.nii.gz'
-
-    # tranforms is a list of transform files, set in order of call within antsApplyTransforms
-    transform_string = ""
-    for transform, inverse in zip(transforms, inverses):
-        if transform == 'NULL':
-            continue
-        elif bool(inverse):
-            transform_string += f"-t [{transform},1] "
-        else:
-            transform_string += f"-t {transform} "
-
-    command = f'antsApplyTransforms -i {in_file} {transform_string}-n GenericLabel -r {ref_file} -o {out_file}'
-    rc,c_out = run_command(command)
-    return out_file
-
-
-'''
-Prepare the subject data
-'''
-
-
-def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
+def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
+                                    prior_bold_idx, prior_confound_idx,
+                                    nativespace_analysis=False,resampling_specs=None,
+                                    ):
+    if resampling_specs is None:
+        resampling_specs={}
+    # sub_maps_data_dict is the maps_data_dict that overlaps with the subject, either in native or common space depending on confound correction
+    # common_maps_data_dict contains files in commonspace
     temporal_info = {}
     spatial_info = {}
-    temporal_info['name_source'] = data_dict['name_source']
-    spatial_info['name_source'] = data_dict['name_source']
-    spatial_info['mask_file'] = data_dict['mask_file']
+    temporal_info['name_source'] = CR_data_dict['name_source']
+    spatial_info['name_source'] = CR_data_dict['name_source']
+    # spatial maps will always be in commonspace for display
+    spatial_info['mask_file'] = common_maps_data_dict['mask_file']
 
-    timeseries = data_dict['timeseries']
-    volume_indices = data_dict['volume_indices']
-    edge_idx = data_dict['edge_idx']
-    WM_idx = data_dict['WM_idx']
-    CSF_idx = data_dict['CSF_idx']
-    CR_data_dict = data_dict['CR_data_dict']
+    # these timeseries can be in nativespace or commonspace depending on confound correction stage
+    timeseries = CR_data_dict['timeseries']
+    volume_indices = common_maps_data_dict['volume_indices']
 
-    not_edge_idx = (edge_idx == 0)*(WM_idx == 0)*(CSF_idx == 0)
+    CR_CR_data_dict = CR_data_dict['CR_data_dict']
 
-    FD_trace = CR_data_dict['FD_trace']
-    DVARS = CR_data_dict['DVARS']
+    FD_trace = CR_CR_data_dict['FD_trace']
+    DVARS = CR_CR_data_dict['DVARS']
     temporal_info['FD_trace'] = FD_trace
     temporal_info['DVARS'] = DVARS
-    temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
+    temporal_info['VE_temporal'] = CR_CR_data_dict['VE_temporal']
 
 
     ### SBC analysis
@@ -91,19 +66,27 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
     temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
 
     '''Temporal Features'''
+    global_signal = timeseries.mean(axis=1)
+    temporal_info['global_signal'] = global_signal
+    temporal_info['predicted_time'] = CR_CR_data_dict['predicted_time']
     # take regional timecourse by taking the RMS each 3D volume
-    WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
-    CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
+    edge_idx = sub_maps_data_dict['edge_idx']
     edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
-    not_edge_trace = np.sqrt((timeseries.T[not_edge_idx]**2).mean(axis=0))
-    temporal_info['WM_trace'] = WM_trace
-    temporal_info['CSF_trace'] = CSF_trace
     temporal_info['edge_trace'] = edge_trace
-    temporal_info['not_edge_trace'] = not_edge_trace
-    temporal_info['predicted_time'] = CR_data_dict['predicted_time']
+    if sub_maps_data_dict['WM_idx'] is not None:
+        WM_idx = sub_maps_data_dict['WM_idx']
+        WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
+        temporal_info['WM_trace'] = WM_trace
+    else:
+        temporal_info['WM_trace'] = None
+    if sub_maps_data_dict['CSF_idx'] is not None:
+        CSF_idx = sub_maps_data_dict['CSF_idx']
+        CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
+        temporal_info['CSF_trace'] = CSF_trace
+    else:
+        temporal_info['CSF_trace'] = None
 
     '''Spatial Features'''
-    global_signal = timeseries.mean(axis=1)
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
@@ -120,16 +103,42 @@ def process_data(data_dict, analysis_dict, prior_bold_idx, prior_confound_idx):
             C[i, :] = (C_array[i, :, :, :])[volume_indices]
         prior_fit_out['C'] = C
 
-    spatial_info['prior_maps'] = data_dict['prior_map_vectors'][prior_bold_idx]
+    if nativespace_analysis: # certain spatial maps were computed in nativespace and need resampling
+        from rabies.utils import applyTransforms_3D
+        import tempfile
+        tmppath = tempfile.mkdtemp()
+        def resample_brain_map(brain_map):
+            temp_fname = f'{tmppath}/brain_map.nii.gz'
+            temp_out_fname = f'{tmppath}/brain_map_resampled.nii.gz'
+            image_3d = recover_3D(mask_file=sub_maps_data_dict['mask_file'], vector_map=brain_map)
+            sitk.WriteImage(image_3d, temp_fname)
+            applyTransforms_3D(transforms = resampling_specs['transforms'], inverses = resampling_specs['inverses'], 
+                        input_image = temp_fname, ref_image = common_maps_data_dict['anat_ref_file'], output_filename = temp_out_fname, 
+                        interpolation=resampling_specs['interpolation'], rabies_data_type=resampling_specs['data_type'], clip_negative=False)
+            resampled_brain_map = sitk.GetArrayFromImage(sitk.ReadImage(temp_out_fname, resampling_specs['data_type']), 
+                                                         )[common_maps_data_dict['volume_indices']]
+            return resampled_brain_map
+            
+        [GS_cov, GS_corr, VE_spatial, temporal_std, predicted_std] = [
+            resample_brain_map(brain_map) for brain_map in [GS_cov, GS_corr, CR_data_dict['VE_spatial'], 
+                                                            CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
+            ]
+        import shutil
+        shutil.rmtree(tmppath, ignore_errors=True)
+    else:
+        VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
+
+
+    spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
     spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
     spatial_info['DR_all'] = DR_C
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']
 
-    spatial_info['VE_spatial'] = data_dict['VE_spatial']
-    spatial_info['temporal_std'] = data_dict['temporal_std']
-    spatial_info['predicted_std'] = data_dict['predicted_std']
+    spatial_info['VE_spatial'] = VE_spatial
+    spatial_info['temporal_std'] = temporal_std
+    spatial_info['predicted_std'] = predicted_std
     spatial_info['GS_corr'] = GS_corr
     spatial_info['GS_cov'] = GS_cov
 
@@ -231,12 +240,22 @@ def grayplot(timeseries, ax):
     return im
 
 
-def plot_freqs(ax,timeseries, TR):
-    freqs = np.fft.fftfreq(timeseries.shape[0], TR)
+def plot_freqs(ax,timeseries, TR, frame_mask):
+
+    if (frame_mask==0).sum()>0: # only simulate data points if some censoring was applied
+        from rabies.confound_correction_pkg.utils import lombscargle_fill
+        timeseries_ = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+    else:
+        timeseries_ = timeseries
+
+    # voxels that have a NaN value are set to 0
+    timeseries_[np.isnan(timeseries_)] = 0
+
+    freqs = np.fft.fftfreq(timeseries_.shape[0], TR)
     idx = np.argsort(freqs)
     pos_idx = idx[freqs[idx]>0]
 
-    ps = np.abs(np.fft.fft(timeseries.T))**2
+    ps = np.abs(np.fft.fft(timeseries_.T))**2
     ps_mean = ps.mean(axis=0)
     ps_std = ps.std(axis=0)
 
@@ -245,15 +264,20 @@ def plot_freqs(ax,timeseries, TR):
     ax.plot(freqs[pos_idx], ps_mean[pos_idx])
     ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
     ax.set_ylim([0,y_max])
-    ax.set_xlim([0,freqs.max()])
     xticks = np.arange(0,freqs.max(),0.05)
     ax.set_xticks(xticks)    
 
+    x_max = freqs.max()
+    xlim_edge_percent = 0.02
+    x_lim = [-(x_max*xlim_edge_percent),x_max+(x_max*xlim_edge_percent)]
+    ax.set_xlim(x_lim)
 
-def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=False):
-    timeseries = data_dict['timeseries']
-    template_file = data_dict['template_file']
-    CR_data_dict = data_dict['CR_data_dict']
+
+def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, regional_grayplot=False, brainmap_percent_threshold=10):
+    timeseries = CR_data_dict['timeseries']
+    template_file = maps_data_dict['anat_ref_file']
+    CR_CR_data_dict = CR_data_dict['CR_data_dict']
+    frame_mask = CR_CR_data_dict['frame_mask']
     
     fig = plt.figure(figsize=(12, 24))
 
@@ -266,11 +290,22 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax3 = fig.add_subplot(8,2,13)
     ax4 = fig.add_subplot(8,2,15)
 
-    plot_freqs(ax0_f,timeseries, CR_data_dict['TR'])
+    plot_freqs(ax0_f,timeseries, CR_CR_data_dict['TR'], frame_mask)
     plt.setp(ax0_f.get_yticklabels(), visible=False)
     plt.setp(ax0_f.get_xticklabels(), fontsize=12)
     ax0_f.set_xlabel('Frequency (Hz)', fontsize=20)
     ax0_f.set_ylabel('Power (a.u.)', fontsize=20)
+
+    freq_legend = ['Whole brain']
+    # plot the spectrum for specific seeds
+    seed_time_arr = temporal_info['SBC_time']
+    seed_names = list(plot_seed_frequencies.keys())
+    for seed_name in seed_names:
+        seed_idx = plot_seed_frequencies[seed_name]
+        plot_freqs(ax0_f,seed_time_arr[:,[seed_idx]], CR_CR_data_dict['TR'], frame_mask)
+        freq_legend.append(seed_name)
+    ax0_f.legend(freq_legend,
+                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
 
     # disable function
     regional_grayplot=False
@@ -305,18 +340,20 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     plt.setp(ax1.get_xticklabels(), visible=False)
 
     y = temporal_info['FD_trace'].to_numpy()
-    x = range(len(y))
-    ax0.set_xlim([0, len(y)-1])
-    ax1.set_xlim([0, len(y)-1])
-    ax1_.set_xlim([0, len(y)-1])
-    ax2.set_xlim([0, len(y)-1])
-    ax3.set_xlim([0, len(y)-1])
-    ax4.set_xlim([0, len(y)-1])
+    num_timepoints = len(y)
+    x = range(num_timepoints)
+    xlim_edge_percent = 0.02
+    x_lim = [-(num_timepoints*xlim_edge_percent),(num_timepoints-1)+(num_timepoints*xlim_edge_percent)]
+    ax0.set_xlim(x_lim)
+    ax1.set_xlim(x_lim)
+    ax1_.set_xlim(x_lim)
+    ax2.set_xlim(x_lim)
+    ax3.set_xlim(x_lim)
+    ax4.set_xlim(x_lim)
 
     # plot the motion timecourses
-    motion_params_csv = CR_data_dict['motion_params_csv']
-    time_range = CR_data_dict['time_range']
-    frame_mask = CR_data_dict['frame_mask']
+    motion_params_csv = CR_CR_data_dict['motion_params_csv']
+    time_range = CR_CR_data_dict['time_range']
     df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
     ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
@@ -358,22 +395,29 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     ax2_.legend(['DVARS'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.3))
 
-    ax3.plot(x,temporal_info['edge_trace'])
-    ax3.plot(x,temporal_info['WM_trace'])
-    ax3.plot(x,temporal_info['CSF_trace'])
-    ax3.plot(x,temporal_info['predicted_time'])
+    ax3.plot(x,temporal_info['global_signal'], alpha=0.7)
+    ax3.plot(x,temporal_info['edge_trace'], alpha=0.7)
+    if temporal_info['WM_trace'] is not None:
+        ax3.plot(x,temporal_info['WM_trace'], alpha=0.7)
+    else:
+        ax3.plot([],[])
+    if temporal_info['CSF_trace'] is not None:
+        ax3.plot(x,temporal_info['CSF_trace'], alpha=0.7)
+    else:
+        ax3.plot([],[])
+    ax3.plot(x,temporal_info['predicted_time'], alpha=0.7)
     ax3.set_ylabel('Amplitude \n(RMS)', fontsize=20)
     ax3_ = ax3.twinx()
-    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet')
+    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet', alpha=0.7)
     ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
     plt.setp(ax3.get_xticklabels(), visible=False)
     plt.setp(ax3_.get_xticklabels(), visible=False)
-    ax3.legend(['Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
+    ax3.legend(['Global signal\n(brain mask mean)', 'Edge Mask', 'WM Mask', 'CSF Mask', '$CR_{var}$'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.7))
     ax3_.legend(['CR $\mathregular{R^2}$'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.2))
+                ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.1))
     ax3_.set_ylim([0,1])
 
     # we take the mean of the timecourse amplitude (absolute values) to summarized across all components
@@ -418,7 +462,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
     dr_maps = spatial_info['DR_BOLD']
     SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
-    mask_file = data_dict['mask_file']
+    mask_file = maps_data_dict['mask_file']
 
     nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 
@@ -507,7 +551,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
         axes = axes2[i+4, :]
 
         map = dr_maps[i, :]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
@@ -525,7 +569,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
         axes = axes2[i+4+dr_maps.shape[0], :]
 
         map = SBC_maps[i]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(
@@ -543,7 +587,7 @@ def scan_diagnosis(data_dict, temporal_info, spatial_info, regional_grayplot=Fal
         axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
 
         map = NPR_maps[i, :]
-        threshold = percent_threshold(map)
+        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
         mask_img = recover_3D(mask_file,mask)        
         sitk_img = recover_3D(

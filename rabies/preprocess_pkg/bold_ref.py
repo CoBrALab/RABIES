@@ -53,7 +53,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         name='outputnode')
 
     gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
-                      name='gen_ref', mem_gb=2*opts.scale_min_memory)
+                      name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
     gen_ref.plugin_args = {
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
 

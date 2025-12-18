@@ -68,65 +68,30 @@ def template_info(anat_template, opts, out_dir,figure_format):
     from nilearn import plotting
     import matplotlib.pyplot as plt
     from rabies.visualization import plot_3d, otsu_scaling
-    brain_mask = str(opts.brain_mask)
-    WM_mask = str(opts.WM_mask)
-    CSF_mask = str(opts.CSF_mask)
-    vascular_mask = str(opts.vascular_mask)
-    labels = str(opts.labels)
     os.makedirs(out_dir, exist_ok=True)
 
     scaled = otsu_scaling(anat_template)
 
     fig,axes = plt.subplots(nrows=3, ncols=6, figsize=(4*6,2*2))
-
     axes[0,0].set_title('Anatomical Template', fontsize=30, color='white')
     plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    # plot brain mask
-    mask = brain_mask
-    sitk_mask = sitk.ReadImage(
-        mask, sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    axes[0,1].set_title('Brain Mask', fontsize=30, color='white')
-    plot_3d(axes[:,1],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    plot_3d(axes[:,1],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
-    # plot WM mask
-    mask = WM_mask
-    sitk_mask = sitk.ReadImage(
-        mask, sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    axes[0,2].set_title('WM Mask', fontsize=30, color='white')
-    plot_3d(axes[:,2],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    plot_3d(axes[:,2],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
-    # plot CSF mask
-    mask = CSF_mask
-    sitk_mask = sitk.ReadImage(
-        mask, sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    axes[0,3].set_title('CSF Mask', fontsize=30, color='white')
-    plot_3d(axes[:,3],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    plot_3d(axes[:,3],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
-    # plot VASC mask
-    mask = vascular_mask
-    sitk_mask = sitk.ReadImage(
-        mask, sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    axes[0,4].set_title('Vascular Mask', fontsize=30, color='white')
-    plot_3d(axes[:,4],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    plot_3d(axes[:,4],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.5, cbar=False)
 
-    # plot labels
-    mask = labels
-    sitk_mask = sitk.ReadImage(
-        mask, sitk.sitkFloat32)
-    # resample mask to match template
-    sitk_mask = sitk.Resample(sitk_mask, scaled)
-    axes[0,5].set_title('Atlas Labels', fontsize=30, color='white')
-    plot_3d(axes[:,5],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
-    plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
+    for mask,title,ax_i in zip([opts.brain_mask,opts.WM_mask,opts.CSF_mask,opts.vascular_mask,opts.labels],
+                    ['Brain Mask', 'WM Mask', 'CSF Mask', 'Vascular Mask', 'Atlas Labels'],
+                    list(range(1,6))):
+        plot_3d(axes[:,ax_i],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
+        if mask is None:
+            continue
+        sitk_mask = sitk.ReadImage(
+            mask, sitk.sitkFloat32)
+        # resample mask to match template
+        sitk_mask = sitk.Resample(sitk_mask, scaled)
+        axes[0,ax_i].set_title(title, fontsize=30, color='white')
+        if title=='Atlas Labels':
+            plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
+        else:
+            plot_3d(axes[:,ax_i],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
+
     plt.tight_layout()
 
     fig.savefig(out_dir+f'/template_files.{figure_format}', bbox_inches='tight')

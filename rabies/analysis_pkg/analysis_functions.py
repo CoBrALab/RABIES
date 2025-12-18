@@ -7,27 +7,24 @@ from .analysis_math import vcorrcoef,closed_form
 seed-based FC
 '''
 
-def seed_based_FC(dict_file, seed_dict, seed_name):
+def seed_based_FC(CR_dict_file, maps_dict_file, seed_name):
     import os
     import numpy as np
     import SimpleITK as sitk
     import pathlib
-    from rabies.utils import run_command, recover_3D
+    from rabies.utils import recover_3D
     from rabies.analysis_pkg.analysis_math import vcorrcoef
 
     import pickle
-    with open(dict_file, 'rb') as handle:
-        data_dict = pickle.load(handle)
-    bold_file = data_dict['bold_file']
-    mask_file = data_dict['mask_file']
-    timeseries = data_dict['timeseries']
-    volume_indices = data_dict['volume_indices']
-
-    seed_file = seed_dict[seed_name]
-    resampled = os.path.abspath('resampled.nii.gz')
-    command=f'antsApplyTransforms -i {seed_file} -r {mask_file} -o {resampled} -n GenericLabel'
-    rc,c_out = run_command(command)
-    roi_mask = sitk.GetArrayFromImage(sitk.ReadImage(resampled))[volume_indices].astype(bool)
+    with open(CR_dict_file, 'rb') as handle:
+        CR_data_dict = pickle.load(handle)
+    with open(maps_dict_file, 'rb') as handle:
+        maps_data_dict = pickle.load(handle)
+    bold_file = CR_data_dict['bold_file']
+    mask_file = maps_data_dict['mask_file']
+    timeseries = CR_data_dict['timeseries']
+    seed_arr_dict = maps_data_dict['seed_arr_dict']
+    roi_mask = seed_arr_dict[seed_name].astype(bool)
 
     # extract the voxel timeseries within the mask, and take the mean ROI timeseries
     seed_timeseries = timeseries[:,roi_mask].mean(axis=1)
@@ -56,7 +53,7 @@ FC matrix
 '''
 
 
-def run_FC_matrix(dict_file, figure_format, roi_type='parcellated'):
+def run_FC_matrix(CR_dict_file,maps_dict_file, figure_format, roi_type='parcellated'):
     import os
     import pandas as pd
     import SimpleITK as sitk
@@ -65,17 +62,19 @@ def run_FC_matrix(dict_file, figure_format, roi_type='parcellated'):
     from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
 
     import pickle
-    with open(dict_file, 'rb') as handle:
-        data_dict = pickle.load(handle)
+    with open(CR_dict_file, 'rb') as handle:
+        CR_data_dict = pickle.load(handle)
+    with open(maps_dict_file, 'rb') as handle:
+        maps_data_dict = pickle.load(handle)
 
 
-    bold_file = data_dict['bold_file']
+    bold_file = CR_data_dict['bold_file']
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
     figname = os.path.abspath(filename_split[0]+f'_FC_matrix.{figure_format}')
     
-    timeseries = data_dict['timeseries']
-    atlas_idx = data_dict['atlas_idx']
-    roi_list = data_dict['roi_list']
+    timeseries = CR_data_dict['timeseries']
+    atlas_idx = maps_data_dict['atlas_idx']
+    roi_list = maps_data_dict['roi_list']
 
     if roi_type == 'parcellated':
         corr_matrix,roi_labels = parcellated_FC_matrix(timeseries, atlas_idx, roi_list)
@@ -125,7 +124,7 @@ ICA
 '''
 
 
-def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image):
+def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image, disableMigp=False):
     import os
     import pandas as pd
 
@@ -139,12 +138,14 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image)
     from rabies.utils import run_command
     out_dir = os.path.abspath('group_melodic.ica')
     command = f'melodic -i {file_path} -m {mask_file} -o {out_dir} -d {dim} --report --seed={str(random_seed)} --bgimage={background_image}'
+    if disableMigp:
+        command+=' --disableMigp'
     rc,c_out = run_command(command)
     IC_file = out_dir+'/melodic_IC.nii.gz'
     return out_dir, IC_file
 
 
-def run_DR_ICA(dict_file,network_weighting):
+def run_DR_ICA(CR_dict_file, maps_dict_file,network_weighting):
     import os
     import pandas as pd
     import pathlib  # Better path manipulation
@@ -153,12 +154,14 @@ def run_DR_ICA(dict_file,network_weighting):
     from rabies.analysis_pkg.analysis_math import dual_regression
 
     import pickle
-    with open(dict_file, 'rb') as handle:
-        data_dict = pickle.load(handle)
-    bold_file = data_dict['bold_file']
-    mask_file = data_dict['mask_file']
-    timeseries = data_dict['timeseries']
-    prior_map_vectors = data_dict['prior_map_vectors']
+    with open(CR_dict_file, 'rb') as handle:
+        CR_data_dict = pickle.load(handle)
+    with open(maps_dict_file, 'rb') as handle:
+        maps_data_dict = pickle.load(handle)
+    bold_file = CR_data_dict['bold_file']
+    mask_file = maps_data_dict['mask_file']
+    timeseries = CR_data_dict['timeseries']
+    prior_map_vectors = maps_data_dict['prior_map_vectors']
 
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
@@ -186,7 +189,8 @@ from nipype.interfaces.base import (
 )
 
 class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
-    dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared analysis data.")
+    CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
+    maps_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices with brain maps and masks.")
     prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
     NPR_temporal_comp = traits.Int(
         desc="number of data-driven temporal components to compute.")
@@ -229,12 +233,14 @@ class NeuralPriorRecovery(BaseInterface):
         from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
 
         import pickle
-        with open(self.inputs.dict_file, 'rb') as handle:
-            data_dict = pickle.load(handle)
-        bold_file = data_dict['bold_file']
-        mask_file = data_dict['mask_file']
-        timeseries = data_dict['timeseries']
-        prior_map_vectors = data_dict['prior_map_vectors']
+        with open(self.inputs.CR_dict_file, 'rb') as handle:
+            CR_data_dict = pickle.load(handle)
+        with open(self.inputs.maps_dict_file, 'rb') as handle:
+            maps_data_dict = pickle.load(handle)
+        bold_file = CR_data_dict['bold_file']
+        mask_file = maps_data_dict['mask_file']
+        timeseries = CR_data_dict['timeseries']
+        prior_map_vectors = maps_data_dict['prior_map_vectors']
         network_weighting=self.inputs.network_weighting
 
         filename_split = pathlib.Path(
