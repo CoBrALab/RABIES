@@ -6,5 +6,5 @@ sphinxcontrib-bibtex
 sphinxcontrib-programoutput
 jinja2==3.1.1
 pillow==10.1.0
-rabies==0.5.4
+rabies==0.5.5
 traits<7.0
