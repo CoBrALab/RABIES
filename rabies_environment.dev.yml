@@ -23,5 +23,6 @@ dependencies:
   - fsl-base
   - fsl-melodic
   - traits<7.0
+  - tqdm
   - pip:
       - qbatch
