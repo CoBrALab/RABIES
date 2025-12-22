@@ -120,7 +120,7 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
     else:
         confounds_array = select_motion_regressors(cr_opts.conf_list,motion_params_csv)
 
-    FD_trace = pd.read_csv(FD_file).get('Mean')
+    FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
     # select the subset of timeseries specified
     if not cr_opts.timeseries_interval == 'all':

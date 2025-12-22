@@ -275,32 +275,11 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--HMC_option", type=str, default='optim',
-        choices=['intraSubjectBOLD', '0', '1', '2', '3','optim'],
+        "--HMC_level", type=int, default=1,
+        choices=[0,1,2,3],
         help=
-            "Select a pre-built option for registration during head motion realignment. 'optim' was customized\n"
-            "as documented in https://github.com/CoBrALab/RABIES/discussions/259. Other options were taken from \n"
-            "https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--isotropic_HMC', dest='isotropic_HMC', action='store_true',
-        help=
-            "Whether to resample the EPI to isotropic resolution (taking the size of the axis with highest \n"
-            "resolution) for the estimation of motion parameters. This should greatly mitigating registration \n"
-            "'noise' which arise from partial volume effects, or poor image resolution (see online post on \n"
-            "this topic https://github.com/CoBrALab/RABIES/discussions/288). This option will increase \n"
-            "computational time, given the higher image resolution. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--voxelwise_motion', dest='voxelwise_motion', action='store_true',
-        help=
-            "Whether to output estimates of absolute displacement and framewise displacement at each voxel. \n"
-            "This will generate 4D nifti files representing motion timeseries derived from the 6 motion  \n"
-            "parameters. This is handled by antsMotionCorrStats. \n"
+            "Select a level for for motion correction. The higher the level, the more stringent the \n"
+            "registration is.\n"
             "(default: %(default)s)\n"
             "\n"
         )

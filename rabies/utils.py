@@ -222,6 +222,7 @@ class ResampleVolumes(BaseInterface):
         elif img.GetDimension()==4:
             num_volumes = img.GetSize()[3]
 
+            self.inputs.apply_motcorr = False # temporarilly disabled
             if self.inputs.apply_motcorr:
                 motcorr_params = self.inputs.motcorr_params
                 motcorr_affine_list = []

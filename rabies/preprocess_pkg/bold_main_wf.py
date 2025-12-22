@@ -165,67 +165,16 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 (log_bold_node, transitionnode, [
                     ('log_nii', 'log_bold'),
                     ]),
-                ])
-
-        if opts.isotropic_HMC:
-            def resample_isotropic(bold_file, rabies_data_type):
-                import numpy as np
-                import SimpleITK as sitk
-                import os
-                import pathlib
-                from rabies.utils import resample_image_spacing_4d
-                image_4d = sitk.ReadImage(bold_file, rabies_data_type)
-                # the image gets resample to the dimension of the axis with highest resolution
-                min_dim = np.array(image_4d.GetSpacing()[:3]).min()
-                output_spacing = (min_dim,min_dim,min_dim)
-                resampled = resample_image_spacing_4d(image_4d, output_spacing, clip_negative=True)
-                filename_split = pathlib.Path(
-                    bold_file).name.rsplit(".nii")
-                isotropic_bold_file = os.path.abspath(filename_split[0]+'_isotropic.nii.gz')
-                sitk.WriteImage(resampled, isotropic_bold_file)
-                return isotropic_bold_file
-
-            isotropic_resampling_node = pe.Node(Function(input_names=['bold_file', 'rabies_data_type'],
-                                                            output_names=[
-                                                                'isotropic_bold_file'],
-                                                            function=resample_isotropic),
-                                                    name='resample_isotropic')
-            isotropic_resampling_node.inputs.rabies_data_type = opts.data_type
-
-            workflow.connect([
-                (isotropic_resampling_node, bold_reference_wf, [
-                    ('isotropic_bold_file', 'inputnode.bold_file'),
-                    ]),
-                (isotropic_resampling_node, transitionnode, [
-                    ('isotropic_bold_file', 'isotropic_bold_file'),
+                (log_bold_node, bold_reference_wf, [
+                    ('log_nii', 'inputnode.bold_file'),
                     ]),
                 ])
-            
-            if opts.log_transform:
-                workflow.connect([
-                    (log_bold_node, isotropic_resampling_node, [
-                        ('log_nii', 'bold_file'),
-                        ]),
-                    ])
-            else:
-                workflow.connect([
-                    (boldbuffer, isotropic_resampling_node, [
-                        ('bold_file', 'bold_file'),
-                        ]),
-                    ])
         else:
-            if opts.log_transform:
-                workflow.connect([
-                    (log_bold_node, bold_reference_wf, [
-                        ('log_nii', 'inputnode.bold_file'),
-                        ]),
-                    ])
-            else:
-                workflow.connect([
-                    (boldbuffer, bold_reference_wf, [
-                        ('bold_file', 'inputnode.bold_file'),
-                        ]),
-                    ])
+            workflow.connect([
+                (boldbuffer, bold_reference_wf, [
+                    ('bold_file', 'inputnode.bold_file'),
+                    ]),
+                ])
 
         if opts.apply_despiking:
             despike = pe.Node(Function(input_names=['in_file'],
@@ -456,6 +405,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
             ]),
+        (inputnode, estimate_motion_node, [
+            ('bold', 'boldspace_bold'),
+            ]),
         (bold_hmc_wf, estimate_motion_node, [
             ('outputnode.motcorr_params', 'motcorr_params'),
             ]),
@@ -471,44 +423,16 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
              ('outputnode.stc_file', 'inputnode.bold_file')]),
         ])
     else:
-        if opts.isotropic_HMC:
+        if opts.log_transform:
             workflow.connect([
                 (transitionnode, bold_hmc_wf, [
-                    ('isotropic_bold_file', 'inputnode.bold_file')]),
+                    ('log_bold', 'inputnode.bold_file')]),
                 ])
         else:
-            if opts.log_transform:
-                workflow.connect([
-                    (transitionnode, bold_hmc_wf, [
-                        ('log_bold', 'inputnode.bold_file')]),
-                    ])
-            else:
-                workflow.connect([
-                    (transitionnode, bold_hmc_wf, [
-                        ('bold_file', 'inputnode.bold_file')]),
-                    ])
-
-
-    if opts.isotropic_HMC:
-        workflow.connect([
-            (transitionnode, estimate_motion_node, [
-                ('isotropic_bold_file', 'boldspace_bold'),
-                ]),
-            ])
-    else:
-        workflow.connect([
-            (inputnode, estimate_motion_node, [
-                ('bold', 'boldspace_bold'),
-                ]),
-            ])
-
-    if opts.voxelwise_motion:
-        workflow.connect([
-            (estimate_motion_node, outputnode, [
-                ('FD_voxelwise', 'FD_voxelwise'),
-                ('pos_voxelwise', 'pos_voxelwise'),
-                ]),
-            ])
+            workflow.connect([
+                (transitionnode, bold_hmc_wf, [
+                    ('bold_file', 'inputnode.bold_file')]),
+                ])
 
     ####MANAGE GENERATING COMMON AND/OR NATIVESPACE OUTPUTS
     boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')

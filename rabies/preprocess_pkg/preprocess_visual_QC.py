@@ -157,7 +157,7 @@ def temporal_features(bold_file, motion_params_csv, FD_csv, rabies_data_type, na
 
     df = pd.read_csv(FD_csv)
     ax=axes[2,0]
-    ax.plot(df['Mean'], color='r')
+    ax.plot(df['MeanFD'], color='r')
     ax.set_title('Framewise displacement', fontsize=25, color='white')
     ax.set_ylabel('mm', fontsize=15)
 

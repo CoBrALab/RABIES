@@ -52,7 +52,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         niu.IdentityInterface(fields=['ref_image']),
         name='outputnode')
 
-    gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
+    gen_ref = pe.Node(EstimateReferenceImage(HMC_level=opts.HMC_level, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
                       name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
     gen_ref.plugin_args = {
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
@@ -69,7 +69,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    HMC_level = traits.Str(desc="Level for motion correction.")
+    HMC_level = traits.Int(desc="Level for motion correction.")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -131,15 +131,16 @@ class EstimateReferenceImage(BaseInterface):
             else:
                 subset_img_4d = in_nii
 
-            trimean_array_1 = np.quantile(subset_img_4d, (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+            trimean_array_1 = np.quantile(sitk.GetArrayFromImage(subset_img_4d), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+            print(trimean_array_1.shape)
             ref_3d = copyInfo_3DImage(
                 sitk.GetImageFromArray(trimean_array_1, isVector=False), in_nii)
 
             for round in range(2): # conducted 2 rounds of motion correction and re-calculation of the 3D reference
-                transforms = framewise_register_pair(subset_img_4d, ref_3d, level=self.inputs.HMC_level)
+                transforms = framewise_register_pair(subset_img_4d, ref_3d, level=self.inputs.HMC_level, interpolation=sitk.sitkBSpline5)
                 resampled_img = framewise_resample_volume(subset_img_4d, ref_3d, transforms, interpolation=sitk.sitkBSpline5)
 
-                trimean_array = np.quantile(resampled_img, (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+                trimean_array = np.quantile(sitk.GetArrayFromImage(resampled_img), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
                 ref_3d = copyInfo_3DImage(
                     sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 

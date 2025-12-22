@@ -45,7 +45,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     # so that it is saved in the workflow graph and can be read later during analysis
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
         commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
-        FD_csv=None, FD_voxelwise=None, pos_voxelwise=None, commonspace_resampled_template=None, native_bold=None, native_bold_ref=None, 
+        FD_csv=None, commonspace_resampled_template=None, native_bold=None, native_bold_ref=None, 
         native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
         commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
         native_to_commonspace_transform_list=None, native_to_commonspace_inverse_list=None):
@@ -223,7 +223,6 @@ def read_preproc_datasinks(preproc_output, nativespace_analysis, preprocess_opts
 
     fast_commonspace=preprocess_opts.commonspace_reg['fast_commonspace']
     atlas_reg_script=preprocess_opts.commonspace_reg['template_registration']
-    voxelwise_motion=preprocess_opts.voxelwise_motion
 
     template_file = glob.glob(f'{preproc_output}/bold_datasink/commonspace_resampled_template/*')
     if len(template_file)==1:
@@ -251,9 +250,6 @@ def read_preproc_datasinks(preproc_output, nativespace_analysis, preprocess_opts
             directory_list.append(['bold_datasink',f'commonspace_{opt_key}'])
         else:
             directory_list.append([None,f'commonspace_{opt_key}'])
-
-    if voxelwise_motion:
-        directory_list+=[['motion_datasink','FD_voxelwise'], ['motion_datasink','pos_voxelwise']]
 
     if not nativespace_analysis:
         if not preprocess_opts.generate_commonspace: # nativespace timeseries are needed
@@ -452,8 +448,6 @@ def read_preproc_workflow(preproc_output, nativespace_analysis, preprocess_opts)
     match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
                     'commonspace_mask':['main_wf.bold_main_wf.mask_commonspace_trans_wf.brain_mask_resample', 'resampled_file'],
                     'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
-                    'FD_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'FD_voxelwise'],
-                    'pos_voxelwise':['main_wf.bold_main_wf.estimate_motion_node', 'pos_voxelwise'],
                     'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],
                     'commonspace_resampled_template':['main_wf.resample_template', 'commonspace_template'],
                     'commonspace_to_native_transform_list':['main_wf.bold_main_wf.prep_transforms_between_spaces', 'commonspace_to_native_transform_list'],

@@ -55,8 +55,8 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(sitkMotionCorr(prebuilt_option=opts.HMC_option,transform_type='Rigid', second=False, rabies_data_type=opts.data_type),
-                         name='ants_MC', mem_gb=1.1*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
+    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type),
+                         name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
@@ -97,9 +97,6 @@ class sitkMotionCorrInputSpec(BaseInterfaceInputSpec):
 
 
 class sitkMotionCorrOutputSpec(TraitedSpec):
-    mc_corrected_bold = File(exists=True, desc="motion corrected time series")
-    avg_image = File(
-        exists=True, desc="average image of the motion corrected time series")
     csv_params = File(
         exists=True, desc="csv files with the 6-parameters rigid body transformations")
 
@@ -114,6 +111,7 @@ class sitkMotionCorr(BaseInterface):
     output_spec = sitkMotionCorrOutputSpec
 
     def _run_interface(self, runtime):
+        import SimpleITK as sitk
         from rabies.simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
         moving = self.inputs.in_file
         ref_file = self.inputs.ref_file
@@ -122,7 +120,7 @@ class sitkMotionCorr(BaseInterface):
         output_prefix = os.path.abspath(
             f'{filename_split[0]}_')
 
-        transforms = framewise_register_pair(moving, ref_file, level=level)
+        transforms = framewise_register_pair(moving, ref_file, level=level, interpolation=sitk.sitkBSpline5)
         csv_param_file = output_prefix + f"moco.csv"
         write_transforms_to_csv(transforms, csv_param_file)
         setattr(self, 'csv_params', csv_param_file)
@@ -130,11 +128,7 @@ class sitkMotionCorr(BaseInterface):
         return runtime
 
     def _list_outputs(self):
-        return {'mc_corrected_bold': getattr(self, 'mc_corrected_bold'),
-                'csv_params': getattr(self, 'csv_params'),
-                'avg_image': getattr(self, 'avg_image')}
-
-
+        return {'csv_params': getattr(self, 'csv_params')}
 
 
 class EstimateMotionParamsInputSpec(BaseInterfaceInputSpec):
@@ -149,26 +143,19 @@ class EstimateMotionParamsInputSpec(BaseInterfaceInputSpec):
 class EstimateMotionParamsOutputSpec(TraitedSpec):
     motion_params_csv = traits.File(desc="CSV file of motion parameters")
     FD_csv = traits.File(desc="CSV file with global framewise displacement.")
-    FD_voxelwise = traits.File(
-        desc=".nii file with voxelwise framewise displacement.")
-    pos_voxelwise = traits.File(desc=".nii file with voxelwise Positioning.")
 
 
 class EstimateMotionParams(BaseInterface):
     # motion_param_head_start
     """
-    This interface generates estimations of absolute displacement and framewise displacement, together with
+    This interface generates estimations of framewise displacement, together with
     the expansion of the 6 motion parameters to include derivatives and squared parameters (Friston 24).
-    Absolute and framewise displacement are computed within antsMotionCorrStats as follows:
+    Framewise displacement are computed within as follows:
         1. For each timepoint, the 3 Euler rotations and translations are converted to an affine matrix
         2. For each voxel within a brain mask representing the referential space post-motion realignment,
            the inverse transform is applied to generate a point pre-motion realignment.
-        3. Absolute displacement is computed as the distance between the referential point post-correction 
-           and the point pre-correction generated from the affine. For framewise displacement, the 
-           distance is measured between the pre-correction points generated from the current and the 
-           next timeframes. Distance is measured in mm with the Euclidean distance.
-        4. From the distance measurements, voxelwise 4D timeseries are generated, and for framewise
-           displacement, the mean and max displacement at each timeframe is stored in a CSV file.
+        3. For framewise displacement, the distance is measured between the pre-correction points generated 
+           from the current and the previous timeframe. Distance is measured in mm with the Euclidean distance.
     """
     # motion_param_head_end
 
@@ -180,23 +167,12 @@ class EstimateMotionParams(BaseInterface):
         import os
         from rabies.utils import run_command
         import pathlib  # Better path manipulation
+        from rabies.simpleitk_timeseries_motion_correction.framewise_displacement import calculate_framewise_displacement
+
         filename_split = pathlib.Path(self.inputs.boldspace_bold).name.rsplit(".nii")
 
-        # generate a .nii file representing the positioning or framewise displacement for each voxel within the brain_mask
-        # first the voxelwise positioning map
-        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_pos_file.csv -x {self.inputs.boldspace_brain_mask} \
-                    -d {self.inputs.boldspace_bold}'
-        rc,c_out = run_command(command)
-        pos_voxelwise = os.path.abspath(
-            f"{filename_split[0]}_pos_file.nii.gz")
-
-        # then the voxelwise framewise displacement map
-        command = f'antsMotionCorrStats -m {self.inputs.motcorr_params} -o {filename_split[0]}_FD_file.csv -x {self.inputs.boldspace_brain_mask} \
-                    -d {self.inputs.boldspace_bold} -f 1'
-        rc,c_out = run_command(command)
-
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
-        FD_voxelwise = os.path.abspath(f"{filename_split[0]}_FD_file.nii.gz")
+        results = calculate_framewise_displacement(mask_file=self.inputs.boldspace_brain_mask, csv_file=self.inputs.motcorr_params, output_csv=FD_csv, verbose=False)
 
         motion_24,motion_24_header = motion_24_params(self.inputs.motcorr_params)
         # write into a .csv
@@ -208,16 +184,12 @@ class EstimateMotionParams(BaseInterface):
 
         setattr(self, 'FD_csv', FD_csv)
         setattr(self, 'motion_params_csv', motion_params_csv)
-        setattr(self, 'FD_voxelwise', FD_voxelwise)
-        setattr(self, 'pos_voxelwise', pos_voxelwise)
 
         return runtime
 
     def _list_outputs(self):
         return {'motion_params_csv': getattr(self, 'motion_params_csv'),
-                'FD_csv': getattr(self, 'FD_csv'),
-                'pos_voxelwise': getattr(self, 'pos_voxelwise'),
-                'FD_voxelwise': getattr(self, 'FD_voxelwise')}
+                'FD_csv': getattr(self, 'FD_csv')}
 
 
 def motion_24_params(movpar_csv):
@@ -227,7 +199,7 @@ def motion_24_params(movpar_csv):
     import numpy as np
     import pandas as pd
     MOCO_df = pd.read_csv(movpar_csv)
-    rigid_params = np.array([MOCO_df[param].values for param in ['MOCOparam0','MOCOparam1','MOCOparam2','MOCOparam3','MOCOparam4','MOCOparam5']]).T
+    rigid_params = np.array([MOCO_df[param].values for param in ['EulerX','EulerY','EulerZ','TransX','TransY','TransZ']]).T
 
     rotations = rigid_params[:,:3] # rotations are listed first
     translations = rigid_params[:,3:] # translations are last
