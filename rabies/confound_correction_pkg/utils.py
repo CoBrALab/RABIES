@@ -276,7 +276,6 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='all', keep_int
         highcut = int(time_interval.split('-')[1])
         W = closed_form(X[lowcut:highcut, :],Y[lowcut:highcut, :])
     predicted = X.dot(W) #always subtract the trend over the whole timeseries
-    print(f'shape of predicted {predicted.shape}')
     
     res = (Y-predicted) # add back the intercept after
     if keep_intercept:
