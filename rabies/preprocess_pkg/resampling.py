@@ -68,7 +68,7 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
         rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
     bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
-    bold_transform.inputs.interpolation = opts.interpolation
+    bold_transform.inputs.interpolation = opts.interpolation_sitk
     bold_transform.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
@@ -79,8 +79,8 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
-            ('transforms_list', 'transforms'),
-            ('inverses', 'inverses'),
+            ('transforms_list', 'transforms_3d_files'),
+            ('inverses', 'inverses_3d'),
             ('ref_file', 'ref_file'),
             ('name_source', 'name_source'),
             ]),

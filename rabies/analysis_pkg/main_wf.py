@@ -165,7 +165,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_common_node.inputs.atlas_ref = preprocess_opts.labels
         load_maps_dict_common_node.inputs.seed_dict = seed_dict
         load_maps_dict_common_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
-        load_maps_dict_common_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_common_node.inputs.interpolation = analysis_opts.interpolation_sitk
         load_maps_dict_common_node.inputs.rabies_data_type = analysis_opts.data_type
 
         split_name = split_name_list[0] # can take the commonspace files from any subject, they are all identical
@@ -200,7 +200,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_native_node.inputs.atlas_ref = preprocess_opts.labels
         load_maps_dict_native_node.inputs.seed_dict = seed_dict
         load_maps_dict_native_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
-        load_maps_dict_native_node.inputs.interpolation = analysis_opts.interpolation
+        load_maps_dict_native_node.inputs.interpolation = analysis_opts.interpolation_sitk
         load_maps_dict_native_node.inputs.rabies_data_type = analysis_opts.data_type
 
         workflow.connect([
@@ -367,7 +367,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     import SimpleITK as sitk
     import os
     import pathlib  # Better path manipulation
-    from rabies.utils import applyTransforms_4D, applyTransforms_3D
+    from rabies.utils import resample_volumes, antsApplyTransforms
     from rabies.analysis_pkg.utils import compute_edge_mask
     mask_img = sitk.ReadImage(mask_file)
     mask_array = sitk.GetArrayFromImage(mask_img)
@@ -390,8 +390,8 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
 
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
-    resampled_4D_img = applyTransforms_4D(in_img=prior_maps, ref_file=anat_ref_file, transforms_3D=transform_list, inverses_3D=inverse_list, 
-                                          motcorr_affine_list=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
+    resampled_4D_img = resample_volumes(in_img=prior_maps, in_ref=anat_ref_file, transforms_3d_files=transform_list, inverses_3d=inverse_list, 
+                                          motcorr_params_file=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
     resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
     prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
 
@@ -401,7 +401,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, atlas_ref
     for seed_name in seed_name_list:
         seed_file = seed_dict[seed_name]
         resampled_seed_file = os.path.abspath(f'{seed_name}_resampled.nii.gz')
-        applyTransforms_3D(transforms = transform_list, inverses = inverse_list, 
+        antsApplyTransforms(transforms = transform_list, inverses = inverse_list, 
                         input_image = seed_file, ref_image = anat_ref_file, output_filename = resampled_seed_file, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
         seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
 

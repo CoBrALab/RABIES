@@ -556,9 +556,9 @@ def prep_commonspace_transform(anatspace_ref, atlas_mask, anat_to_unbiased_affin
     filename_split = pathlib.Path(
         anatspace_ref).name.rsplit(".nii")
     anatspace_mask = os.path.abspath(filename_split[0]+'_mask.nii.gz')
-    from rabies.utils import applyTransforms_3D
+    from rabies.utils import antsApplyTransforms
     # resample the atlas brain mask to anat space
-    applyTransforms_3D(transforms = commonspace_to_anat_transform_list, inverses = commonspace_to_anat_inverse_list, 
+    antsApplyTransforms(transforms = commonspace_to_anat_transform_list, inverses = commonspace_to_anat_inverse_list, 
                        input_image = atlas_mask, ref_image = anatspace_ref, output_filename = anatspace_mask, interpolation='GenericLabel', rabies_data_type=None, clip_negative=False)
 
     return anatspace_mask, anat_to_commonspace_transform_list,anat_to_commonspace_inverse_list,commonspace_to_anat_transform_list,commonspace_to_anat_inverse_list

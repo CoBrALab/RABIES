@@ -78,6 +78,17 @@ def execute_workflow(args=None, return_workflow=False):
     else:
         raise ValueError('Invalid --data_type provided.')
 
+    if str(opts.interpolation) == 'Linear':
+        opts.interpolation_sitk = sitk.sitkLinear
+    elif str(opts.interpolation) == 'BSpline3':
+        opts.interpolation_sitk = sitk.sitkBSpline3
+    elif str(opts.interpolation) == 'LanczosSinc':
+        opts.interpolation_sitk = sitk.sitkLanczosWindowedSinc
+    elif str(opts.interpolation) == 'CosineSinc':
+        opts.interpolation_sitk = sitk.sitkCosineWindowedSinc
+    else:
+        raise ValueError('Invalid input for --interpolation.')
+
     if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)
     elif opts.rabies_stage == 'confound_correction':

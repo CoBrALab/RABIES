@@ -27,7 +27,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             plot_seed_frequencies=analysis_opts.plot_seed_frequencies,
             figure_format=analysis_opts.figure_format, 
             nativespace_analysis=nativespace_analysis, 
-            interpolation=analysis_opts.interpolation,
+            interpolation=analysis_opts.interpolation_sitk,
             brainmap_percent_threshold=analysis_opts.brainmap_percent_threshold,
             rabies_data_type=analysis_opts.data_type,
             ),

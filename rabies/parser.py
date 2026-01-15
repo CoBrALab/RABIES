@@ -185,9 +185,9 @@ def get_parser():
         )
     g_execution.add_argument(
         "--interpolation", type=str, default='Linear',
+        choices=['Linear', 'BSpline3', 'LanczosSinc', 'CosineSinc'],
         help=
-            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
-            "for any image resampling operation conducted for this RABIES stage. \n"
+            "Select the interpolator which will be used when resampling images across different spaces. \n"
             "(default: %(default)s)\n"
             "\n"
         )    

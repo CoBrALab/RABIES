@@ -154,7 +154,7 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     if cr_opts.nativespace_analysis and cr_opts.resample_to_commonspace:
         from rabies.utils import ResampleVolumes
         cleaned_bold_to_commonspace_node = pe.Node(ResampleVolumes(
-            resampling_dim='ref_file', interpolation=cr_opts.interpolation,
+            resampling_dim='ref_file', interpolation=cr_opts.interpolation_sitk,
             rabies_data_type=cr_opts.data_type, apply_motcorr=False, clip_negative=False), 
             name='cleaned_bold_to_commonspace')
         workflow.connect([
@@ -163,8 +163,8 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ("outputnode.cleaned_path", "name_source"),
                 ]),
             (preproc_outputnode, cleaned_bold_to_commonspace_node, [
-                ("native_to_commonspace_transform_list", "transforms"),
-                ("native_to_commonspace_inverse_list", "inverses"),
+                ("native_to_commonspace_transform_list", "transforms_3d_files"),
+                ("native_to_commonspace_inverse_list", "inverses_3d"),
                 ("commonspace_resampled_template", "ref_file"),
                 ]),
             (cleaned_bold_to_commonspace_node, confound_correction_datasink, [

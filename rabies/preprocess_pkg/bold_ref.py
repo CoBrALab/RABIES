@@ -127,14 +127,13 @@ class EstimateReferenceImage(BaseInterface):
             if num_timepoints > 50:
                 # select a set of 50 frames spread uniformally across time to avoid temporal biases
                 subset_idx = np.linspace(0,num_timepoints-1,50).astype(int)
-                subset_img_4d = sitk.JoinSeries([in_nii[:,:,:,i] for i in subset_idx])
+                subset_img_4d = sitk.JoinSeries([in_nii[:,:,:,int(i)] for i in subset_idx])
             else:
                 subset_img_4d = in_nii
 
-            trimean_array_1 = np.quantile(sitk.GetArrayFromImage(subset_img_4d), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
-            print(trimean_array_1.shape)
+            trimean_array = np.quantile(sitk.GetArrayFromImage(subset_img_4d), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
             ref_3d = copyInfo_3DImage(
-                sitk.GetImageFromArray(trimean_array_1, isVector=False), in_nii)
+                sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 
             for round in range(2): # conducted 2 rounds of motion correction and re-calculation of the 3D reference
                 transforms = framewise_register_pair(subset_img_4d, ref_3d, level=self.inputs.HMC_level, interpolation=sitk.sitkBSpline5)
