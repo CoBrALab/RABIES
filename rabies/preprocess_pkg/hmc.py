@@ -55,8 +55,9 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
         name='outputnode')
 
     # Head motion correction (hmc)
-    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type),
-                         name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
+    n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
+    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type, n_procs=n_procs),
+                         name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
 
@@ -94,6 +95,8 @@ class sitkMotionCorrInputSpec(BaseInterfaceInputSpec):
     level = traits.Int(desc="Select a level from 0 to 3, where each level is more stringent registration.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
+    n_procs = traits.Int(
+        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class sitkMotionCorrOutputSpec(TraitedSpec):
@@ -111,6 +114,8 @@ class sitkMotionCorr(BaseInterface):
     output_spec = sitkMotionCorrOutputSpec
 
     def _run_interface(self, runtime):
+        from nipype.interfaces.base import isdefined
+        n_procs = self.inputs.n_procs if isdefined(self.inputs.n_procs) else os.cpu_count() # default to number of CPUs
         import SimpleITK as sitk
         from rabies.simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
         moving = self.inputs.in_file
@@ -120,7 +125,7 @@ class sitkMotionCorr(BaseInterface):
         output_prefix = os.path.abspath(
             f'{filename_split[0]}_')
 
-        transforms = framewise_register_pair(moving, ref_file, level=level, interpolation=sitk.sitkBSpline5)
+        transforms = framewise_register_pair(moving, ref_file, level=level, interpolation=sitk.sitkBSpline5, max_workers=n_procs)
         csv_param_file = output_prefix + f"moco.csv"
         write_transforms_to_csv(transforms, csv_param_file)
         setattr(self, 'csv_params', csv_param_file)

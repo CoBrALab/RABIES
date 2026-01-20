@@ -67,6 +67,10 @@ def execute_workflow(args=None, return_workflow=False):
     
     os.environ['RABIES_ITK_THREADS_STATE']='OFF' # This is turned off by default
 
+    if not opts.num_ITK_threads=='off':
+        # parallelization is entirely handled outside of SITK, so individual commands should inherit 1 CPU 
+        sitk.ProcessObject.SetGlobalDefaultNumberOfThreads(1)
+
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
     elif str(opts.data_type) == 'int32':

@@ -163,6 +163,8 @@ class ResampleVolumesInputSpec(BaseInterfaceInputSpec):
         desc="Whether to clip out negative values after resampling.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
+    n_procs = traits.Int(
+        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class ResampleVolumesOutputSpec(TraitedSpec):
@@ -209,10 +211,11 @@ class ResampleVolumes(BaseInterface):
         from nipype.interfaces.base import isdefined
         transforms_3d_files = self.inputs.transforms_3d_files if isdefined(self.inputs.transforms_3d_files) else []
         inverses_3d = self.inputs.inverses_3d if isdefined(self.inputs.inverses_3d) else []
+        n_procs = self.inputs.n_procs if isdefined(self.inputs.n_procs) else os.cpu_count() # default to number of CPUs
 
         motcorr_params_file = self.inputs.motcorr_params if self.inputs.apply_motcorr else None
 
-        resampled_img = resample_volumes(in_img, ref_img, transforms_3d_files, inverses_3d, motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative)
+        resampled_img = resample_volumes(in_img, ref_img, transforms_3d_files, inverses_3d, motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative, n_procs=n_procs)
         sitk.WriteImage(resampled_img, resampled_file)
 
         setattr(self, 'resampled_file', resampled_file)
@@ -222,7 +225,7 @@ class ResampleVolumes(BaseInterface):
         return {'resampled_file': getattr(self, 'resampled_file')}
 
 
-def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [], motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False):
+def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [], motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False, n_procs=os.cpu_count()):
     import SimpleITK as sitk
     import os
     from rabies.simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, resample_volume, framewise_resample_volume
@@ -256,7 +259,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [],
             for transform in transforms_3d_l:
                 composite.AddTransform(transform)
             composite_list.append(composite)
-        resampled_img = framewise_resample_volume(orig_img, ref_img, composite_list, interpolation=interpolation, clip_negative=clip_negative, extrapolator=False)
+        resampled_img = framewise_resample_volume(orig_img, ref_img, composite_list, interpolation=interpolation, clip_negative=clip_negative, extrapolator=False, max_workers=n_procs)
     return resampled_img
 
 

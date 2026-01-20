@@ -1,6 +1,6 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-
+import os
 from .bold_ref import init_bold_reference_wf
 from ..utils import ResampleVolumes,ResampleMask
 
@@ -64,8 +64,10 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             fields=['bold', 'bold_ref']),
         name='outputnode')
 
+    n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
     bold_transform = pe.Node(ResampleVolumes(
-        rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
+        rabies_data_type=opts.data_type, clip_negative=True, n_procs=n_procs), 
+        name='bold_transform', mem_gb=4*opts.scale_min_memory, n_procs=n_procs)
     bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
     bold_transform.inputs.interpolation = opts.interpolation_sitk
