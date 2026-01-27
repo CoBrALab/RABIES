@@ -130,7 +130,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
-                        'boldspace_brain_mask']),
+                        'boldspace_brain_mask',
+                        'hmc_qc_figure','hmc_qc_csv','hmc_qc_video',
+                        ]),
                 name='outputnode')
 
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
@@ -398,7 +400,11 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('bold_ref', 'inputnode.ref_image'),
             ]),
         (bold_hmc_wf, outputnode, [
-            ('outputnode.motcorr_params', 'motcorr_params')]),
+            ('outputnode.motcorr_params', 'motcorr_params'),
+            ('outputnode.hmc_qc_figure', 'hmc_qc_figure'),
+            ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
+            ('outputnode.hmc_qc_video', 'hmc_qc_video'),
+            ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
             ('init_denoise', 'init_denoise'),

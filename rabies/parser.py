@@ -284,6 +284,15 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
+        '--gen_hmc_qc', dest='gen_hmc_qc', action='store_true',
+        help=
+            "Select this option to generate a quality report on the head motion correction registration step. \n"
+            "This includes registration error across frames, standard deviation and a video of the \n"
+            "timeseries each before and after applying the correction. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    preprocess.add_argument(
         '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
         help=
             "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"

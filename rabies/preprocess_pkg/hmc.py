@@ -51,7 +51,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
                         name='inputnode')
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['motcorr_params', 'slice_corrected_bold']),
+            fields=['motcorr_params', 'hmc_qc_figure', 'hmc_qc_csv', 'hmc_qc_video', 'slice_corrected_bold']),
         name='outputnode')
 
     # Head motion correction (hmc)
@@ -60,13 +60,29 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
                          name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-
+    
     workflow.connect([
         (inputnode, motion_estimation, [('ref_image', 'ref_file'),
                                         ('bold_file', 'in_file')]),
         (motion_estimation, outputnode, [
          ('csv_params', 'motcorr_params')]),
     ])
+
+    if opts.gen_hmc_qc:
+        hmc_qc_node = pe.Node(HMC_QC(figure_format=opts.figure_format, n_procs=n_procs),
+                            name='hmc_qc_node', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
+
+        workflow.connect([
+            (inputnode, hmc_qc_node, [('ref_image', 'ref_file'),
+                                            ('bold_file', 'in_file')]),
+            (motion_estimation, hmc_qc_node, [
+            ('csv_params', 'csv_params')]),
+            (hmc_qc_node, outputnode, [
+                ('out_figure', 'hmc_qc_figure'),
+                ('out_csv', 'hmc_qc_csv'),
+                ('video_file', 'hmc_qc_video'),
+            ]),
+        ])
 
     if opts.apply_slice_mc:
         slice_mc_n_procs = int(opts.local_threads/4)+1
@@ -170,7 +186,6 @@ class EstimateMotionParams(BaseInterface):
     def _run_interface(self, runtime):
         import numpy as np
         import os
-        from rabies.utils import run_command
         import pathlib  # Better path manipulation
         from rabies.simpleitk_timeseries_motion_correction.framewise_displacement import calculate_framewise_displacement
 
@@ -230,49 +245,58 @@ class HMC_QCInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
     ref_file = File(exists=True, mandatory=True,
                     desc='ref file to realignment time series')
-    out_dir = traits.Str(mandatory=True, desc="Directory for QC outputs.")
     csv_params = File(
         exists=True, desc="csv files with the 6-parameters rigid body transformations")
     figure_format = traits.Str(default='png',
         mandatory=True, exists=True, desc="png or svg")
+    n_procs = traits.Int(
+        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class HMC_QCOutputSpec(TraitedSpec):
-    out_figure = File(exists=True, desc="Output figure.")
-    video_file = File(exists=True, desc="Output video.")
+    out_figure = File(exists=True, desc="Output figure for QC visualization.")
+    out_csv = File(exists=True, desc="Output CSV saving certain derivatives.")
+    video_file = File(exists=True, desc="Output video showing timeseries pre/post correction.")
 
 
 class HMC_QC(BaseInterface):
     """
-
+    This interface pairs with the outputs from the head motion correction interface to generative a qualitative report
+    that evaluate the performance of the correction.
     """
 
     input_spec = HMC_QCInputSpec
     output_spec = HMC_QCOutputSpec
 
     def _run_interface(self, runtime):
-
+        import pandas as pd
         filename = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")[0]
-        out_dir = self.inputs.out_dir
-        os.makedirs(out_dir, exist_ok=True)
-        figure_path = f'{out_dir}/{filename}_HMC_QC.{self.inputs.figure_format}'
+        figure_path = os.path.abspath(f'{filename}_HMC_QC.{self.inputs.figure_format}')
+        csv_path = os.path.abspath(f'{filename}_derivatives.csv')
 
-        derivatives_dict = HMC_derivatives(self.inputs.in_file, self.inputs.ref_file, self.inputs.csv_params)
-        fig = plot_motion_QC(derivatives_dict)
+        derivatives_dict = HMC_derivatives(self.inputs.in_file, self.inputs.ref_file, self.inputs.csv_params, get_R2=False, n_procs=self.inputs.n_procs)
+
+        # save some outputs to .csv
+        key_l = ['D_Sc_preHMC', 'D_Sc_postHMC', 'mse_preHMC', 'mse_postHMC']
+        pd.DataFrame(np.array([derivatives_dict[key].flatten() for key in key_l]).T, columns=key_l).to_csv(csv_path)
+
+        fig = plot_motion_QC(derivatives_dict, self.inputs.ref_file, plot_R2=False)
         fig.savefig(figure_path, bbox_inches='tight')
 
         # write .webp file
-        video_file = f'{out_dir}/{filename}_HMC.webp'
+        video_file = os.path.abspath(f'{filename}_HMC.webp')
         from rabies.simpleitk_timeseries_motion_correction.create_animation import main
         main(input_img=derivatives_dict['img_preHMC'], output_file=video_file, second_input_img=derivatives_dict['img_postHMC'], scale=2.0, fps=10)
 
         setattr(self, 'out_figure', figure_path)
+        setattr(self, 'out_csv', csv_path)
         setattr(self, 'video_file', video_file)
 
         return runtime
 
     def _list_outputs(self):
         return {'out_figure': getattr(self, 'out_figure'),
+                'out_csv': getattr(self, 'out_csv'),
                 'video_file': getattr(self, 'video_file'),
                 }
 
@@ -316,7 +340,7 @@ def get_motion_R2(timeseries_img, translations,rotations):
     return R2_img
 
 
-def HMC_derivatives(in_file, ref_file, motcorr_params_file):
+def HMC_derivatives(in_file, ref_file, motcorr_params_file, n_procs=1, get_R2=False):
     import pandas as pd
     from rabies.simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, framewise_resample_volume
     img_preHMC = sitk.ReadImage(in_file)
@@ -324,7 +348,7 @@ def HMC_derivatives(in_file, ref_file, motcorr_params_file):
     
     # prepare timeseries post-correction
     transforms = read_transforms_from_csv(motcorr_params_file)
-    img_postHMC = framewise_resample_volume(img_preHMC, ref_img, transforms, interpolation=sitk.sitkBSpline5, clip_negative=False, extrapolator=False)
+    img_postHMC = framewise_resample_volume(img_preHMC, ref_img, transforms, interpolation=sitk.sitkBSpline5, clip_negative=False, extrapolator=False, max_workers=n_procs)
     
     df = pd.read_csv(motcorr_params_file)
     translations = np.array([df[par] for par in ['TransX', 'TransY', 'TransZ']]).T
@@ -338,30 +362,33 @@ def HMC_derivatives(in_file, ref_file, motcorr_params_file):
     D_Sc_preHMC = 1-cosine_similarity(timeseries_preHMC.T,ref_img_array)
     D_Sc_postHMC = 1-cosine_similarity(timeseries_postHMC.T,ref_img_array)
 
+    mse_preHMC = np.mean((timeseries_preHMC.T - ref_img_array)**2, axis=0) # taking mean square error
+    mse_postHMC = np.mean((timeseries_postHMC.T - ref_img_array)**2, axis=0) # taking mean square error
+    
     img_preHMC_SD = get_SD(img_preHMC)
     img_postHMC_SD = get_SD(img_postHMC)
 
-    img_preHMC_R2 = get_motion_R2(img_preHMC, translations,rotations)
-    img_postHMC_R2 = get_motion_R2(img_postHMC, translations,rotations)
+    img_preHMC_R2 = get_motion_R2(img_preHMC, translations,rotations) if get_R2 else None
+    img_postHMC_R2 = get_motion_R2(img_postHMC, translations,rotations) if get_R2 else None
 
-    return {'img_preHMC':img_preHMC, 'img_postHMC':img_postHMC, 'translations':translations, 'rotations':rotations, 'D_Sc_preHMC':D_Sc_preHMC, 'D_Sc_postHMC':D_Sc_postHMC, 
+    return {'img_preHMC':img_preHMC, 'img_postHMC':img_postHMC, 'translations':translations, 'rotations':rotations, 
+            'D_Sc_preHMC':D_Sc_preHMC, 'D_Sc_postHMC':D_Sc_postHMC,'mse_preHMC':mse_preHMC, 'mse_postHMC':mse_postHMC, 
             'img_preHMC_SD':img_preHMC_SD, 'img_postHMC_SD':img_postHMC_SD, 'img_preHMC_R2':img_preHMC_R2, 'img_postHMC_R2':img_postHMC_R2}
 
 
-def plot_motion_QC(derivatives_dict):
+def plot_motion_QC(derivatives_dict, ref_file, plot_R2=False):
     import matplotlib.pyplot as plt
-    from rabies.visualization import plot_3d
-    fig,axes = plt.subplots(nrows=9, ncols=2, figsize=(8*2,2*9), constrained_layout=True)
-    
-    ax_fused_l = []
-    for i in range(3):
-        gs = axes[i, 0].get_gridspec()
-        # remove axes you want to fuse
-        axes[i, 0].remove()
-        axes[i, 1].remove()
-        # add fused axis
-        ax_fused = fig.add_subplot(gs[i, 0:2])
-        ax_fused_l.append(ax_fused)
+    from rabies.visualization import plot_3d, otsu_scaling
+    from matplotlib.gridspec import GridSpec
+    nrows = 7
+    if plot_R2:
+        nrows +=3
+
+    fig = plt.figure(figsize=(8*2,2*nrows), constrained_layout=True)
+    gs = GridSpec(nrows, 3, figure=fig)
+        
+    ###PLOT timecourses
+    ax_fused_l = [fig.add_subplot(gs[i, 0:3]) for i in range(4)]
     
     ax=ax_fused_l[0]
     ax.plot(derivatives_dict['translations'])
@@ -380,36 +407,57 @@ def plot_motion_QC(derivatives_dict):
     ax.plot(derivatives_dict['D_Sc_postHMC'])
     ax.set_ylabel('Cosine distance', fontsize=15, color='white')
     ax.set_title('Difference relative to reference volume', fontsize=20, color='white')
-    ax.legend(['Before correction','After correction'])
+    ax.legend(['Before correction','After correction'], loc="upper right", fontsize=12)
     ax.tick_params(labelsize=15)
     
-    #### Plot brain images    
+    ax=ax_fused_l[3]
+    ax.plot(derivatives_dict['mse_preHMC'])
+    ax.plot(derivatives_dict['mse_postHMC'])
+    ax.set_ylabel('Mean square error', fontsize=15, color='white')
+    ax.set_title('Difference relative to reference volume', fontsize=20, color='white')
+    ax.legend(['Before correction','After correction'], loc="upper right", fontsize=12)
+    ax.tick_params(labelsize=15)
+    
+    ###PLOT REFERENCE
+    nrow=4
+    ax_3d = [fig.add_subplot(gs[nrow+i, 0]) for i in range(3)]
+    ax_3d[0].set_title('Reference image', fontsize=20, color='white')
+    cbar_list = plot_3d(ax_3d,otsu_scaling(ref_file),fig=fig,vmin=0,vmax=1,cmap='gray', cbar=False)
+
+    ###PLOT SD
     SD_array = sitk.GetArrayFromImage(derivatives_dict['img_preHMC_SD']).flatten()
     SD_array.sort()
     std_vmax=SD_array[int(len(SD_array)*0.99)]
     
-    ax_3d=axes[3:6,0]
+    ax_3d = [fig.add_subplot(gs[nrow+i, 1]) for i in range(3)]
     ax_3d[0].set_title('Temporal standard deviation\n(before correction)', fontsize=20, color='white')
     cbar_list = plot_3d(ax_3d,derivatives_dict['img_preHMC_SD'],fig=fig,vmin=0,vmax=std_vmax,cmap='inferno', cbar=True)
     for cbar in cbar_list:
         cbar.ax.tick_params(labelsize=15)
     
-    ax_3d=axes[6:,0]
+    ax_3d = [fig.add_subplot(gs[nrow+i, 2]) for i in range(3)]
     ax_3d[0].set_title('Temporal standard deviation\n(after correction)', fontsize=20, color='white')
     cbar_list = plot_3d(ax_3d,derivatives_dict['img_postHMC_SD'],fig=fig,vmin=0,vmax=std_vmax,cmap='inferno', cbar=True)
     for cbar in cbar_list:
         cbar.ax.tick_params(labelsize=15)
     
-    ax_3d=axes[3:6,1]
-    ax_3d[0].set_title('R2 from 6 motion parameters\n(before correction)', fontsize=20, color='white')
-    cbar_list = plot_3d(ax_3d,derivatives_dict['img_preHMC_R2'],fig=fig,vmin=0,vmax=1,cmap='inferno', cbar=True)
-    for cbar in cbar_list:
-        cbar.ax.tick_params(labelsize=15)
-    
-    ax_3d=axes[6:,1]
-    ax_3d[0].set_title('R2 from 6 motion parameters\n(after correction)', fontsize=20, color='white')
-    cbar_list = plot_3d(ax_3d,derivatives_dict['img_postHMC_R2'],fig=fig,vmin=0,vmax=1,cmap='inferno', cbar=True)
-    for cbar in cbar_list:
-        cbar.ax.tick_params(labelsize=15)
+    if plot_R2:
+        nrow+=3
+
+        ax_3d = [fig.add_subplot(gs[nrow+i, 0]) for i in range(3)]
+        ax_3d[0].set_title('Reference image', fontsize=20, color='white')
+        cbar_list = plot_3d(ax_3d,otsu_scaling(ref_file),fig=fig,vmin=0,vmax=1,cmap='gray', cbar=False)
+        
+        ax_3d = [fig.add_subplot(gs[nrow+i, 1]) for i in range(3)]
+        ax_3d[0].set_title('R2 from 6 motion parameters\n(before correction)', fontsize=20, color='white')
+        cbar_list = plot_3d(ax_3d,derivatives_dict['img_preHMC_R2'],fig=fig,vmin=0,vmax=1,cmap='inferno', cbar=True)
+        for cbar in cbar_list:
+            cbar.ax.tick_params(labelsize=15)
+        
+        ax_3d = [fig.add_subplot(gs[nrow+i, 2]) for i in range(3)]
+        ax_3d[0].set_title('R2 from 6 motion parameters\n(after correction)', fontsize=20, color='white')
+        cbar_list = plot_3d(ax_3d,derivatives_dict['img_postHMC_R2'],fig=fig,vmin=0,vmax=1,cmap='inferno', cbar=True)
+        for cbar in cbar_list:
+            cbar.ax.tick_params(labelsize=15)
         
     return fig

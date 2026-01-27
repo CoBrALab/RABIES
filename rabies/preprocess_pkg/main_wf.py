@@ -554,6 +554,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
             ]),
+        (bold_main_wf, motion_datasink, [
+            ('outputnode.hmc_qc_figure', 'hmc_qc_figure'),
+            ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
+            ('outputnode.hmc_qc_video', 'hmc_qc_video'),
+            ]),
         (outputnode, bold_datasink, [
             ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
             ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction
