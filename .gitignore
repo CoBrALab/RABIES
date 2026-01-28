@@ -1,2 +1,5 @@
 *zip
 *sif
+build/
+dist/
+rabies.egg-info/
