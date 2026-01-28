@@ -11,7 +11,7 @@ from rabies.utils import run_command, flatten_list, ResampleMask
 from .registration import run_antsRegistration
 from .preprocess_visual_QC import PlotOverlap,template_masking
 
-def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, num_procs, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
+def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output_folder, transforms_datasink, nthreads_modelbuild, output_datasinks, joinsource_list, name='commonspace_reg_wf'):
     # commonspace_wf_head_start
     """
     This workflow handles the alignment of all MRI sessions to a common space. This is conducted first by generating
@@ -65,7 +65,7 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             commonspace_reg_opts: the opts that are specific to this run of commonspace_reg (there can be different parameters, for instance for the robust_inho_cor workflows)
             output_folder: specify a folder to execute the workflow and store important outputs
             transforms_datasink: datasink node where the transforms are stored
-            num_procs: set the maximum number of parallel threads to launch
+            nthreads_modelbuild: set the maximum number of parallel threads to launch
             output_datasinks: whether to generate a datasink from the outputs of the workflow
             joinsource_list: names for the iterable nodes to join before unbiased template generation
 
@@ -252,9 +252,11 @@ def init_commonspace_reg_wf(opts, commonspace_reg_opts, inherit_unbiased, output
             generate_template_outputs = f'{output_folder}/main_wf/{name}/generate_template'
             # the plugin is set here instead of as a node input to avoid re-running the nipype workflow if plugin is changed 
             os.environ['MODELBUILD_PLUGIN'] = opts.plugin
+            # each modelbuild thread will be running a registration, and each registration uses RABIES_ITK_NUM_THREADS threads
+            os.environ['MODELBUILD_NCORES'] = str(int(nthreads_modelbuild//int(os.environ['RABIES_ITK_NUM_THREADS'])))
             generate_template = pe.Node(GenerateTemplate(stages=modelbuild_stages, masking=commonspace_masking, output_folder=generate_template_outputs, winsorize_lower_bound = winsorize_lower_bound, winsorize_upper_bound = winsorize_upper_bound,
                                                 ),
-                                        name='generate_template', n_procs=num_procs, mem_gb=1*num_procs*opts.scale_min_memory)
+                                        name='generate_template', n_procs=nthreads_modelbuild, mem_gb=1*nthreads_modelbuild*opts.scale_min_memory)
 
         PlotOverlap_Anat2Unbiased_node = pe.Node(
             PlotOverlap(), name='PlotOverlap_Anat2Unbiased')
@@ -681,7 +683,7 @@ class GenerateTemplate(BaseInterface):
         plugin = os.environ['MODELBUILD_PLUGIN']
         if plugin=='MultiProc' or plugin=='Linear':
             cluster_type='local'
-            num_threads = multiprocessing.cpu_count()
+            num_threads = os.environ['MODELBUILD_NCORES']
         elif plugin=='SGE' or plugin=='SGEGraph':
             cluster_type='sge'
             num_threads = 1

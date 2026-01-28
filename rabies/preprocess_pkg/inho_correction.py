@@ -5,7 +5,7 @@ from nipype.interfaces.base import (
     File, BaseInterface
 )
 
-def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='inho_correction_wf'):
+def init_inho_correction_wf(opts, image_type, output_folder, nthreads_modelbuild, name='inho_correction_wf'):
     # inho_correction_head_start
     """
     Corrects an input 3D image for intensity inhomogeneities. The image is denoised with non-local mean 
@@ -85,7 +85,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
             image_type: between 'EPI' and 'structural'. Defines which script to run depending on 
                 image type
             output_folder: specify a folder to execute the unbiased template generation and store important outputs
-            num_procs: set the maximum number of parallel threads to launch
+            nthreads_modelbuild: set the maximum number of parallel threads to launch
 
         inputs
             target_img: the image to correct
@@ -161,7 +161,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, num_procs, name='in
         robust_inho_cor_opts['fast_commonspace'] = False # this option is added manually since it is not part of the parser
         from .commonspace_reg import init_commonspace_reg_wf
         commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_reg_opts=robust_inho_cor_opts, inherit_unbiased=False, output_folder=output_folder, 
-                                                     transforms_datasink=None, num_procs=num_procs, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
+                                                     transforms_datasink=None, nthreads_modelbuild=nthreads_modelbuild, output_datasinks=False, joinsource_list=joinsource_list, name=commonspace_wf_name)
 
         workflow.connect([
             (inputnode, init_inho_cor_node, [

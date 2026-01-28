@@ -1,3 +1,4 @@
+import os
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
@@ -149,8 +150,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         bold_reference_wf = init_bold_reference_wf(opts=opts)
 
-        num_procs = min(opts.local_threads, number_functional_scans)
-        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
+        # calculate the number of threads used for modelbuild
+        # the number cannot exceed --local_threads, but should use number_functional_scans*num_ITK_threads at least
+        nthreads_modelbuild_bold = min(opts.local_threads, number_functional_scans*int(os.environ['RABIES_ITK_NUM_THREADS']))
+        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, nthreads_modelbuild=nthreads_modelbuild_bold, name="bold_inho_cor_wf")
 
 
         if opts.log_transform:
