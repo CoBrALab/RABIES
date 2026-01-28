@@ -276,7 +276,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [],
             extractor.SetSize([size_4d[0], size_4d[1], size_4d[2], 0])
             extractor.SetIndex([0, 0, 0, i])
             input_volumes.append(extractor.Execute(orig_img))
-        del orig_img # free memory
+        del orig_img, extractor # free memory
 
         resampled_volumes = [None] * num_volumes
 
