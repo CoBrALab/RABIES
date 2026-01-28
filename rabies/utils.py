@@ -12,6 +12,13 @@ from nipype.interfaces.base import (
 ######################
 
 
+def get_sitk_header(file_path): # read a nifti header without loading the data
+    reader = sitk.ImageFileReader()
+    reader.SetFileName(file_path)
+    reader.ReadImageInformation()
+    return reader
+
+
 def recover_3D(mask_file, vector_map):
     mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)
@@ -195,13 +202,12 @@ class ResampleVolumes(BaseInterface):
         resampled_file = os.path.abspath(
             f"{filename_split[0]}_resampled.nii.gz")
 
-        in_img = sitk.ReadImage(self.inputs.in_file, self.inputs.rabies_data_type)
         ref_img = sitk.ReadImage(self.inputs.ref_file, self.inputs.rabies_data_type)
 
         # preparing the resampling dimensions of the reference space
         if not self.inputs.resampling_dim == 'ref_file': # with 'ref_file' the reference file is unaltered, and thus directly defines the commonspace resolution
             if self.inputs.resampling_dim == 'inputs_defined':
-                spacing = in_img.GetSpacing()[:3]
+                spacing = get_sitk_header(self.inputs.in_file).GetSpacing()[:3]
             else:
                 shape = self.inputs.resampling_dim.split('x')
                 spacing = (float(shape[0]), float(shape[1]), float(shape[2]))
@@ -215,7 +221,7 @@ class ResampleVolumes(BaseInterface):
 
         motcorr_params_file = self.inputs.motcorr_params if self.inputs.apply_motcorr else None
 
-        resampled_img = resample_volumes(in_img, ref_img, transforms_3d_files, inverses_3d, motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative, n_procs=n_procs)
+        resampled_img = resample_volumes(self.inputs.in_file, ref_img, transforms_3d_files, inverses_3d, motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative, n_procs=n_procs)
         sitk.WriteImage(resampled_img, resampled_file)
 
         setattr(self, 'resampled_file', resampled_file)
@@ -228,7 +234,7 @@ class ResampleVolumes(BaseInterface):
 def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [], motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False, n_procs=os.cpu_count()):
     import SimpleITK as sitk
     import os
-    from rabies.simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, resample_volume, framewise_resample_volume
+    from rabies.simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, resample_volume
 
     # the input can be either a nifti file or an SITK image
     if isinstance(in_img, sitk.Image):
@@ -249,17 +255,64 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [],
         resampled_img = resample_volume(orig_img, ref_img, composite, interpolation=interpolation, clip_negative=clip_negative, extrapolator=False)
 
     elif orig_img.GetDimension()==4:
+        import concurrent.futures
+        from tqdm import tqdm
         if motcorr_params_file is not None:
             hmc_transforms_l = read_transforms_from_csv(csv_file=motcorr_params_file)
-        composite_list = []
-        for t in range(orig_img.GetSize()[3]):
+
+        # create a resampling function that can create the composite transform on a per iteration basis to avoid memory overloads
+        def resample_volume_composite(volume, reference, composite_transform_list, interpolation, clip_negative=False, extrapolator=False):
             composite = sitk.CompositeTransform(3)
-            if motcorr_params_file is not None:
-                composite.AddTransform(hmc_transforms_l[t]) # HMC is first applied
-            for transform in transforms_3d_l:
-                composite.AddTransform(transform)
-            composite_list.append(composite)
-        resampled_img = framewise_resample_volume(orig_img, ref_img, composite_list, interpolation=interpolation, clip_negative=clip_negative, extrapolator=False, max_workers=n_procs)
+            for transform in composite_transform_list:
+                composite.AddTransform(transform)        
+            return resample_volume(volume, reference, composite, interpolation, clip_negative, extrapolator)
+
+        num_volumes = orig_img.GetSize()[3]
+        # Convert to a list of 3D volumes from input to process in parallel
+        input_volumes = []
+        size_4d = orig_img.GetSize()
+        for i in range(num_volumes):
+            extractor = sitk.ExtractImageFilter()
+            extractor.SetSize([size_4d[0], size_4d[1], size_4d[2], 0])
+            extractor.SetIndex([0, 0, 0, i])
+            input_volumes.append(extractor.Execute(orig_img))
+        del orig_img # free memory
+
+        resampled_volumes = [None] * num_volumes
+
+        # Parallel processing
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_procs) as executor:    
+            with tqdm(total=num_volumes) as pbar:
+                futures = {}
+                for i in range(num_volumes):
+                    if motcorr_params_file is not None:
+                        composite_transform_list = [hmc_transforms_l[i]] + transforms_3d_l
+                    else:
+                        composite_transform_list = transforms_3d_l
+                        
+                    future = executor.submit(
+                        resample_volume_composite,
+                        volume=input_volumes[i],
+                        reference=ref_img,
+                        composite_transform_list=composite_transform_list,
+                        interpolation=interpolation,
+                        clip_negative=clip_negative,
+                        extrapolator=False,
+                    )
+                    futures[future] = i
+                
+                for future in concurrent.futures.as_completed(futures):
+                    i = futures[future]
+                    try:
+                        resampled_volumes[i] = future.result()
+                    except Exception as e:
+                        print(f"Error processing volume {i}: {e}")
+                        # Might want to abort or insert blank?
+                        # For now re-raise to fail fast
+                        raise e
+                    pbar.update(1)
+        resampled_img = sitk.JoinSeries(resampled_volumes)
+
     return resampled_img
 
 
