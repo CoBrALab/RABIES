@@ -26,6 +26,16 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     split_name = filter_scan_inclusion(cr_opts.inclusion_ids, split_name)
     split_name = filter_scan_exclusion(cr_opts.exclusion_ids, split_name)
 
+    number_functional_scans = len(split_name)
+    if cr_opts.num_ITK_threads=='optimal': # override previous assignment from run_main(): an optimal thread number can be selected based on # of scans
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
+        num_ITK_threads=max(int(cr_opts.local_threads/number_functional_scans),1)
+        log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
+        os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
+    else:
+        num_ITK_threads = int(os.environ['RABIES_ITK_NUM_THREADS'])
+
     # setting up iterables from the BOLD scan splits
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name']),
                          name="main_split")
@@ -153,17 +163,10 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
 
     if cr_opts.nativespace_analysis and cr_opts.resample_to_commonspace:
         from rabies.utils import ResampleVolumes
-
-        # number of threads for resampling will be set to 1 unless specified otherwise
-        if cr_opts.num_ITK_threads=='optimal' or cr_opts.num_ITK_threads=='off':
-            n_procs=1 
-        else:
-            n_procs=int(n_procs.num_ITK_threads)
-
         cleaned_bold_to_commonspace_node = pe.Node(ResampleVolumes(
             resampling_dim='ref_file', interpolation=cr_opts.interpolation_sitk,
-            rabies_data_type=cr_opts.data_type, apply_motcorr=False, clip_negative=False,n_procs=n_procs), 
-            n_procs=n_procs,
+            rabies_data_type=cr_opts.data_type, apply_motcorr=False, clip_negative=False), 
+            n_procs=num_ITK_threads,
             name='cleaned_bold_to_commonspace')
         workflow.connect([
             (confound_correction_wf, cleaned_bold_to_commonspace_node, [

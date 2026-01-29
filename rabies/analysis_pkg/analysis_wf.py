@@ -120,6 +120,7 @@ def init_analysis_wf(opts, name="analysis_wf"):
             DR_transform_node = pe.Node(ResampleVolumes(
                 resampling_dim='ref_file', interpolation=opts.interpolation_sitk,
                 rabies_data_type=opts.data_type, apply_motcorr=False, clip_negative=False), 
+                n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']),
                 name='DR_to_commonspace')
             
             workflow.connect([

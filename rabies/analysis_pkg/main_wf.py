@@ -21,13 +21,21 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts)
 
-    if len(split_name_list)==0:
+    number_functional_scans = len(split_name_list)
+    if number_functional_scans==0:
         raise ValueError(f"""
             No outputs were founds from the confound correction stage. 
             All scans may have been removed for not meeting the minimum_timepoint threshold 
             when applying --frame_censoring. Outputs will be named empty.nii.gz if this is 
             the case.
             """)
+
+    if analysis_opts.num_ITK_threads=='optimal': # override previous assignment from run_main(): an optimal thread number can be selected based on # of scans
+        from nipype import logging
+        log = logging.getLogger('nipype.workflow')
+        num_ITK_threads=max(int(analysis_opts.local_threads/number_functional_scans),1)
+        log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
+        os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
 
     if analysis_opts.group_ica['apply'] and cr_opts.nativespace_analysis and not cr_opts.resample_to_commonspace:
         raise ValueError(

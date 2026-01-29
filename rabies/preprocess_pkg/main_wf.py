@@ -156,18 +156,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     number_structural_scans = len(structural_scan_list)
     number_functional_scans = len(bold_scan_list)
 
-    # this is set as an os.environ variable instead of a nipype node input, to avoid re-running nodes when changing this parameter
-    if opts.num_ITK_threads=='optimal':
+    if opts.num_ITK_threads=='optimal': # override previous assignment from run_main(): an optimal thread number can be selected based on # of scans
         num_ITK_threads=max(int(opts.local_threads/number_functional_scans),1)
-        os.environ['RABIES_ITK_THREADS_STATE']='ON'
         log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
-    elif opts.num_ITK_threads=='off':
-        num_ITK_threads=1 # set to 1 to maximize parallelization
-        os.environ['RABIES_ITK_THREADS_STATE']='OFF'
+        os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
     else:
-        num_ITK_threads=int(opts.num_ITK_threads)
-        os.environ['RABIES_ITK_THREADS_STATE']='ON'
-    os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
+        num_ITK_threads = int(os.environ['RABIES_ITK_NUM_THREADS'])
 
     # calculate the number of threads used for modelbuild
     # the number cannot exceed --local_threads, but should use number_structural_scans*num_ITK_threads at least

@@ -53,7 +53,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         name='outputnode')
 
     n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
-    gen_ref = pe.Node(EstimateReferenceImage(HMC_level=opts.HMC_level, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type, n_procs=n_procs),
+    gen_ref = pe.Node(EstimateReferenceImage(HMC_level=opts.HMC_level, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
                       name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=n_procs)
     gen_ref.plugin_args = {
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
@@ -75,8 +75,6 @@ class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
-    n_procs = traits.Int(
-        exists=True, desc="Maximum number of process to run in parallel.")
 
 class EstimateReferenceImageOutputSpec(TraitedSpec):
     ref_image = File(exists=True, desc="3D reference image")
@@ -101,8 +99,8 @@ class EstimateReferenceImage(BaseInterface):
 
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
-        from nipype.interfaces.base import isdefined
-        n_procs = self.inputs.n_procs if isdefined(self.inputs.n_procs) else os.cpu_count() # default to number of CPUs
+
+        n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
 
         filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
         out_ref_fname = os.path.abspath(

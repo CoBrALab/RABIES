@@ -56,7 +56,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
 
     # Head motion correction (hmc)
     n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
-    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type, n_procs=n_procs),
+    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type),
                          name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
@@ -69,7 +69,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     ])
 
     if opts.gen_hmc_qc:
-        hmc_qc_node = pe.Node(HMC_QC(figure_format=opts.figure_format, n_procs=n_procs),
+        hmc_qc_node = pe.Node(HMC_QC(figure_format=opts.figure_format),
                             name='hmc_qc_node', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
 
         workflow.connect([
@@ -111,8 +111,6 @@ class sitkMotionCorrInputSpec(BaseInterfaceInputSpec):
     level = traits.Int(desc="Select a level from 0 to 3, where each level is more stringent registration.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
-    n_procs = traits.Int(
-        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class sitkMotionCorrOutputSpec(TraitedSpec):
@@ -130,8 +128,8 @@ class sitkMotionCorr(BaseInterface):
     output_spec = sitkMotionCorrOutputSpec
 
     def _run_interface(self, runtime):
-        from nipype.interfaces.base import isdefined
-        n_procs = self.inputs.n_procs if isdefined(self.inputs.n_procs) else os.cpu_count() # default to number of CPUs
+
+        n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
         import SimpleITK as sitk
         from rabies.simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
         moving = self.inputs.in_file
@@ -249,8 +247,6 @@ class HMC_QCInputSpec(BaseInterfaceInputSpec):
         exists=True, desc="csv files with the 6-parameters rigid body transformations")
     figure_format = traits.Str(default='png',
         mandatory=True, exists=True, desc="png or svg")
-    n_procs = traits.Int(
-        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class HMC_QCOutputSpec(TraitedSpec):
@@ -274,7 +270,9 @@ class HMC_QC(BaseInterface):
         figure_path = os.path.abspath(f'{filename}_HMC_QC.{self.inputs.figure_format}')
         csv_path = os.path.abspath(f'{filename}_derivatives.csv')
 
-        derivatives_dict = HMC_derivatives(self.inputs.in_file, self.inputs.ref_file, self.inputs.csv_params, get_R2=False, n_procs=self.inputs.n_procs)
+        n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
+
+        derivatives_dict = HMC_derivatives(self.inputs.in_file, self.inputs.ref_file, self.inputs.csv_params, get_R2=False, n_procs=n_procs)
 
         # save some outputs to .csv
         key_l = ['D_Sc_preHMC', 'D_Sc_postHMC', 'mse_preHMC', 'mse_postHMC']

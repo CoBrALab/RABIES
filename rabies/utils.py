@@ -170,8 +170,6 @@ class ResampleVolumesInputSpec(BaseInterfaceInputSpec):
         desc="Whether to clip out negative values after resampling.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
-    n_procs = traits.Int(
-        exists=True, desc="Maximum number of process to run in parallel.")
 
 
 class ResampleVolumesOutputSpec(TraitedSpec):
@@ -217,11 +215,14 @@ class ResampleVolumes(BaseInterface):
         from nipype.interfaces.base import isdefined
         transforms_3d_files = self.inputs.transforms_3d_files if isdefined(self.inputs.transforms_3d_files) else []
         inverses_3d = self.inputs.inverses_3d if isdefined(self.inputs.inverses_3d) else []
-        n_procs = self.inputs.n_procs if isdefined(self.inputs.n_procs) else os.cpu_count() # default to number of CPUs
+        n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
 
         motcorr_params_file = self.inputs.motcorr_params if self.inputs.apply_motcorr else None
 
-        resampled_img = resample_volumes(self.inputs.in_file, ref_img, transforms_3d_files, inverses_3d, motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative, n_procs=n_procs)
+        resampled_img = resample_volumes(self.inputs.in_file, ref_img, transforms_3d_files, inverses_3d, 
+                                         motcorr_params_file = motcorr_params_file, interpolation=self.inputs.interpolation, 
+                                         rabies_data_type=self.inputs.rabies_data_type, clip_negative=self.inputs.clip_negative, 
+                                         n_procs=n_procs)
         sitk.WriteImage(resampled_img, resampled_file)
 
         setattr(self, 'resampled_file', resampled_file)
