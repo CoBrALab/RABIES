@@ -34,7 +34,7 @@ REQUIRED = [
     'scikit-image>=0.18.2',
     'scipy>=1.8.1',
     'seaborn>=0.11.1',
-    'simpleitk>=2.2.1',
+    'simpleitk>=2.5.0',
     'qbatch==2.3',
     'networkx<3',
     'traits<7.0',
