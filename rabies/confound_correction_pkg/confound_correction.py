@@ -67,7 +67,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     regress_node = pe.Node(Regress(cr_opts=cr_opts),
-                           name='regress', mem_gb=1*cr_opts.scale_min_memory)
+                           name='regress', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
 
     prep_CR_node = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],
@@ -227,16 +227,13 @@ class Regress(BaseInterface):
         brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file, sitk.sitkFloat32))
         volume_indices = brain_mask.astype(bool)
 
-        data_img = sitk.ReadImage(bold_file, sitk.sitkFloat32)
-        data_array = sitk.GetArrayFromImage(data_img)
-        num_volumes = data_array.shape[0]
-        timeseries = np.zeros([num_volumes, volume_indices.sum()])
-        for i in range(num_volumes):
-            timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+        from rabies.utils import get_sitk_header
+        header=get_sitk_header(bold_file)
+        timeseries = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))[:,volume_indices] # read directly as a 2D array
         timeseries = timeseries[time_range,:]
 
         if cr_opts.TR=='auto':
-            TR = float(data_img.GetSpacing()[3])
+            TR = float(header.GetSpacing()[3])
         else:
             TR = float(cr_opts.TR)
 
@@ -288,6 +285,7 @@ class Regress(BaseInterface):
         timeseries_ = remove_trend(timeseries, frame_mask, order = cr_opts.detrending['order'], time_interval = cr_opts.detrending['time_interval'], keep_intercept=True)
         grand_mean = timeseries_.mean()
         voxelwise_mean = timeseries_.mean(axis=0)
+        del timeseries_ # free space
 
         timeseries = remove_trend(timeseries, frame_mask, order = cr_opts.detrending['order'], time_interval = cr_opts.detrending['time_interval'], keep_intercept=False)
         confounds_array = remove_trend(confounds_array, frame_mask, order = cr_opts.detrending['order'], time_interval = cr_opts.detrending['time_interval'], keep_intercept=False)
@@ -297,9 +295,8 @@ class Regress(BaseInterface):
         '''
         if cr_opts.ica_aroma['apply']:
             # write intermediary output files for timeseries and 6 rigid body parameters
-            timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
             inFile = f'{cr_out}/{filename_split[0]}_aroma_input.nii.gz'
-            sitk.WriteImage(timeseries_img, inFile)
+            sitk.WriteImage(recover_4D(brain_mask_file, timeseries, bold_file), inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
             confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, order = cr_opts.detrending['order'], time_interval = cr_opts.detrending['time_interval'], keep_intercept=False) # apply detrending to the confounds too
@@ -310,34 +307,29 @@ class Regress(BaseInterface):
 
             cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, cr_opts.ica_aroma['dim'], random_seed=cr_opts.ica_aroma['random_seed'])
             setattr(self, 'aroma_out', aroma_out)
-
-            data_img = sitk.ReadImage(cleaned_file, sitk.sitkFloat32)
-            data_array = sitk.GetArrayFromImage(data_img)
-            num_volumes = data_array.shape[0]
-            timeseries = np.zeros([num_volumes, volume_indices.sum()])
-            for i in range(num_volumes):
-                timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+            timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_indices] # read directly as a 2D array
 
         if (not cr_opts.highpass is None) or (not cr_opts.lowpass is None):
             '''
             #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
                 as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
             '''
-            timeseries_filled = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
-            confounds_filled = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+            timeseries = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+            confounds_array = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+            ### arrays are now interpolated
 
             '''
             #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
                 to the temporal filter.
             '''
-            confounds_filtered = butterworth(confounds_filled, TR=TR,
+            confounds_array = butterworth(confounds_array, TR=TR,
                                     high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
             '''
             #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
             '''
 
-            timeseries_filtered = butterworth(timeseries_filled, TR=TR,
+            timeseries = butterworth(timeseries, TR=TR,
                                     high_pass=cr_opts.highpass, low_pass=cr_opts.lowpass)
 
             # correct for edge effects of the filters
@@ -355,8 +347,8 @@ class Regress(BaseInterface):
                 simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
             '''
             # re-apply the masks to take out simulated data points, and take off the edges
-            timeseries = timeseries_filtered[frame_mask]
-            confounds_array = confounds_filtered[frame_mask]
+            timeseries = timeseries[frame_mask]
+            confounds_array = confounds_array[frame_mask]
         
         if frame_mask.sum()<int(cr_opts.frame_censoring['minimum_timepoint']):
             from nipype import logging
