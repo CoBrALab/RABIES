@@ -227,17 +227,6 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--bold_nativespace", dest='bold_nativespace', action='store_true',
-        help=
-            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
-            "to the anatomical space of the structural scan which is by default the nativespace.\n"
-            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
-            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
-            "If using --bold_only, this parameter has no effect. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
         '--anat_autobox', dest='anat_autobox', action='store_true',
         help=
             "Crops out extra space around the brain on the structural image using AFNI's 3dAutobox\n"
@@ -496,6 +485,18 @@ def get_parser():
             "Determine whether preprocessed timeseries should be generated in commonspace only ('common_only'), \n"
             "nativespace only ('native_only'), or for both native and commonspaces ('both'). Generating timeseries \n"
             "only in the desired space will save memory and computational time.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_resampling.add_argument(
+        "--bold_nativespace", dest='bold_nativespace', action='store_true',
+        help=
+            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
+            "to the anatomical space of the structural scan which is by default the nativespace.\n"
+            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
+            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
+            "NOTE: --resampling_space must include native space as a desired output, otherwise this parameter has no effect. \n"
+            "Also, if using --bold_only, this parameter has no effect, since there is no anatomical scan in the workflow. \n"
             "(default: %(default)s)\n"
             "\n"
         )
