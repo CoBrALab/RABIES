@@ -9,8 +9,8 @@ from nipype.interfaces.base import (
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from rabies.utils import copyInfo_3DImage, run_command
-from rabies.simpleitk_timeseries_motion_correction.motion import framewise_register_pair
-from rabies.simpleitk_timeseries_motion_correction.apply_transforms import framewise_resample_volume
+from simpleitk_timeseries_motion_correction.motion import framewise_register_pair
+from simpleitk_timeseries_motion_correction.apply_transforms import framewise_resample_volume
 
 def init_bold_reference_wf(opts, name='gen_bold_ref'):
     # gen_bold_ref_head_start
@@ -139,8 +139,22 @@ class EstimateReferenceImage(BaseInterface):
                 sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 
             for round in range(2): # conducted 2 rounds of motion correction and re-calculation of the 3D reference
-                transforms = framewise_register_pair(subset_img_4d, ref_3d, level=self.inputs.HMC_level, interpolation=sitk.sitkBSpline5, max_workers=n_procs)
-                resampled_img = framewise_resample_volume(subset_img_4d, ref_3d, transforms, interpolation=sitk.sitkBSpline5, max_workers=n_procs)
+                transforms = framewise_register_pair(
+                    subset_img_4d, 
+                    ref_3d, 
+                    level=self.inputs.HMC_level, 
+                    interpolation=sitk.sitkBSpline5, 
+                    max_workers=n_procs)
+                
+                resampled_img = framewise_resample_volume(
+                     subset_img_4d, 
+                     ref_3d, 
+                     transforms, 
+                     interpolation=sitk.sitkBSpline5, 
+                     clip_negative=True,
+                     extrapolator=False,
+                     max_workers=n_procs,
+                     )
 
                 trimean_array = np.quantile(sitk.GetArrayFromImage(resampled_img), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
                 ref_3d = copyInfo_3DImage(

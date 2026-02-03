@@ -131,7 +131,7 @@ class sitkMotionCorr(BaseInterface):
 
         n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
         import SimpleITK as sitk
-        from rabies.simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
+        from simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
         moving = self.inputs.in_file
         ref_file = self.inputs.ref_file
         level = self.inputs.level
@@ -139,7 +139,13 @@ class sitkMotionCorr(BaseInterface):
         output_prefix = os.path.abspath(
             f'{filename_split[0]}_')
 
-        transforms = framewise_register_pair(moving, ref_file, level=level, interpolation=sitk.sitkBSpline5, max_workers=n_procs)
+        transforms = framewise_register_pair(
+            moving, 
+            ref_file, 
+            level=level, 
+            interpolation=sitk.sitkBSpline5, 
+            max_workers=n_procs)
+        
         csv_param_file = output_prefix + f"moco.csv"
         write_transforms_to_csv(transforms, csv_param_file)
         setattr(self, 'csv_params', csv_param_file)
@@ -185,7 +191,7 @@ class EstimateMotionParams(BaseInterface):
         import numpy as np
         import os
         import pathlib  # Better path manipulation
-        from rabies.simpleitk_timeseries_motion_correction.framewise_displacement import calculate_framewise_displacement
+        from simpleitk_timeseries_motion_correction.framewise_displacement import calculate_framewise_displacement
 
         filename_split = pathlib.Path(self.inputs.boldspace_bold).name.rsplit(".nii")
 
@@ -283,9 +289,8 @@ class HMC_QC(BaseInterface):
 
         # write .webp file
         video_file = os.path.abspath(f'{filename}_HMC.webp')
-        from rabies.simpleitk_timeseries_motion_correction.create_animation import main
-        main(input_img=derivatives_dict['img_preHMC'], output_file=video_file, second_input_img=derivatives_dict['img_postHMC'], scale=2.0, fps=10)
-
+        from simpleitk_timeseries_motion_correction.create_animation import main
+        main(input_img=derivatives_dict['img_preHMC'], output_file=video_file, additional_input_imgs=[derivatives_dict['img_postHMC']], labels=['Before correction', 'After correction'], scale=2.0, fps=10)
         setattr(self, 'out_figure', figure_path)
         setattr(self, 'out_csv', csv_path)
         setattr(self, 'video_file', video_file)
@@ -338,15 +343,31 @@ def get_motion_R2(timeseries_img, translations,rotations):
     return R2_img
 
 
-def HMC_derivatives(in_file, ref_file, motcorr_params_file, n_procs=1, get_R2=False):
+def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False):
     import pandas as pd
-    from rabies.simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, framewise_resample_volume
-    img_preHMC = sitk.ReadImage(in_file)
-    ref_img = sitk.ReadImage(ref_file)
+    from simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, framewise_resample_volume
+
+    # the input can be either a nifti file or an SITK image
+    if isinstance(in_img, sitk.Image):
+        img_preHMC = in_img
+    elif os.path.isfile(in_img):
+        img_preHMC = sitk.ReadImage(in_img)
+    if isinstance(in_ref, sitk.Image):
+        ref_img = in_ref
+    elif os.path.isfile(in_ref):
+        ref_img = sitk.ReadImage(in_ref)
     
     # prepare timeseries post-correction
     transforms = read_transforms_from_csv(motcorr_params_file)
-    img_postHMC = framewise_resample_volume(img_preHMC, ref_img, transforms, interpolation=sitk.sitkBSpline5, clip_negative=False, extrapolator=False, max_workers=n_procs)
+    img_postHMC = framewise_resample_volume(
+            img_preHMC, 
+            ref_img, 
+            transforms, 
+            interpolation=sitk.sitkBSpline5, 
+            clip_negative=True,
+            extrapolator=False,
+            max_workers=n_procs,
+            )
     
     df = pd.read_csv(motcorr_params_file)
     translations = np.array([df[par] for par in ['TransX', 'TransY', 'TransZ']]).T

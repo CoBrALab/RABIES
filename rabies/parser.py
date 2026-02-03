@@ -264,8 +264,8 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--HMC_level", type=int, default=1,
-        choices=[0,1,2,3],
+        "--HMC_level", type=int, default=2,
+        choices=[1,2,3,4],
         help=
             "Select a level for for motion correction. The higher the level, the more stringent the \n"
             "registration is.\n"
