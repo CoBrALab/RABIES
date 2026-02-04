@@ -363,7 +363,7 @@ def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False
             img_preHMC, 
             ref_img, 
             transforms, 
-            interpolation=sitk.sitkBSpline5, 
+            interpolation=sitk.sitkLinear, 
             clip_negative=True,
             extrapolator=False,
             max_workers=n_procs,
