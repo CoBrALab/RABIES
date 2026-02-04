@@ -447,6 +447,14 @@ def get_parser():
             "Customize the framewise registration carried for head motion correction.\n"
         )
     g_hmc.add_argument(
+        "--no_HMC", dest='no_HMC', action='store_true',
+        help=
+            "Select this option to turn off the application of head motion correction when generating resampled timeseries. \n"
+            "Head motion parameters are still computed, and remain available for further operations that rely on those parameters.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_hmc.add_argument(
         "--HMC_level", type=int, default=2,
         choices=[1,2,3,4],
         help=

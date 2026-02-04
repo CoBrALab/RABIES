@@ -68,11 +68,14 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
     bold_transform = pe.Node(ResampleVolumes(
         rabies_data_type=opts.data_type, clip_negative=True), 
         name='bold_transform', mem_gb=4*opts.scale_min_memory, n_procs=n_procs)
-    bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
     bold_transform.inputs.resampling_dim = resampling_dim
     bold_transform.inputs.interpolation = opts.interpolation_sitk
     bold_transform.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
+    if opts.no_HMC:
+        bold_transform.inputs.apply_motcorr = False
+    else:
+        bold_transform.inputs.apply_motcorr = True
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)
