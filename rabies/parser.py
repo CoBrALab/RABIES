@@ -264,34 +264,6 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--HMC_level", type=int, default=2,
-        choices=[1,2,3,4],
-        help=
-            "Select a level for for motion correction. The higher the level, the more stringent the \n"
-            "registration is.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--gen_hmc_qc', dest='gen_hmc_qc', action='store_true',
-        help=
-            "Select this option to generate a quality report on the head motion correction registration step. \n"
-            "This includes registration error across frames, standard deviation and a video of the \n"
-            "timeseries each before and after applying the correction. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
-        help=
-            "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"
-            "correct for interslice misalignment resulting from within-TR motion. With this option, \n"
-            "motion corrections and the subsequent resampling from registration are applied sequentially\n"
-            "since the 2D slice registrations cannot be concatenate with 3D transforms. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
         '--detect_dummy', dest='detect_dummy', action='store_true',
         help=
             "Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on\n"
@@ -469,7 +441,43 @@ def get_parser():
             "\n"
 
         )
-
+    g_hmc = preprocess.add_argument_group(
+        title='Head motion correction options', 
+        description=
+            "Customize the framewise registration carried for head motion correction.\n"
+        )
+    g_hmc.add_argument(
+        "--HMC_level", type=int, default=2,
+        choices=[1,2,3,4],
+        help=
+            "Select a level of stringence for the framewise registration (the higher the level, the more stringent it is). \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_hmc.add_argument(
+        "--hmc_qc_report", type=str, 
+        default='apply=false,fps=10',
+        help=
+            "This option manages the generation of a quality report on the head motion correction registration step. \n"
+            "The report includes registration error across frames, standard deviation and a video of the \n"
+            "timeseries each before and after applying the correction. \n"
+            "* apply: whether to generate the report or not.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* fps: frames per second for the video generated.\n"
+            "*** Provide an integer of 1 or above. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_hmc.add_argument(
+        '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
+        help=
+            "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"
+            "correct for interslice misalignment resulting from within-TR motion. With this option, \n"
+            "motion corrections and the subsequent resampling from registration are applied sequentially\n"
+            "since the 2D slice registrations cannot be concatenate with 3D transforms. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_resampling = preprocess.add_argument_group(
         title='Resampling Options', 
         description=
@@ -1207,6 +1215,11 @@ def read_parser(parser, args):
             defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
+        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report, 
+            key_value_pairs = {'apply':['true', 'false'], 'fps':int},
+            defaults = {'apply':False,'fps':10},
+            name='hmc_qc_report')
+
         # check that masking/extraction options are well set
         for name,opt in zip(['--commonspace_reg','--bold2anat_coreg','--anat_robust_inho_cor','--bold_robust_inho_cor'],
                             [opts.commonspace_reg, opts.bold2anat_coreg, opts.anat_robust_inho_cor, opts.bold_robust_inho_cor]):

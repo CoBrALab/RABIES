@@ -68,8 +68,8 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
          ('csv_params', 'motcorr_params')]),
     ])
 
-    if opts.gen_hmc_qc:
-        hmc_qc_node = pe.Node(HMC_QC(figure_format=opts.figure_format),
+    if opts.hmc_qc_report['apply']:
+        hmc_qc_node = pe.Node(HMC_QC(fps=opts.hmc_qc_report['fps'], figure_format=opts.figure_format),
                             name='hmc_qc_node', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
 
         workflow.connect([
@@ -251,6 +251,8 @@ class HMC_QCInputSpec(BaseInterfaceInputSpec):
                     desc='ref file to realignment time series')
     csv_params = File(
         exists=True, desc="csv files with the 6-parameters rigid body transformations")
+    fps = traits.Int(default=10,
+        desc="Frames per second for the video.")
     figure_format = traits.Str(default='png',
         mandatory=True, exists=True, desc="png or svg")
 
@@ -290,7 +292,12 @@ class HMC_QC(BaseInterface):
         # write .webp file
         video_file = os.path.abspath(f'{filename}_HMC.webp')
         from simpleitk_timeseries_motion_correction.create_animation import main
-        main(input_img=derivatives_dict['img_preHMC'], output_file=video_file, additional_input_imgs=[derivatives_dict['img_postHMC']], labels=['Before correction', 'After correction'], scale=2.0, fps=10)
+        main(input_img=derivatives_dict['img_preHMC'], 
+             output_file=video_file, 
+             additional_input_imgs=[derivatives_dict['img_postHMC']], 
+             labels=['Before correction', 'After correction'], 
+             scale=2.0, 
+             fps=self.inputs.fps)
         setattr(self, 'out_figure', figure_path)
         setattr(self, 'out_csv', csv_path)
         setattr(self, 'video_file', video_file)
