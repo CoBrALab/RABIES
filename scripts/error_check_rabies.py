@@ -12,8 +12,6 @@ preprocess:
     --apply_slice_mc: doesn't run on token data
     --anat_inho_cor/bold_inho_cor: requires MINC/ANTs, which doesn't run on token data
     --anat_robust_inho_cor/bold_robust_inho_cor: requires MINC/ANTs, which doesn't run on token data
-    --commonspace_reg: requires MINC/ANTs, which doesn't run on token data
-    --bold2anat_coreg: requires MINC/ANTs, which doesn't run on token data
     --interpolation: is not tested.
     --log_transform: generates errors at motion correction with the token data.
 
@@ -134,7 +132,7 @@ def repeat_attempts(command, number_attempts=3):
 
 command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-    --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy \
+    --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy \
     --tpattern seq-z --apply_STC --interp_method linear --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 1x1x1 --oblique2card 3dWarp --resampling_space native_only --bold_nativespace"
 process = subprocess.run(
     command,
@@ -250,6 +248,17 @@ if opts.complete:
 
     # test group ICA
     command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
+    process = subprocess.run(
+        command,
+        check=True,
+        shell=True,
+        )
+
+    ####TESTING REGISTRATION####
+    # testing rigid registration and unbiased template generation on 2 scans with 0.4x0.4x0.4 resolution
+    command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
+        --commonspace_reg stages=rigid,fast_commonspace=false,template_registration=Rigid --bold2anat_coreg registration=Rigid --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 0.4x0.4x0.4 "
     process = subprocess.run(
         command,
         check=True,

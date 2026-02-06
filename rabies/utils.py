@@ -335,6 +335,8 @@ def load_sitk_transforms(transforms_files, inverses):
                 transform_file,
                 sitk.sitkVectorFloat64
             ))
+        elif transform_file=='NULL':
+            continue # don't append if NULL, which is a possible RABIES input
         else:
             raise ValueError(f"Transform files must end with .mat or .nii.gz. Cannot read input {transform_file}.")
         transforms_l.append(transform)
