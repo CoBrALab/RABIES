@@ -252,6 +252,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = N
         ref_img = in_ref
     elif os.path.isfile(in_ref):
         ref_img = sitk.ReadImage(in_ref, rabies_data_type)
+    del in_img, in_ref # release from memory
 
     transforms_3d_l = load_sitk_transforms(transforms_3d_files, inverses_3d)
 
@@ -283,6 +284,13 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = N
             extractor.SetSize([size_4d[0], size_4d[1], size_4d[2], 0])
             extractor.SetIndex([0, 0, 0, i])
             input_volumes.append(extractor.Execute(orig_img))
+
+        # before releasing orig_img, copy the header into an empty image
+        size = (1,1,1,1)
+        header_4d = sitk.Image(size, orig_img.GetPixelID())
+        header_4d.SetSpacing(orig_img.GetSpacing())
+        header_4d.SetDirection(orig_img.GetDirection())
+        header_4d.SetOrigin(orig_img.GetOrigin())
         del orig_img, extractor # free memory
 
         resampled_volumes = [None] * num_volumes
@@ -319,6 +327,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = N
                         raise e
                     pbar.update(1)
         resampled_img = sitk.JoinSeries(resampled_volumes)
+        resampled_img = copyInfo_4DImage(resampled_img, resampled_img, header_4d) # only copy original header for 4th dimension
     else:
         raise ValueError(f"Input image must be 3D or 4D. Got {orig_img.GetDimension()}D.")
     
