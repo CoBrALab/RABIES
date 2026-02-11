@@ -66,7 +66,7 @@ def get_parser():
             "diagnosis, on cleaned timeseries after confound correction. Analysis options include\n"
             "seed-based FC, whole-brain FC matrix, group-ICA and dual regression. --data_diagnosis\n" 
             "computes features of data quality at the individual scan and group levels, as in \n"
-            "Desrosiers-Gregoire et al. (in prep)\n" 
+            "Desrosiers-Gregoire et al. 2024.\n" 
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
 

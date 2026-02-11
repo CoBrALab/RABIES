@@ -1,4 +1,4 @@
-# Preprocessing Pipeline
+# Preprocessing stage
 ![](pics/preprocessing.png)
 
 The preprocessing of fMRI scans prior to analysis consists of, at minimum, the anatomical alignment of scans to a common space, head realignment to correct for motion, and the correction of susceptibility distortions arising from the echo-planar imaging (EPI) acquisition of functional scans. The core preprocessing pipeline in RABIES carries each of these steps with state-of-the-art processing tools and techniques.
