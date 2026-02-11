@@ -39,6 +39,7 @@ REQUIRED = [
     'networkx<3',
     'traits<7.0',
     'tqdm',
+    'simpleitk_timeseries_motion_correction',
 ]
 
 # What packages are optional?
