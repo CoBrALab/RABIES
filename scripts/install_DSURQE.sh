@@ -66,14 +66,12 @@ fi
 # create regional masks
 gen_DSURQE_masks.py ${out_dir}/DSURQE_40micron_labels.nii.gz ${out_dir}/DSURQE_40micron_R_mapping.csv ${out_dir}/DSURQE_40micron
 
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/melodic_IC.nii.gz" -o "${out_dir}/melodic_IC.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/vascular_mask.nii.gz" -o "${out_dir}/vascular_mask.nii.gz"
+curl -L --retry 5 "https://zenodo.org/records/18611133/files/melodic_IC.nii.gz" -o "${out_dir}/melodic_IC.nii.gz"
+curl -L --retry 5 "https://zenodo.org/records/18611133/files/vascular_mask.nii.gz" -o "${out_dir}/vascular_mask.nii.gz"
+curl -L --retry 5 "https://zenodo.org/records/18611133/files/EPI_atlas.zip" -o "${out_dir}/EPI_atlas.zip"
+curl -L --retry 5 "https://zenodo.org/records/18611133/files/DSURQE_seeds.zip" -o "${out_dir}/DSURQE_seeds.zip"
 
-# download atlas file versions for the EPI template
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_template.nii.gz" -o "${out_dir}/EPI_template.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_brain_mask.nii.gz" -o "${out_dir}/EPI_brain_mask.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_WM_mask.nii.gz" -o "${out_dir}/EPI_WM_mask.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_CSF_mask.nii.gz" -o "${out_dir}/EPI_CSF_mask.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_vascular_mask.nii.gz" -o "${out_dir}/EPI_vascular_mask.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/EPI_labels.nii.gz" -o "${out_dir}/EPI_labels.nii.gz"
-curl -L --retry 5 "https://zenodo.org/record/5118030/files/melodic_IC_resampled.nii.gz" -o "${out_dir}/melodic_IC_resampled.nii.gz"
+unzip ${out_dir}/EPI_atlas.zip -d ${out_dir}
+unzip ${out_dir}/DSURQE_seeds.zip -d ${out_dir}
+rm ${out_dir}/EPI_atlas.zip
+rm ${out_dir}/DSURQE_seeds.zip
