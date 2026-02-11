@@ -234,7 +234,6 @@ class ResampleVolumes(BaseInterface):
 
 def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [], motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False, n_procs=os.cpu_count()):
     import SimpleITK as sitk
-    import os
     from simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, resample_volume
 
     # the input can be either a nifti file or an SITK image

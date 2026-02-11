@@ -322,7 +322,7 @@ def cosine_similarity(X,Y):
     Y_ = Y.copy()
     Y_ /= np.sqrt((Y_ ** 2).sum(axis=0)) # first normalize from l2-norm
     
-    Sc = (X_.T.dot(Y_)) # then derive vector product across columns
+    Sc = (X_.T.dot(Y_)) # then derive vector product across columns
     return Sc
 
 

@@ -27,7 +27,10 @@ def otsu_scaling(input_image):
         img = input_image
     elif os.path.isfile(input_image):
         img = sitk.ReadImage(input_image)
-
+    else:
+        raise ValueError(
+            "input_image must be a SimpleITK.Image instance or a path to an existing image file"
+        )
     array = sitk.GetArrayFromImage(img)
 
     thresholds = threshold_multiotsu(array.astype(float).flatten(), classes=5, nbins=100)

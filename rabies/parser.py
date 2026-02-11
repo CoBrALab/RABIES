@@ -1227,6 +1227,8 @@ def read_parser(parser, args):
             key_value_pairs = {'apply':['true', 'false'], 'fps':int},
             defaults = {'apply':False,'fps':10},
             name='hmc_qc_report')
+        if opts.hmc_qc_report['fps'] < 1:
+            raise ValueError("--hmc_qc_report fps must be >= 1.")
 
         # check that masking/extraction options are well set
         for name,opt in zip(['--commonspace_reg','--bold2anat_coreg','--anat_robust_inho_cor','--bold_robust_inho_cor'],
