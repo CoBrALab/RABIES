@@ -11,6 +11,7 @@ import argparse
 '''PARAMETERS NOT TESTED
 preprocess:
     --bids_filter: requires creating a JSON
+    --log_transform: makes the token data crash
 
 confound_correction:
     --highpass/lowpass/edge_cutoff; since filtering doesn't work with 3 timepoints
@@ -187,7 +188,7 @@ process = subprocess.run(
 if opts.complete:
     command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz --labels {tmppath}/inputs/token_mask.nii.gz \
-        --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy --log_transform \
+        --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy \
         --tpattern seq-z --apply_STC --interp_method linear --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 1x1x1 --oblique2card 3dWarp --resampling_space both --bold_nativespace"
     process = subprocess.run(
         command,
