@@ -426,22 +426,16 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ]),
         ])
 
-    if opts.apply_slice_mc:
+    if opts.log_transform:
         workflow.connect([
-            (bold_stc_wf, bold_hmc_wf, [
-             ('outputnode.stc_file', 'inputnode.bold_file')]),
-        ])
+            (transitionnode, bold_hmc_wf, [
+                ('log_bold', 'inputnode.bold_file')]),
+            ])
     else:
-        if opts.log_transform:
-            workflow.connect([
-                (transitionnode, bold_hmc_wf, [
-                    ('log_bold', 'inputnode.bold_file')]),
-                ])
-        else:
-            workflow.connect([
-                (transitionnode, bold_hmc_wf, [
-                    ('bold_file', 'inputnode.bold_file')]),
-                ])
+        workflow.connect([
+            (transitionnode, bold_hmc_wf, [
+                ('bold_file', 'inputnode.bold_file')]),
+            ])
 
     ####MANAGE GENERATING COMMON AND/OR NATIVESPACE OUTPUTS
     boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')
@@ -508,18 +502,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                     ]),
                 ])
 
-        if opts.apply_slice_mc:
-            workflow.connect([
-                (bold_hmc_wf, bold_native_trans_wf, [
-                    ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
-            ])
-        else:
-            workflow.connect([
-                (bold_stc_wf, bold_native_trans_wf, [
-                    ('outputnode.stc_file', 'inputnode.bold_file')]),
-            ])
-
         workflow.connect([
+            (bold_stc_wf, bold_native_trans_wf, [
+                ('outputnode.stc_file', 'inputnode.bold_file'),
+                ]),
             (prep_transforms_between_spaces_node, bold_native_trans_wf, [
                 ('bold_to_native_transform_list', 'inputnode.transforms_list'),
                 ('bold_to_native_inverse_list', 'inputnode.inverses'),
@@ -555,18 +541,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     if opts.generate_commonspace:
         bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim='ref_file', name='bold_commonspace_trans_wf')
 
-        if opts.apply_slice_mc:
-            workflow.connect([
-                (bold_hmc_wf, bold_commonspace_trans_wf, [
-                ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
-                ])
-        else:
-            workflow.connect([
-                (bold_stc_wf, bold_commonspace_trans_wf, [
-                ('outputnode.stc_file', 'inputnode.bold_file')]),
-                ])
-
         workflow.connect([
+            (bold_stc_wf, bold_commonspace_trans_wf, [
+                ('outputnode.stc_file', 'inputnode.bold_file')
+                ]),
             (prep_transforms_between_spaces_node, bold_commonspace_trans_wf, [
                 ('bold_to_commonspace_transform_list', 'inputnode.transforms_list'),
                 ('bold_to_commonspace_inverse_list', 'inputnode.inverses'),

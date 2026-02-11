@@ -476,16 +476,6 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-    g_hmc.add_argument(
-        '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
-        help=
-            "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"
-            "correct for interslice misalignment resulting from within-TR motion. With this option, \n"
-            "motion corrections and the subsequent resampling from registration are applied sequentially\n"
-            "since the 2D slice registrations cannot be concatenate with 3D transforms. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
     g_resampling = preprocess.add_argument_group(
         title='Resampling Options', 
         description=

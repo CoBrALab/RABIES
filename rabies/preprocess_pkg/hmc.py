@@ -40,7 +40,7 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
                         name='inputnode')
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['motcorr_params', 'hmc_qc_figure', 'hmc_qc_csv', 'hmc_qc_video', 'slice_corrected_bold']),
+            fields=['motcorr_params', 'hmc_qc_figure', 'hmc_qc_csv', 'hmc_qc_video']),
         name='outputnode')
 
     # Head motion correction (hmc)
@@ -71,23 +71,6 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
                 ('out_csv', 'hmc_qc_csv'),
                 ('video_file', 'hmc_qc_video'),
             ]),
-        ])
-
-    if opts.apply_slice_mc:
-        slice_mc_n_procs = int(opts.local_threads/4)+1
-        slice_mc_node = pe.Node(SliceMotionCorrection(n_procs=slice_mc_n_procs),
-                                name='slice_mc', mem_gb=1*slice_mc_n_procs, n_procs=slice_mc_n_procs)
-        slice_mc_node.plugin_args = {
-            'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
-
-        # conducting a volumetric realignment before slice-specific mc to correct for larger head translations and rotations
-        workflow.connect([
-            (inputnode, slice_mc_node, [('ref_image', 'ref_file'),
-                                        ('bold_file', 'name_source')]),
-            (motion_estimation, slice_mc_node, [
-             ('mc_corrected_bold', 'in_file')]),
-            (slice_mc_node, outputnode, [
-             ('mc_corrected_bold', 'slice_corrected_bold')]),
         ])
 
     return workflow
