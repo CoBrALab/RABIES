@@ -232,9 +232,16 @@ class ResampleVolumes(BaseInterface):
         return {'resampled_file': getattr(self, 'resampled_file')}
 
 
-def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [], motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False, n_procs=os.cpu_count()):
+def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = None, motcorr_params_file = None, interpolation=sitk.sitkLinear, rabies_data_type=8, clip_negative=False, n_procs=None):
     import SimpleITK as sitk
     from simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, resample_volume
+
+    if transforms_3d_files is None:
+        transforms_3d_files = []
+    if inverses_3d is None:
+        inverses_3d = []
+    if n_procs is None:
+        n_procs = os.cpu_count()
 
     # the input can be either a nifti file or an SITK image
     if isinstance(in_img, sitk.Image):
@@ -312,7 +319,9 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = [], inverses_3d = [],
                         raise e
                     pbar.update(1)
         resampled_img = sitk.JoinSeries(resampled_volumes)
-
+    else:
+        raise ValueError(f"Input image must be 3D or 4D. Got {orig_img.GetDimension()}D.")
+    
     return resampled_img
 
 
@@ -366,7 +375,6 @@ class ResampleMask(BaseInterface):
 
     def _run_interface(self, runtime):
         import os
-        from rabies.utils import antsApplyTransforms
         import pathlib  # Better path manipulation
         filename_split = pathlib.Path(
             self.inputs.name_source).name.rsplit(".nii")

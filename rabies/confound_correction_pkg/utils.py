@@ -122,6 +122,8 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
 
     FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
+    if cr_opts.timeseries_interval == 'all':
+        raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
     # select the subset of timeseries specified
     split = cr_opts.timeseries_interval.split(',')
     if not len(split)==2:

@@ -11,25 +11,16 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     # hmc_wf_head_start
     """
     This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
-    target reference image with a rigid registration using ANTs' antsMotionCorr algorithm (Avants et al., 2009). 
+    target reference image with a rigid registration. 
     This results in the measurement of 3 Euler angles in radians and 3 translations in mm (from ITK's 
     Euler3DTransform https://itk.org/Doxygen/html/classitk_1_1Euler3DTransform.html) at each time frame, which are 
     then stored into an output CSV file.
 
-    References:
-        Avants, B. B., Tustison, N., & Song, G. (2009). Advanced normalization tools (ANTS). The Insight Journal, 2, 1–35.
-
     Command line interface parameters:
-        --HMC_option {intraSubjectBOLD,0,1,2,3}
-                                Select an option for head motion realignment among the pre-built options from
-                                https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.
-                                (default: intraSubjectBOLD)
-                                
-        --apply_slice_mc      Whether to apply a slice-specific motion correction after initial volumetric HMC. This can 
-                                correct for interslice misalignment resulting from within-TR motion. With this option, 
-                                motion corrections and the subsequent resampling from registration are applied sequentially
-                                since the 2D slice registrations cannot be concatenate with 3D transforms. 
-                                (default: False)
+        --HMC_level {1,2,3,4}
+                                Select a level of stringence for the framewise registration (the higher the level, the 
+                                more stringent it is).
+                                (default: 2)
 
     Workflow:
         parameters
@@ -41,8 +32,6 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
 
         outputs
             motcorr_params: CSV file which contains all translation and rotation parameters
-            slice_corrected_bold: if using the experimental method --apply_slice_mc, these are the EPI frames 
-                after both rigid and then slice-specific realignment
     """
     # hmc_wf_head_end
 
@@ -108,7 +97,7 @@ class sitkMotionCorrInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
     ref_file = File(exists=True, mandatory=True,
                     desc='ref file to realignment time series')
-    level = traits.Int(desc="Select a level from 0 to 3, where each level is more stringent registration.")
+    level = traits.Int(desc="Select a level from 1 to 4, where each level is more stringent registration.")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
@@ -196,7 +185,7 @@ class EstimateMotionParams(BaseInterface):
         filename_split = pathlib.Path(self.inputs.boldspace_bold).name.rsplit(".nii")
 
         FD_csv = os.path.abspath(f"{filename_split[0]}_FD_file.csv")
-        results = calculate_framewise_displacement(mask_file=self.inputs.boldspace_brain_mask, csv_file=self.inputs.motcorr_params, output_csv=FD_csv, verbose=False)
+        calculate_framewise_displacement(mask_file=self.inputs.boldspace_brain_mask, csv_file=self.inputs.motcorr_params, output_csv=FD_csv, verbose=False)
 
         motion_24,motion_24_header = motion_24_params(self.inputs.motcorr_params)
         # write into a .csv
@@ -359,10 +348,14 @@ def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False
         img_preHMC = in_img
     elif os.path.isfile(in_img):
         img_preHMC = sitk.ReadImage(in_img)
+    else:
+        raise ValueError(f"in_img must be an SITK image or valid file path. Got: {in_img}")
     if isinstance(in_ref, sitk.Image):
         ref_img = in_ref
     elif os.path.isfile(in_ref):
         ref_img = sitk.ReadImage(in_ref)
+    else:
+        raise ValueError(f"in_ref must be an SITK image or valid file path. Got: {in_ref}")        
     
     # prepare timeseries post-correction
     transforms = read_transforms_from_csv(motcorr_params_file)
