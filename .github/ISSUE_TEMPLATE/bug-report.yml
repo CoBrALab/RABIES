@@ -1,0 +1,127 @@
+name: Bug Report
+description: Report a bug in RABIES
+title: "[Bug]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before submitting, please check our [Troubleshooting Guide](https://github.com/CoBrALab/RABIES/blob/master/docs/troubleshooting.md) for common issues and solutions.**
+        
+  - type: checkboxes
+    id: image-orientation
+    attributes:
+      label: Have you checked original image orientation?
+      description: |
+        RABIES assumes properly oriented data. Please ensure image orientation is correct by visualizing images with [ITK-snap](https://www.itksnap.org/pmwiki/pmwiki.php).
+        See the [troubleshooting guide](https://github.com/CoBrALab/RABIES/blob/master/docs/troubleshooting.md#checking-image-orientation-with-itk-snap) for detailed instructions on verifying image orientation.
+      options:
+        - label: I have verified that my images are properly oriented
+          required: true
+          
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+      
+  - type: input
+    id: rabies-version
+    attributes:
+      label: RABIES version
+      description: e.g., release number or container tag
+      placeholder: v0.5.1
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: execution-method
+    attributes:
+      label: Execution method
+      description: How are you running RABIES?
+      options:
+        - Docker
+        - Singularity/Apptainer
+        - Local install
+        - Other
+    validations:
+      required: true
+      
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: e.g., Ubuntu 22.04, macOS 13.5, Windows WSL2
+      placeholder: Ubuntu 22.04
+    validations:
+      required: true
+      
+  - type: textarea
+    id: system-specs
+    attributes:
+      label: System specifications (optional)
+      description: CPU threads and RAM available; container/runtime version
+      placeholder: |
+        CPU: 16 cores
+        RAM: 64 GB
+        Docker version: 24.0.0
+    validations:
+      required: false
+      
+  - type: textarea
+    id: rabies-call
+    attributes:
+      label: RABIES command
+      description: Include a copy of the command call you executed from the terminal, and any additional information that could be relevant to your execution.
+      placeholder: |
+        rabies preprocess input_dir output_dir --commonspace-resampling 0.2x0.2x0.2
+      render: shell
+    validations:
+      required: true
+      
+  - type: textarea
+    id: log-file
+    attributes:
+      label: Log file
+      description: |
+        Attach the .log files present in the output folder (e.g. rabies_out/rabies_preprocess.log).
+        Tip: You can attach files by clicking this area to highlight it and then dragging files in.
+      placeholder: Paste log contents or attach log file here
+    validations:
+      required: true
+      
+  - type: textarea
+    id: qc-report
+    attributes:
+      label: QC report
+      description: |
+        Attach the QC_report folder present in the output folder. If QC_report is too large, mention that it couldn't be shared, and if possible, provide an alternative access to the files.
+        Tip: You can attach files by clicking this area to highlight it and then dragging files in.
+      placeholder: Attach QC report files or provide alternative access method
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Is the bug reproducible?
+      description: Can you reproduce this bug consistently?
+      options:
+        - "Yes, every time"
+        - "Yes, sometimes"
+        - "No, it happened once"
+        - "Not sure"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.
+    validations:
+      required: false
