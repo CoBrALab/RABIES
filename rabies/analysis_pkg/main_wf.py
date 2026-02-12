@@ -177,12 +177,18 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_common_node.inputs.inverse_list = []
         load_maps_dict_common_node.inputs.name_source = 'commonspace.nii'
 
-        workflow.connect([
-            (load_maps_dict_common_node, commonspace_analysis_datasink, [
-                ("resampled_seed_filelist", "commonspace_resampled_seeds"),
-                ("resampled_atlas_file", "commonspace_resampled_atlas"),
-                ]),
-            ])
+        if len(analysis_opts.seed_list)>0:
+            workflow.connect([
+                (load_maps_dict_common_node, commonspace_analysis_datasink, [
+                    ("resampled_seed_filelist", "commonspace_resampled_seeds"),
+                    ]),
+                ])
+        if analysis_opts.ROI_labels_file is not None:
+            workflow.connect([
+                (load_maps_dict_common_node, commonspace_analysis_datasink, [
+                    ("resampled_atlas_file", "commonspace_resampled_atlas"),
+                    ]),
+                ])
 
         # only if inputs are in commonspace then analysis computations are also in commonspace
         if not cr_opts.nativespace_analysis:
@@ -229,11 +235,20 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 ("native_to_commonspace_transform_list", "subject_inputnode.native_to_commonspace_transform_list"),
                 ("native_to_commonspace_inverse_list", "subject_inputnode.native_to_commonspace_inverse_list"),
                 ]),
-            (load_maps_dict_native_node, nativespace_analysis_datasink, [
-                ("resampled_seed_filelist", "nativespace_resampled_seeds"),
-                ("resampled_atlas_file", "nativespace_resampled_atlas"),
-                ]),
             ])
+        if len(analysis_opts.seed_list)>0:
+            workflow.connect([
+                (load_maps_dict_native_node, nativespace_analysis_datasink, [
+                    ("resampled_seed_filelist", "nativespace_resampled_seeds"),
+                    ]),
+                ])
+        if analysis_opts.ROI_labels_file is not None:
+            workflow.connect([
+                (load_maps_dict_native_node, nativespace_analysis_datasink, [
+                    ("resampled_atlas_file", "nativespace_resampled_atlas"),
+                    ]),
+                ])
+
 
     if not cr_opts.nativespace_analysis or cr_opts.resample_to_commonspace:
         # this node can only exist if commonspace timeseries were previously generated
@@ -411,6 +426,9 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, anat_ref_
                         input_image = seed_file, ref_image = anat_ref_file, output_filename = resampled_seed_file, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
         seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
         resampled_seed_filelist.append(resampled_seed_file)
+
+    if len(resampled_seed_filelist)==0:
+        resampled_seed_filelist = None
 
     if atlas_file is None:
         atlas_idx = None

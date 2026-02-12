@@ -230,7 +230,7 @@ def preprocess(opts, log):
 
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
-                                    [False,True,True,True,True,False]):
+                                    [False,True,True,True,True]):
         opt_file = getattr(opts, opt_key)
         if opt_file is not None: # some masks might be set to None
             if not os.path.isfile(opt_file):

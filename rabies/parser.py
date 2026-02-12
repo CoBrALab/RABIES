@@ -591,7 +591,7 @@ def get_parser():
     g_commonspace = preprocess.add_argument_group(
         title='Commonspace Template Files', 
         description=
-            "Specify commonspace template and associated mask/label files. By default, RABIES\n"
+            "Specify commonspace template and associated mask files. By default, RABIES\n"
             "provides the mouse DSURQE atlas\n"
             "https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.\n"
         )
@@ -1039,7 +1039,7 @@ def get_parser():
             "Labels file providing the anatomical parcellation for --FC_matrix. \n"
             "The nifti file must overlap with the --anat_template file from preprocessing. \n"
             "By default, RABIES uses the DSURQE atlas if using the default template.  \n"
-            "The parcellation includes X ROIs, and label annotations are documented in \n"
+            "The parcellation includes 356 ROIs, and label annotations are documented in \n"
             "https://github.com/CoBrALab/RABIES/releases/download/0.5.1/DSURQE_40micron_R_mapping.csv.\n"
             "(default: %(default)s)\n"
             "\n"
@@ -1049,7 +1049,7 @@ def get_parser():
         choices=['parcellated', 'voxelwise'],
         help=
             "Define ROIs for --FC_matrix between 'parcellated' from the provided atlas during preprocessing,\n"
-            "or 'voxelwise' to derive the correlations between every voxel."
+            "or 'voxelwise' to derive the correlations between every voxel.\n"
             "(default: %(default)s)\n"
             "\n"
         )
