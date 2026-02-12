@@ -997,15 +997,21 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
-
     analysis.add_argument(
         '--seed_list', type=str,
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         help=
-            "Can provide a list of Nifti files providing a mask for an anatomical seed, which will be used\n"
-            "to evaluate seed-based connectivity maps using on Pearson's r. Each seed must consist of \n"
-            "a binary mask representing the ROI in commonspace.\n"
+            "This parameter manages the list of anatomical seeds for seed-based connectivity (e.g. --seed_list seed1 seed2 ...). \n"
+            "A connectivity map is computed for each seed using pearson correlation with the mean seed timecourse across voxels. \n"
+            "The following list of pre-downloaded seeds can be selected with the following syntax: ACA_seed, \n"
+            "ECT_AI_seed, HY_seed, ORB_limbic_seed, SS_frontal_seed, AMYG_seed, RSP_seed, THAL_seed, \n"
+            "basal_ganglia_seed, HIP_seed, MO_seed, SS_dorsal_seed, VIS_seed. \n"
+            "These seeds are accessible online https://zenodo.org/records/18611133/files/DSURQE_seeds.zip, \n"
+            "were manually drawn on the left hemisphere of the DSURQE template and uses terminology from the \n"
+            "Allen brain parcellation (see info_seeds.txt). \n"
+            "Alternatively, it is possible to provide the path to an external Nifti file corresponding to a binary mask \n"
+            "highlighting a seed region, but this image must overlap with the template provided with --anat_template.\n"
             "(default: %(default)s)\n"
             "\n"
         )

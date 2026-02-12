@@ -68,16 +68,8 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
 
     # prepare dictionary for seed files
     seed_dict = {}
-    seed_name_list = []
-    for file in analysis_opts.seed_list:
-        file = os.path.abspath(file)
-        if not os.path.isfile(file):
-            raise ValueError(
-                f"Provide seed file path {file} doesn't exists.")
-        seed_name = pathlib.Path(file).name.rsplit(".nii")[0]
-        seed_name_list.append(seed_name)
-        seed_dict[seed_name] = file
-    analysis_opts.seed_name_list = seed_name_list # store for developing iterables later
+    for seed_file,seed_name in zip(analysis_opts.seed_list, analysis_opts.seed_name_list):
+        seed_dict[seed_name] = seed_file
 
     if not os.path.isfile(str(analysis_opts.prior_maps)):
         raise ValueError("--prior_maps doesn't exists.")
