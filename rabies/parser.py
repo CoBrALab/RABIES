@@ -66,7 +66,7 @@ def get_parser():
             "diagnosis, on cleaned timeseries after confound correction. Analysis options include\n"
             "seed-based FC, whole-brain FC matrix, group-ICA and dual regression. --data_diagnosis\n" 
             "computes features of data quality at the individual scan and group levels, as in \n"
-            "Desrosiers-Gregoire et al. (in prep)\n" 
+            "Desrosiers-Gregoire et al. 2024.\n" 
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
 
@@ -185,9 +185,9 @@ def get_parser():
         )
     g_execution.add_argument(
         "--interpolation", type=str, default='Linear',
+        choices=['Linear', 'BSpline3', 'LanczosSinc', 'CosineSinc'],
         help=
-            "Select the interpolator which will be used by antsApplyTransforms (e.g. 'Linear' or 'BSpline[5]') \n"
-            "for any image resampling operation conducted for this RABIES stage. \n"
+            "Select the interpolator which will be used when resampling images across different spaces. \n"
             "(default: %(default)s)\n"
             "\n"
         )    
@@ -227,17 +227,6 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        "--bold_nativespace", dest='bold_nativespace', action='store_true',
-        help=
-            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
-            "to the anatomical space of the structural scan which is by default the nativespace.\n"
-            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
-            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
-            "If using --bold_only, this parameter has no effect. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
         '--anat_autobox', dest='anat_autobox', action='store_true',
         help=
             "Crops out extra space around the brain on the structural image using AFNI's 3dAutobox\n"
@@ -271,46 +260,6 @@ def get_parser():
         '--apply_despiking', dest='apply_despiking', action='store_true',
         help=
             "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        "--HMC_option", type=str, default='optim',
-        choices=['intraSubjectBOLD', '0', '1', '2', '3','optim'],
-        help=
-            "Select a pre-built option for registration during head motion realignment. 'optim' was customized\n"
-            "as documented in https://github.com/CoBrALab/RABIES/discussions/259. Other options were taken from \n"
-            "https://github.com/ANTsX/ANTsR/blob/master/R/ants_motion_estimation.R.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--isotropic_HMC', dest='isotropic_HMC', action='store_true',
-        help=
-            "Whether to resample the EPI to isotropic resolution (taking the size of the axis with highest \n"
-            "resolution) for the estimation of motion parameters. This should greatly mitigating registration \n"
-            "'noise' which arise from partial volume effects, or poor image resolution (see online post on \n"
-            "this topic https://github.com/CoBrALab/RABIES/discussions/288). This option will increase \n"
-            "computational time, given the higher image resolution. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--voxelwise_motion', dest='voxelwise_motion', action='store_true',
-        help=
-            "Whether to output estimates of absolute displacement and framewise displacement at each voxel. \n"
-            "This will generate 4D nifti files representing motion timeseries derived from the 6 motion  \n"
-            "parameters. This is handled by antsMotionCorrStats. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    preprocess.add_argument(
-        '--apply_slice_mc', dest='apply_slice_mc', action='store_true',
-        help=
-            "Whether to apply a slice-specific motion correction after initial volumetric HMC. This can \n"
-            "correct for interslice misalignment resulting from within-TR motion. With this option, \n"
-            "motion corrections and the subsequent resampling from registration are applied sequentially\n"
-            "since the 2D slice registrations cannot be concatenate with 3D transforms. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -492,7 +441,41 @@ def get_parser():
             "\n"
 
         )
-
+    g_hmc = preprocess.add_argument_group(
+        title='Head motion correction options', 
+        description=
+            "Customize the framewise registration carried for head motion correction.\n"
+        )
+    g_hmc.add_argument(
+        "--no_HMC", dest='no_HMC', action='store_true',
+        help=
+            "Select this option to turn off the application of head motion correction when generating resampled timeseries. \n"
+            "Head motion parameters are still computed, and remain available for further operations that rely on those parameters.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_hmc.add_argument(
+        "--HMC_level", type=int, default=2,
+        choices=[1,2,3,4],
+        help=
+            "Select a level of stringence for the framewise registration (the higher the level, the more stringent it is). \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_hmc.add_argument(
+        "--hmc_qc_report", type=str, 
+        default='apply=false,fps=10',
+        help=
+            "This option manages the generation of a quality report on the head motion correction registration step. \n"
+            "The report includes registration error across frames, standard deviation and a video of the \n"
+            "timeseries each before and after applying the correction. \n"
+            "* apply: whether to generate the report or not.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* fps: frames per second for the video generated.\n"
+            "*** Provide an integer of 1 or above. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
     g_resampling = preprocess.add_argument_group(
         title='Resampling Options', 
         description=
@@ -508,6 +491,18 @@ def get_parser():
             "Determine whether preprocessed timeseries should be generated in commonspace only ('common_only'), \n"
             "nativespace only ('native_only'), or for both native and commonspaces ('both'). Generating timeseries \n"
             "only in the desired space will save memory and computational time.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_resampling.add_argument(
+        "--bold_nativespace", dest='bold_nativespace', action='store_true',
+        help=
+            "Select this option to define nativespace as the original space of the input functional scan, as opposed\n"
+            "to the anatomical space of the structural scan which is by default the nativespace.\n"
+            "The main difference is that distortion correction is no longer carried in the nativespace, which is \n"
+            "the result of registration to the structural scan, but the commonspace still includes distortion correction. \n"
+            "NOTE: --resampling_space must include native space as a desired output, otherwise this parameter has no effect. \n"
+            "Also, if using --bold_only, this parameter has no effect, since there is no anatomical scan in the workflow. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -857,10 +852,11 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--timeseries_interval', type=str, default='all',
+        '--timeseries_interval', type=str, default='0,end',
         help=
             "Before confound correction, can crop the timeseries within a specific interval.\n"
-            "e.g. '0,80' for timepoint 0 to 80.\n"
+            "e.g. '0,80' for timepoint 0 to 80. 0 is the first time frame, and 'end' stands for \n"
+            "the last time frame. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1217,6 +1213,13 @@ def read_parser(parser, args):
             defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
+        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report, 
+            key_value_pairs = {'apply':['true', 'false'], 'fps':int},
+            defaults = {'apply':False,'fps':10},
+            name='hmc_qc_report')
+        if opts.hmc_qc_report['fps'] < 1:
+            raise ValueError("--hmc_qc_report fps must be >= 1.")
+
         # check that masking/extraction options are well set
         for name,opt in zip(['--commonspace_reg','--bold2anat_coreg','--anat_robust_inho_cor','--bold_robust_inho_cor'],
                             [opts.commonspace_reg, opts.bold2anat_coreg, opts.anat_robust_inho_cor, opts.bold_robust_inho_cor]):

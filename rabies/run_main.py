@@ -65,7 +65,22 @@ def execute_workflow(args=None, return_workflow=False):
            can be provided, not both.
            """)
     
-    os.environ['RABIES_ITK_THREADS_STATE']='OFF' # This is turned off by default
+    ###ITK THREAD MANAGEMENT###
+    if opts.num_ITK_threads=='optimal':
+        num_ITK_threads=1 # until the number of scan is determined, this is set to 1 by default
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+    elif opts.num_ITK_threads=='off':
+        num_ITK_threads=1 # set to 1 to maximize nipype parallelization
+        os.environ['RABIES_ITK_THREADS_STATE']='OFF' # this means run_command() won't set constraints on the number of threads
+    else:
+        num_ITK_threads=int(opts.num_ITK_threads)
+        os.environ['RABIES_ITK_THREADS_STATE']='ON'
+    # this is set as an os.environ variable instead of a nipype node input, to avoid re-running nodes when changing this parameter
+    os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
+
+    if not opts.num_ITK_threads=='off':
+        # python parallelization is entirely handled outside of SITK, so individual commands should inherit 1 CPU 
+        sitk.ProcessObject.SetGlobalDefaultNumberOfThreads(1)
 
     if str(opts.data_type) == 'int16':
         opts.data_type = sitk.sitkInt16
@@ -77,6 +92,17 @@ def execute_workflow(args=None, return_workflow=False):
         opts.data_type = sitk.sitkFloat64
     else:
         raise ValueError('Invalid --data_type provided.')
+
+    if str(opts.interpolation) == 'Linear':
+        opts.interpolation_sitk = sitk.sitkLinear
+    elif str(opts.interpolation) == 'BSpline3':
+        opts.interpolation_sitk = sitk.sitkBSpline3
+    elif str(opts.interpolation) == 'LanczosSinc':
+        opts.interpolation_sitk = sitk.sitkLanczosWindowedSinc
+    elif str(opts.interpolation) == 'CosineSinc':
+        opts.interpolation_sitk = sitk.sitkCosineWindowedSinc
+    else:
+        raise ValueError('Invalid input for --interpolation.')
 
     if opts.rabies_stage == 'preprocess':
         workflow = preprocess(opts, log)

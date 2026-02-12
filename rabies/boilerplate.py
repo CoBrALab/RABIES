@@ -60,10 +60,6 @@ higher anatomical contrast. Otherwise, a"
     # HMC
     methods+="Using this volumetric EPI as a target, the head motion parameters are estimated by realigning each EPI frame to the target using a rigid registration. "
 
-    # Slice MC
-    if opts.apply_slice_mc:
-        methods+="--apply_slice_mc NOT IMPLEMENTED YET "
-
     # common space alignment
     if not opts.bold_only:
         reg_image='structural images'

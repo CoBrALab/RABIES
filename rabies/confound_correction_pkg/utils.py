@@ -120,18 +120,26 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
     else:
         confounds_array = select_motion_regressors(cr_opts.conf_list,motion_params_csv)
 
-    FD_trace = pd.read_csv(FD_file).get('Mean')
+    FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
+    if cr_opts.timeseries_interval == 'all':
+        raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
     # select the subset of timeseries specified
-    if not cr_opts.timeseries_interval == 'all':
-        lowcut = int(cr_opts.timeseries_interval.split(',')[0])
-        highcut = int(cr_opts.timeseries_interval.split(',')[1])
-        confounds_array = confounds_array[lowcut:highcut, :]
-        confounds_6rigid_array = confounds_6rigid_array[lowcut:highcut, :]
-        FD_trace = FD_trace[lowcut:highcut]
-        time_range = range(lowcut,highcut)
+    split = cr_opts.timeseries_interval.split(',')
+    if not len(split)==2:
+        raise ValueError(f"--timeseries_interval wasn't split into 2: {split}")
+    begin=int(split[0]) # must be an integer
+    end=split[1]
+    if end=='end':
+        from rabies.utils import get_sitk_header
+        end=get_sitk_header(bold_file).GetSize()[3] # take the total number of time frames
     else:
-        time_range = range(sitk.ReadImage(bold_file).GetSize()[3])
+        end=int(end)
+
+    time_range = range(begin,end)
+    confounds_array = confounds_array[time_range, :]
+    confounds_6rigid_array = confounds_6rigid_array[time_range, :]
+    FD_trace = FD_trace[time_range]
 
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'motion_params_csv':motion_params_csv, 'time_range':time_range}
     return data_dict

@@ -8,8 +8,9 @@ from nipype.interfaces.base import (
 )
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from rabies.utils import copyInfo_4DImage, copyInfo_3DImage, run_command
-from .hmc import antsMotionCorr
+from rabies.utils import copyInfo_3DImage, run_command
+from simpleitk_timeseries_motion_correction.motion import framewise_register_pair
+from simpleitk_timeseries_motion_correction.apply_transforms import framewise_resample_volume
 
 def init_bold_reference_wf(opts, name='gen_bold_ref'):
     # gen_bold_ref_head_start
@@ -39,7 +40,6 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
 
         outputs
             ref_image: the reference EPI volume
-            bold_file: the input EPI timeseries, but after removing dummy volumes if --detect_dummy is selected
     """
     # gen_bold_ref_head_end
 
@@ -52,8 +52,9 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         niu.IdentityInterface(fields=['ref_image']),
         name='outputnode')
 
-    gen_ref = pe.Node(EstimateReferenceImage(HMC_option=opts.HMC_option, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
-                      name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
+    n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
+    gen_ref = pe.Node(EstimateReferenceImage(HMC_level=opts.HMC_level, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
+                      name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=n_procs)
     gen_ref.plugin_args = {
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
 
@@ -69,7 +70,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    HMC_option = traits.Str(desc="Select one of the pre-defined HMC registration command.")
+    HMC_level = traits.Int(desc="Level for motion correction.")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -99,75 +100,68 @@ class EstimateReferenceImage(BaseInterface):
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
 
-        in_nii = sitk.ReadImage(self.inputs.in_file,
-                                self.inputs.rabies_data_type)
-        if not in_nii.GetDimension()==4:
-            raise ValueError(f"Input image {self.inputs.in_file} is not 4-dimensional.")
-
-        data_array = sitk.GetArrayFromImage(in_nii)
-
-        n_volumes_to_discard = _get_vols_to_discard(in_nii)
+        n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
 
         filename_split = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")
         out_ref_fname = os.path.abspath(
             f'{filename_split[0]}_bold_ref.nii.gz')
 
-        if (not n_volumes_to_discard == 0) and self.inputs.detect_dummy:
-            log.info("Detected "+str(n_volumes_to_discard)
-                  + " dummy scans. Taking the median of these volumes as reference EPI.")
-            median_image_data = np.median(
-                data_array[:n_volumes_to_discard, :, :, :], axis=0)
+        in_nii = sitk.ReadImage(self.inputs.in_file,
+                                self.inputs.rabies_data_type)
+        if not in_nii.GetDimension()==4:
+            raise ValueError(f"Input image {self.inputs.in_file} is not 4-dimensional.")
 
-        else:
-            n_volumes_to_discard = 0
-            if self.inputs.detect_dummy:
+        dummy_ref = False
+        if self.inputs.detect_dummy:
+            n_volumes_to_discard = _get_vols_to_discard(in_nii)
+            if (not n_volumes_to_discard == 0):
+                log.info("Detected "+str(n_volumes_to_discard)
+                    + " dummy scans. Taking the mean of these volumes as reference EPI.")
+                trimean_array = np.quantile(sitk.GetArrayFromImage(in_nii[:,:,:,:n_volumes_to_discard]), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+                ref_3d = copyInfo_3DImage(sitk.GetImageFromArray(
+                    trimean_array, isVector=False), in_nii)
+                dummy_ref = True
+            else:
                 log.info(
                     "Detected no dummy scans. Generating the ref EPI based on multiple volumes.")
-            # if no dummy scans, will generate a median from a subset of max 50
-            # slices of the time series
-
+                
+        if not dummy_ref:
             num_timepoints = in_nii.GetSize()[-1]
-            # select a set of 50 frames spread uniformally across time to avoid temporal biases
-            subset_idx = np.linspace(0,num_timepoints-1,50).astype(int)
-            data_slice = data_array[subset_idx,:,:,:]
             if num_timepoints > 50:
-                slice_fname = os.path.abspath("slice.nii.gz")
-                image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
-                    data_slice, isVector=False), in_nii, in_nii)
-                sitk.WriteImage(image_4d, slice_fname)
+                # select a set of 50 frames spread uniformally across time to avoid temporal biases
+                subset_idx = np.linspace(0,num_timepoints-1,50).astype(int)
+                subset_img_4d = sitk.JoinSeries([in_nii[:,:,:,int(i)] for i in subset_idx])
             else:
-                slice_fname = self.inputs.in_file
+                subset_img_4d = in_nii
 
-            median_fname = os.path.abspath("median.nii.gz")
-            image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-                np.median(data_slice, axis=0), isVector=False), in_nii)
-            sitk.WriteImage(image_3d, median_fname)
+            trimean_array = np.quantile(sitk.GetArrayFromImage(subset_img_4d), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+            ref_3d = copyInfo_3DImage(
+                sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 
-            # First iteration to generate reference image.
-            res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=False, rabies_data_type=self.inputs.rabies_data_type).run()
+            for round in range(2): # conducted 2 rounds of motion correction and re-calculation of the 3D reference
+                transforms = framewise_register_pair(
+                    subset_img_4d, 
+                    ref_3d, 
+                    level=self.inputs.HMC_level, 
+                    interpolation=sitk.sitkBSpline5, 
+                    max_workers=n_procs)
+                
+                resampled_img = framewise_resample_volume(
+                     subset_img_4d, 
+                     ref_3d, 
+                     transforms, 
+                     interpolation=sitk.sitkBSpline5, 
+                     clip_negative=True,
+                     extrapolator=False,
+                     max_workers=n_procs,
+                     )
 
-            median = np.median(sitk.GetArrayFromImage(sitk.ReadImage(
-                res.outputs.mc_corrected_bold, self.inputs.rabies_data_type)), axis=0)
-            tmp_median_fname = os.path.abspath("tmp_median.nii.gz")
-            image_3d = copyInfo_3DImage(
-                sitk.GetImageFromArray(median, isVector=False), in_nii)
-            sitk.WriteImage(image_3d, tmp_median_fname)
+                trimean_array = np.quantile(sitk.GetArrayFromImage(resampled_img), (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+                ref_3d = copyInfo_3DImage(
+                    sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 
-            # Second iteration to generate reference image.
-            res = antsMotionCorr(in_file=slice_fname,
-                                 ref_file=tmp_median_fname, prebuilt_option=self.inputs.HMC_option, transform_type='Rigid', second=True,  rabies_data_type=self.inputs.rabies_data_type).run()
-
-            # evaluate a trimmed mean instead of a median, trimming the 5% extreme values
-            from scipy import stats
-            median_image_data = stats.trim_mean(sitk.GetArrayFromImage(sitk.ReadImage(
-                res.outputs.mc_corrected_bold, self.inputs.rabies_data_type)), 0.05, axis=0)
-
-        # median_image_data is a 3D array of the median image, so creates a new nii image
-        # saves it
-        image_3d = copyInfo_3DImage(sitk.GetImageFromArray(
-            median_image_data, isVector=False), in_nii)
-        sitk.WriteImage(image_3d, out_ref_fname)
+        # saves the finalized average
+        sitk.WriteImage(ref_3d, out_ref_fname)
 
         # denoise the resulting reference image through non-local mean denoising
         # Denoising reference image.

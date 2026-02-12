@@ -1,6 +1,6 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-
+import os
 from .bold_ref import init_bold_reference_wf
 from ..utils import ResampleVolumes,ResampleMask
 
@@ -64,13 +64,18 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
             fields=['bold', 'bold_ref']),
         name='outputnode')
 
+    n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
     bold_transform = pe.Node(ResampleVolumes(
-        rabies_data_type=opts.data_type, clip_negative=True), name='bold_transform', mem_gb=4*opts.scale_min_memory)
-    bold_transform.inputs.apply_motcorr = (not opts.apply_slice_mc)
+        rabies_data_type=opts.data_type, clip_negative=True), 
+        name='bold_transform', mem_gb=4*opts.scale_min_memory, n_procs=n_procs)
     bold_transform.inputs.resampling_dim = resampling_dim
-    bold_transform.inputs.interpolation = opts.interpolation
+    bold_transform.inputs.interpolation = opts.interpolation_sitk
     bold_transform.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
+    if opts.no_HMC:
+        bold_transform.inputs.apply_motcorr = False
+    else:
+        bold_transform.inputs.apply_motcorr = True
 
     # Generate a new BOLD reference
     bold_reference_wf = init_bold_reference_wf(opts=opts)
@@ -79,8 +84,8 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
         (inputnode, bold_transform, [
             ('bold_file', 'in_file'),
             ('motcorr_params', 'motcorr_params'),
-            ('transforms_list', 'transforms'),
-            ('inverses', 'inverses'),
+            ('transforms_list', 'transforms_3d_files'),
+            ('inverses', 'inverses_3d'),
             ('ref_file', 'ref_file'),
             ('name_source', 'name_source'),
             ]),

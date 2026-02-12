@@ -1,4 +1,4 @@
-# Confound Correction pipeline
+# Confound Correction stage
 
 (confound_pipeline_target)=
 

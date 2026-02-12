@@ -1,3 +1,4 @@
+import os
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
@@ -130,7 +131,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
-                        'boldspace_brain_mask']),
+                        'boldspace_brain_mask',
+                        'hmc_qc_figure','hmc_qc_csv','hmc_qc_video',
+                        ]),
                 name='outputnode')
 
     boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
@@ -147,8 +150,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         bold_reference_wf = init_bold_reference_wf(opts=opts)
 
-        num_procs = min(opts.local_threads, number_functional_scans)
-        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, num_procs=num_procs, name="bold_inho_cor_wf")
+        # calculate the number of threads used for modelbuild
+        # the number cannot exceed --local_threads, but should use number_functional_scans*num_ITK_threads at least
+        nthreads_modelbuild_bold = min(opts.local_threads, number_functional_scans*int(os.environ['RABIES_ITK_NUM_THREADS']))
+        inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, nthreads_modelbuild=nthreads_modelbuild_bold, name="bold_inho_cor_wf")
 
 
         if opts.log_transform:
@@ -165,67 +170,16 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 (log_bold_node, transitionnode, [
                     ('log_nii', 'log_bold'),
                     ]),
-                ])
-
-        if opts.isotropic_HMC:
-            def resample_isotropic(bold_file, rabies_data_type):
-                import numpy as np
-                import SimpleITK as sitk
-                import os
-                import pathlib
-                from rabies.utils import resample_image_spacing_4d
-                image_4d = sitk.ReadImage(bold_file, rabies_data_type)
-                # the image gets resample to the dimension of the axis with highest resolution
-                min_dim = np.array(image_4d.GetSpacing()[:3]).min()
-                output_spacing = (min_dim,min_dim,min_dim)
-                resampled = resample_image_spacing_4d(image_4d, output_spacing, clip_negative=True)
-                filename_split = pathlib.Path(
-                    bold_file).name.rsplit(".nii")
-                isotropic_bold_file = os.path.abspath(filename_split[0]+'_isotropic.nii.gz')
-                sitk.WriteImage(resampled, isotropic_bold_file)
-                return isotropic_bold_file
-
-            isotropic_resampling_node = pe.Node(Function(input_names=['bold_file', 'rabies_data_type'],
-                                                            output_names=[
-                                                                'isotropic_bold_file'],
-                                                            function=resample_isotropic),
-                                                    name='resample_isotropic')
-            isotropic_resampling_node.inputs.rabies_data_type = opts.data_type
-
-            workflow.connect([
-                (isotropic_resampling_node, bold_reference_wf, [
-                    ('isotropic_bold_file', 'inputnode.bold_file'),
-                    ]),
-                (isotropic_resampling_node, transitionnode, [
-                    ('isotropic_bold_file', 'isotropic_bold_file'),
+                (log_bold_node, bold_reference_wf, [
+                    ('log_nii', 'inputnode.bold_file'),
                     ]),
                 ])
-            
-            if opts.log_transform:
-                workflow.connect([
-                    (log_bold_node, isotropic_resampling_node, [
-                        ('log_nii', 'bold_file'),
-                        ]),
-                    ])
-            else:
-                workflow.connect([
-                    (boldbuffer, isotropic_resampling_node, [
-                        ('bold_file', 'bold_file'),
-                        ]),
-                    ])
         else:
-            if opts.log_transform:
-                workflow.connect([
-                    (log_bold_node, bold_reference_wf, [
-                        ('log_nii', 'inputnode.bold_file'),
-                        ]),
-                    ])
-            else:
-                workflow.connect([
-                    (boldbuffer, bold_reference_wf, [
-                        ('bold_file', 'inputnode.bold_file'),
-                        ]),
-                    ])
+            workflow.connect([
+                (boldbuffer, bold_reference_wf, [
+                    ('bold_file', 'inputnode.bold_file'),
+                    ]),
+                ])
 
         if opts.apply_despiking:
             despike = pe.Node(Function(input_names=['in_file'],
@@ -449,12 +403,19 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('bold_ref', 'inputnode.ref_image'),
             ]),
         (bold_hmc_wf, outputnode, [
-            ('outputnode.motcorr_params', 'motcorr_params')]),
+            ('outputnode.motcorr_params', 'motcorr_params'),
+            ('outputnode.hmc_qc_figure', 'hmc_qc_figure'),
+            ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
+            ('outputnode.hmc_qc_video', 'hmc_qc_video'),
+            ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
             ('init_denoise', 'init_denoise'),
             ('denoise_mask', 'denoise_mask'),
             ('corrected_EPI', 'corrected_EPI'),
+            ]),
+        (inputnode, estimate_motion_node, [
+            ('bold', 'boldspace_bold'),
             ]),
         (bold_hmc_wf, estimate_motion_node, [
             ('outputnode.motcorr_params', 'motcorr_params'),
@@ -465,49 +426,15 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ]),
         ])
 
-    if opts.apply_slice_mc:
+    if opts.log_transform:
         workflow.connect([
-            (bold_stc_wf, bold_hmc_wf, [
-             ('outputnode.stc_file', 'inputnode.bold_file')]),
-        ])
-    else:
-        if opts.isotropic_HMC:
-            workflow.connect([
-                (transitionnode, bold_hmc_wf, [
-                    ('isotropic_bold_file', 'inputnode.bold_file')]),
-                ])
-        else:
-            if opts.log_transform:
-                workflow.connect([
-                    (transitionnode, bold_hmc_wf, [
-                        ('log_bold', 'inputnode.bold_file')]),
-                    ])
-            else:
-                workflow.connect([
-                    (transitionnode, bold_hmc_wf, [
-                        ('bold_file', 'inputnode.bold_file')]),
-                    ])
-
-
-    if opts.isotropic_HMC:
-        workflow.connect([
-            (transitionnode, estimate_motion_node, [
-                ('isotropic_bold_file', 'boldspace_bold'),
-                ]),
+            (transitionnode, bold_hmc_wf, [
+                ('log_bold', 'inputnode.bold_file')]),
             ])
     else:
         workflow.connect([
-            (inputnode, estimate_motion_node, [
-                ('bold', 'boldspace_bold'),
-                ]),
-            ])
-
-    if opts.voxelwise_motion:
-        workflow.connect([
-            (estimate_motion_node, outputnode, [
-                ('FD_voxelwise', 'FD_voxelwise'),
-                ('pos_voxelwise', 'pos_voxelwise'),
-                ]),
+            (transitionnode, bold_hmc_wf, [
+                ('bold_file', 'inputnode.bold_file')]),
             ])
 
     ####MANAGE GENERATING COMMON AND/OR NATIVESPACE OUTPUTS
@@ -575,18 +502,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                     ]),
                 ])
 
-        if opts.apply_slice_mc:
-            workflow.connect([
-                (bold_hmc_wf, bold_native_trans_wf, [
-                    ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
-            ])
-        else:
-            workflow.connect([
-                (bold_stc_wf, bold_native_trans_wf, [
-                    ('outputnode.stc_file', 'inputnode.bold_file')]),
-            ])
-
         workflow.connect([
+            (bold_stc_wf, bold_native_trans_wf, [
+                ('outputnode.stc_file', 'inputnode.bold_file'),
+                ]),
             (prep_transforms_between_spaces_node, bold_native_trans_wf, [
                 ('bold_to_native_transform_list', 'inputnode.transforms_list'),
                 ('bold_to_native_inverse_list', 'inputnode.inverses'),
@@ -622,18 +541,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     if opts.generate_commonspace:
         bold_commonspace_trans_wf = init_bold_preproc_trans_wf(opts=opts, resampling_dim='ref_file', name='bold_commonspace_trans_wf')
 
-        if opts.apply_slice_mc:
-            workflow.connect([
-                (bold_hmc_wf, bold_commonspace_trans_wf, [
-                ('outputnode.slice_corrected_bold', 'inputnode.bold_file')]),
-                ])
-        else:
-            workflow.connect([
-                (bold_stc_wf, bold_commonspace_trans_wf, [
-                ('outputnode.stc_file', 'inputnode.bold_file')]),
-                ])
-
         workflow.connect([
+            (bold_stc_wf, bold_commonspace_trans_wf, [
+                ('outputnode.stc_file', 'inputnode.bold_file')
+                ]),
             (prep_transforms_between_spaces_node, bold_commonspace_trans_wf, [
                 ('bold_to_commonspace_transform_list', 'inputnode.transforms_list'),
                 ('bold_to_commonspace_inverse_list', 'inputnode.inverses'),

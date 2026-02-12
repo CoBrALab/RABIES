@@ -156,18 +156,16 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     number_structural_scans = len(structural_scan_list)
     number_functional_scans = len(bold_scan_list)
 
-    # this is set as an os.environ variable instead of a nipype node input, to avoid re-running nodes when changing this parameter
-    if opts.num_ITK_threads=='optimal':
+    if opts.num_ITK_threads=='optimal': # override previous assignment from run_main(): an optimal thread number can be selected based on # of scans
         num_ITK_threads=max(int(opts.local_threads/number_functional_scans),1)
-        os.environ['RABIES_ITK_THREADS_STATE']='ON'
         log.info(f"An optimal number of {num_ITK_threads} ITK threads are allocated for {number_functional_scans} functional scans.")
-    elif opts.num_ITK_threads=='off':
-        num_ITK_threads=1 # set to 1 to maximize parallelization
-        os.environ['RABIES_ITK_THREADS_STATE']='OFF'
+        os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
     else:
-        num_ITK_threads=int(opts.num_ITK_threads)
-        os.environ['RABIES_ITK_THREADS_STATE']='ON'
-    os.environ['RABIES_ITK_NUM_THREADS']=str(num_ITK_threads)
+        num_ITK_threads = int(os.environ['RABIES_ITK_NUM_THREADS'])
+
+    # calculate the number of threads used for modelbuild
+    # the number cannot exceed --local_threads, but should use number_structural_scans*num_ITK_threads at least
+    nthreads_modelbuild_anat = min(opts.local_threads, number_structural_scans*num_ITK_threads)
 
     # setting up all iterables
     main_split = pe.Node(niu.IdentityInterface(fields=['split_name', 'scan_info']),
@@ -307,14 +305,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         resample_template_node.inputs.registration_mask = inherit_dict['registration_mask']
         resample_template_node.inputs.commonspace_template = inherit_dict['commonspace_template']
 
-    # calculate the number of scans that will be registered
-    num_procs = min(opts.local_threads, number_structural_scans)
 
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
                                         name="EPI_target_buffer")
 
     commonspace_reg_wf = init_commonspace_reg_wf(opts=opts, commonspace_reg_opts=opts.commonspace_reg, inherit_unbiased=inherit_unbiased,
-                                                 output_folder=output_folder, transforms_datasink=transforms_datasink, num_procs=num_procs, output_datasinks=True, 
+                                                 output_folder=output_folder, transforms_datasink=transforms_datasink, nthreads_modelbuild=nthreads_modelbuild_anat, output_datasinks=True, 
                                                  joinsource_list=['main_split'], name='commonspace_reg_wf')
     if inherit_unbiased:
         commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_template = inherit_dict['unbiased_template']
@@ -434,7 +430,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     if not opts.bold_only:
         # setting anat preprocessing nodes
-        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', output_folder=output_folder, num_procs=num_procs, name="anat_inho_cor_wf")
+        anat_inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='structural', output_folder=output_folder, nthreads_modelbuild=nthreads_modelbuild_anat, name="anat_inho_cor_wf")
 
         workflow.connect([
             (format_anat_node, anat_inho_cor_wf, [
@@ -553,6 +549,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("FD_voxelwise", "FD_voxelwise"),
             ("pos_voxelwise", "pos_voxelwise"),
             ("FD_csv", "FD_csv"),
+            ]),
+        (bold_main_wf, motion_datasink, [
+            ('outputnode.hmc_qc_figure', 'hmc_qc_figure'),
+            ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
+            ('outputnode.hmc_qc_video', 'hmc_qc_video'),
             ]),
         (outputnode, bold_datasink, [
             ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref

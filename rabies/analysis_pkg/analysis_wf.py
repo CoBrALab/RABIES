@@ -65,14 +65,14 @@ def init_analysis_wf(opts, name="analysis_wf"):
 
         if opts.resample_to_commonspace:
             SBC_transform_node = pe.Node(ResampleVolumes(
-                resampling_dim='ref_file', interpolation=opts.interpolation,
+                resampling_dim='ref_file', interpolation=opts.interpolation_sitk,
                 rabies_data_type=opts.data_type, apply_motcorr=False, clip_negative=False), 
                 name='SBC_to_commonspace')
             
             workflow.connect([
                 (subject_inputnode, SBC_transform_node, [
-                    ("native_to_commonspace_transform_list", "transforms"),
-                    ("native_to_commonspace_inverse_list", "inverses"),
+                    ("native_to_commonspace_transform_list", "transforms_3d_files"),
+                    ("native_to_commonspace_inverse_list", "inverses_3d"),
                     ]),
                 (group_inputnode, SBC_transform_node, [
                     ("commonspace_template", "ref_file"),
@@ -118,14 +118,15 @@ def init_analysis_wf(opts, name="analysis_wf"):
 
         if opts.resample_to_commonspace:
             DR_transform_node = pe.Node(ResampleVolumes(
-                resampling_dim='ref_file', interpolation=opts.interpolation,
+                resampling_dim='ref_file', interpolation=opts.interpolation_sitk,
                 rabies_data_type=opts.data_type, apply_motcorr=False, clip_negative=False), 
+                n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']),
                 name='DR_to_commonspace')
             
             workflow.connect([
                 (subject_inputnode, DR_transform_node, [
-                    ("native_to_commonspace_transform_list", "transforms"),
-                    ("native_to_commonspace_inverse_list", "inverses"),
+                    ("native_to_commonspace_transform_list", "transforms_3d_files"),
+                    ("native_to_commonspace_inverse_list", "inverses_3d"),
                     ]),
                 (group_inputnode, DR_transform_node, [
                     ("commonspace_template", "ref_file"),

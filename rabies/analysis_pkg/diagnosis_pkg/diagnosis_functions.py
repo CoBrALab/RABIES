@@ -104,19 +104,16 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         prior_fit_out['C'] = C
 
     if nativespace_analysis: # certain spatial maps were computed in nativespace and need resampling
-        from rabies.utils import applyTransforms_3D
+        from rabies.utils import resample_volumes
         import tempfile
         tmppath = tempfile.mkdtemp()
         def resample_brain_map(brain_map):
-            temp_fname = f'{tmppath}/brain_map.nii.gz'
-            temp_out_fname = f'{tmppath}/brain_map_resampled.nii.gz'
             image_3d = recover_3D(mask_file=sub_maps_data_dict['mask_file'], vector_map=brain_map)
-            sitk.WriteImage(image_3d, temp_fname)
-            applyTransforms_3D(transforms = resampling_specs['transforms'], inverses = resampling_specs['inverses'], 
-                        input_image = temp_fname, ref_image = common_maps_data_dict['anat_ref_file'], output_filename = temp_out_fname, 
-                        interpolation=resampling_specs['interpolation'], rabies_data_type=resampling_specs['data_type'], clip_negative=False)
-            resampled_brain_map = sitk.GetArrayFromImage(sitk.ReadImage(temp_out_fname, resampling_specs['data_type']), 
-                                                         )[common_maps_data_dict['volume_indices']]
+            resampled_img = resample_volumes(image_3d, common_maps_data_dict['anat_ref_file'], 
+                                             transforms_3d_files=resampling_specs['transforms'], inverses_3d=resampling_specs['inverses'], 
+                                             motcorr_params_file = None, interpolation=resampling_specs['interpolation'], 
+                                             rabies_data_type=resampling_specs['rabies_data_type'], clip_negative=False)
+            resampled_brain_map = sitk.GetArrayFromImage(resampled_img)[common_maps_data_dict['volume_indices']]
             return resampled_brain_map
             
         [GS_cov, GS_corr, VE_spatial, temporal_std, predicted_std] = [

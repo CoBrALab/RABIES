@@ -31,8 +31,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Transforms to move nativespace computations to commonspace")
     native_to_common_inverses = traits.List(
         desc="Inverses to move nativespace computations to commonspace")
-    interpolation = traits.Str(
-        desc="Select the interpolator for antsApplyTransform.")
+    interpolation = traits.Int(
+        desc="Provide an SITK interpolator.")
     brainmap_percent_threshold = traits.Float(
         desc="Input percentage value for thresholding images.")
     rabies_data_type = traits.Int(
@@ -82,7 +82,7 @@ class ScanDiagnosis(BaseInterface):
             resampling_specs = {'transforms':self.inputs.native_to_common_transforms,
                                 'inverses':self.inputs.native_to_common_inverses,
                                 'interpolation':self.inputs.interpolation,
-                                'data_type':self.inputs.rabies_data_type,
+                                'rabies_data_type':self.inputs.rabies_data_type,
                                 }
         else:
             resampling_specs = {}

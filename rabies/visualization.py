@@ -19,9 +19,18 @@ plt.rcParams.update({
     "savefig.edgecolor": "black"})
 
 
-def otsu_scaling(image_file):
+def otsu_scaling(input_image):
     from skimage.filters import threshold_multiotsu
-    img = sitk.ReadImage(image_file)
+    
+    # the input can be either a nifti file or an SITK image
+    if isinstance(input_image, sitk.Image):
+        img = input_image
+    elif os.path.isfile(input_image):
+        img = sitk.ReadImage(input_image)
+    else:
+        raise ValueError(
+            "input_image must be a SimpleITK.Image instance or a path to an existing image file"
+        )
     array = sitk.GetArrayFromImage(img)
 
     thresholds = threshold_multiotsu(array.astype(float).flatten(), classes=5, nbins=100)
