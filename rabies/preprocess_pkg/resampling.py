@@ -101,8 +101,8 @@ def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'
 def init_mask_preproc_trans_wf(opts, name='mask_native_trans_wf'):
     # mask_resampling_head_start
     """
-    This workflow carries the resampling of brain masks and labels from the reference 
-    atlas onto the preprocessed EPI timeseries.
+    This workflow carries the resampling of brain masks from the reference 
+    commonspace onto the preprocessed EPI timeseries.
 
     Workflow:
         parameters
@@ -123,7 +123,6 @@ def init_mask_preproc_trans_wf(opts, name='mask_native_trans_wf'):
             WM_mask: the WM mask resampled onto preprocessed EPI timeseries
             CSF_mask: the CSF mask resampled onto preprocessed EPI timeseries
             vascular_mask: the vascular mask resampled onto preprocessed EPI timeseries
-            labels: the atlas labels resampled onto preprocessed EPI timeseries
     """
     # mask_resampling_head_end
 
@@ -137,11 +136,11 @@ def init_mask_preproc_trans_wf(opts, name='mask_native_trans_wf'):
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'labels']),
+            fields=['brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask']),
         name='outputnode')
 
     # integrate a node to resample each mask, only if the mask exists
-    for opt_key in ['brain_mask', 'WM_mask','CSF_mask','vascular_mask','labels']:
+    for opt_key in ['brain_mask', 'WM_mask','CSF_mask','vascular_mask']:
         opt_file = getattr(opts, opt_key)
         if opt_file is not None:
             mask_to_EPI = pe.Node(ResampleMask(), name=opt_key+'_resample')

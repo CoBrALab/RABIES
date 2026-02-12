@@ -810,8 +810,7 @@ def inherit_unbiased_files(RABIES_output_path, opts):
             --brain_mask \n \
             --WM_mask \n \
             --CSF_mask \n \
-            --vascular_mask \n \
-            --labels\n ")
+            --vascular_mask \n")
     
     opts.anatomical_resampling = inherit_preprocess_opts.anatomical_resampling
     opts.commonspace_reg = inherit_preprocess_opts.commonspace_reg
@@ -820,7 +819,6 @@ def inherit_unbiased_files(RABIES_output_path, opts):
     opts.WM_mask = inherit_preprocess_opts.WM_mask
     opts.CSF_mask = inherit_preprocess_opts.CSF_mask
     opts.vascular_mask = inherit_preprocess_opts.vascular_mask
-    opts.labels = inherit_preprocess_opts.labels
 
     preproc_workflow_file = f'{RABIES_output_path}/rabies_preprocess_workflow.pkl'
     node_dict = get_workflow_dict(preproc_workflow_file)

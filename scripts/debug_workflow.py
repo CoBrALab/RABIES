@@ -27,7 +27,6 @@ args = [
         '--WM_mask', f'{tmppath}/inputs/token_mask.nii.gz',
         '--CSF_mask', f'{tmppath}/inputs/token_mask.nii.gz',
         '--vascular_mask', f'{tmppath}/inputs/token_mask.nii.gz', 
-        '--labels', f'{tmppath}/inputs/token_mask.nii.gz',
         ]
 
 execute_workflow(args=args)

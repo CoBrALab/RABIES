@@ -5,6 +5,7 @@ from nipype import logging, config
 import pathlib
 from .boilerplate import *
 from .parser import get_parser,read_parser
+from .preprocess_pkg.utils import convert_to_RAS
 
 # setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -204,8 +205,8 @@ def preprocess(opts, log):
         opts.anat_template = os.path.abspath(opts.anat_template)
         opts.brain_mask = os.path.abspath(opts.brain_mask)
         
-        for opt_key,default_file in zip(['WM_mask','CSF_mask','vascular_mask','labels'],
-                                         [DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS]):
+        for opt_key,default_file in zip(['WM_mask','CSF_mask','vascular_mask'],
+                                         [DSURQE_WM,DSURQE_CSF,DSURQE_VASC]):
             
             opt_file = getattr(opts, opt_key)
             if str(opt_file)==default_file:
@@ -219,18 +220,17 @@ def preprocess(opts, log):
 
     # if --bold_only, the default atlas files change to EPI versions
     if opts.bold_only:
-        for opt_key,default_file,EPI_file in zip(['anat_template','brain_mask','WM_mask','CSF_mask','vascular_mask','labels'],
-                                         [DSURQE_ANAT, DSURQE_MASK, DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS],
-                                         [EPICOMMON_ANAT, EPICOMMON_MASK, EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS]):
+        for opt_key,default_file,EPI_file in zip(['anat_template','brain_mask','WM_mask','CSF_mask','vascular_mask'],
+                                         [DSURQE_ANAT, DSURQE_MASK, DSURQE_WM,DSURQE_CSF,DSURQE_VASC],
+                                         [EPICOMMON_ANAT, EPICOMMON_MASK, EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC]):
             opt_file = getattr(opts, opt_key)
             if str(opt_file)==default_file:
                 setattr(opts, opt_key, EPI_file)
                 log.info(f'With --bold_only, default --{opt_key} changed to {EPI_file}')
 
     # final check of template file formats
-    from rabies.preprocess_pkg.utils import convert_to_RAS
-    for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask','labels'],
-                                    [False,True,True,True,True,False]):
+    for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
+                                    [False,True,True,True,True]):
         opt_file = getattr(opts, opt_key)
         if opt_file is not None: # some masks might be set to None
             if not os.path.isfile(opt_file):
@@ -313,6 +313,30 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
+    labels_file = opts.ROI_labels_file
+    if str(labels_file)==DSURQE_LABELS:
+        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+            pass
+        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+            file=EPICOMMON_LABELS
+            opts.ROI_labels_file=EPICOMMON_LABELS
+            log.info('With --bold_only, default --ROI_labels_file changed to '+file)
+        else:
+            opts.ROI_labels_file = None # set to None so that no computation is attempted using the labels
+    else:
+        if not os.path.isfile(labels_file):
+            raise ValueError(f"--ROI_labels_file file {labels_file} doesn't exists.")
+        # need to convert to RAS first, since the template file was also converted
+        labels_file = convert_to_RAS(
+            str(labels_file), preprocess_opts.output_dir+'/template_files')
+        check_template_overlap(preprocess_opts.anat_template, labels_file)
+        opts.ROI_labels_file = labels_file
+
+    if preprocess_opts.bold_only and str(opts.prior_maps)==DSURQE_ICA:
+        file=EPICOMMON_ICA
+        opts.prior_maps=file
+        log.info('With --bold_only, default --prior_maps changed to '+file)
+        
     seed_file_list = []
     seed_name_list = []
     for seed in opts.seed_list:
@@ -338,13 +362,6 @@ def analysis(opts, log):
         seed_name_list.append(seed_name)
     opts.seed_list = seed_file_list # override old input so that pre-built seeds are now files
     opts.seed_name_list = seed_name_list # store for developing iterables later
-
-    if preprocess_opts.bold_only:
-        if str(opts.prior_maps)==DSURQE_ICA:
-            file=EPICOMMON_ICA
-            opts.prior_maps=file
-            log.info('With --bold_only, default --prior_maps changed to '+file)
-
 
     from rabies.analysis_pkg.main_wf import init_main_analysis_wf
     workflow = init_main_analysis_wf(preprocess_opts, confound_correction_opts, opts)
