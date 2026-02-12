@@ -39,7 +39,7 @@ REQUIRED = [
     'networkx<3',
     'traits<7.0',
     'tqdm',
-    'simpleitk_timeseries_motion_correction',
+    'simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@rabies_conform',
 ]
 
 # What packages are optional?
