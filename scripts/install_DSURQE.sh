@@ -66,12 +66,12 @@ fi
 # create regional masks
 gen_DSURQE_masks.py ${out_dir}/DSURQE_40micron_labels.nii.gz ${out_dir}/DSURQE_40micron_R_mapping.csv ${out_dir}/DSURQE_40micron
 
-curl -L --retry 5 "https://zenodo.org/records/18611133/files/melodic_IC.nii.gz" -o "${out_dir}/melodic_IC.nii.gz"
-curl -L --retry 5 "https://zenodo.org/records/18611133/files/vascular_mask.nii.gz" -o "${out_dir}/vascular_mask.nii.gz"
-curl -L --retry 5 "https://zenodo.org/records/18611133/files/EPI_atlas.zip" -o "${out_dir}/EPI_atlas.zip"
-curl -L --retry 5 "https://zenodo.org/records/18611133/files/DSURQE_seeds.zip" -o "${out_dir}/DSURQE_seeds.zip"
+curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/18611133/files/melodic_IC.nii.gz" -o "${out_dir}/melodic_IC.nii.gz"
+curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/18611133/files/vascular_mask.nii.gz" -o "${out_dir}/vascular_mask.nii.gz"
+curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/18611133/files/EPI_atlas.zip" -o "${out_dir}/EPI_atlas.zip"
+curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/18611133/files/DSURQE_seeds.zip" -o "${out_dir}/DSURQE_seeds.zip"
 
-unzip ${out_dir}/EPI_atlas.zip -d ${out_dir}
-unzip ${out_dir}/DSURQE_seeds.zip -d ${out_dir}
-rm ${out_dir}/EPI_atlas.zip
-rm ${out_dir}/DSURQE_seeds.zip
+unzip "${out_dir}/EPI_atlas.zip" -d "${out_dir}"
+unzip "${out_dir}/DSURQE_seeds.zip" -d "${out_dir}"
+rm "${out_dir}/EPI_atlas.zip"
+rm "${out_dir}/DSURQE_seeds.zip"
