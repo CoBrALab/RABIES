@@ -104,7 +104,7 @@ if not opts.custom is None:
                     check=True,
                     shell=True,
                     )
-            command += f" --prior_bold_idx 0 1 --prior_confound_idx 0 1 --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --ROI_labels_file {tmppath}/inputs/token_mask.nii.gz"
+            command += f" --prior_bold_idx 0 1 --prior_confound_idx 0 1 --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --ROI_labels_file {tmppath}/inputs/token_labels.nii.gz"
         command += f" {tmppath}/outputs {tmppath}/outputs"
 
     process = subprocess.run(

@@ -167,7 +167,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_common_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'anat_ref_file',
                                                             'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
                                             output_names=[
-                                                'maps_dict_file'],
+                                                'maps_dict_file', 'resampled_seed_filelist', 'resampled_atlas_file'],
                                         function=load_maps_dict),
                                 name='load_maps_dict_common_node')
         load_maps_dict_common_node.inputs.atlas_file = analysis_opts.ROI_labels_file
@@ -185,6 +185,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_common_node.inputs.inverse_list = []
         load_maps_dict_common_node.inputs.name_source = 'commonspace.nii'
 
+        workflow.connect([
+            (load_maps_dict_common_node, commonspace_analysis_datasink, [
+                ("resampled_seed_filelist", "commonspace_resampled_seeds"),
+                ("resampled_atlas_file", "commonspace_resampled_atlas"),
+                ]),
+            ])
+
         # only if inputs are in commonspace then analysis computations are also in commonspace
         if not cr_opts.nativespace_analysis:
             workflow.connect([
@@ -201,7 +208,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
         load_maps_dict_native_node = pe.Node(Function(input_names=['mask_file', 'WM_mask_file', 'CSF_mask_file', 'atlas_file', 'anat_ref_file', 
                                                             'seed_dict', 'prior_maps', 'transform_list','inverse_list', 'name_source', 'interpolation', 'rabies_data_type'],
                                             output_names=[
-                                                'maps_dict_file'],
+                                                'maps_dict_file', 'resampled_seed_filelist', 'resampled_atlas_file'],
                                         function=load_maps_dict),
                                 name='load_maps_dict_native_node')
         load_maps_dict_native_node.inputs.atlas_file = analysis_opts.ROI_labels_file
@@ -229,6 +236,10 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (conf_outputnode, analysis_wf, [
                 ("native_to_commonspace_transform_list", "subject_inputnode.native_to_commonspace_transform_list"),
                 ("native_to_commonspace_inverse_list", "subject_inputnode.native_to_commonspace_inverse_list"),
+                ]),
+            (load_maps_dict_native_node, nativespace_analysis_datasink, [
+                ("resampled_seed_filelist", "nativespace_resampled_seeds"),
+                ("resampled_atlas_file", "nativespace_resampled_atlas"),
                 ]),
             ])
 
@@ -400,16 +411,19 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, anat_ref_
     # resample each seed into the right space and then load the seed as an array
     seed_arr_dict = {}
     seed_name_list = list(seed_dict.keys())
+    resampled_seed_filelist = []
     for seed_name in seed_name_list:
         seed_file = seed_dict[seed_name]
         resampled_seed_file = os.path.abspath(f'{seed_name}_resampled.nii.gz')
         antsApplyTransforms(transforms = transform_list, inverses = inverse_list, 
                         input_image = seed_file, ref_image = anat_ref_file, output_filename = resampled_seed_file, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
         seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
+        resampled_seed_filelist.append(resampled_seed_file)
 
     if atlas_file is None:
         atlas_idx = None
         roi_list = None
+        resampled_atlas_file = None
     else:
         resampled_atlas_file = os.path.abspath(f'parcellation_resampled.nii.gz')
         antsApplyTransforms(transforms = transform_list, inverses = inverse_list, 
@@ -433,7 +447,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, anat_ref_
     with open(maps_dict_file, 'wb') as handle:
         pickle.dump(maps_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    return maps_dict_file
+    return maps_dict_file, resampled_seed_filelist, resampled_atlas_file
 
 
 # this function loads subject-specific data from confound correction
