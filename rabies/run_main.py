@@ -2,6 +2,7 @@ import os
 import pickle
 import SimpleITK as sitk
 from nipype import logging, config
+import pathlib
 from .boilerplate import *
 from .parser import get_parser,read_parser
 from .preprocess_pkg.utils import convert_to_RAS
@@ -21,13 +22,13 @@ DSURQE_LABELS=f"{rabies_path}/DSURQE_40micron_labels.nii.gz"
 DSURQE_MAPPINGS=f"{rabies_path}/DSURQE_40micron_R_mapping.csv"
 DSURQE_ICA=f"{rabies_path}/melodic_IC.nii.gz"
 
-EPICOMMON_ANAT=f"{rabies_path}/EPI_template.nii.gz"
-EPICOMMON_MASK=f"{rabies_path}/EPI_brain_mask.nii.gz"
-EPICOMMON_WM=f"{rabies_path}/EPI_WM_mask.nii.gz"
-EPICOMMON_CSF=f"{rabies_path}/EPI_CSF_mask.nii.gz"
-EPICOMMON_VASC=f"{rabies_path}/EPI_vascular_mask.nii.gz"
-EPICOMMON_LABELS=f"{rabies_path}/EPI_labels.nii.gz"
-EPICOMMON_ICA=f"{rabies_path}/melodic_IC_resampled.nii.gz"
+EPICOMMON_ANAT=f"{rabies_path}/EPI_atlas/EPI_template.nii.gz"
+EPICOMMON_MASK=f"{rabies_path}/EPI_atlas/EPI_brain_mask.nii.gz"
+EPICOMMON_WM=f"{rabies_path}/EPI_atlas/EPI_WM_mask.nii.gz"
+EPICOMMON_CSF=f"{rabies_path}/EPI_atlas/EPI_CSF_mask.nii.gz"
+EPICOMMON_VASC=f"{rabies_path}/EPI_atlas/EPI_vascular_mask.nii.gz"
+EPICOMMON_LABELS=f"{rabies_path}/EPI_atlas/EPI_labels.nii.gz"
+EPICOMMON_ICA=f"{rabies_path}/EPI_atlas/melodic_IC_resampled.nii.gz"
 
 
 def execute_workflow(args=None, return_workflow=False):
@@ -335,6 +336,32 @@ def analysis(opts, log):
         file=EPICOMMON_ICA
         opts.prior_maps=file
         log.info('With --bold_only, default --prior_maps changed to '+file)
+        
+    seed_file_list = []
+    seed_name_list = []
+    for seed in opts.seed_list:
+        if seed in [
+            'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
+            'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
+            'MO_seed', 'SS_dorsal_seed', 'VIS_seed']:
+            if preprocess_opts.bold_only:
+                seed_file = f'{rabies_path}/DSURQE_seeds/EPI_template_resampled/{seed}_left_EPI_resampled.nii.gz'
+            else:
+                seed_file = f'{rabies_path}/DSURQE_seeds/{seed}_left.nii.gz'
+            seed_name = seed
+        else:
+            seed_file = seed
+            seed_name = pathlib.Path(seed).name.rsplit(".nii")[0]
+        if not os.path.isfile(seed_file):
+            raise ValueError(
+                f"Provide seed file path {seed_file} doesn't exists.")
+
+        check_template_overlap(preprocess_opts.anat_template, seed_file)
+
+        seed_file_list.append(seed_file)
+        seed_name_list.append(seed_name)
+    opts.seed_list = seed_file_list # override old input so that pre-built seeds are now files
+    opts.seed_name_list = seed_name_list # store for developing iterables later
 
     from rabies.analysis_pkg.main_wf import init_main_analysis_wf
     workflow = init_main_analysis_wf(preprocess_opts, confound_correction_opts, opts)
@@ -349,9 +376,19 @@ def install_DSURQE(log):
               EPICOMMON_ANAT,EPICOMMON_MASK,EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS,EPICOMMON_ICA]:
         if not os.path.isfile(f):
             install = True
+    for seed in [
+        'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
+        'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
+        'MO_seed', 'SS_dorsal_seed', 'VIS_seed']:
+        seed_file = f'{rabies_path}/DSURQE_seeds/EPI_template_resampled/{seed}_left_EPI_resampled.nii.gz'
+        if not os.path.isfile(seed_file):
+            install = True
+        seed_file = f'{rabies_path}/DSURQE_seeds/{seed}_left.nii.gz'
+        if not os.path.isfile(seed_file):
+            install = True
 
     if install:
-        from rabies.preprocess_pkg.utils import run_command
+        from rabies.utils import run_command
         log.info(
             "SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
         rc,c_out = run_command(f'install_DSURQE.sh {rabies_path}', verbose=True)

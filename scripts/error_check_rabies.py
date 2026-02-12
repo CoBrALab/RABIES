@@ -178,7 +178,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --seed_list {tmppath}/inputs/token_mask_half.nii.gz --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
+command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --seed_list ACA_seed {tmppath}/inputs/token_mask_half.nii.gz --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
 process = subprocess.run(
     command,
     check=True,
