@@ -54,9 +54,9 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
     # need to set a buffer function which will be holding the preproc_outputnode outputs, 
     # so that it is saved in the workflow graph and can be read later during analysis
     def buffer_outputnode(input_bold=None, commonspace_bold=None, commonspace_mask=None, commonspace_WM_mask=None,
-        commonspace_CSF_mask=None, commonspace_vascular_mask=None, commonspace_labels=None, motion_params_csv=None,
+        commonspace_CSF_mask=None, commonspace_vascular_mask=None, motion_params_csv=None,
         FD_csv=None, commonspace_resampled_template=None, native_bold=None, native_bold_ref=None, 
-        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None, native_labels=None,
+        native_brain_mask=None, native_WM_mask=None, native_CSF_mask=None, native_vascular_mask=None,
         commonspace_to_native_transform_list=None, commonspace_to_native_inverse_list=None,
         native_to_commonspace_transform_list=None, native_to_commonspace_inverse_list=None):
         return
@@ -255,7 +255,7 @@ def read_preproc_datasinks(preproc_output, nativespace_analysis, preprocess_opts
         ['motion_datasink','motion_params_csv'], ['motion_datasink','FD_csv']]
 
     # these parameters may be empty
-    for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+    for opt_key in ['WM_mask','CSF_mask','vascular_mask']:
         opt_file = getattr(preprocess_opts, opt_key)
         if opt_file is not None:
             directory_list.append(['bold_datasink',f'commonspace_{opt_key}'])
@@ -275,7 +275,7 @@ def read_preproc_datasinks(preproc_output, nativespace_analysis, preprocess_opts
         
         directory_list+=[['bold_datasink','native_bold'], ['bold_datasink','native_brain_mask'], ['bold_datasink', 'native_bold_ref']]
         # these parameters may be empty
-        for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+        for opt_key in ['WM_mask','CSF_mask','vascular_mask']:
             opt_file = getattr(preprocess_opts, opt_key)
             if opt_file is not None:
                 directory_list.append(['bold_datasink',f'native_{opt_key}'])
@@ -293,7 +293,7 @@ def read_preproc_datasinks(preproc_output, nativespace_analysis, preprocess_opts
                 raise ValueError(f"The directory {preproc_output}/{datasink}/{target} does not exist. Make sure that all required "
                     "datasink outputs are available.")
             file_list = get_files_from_tree(f'{preproc_output}/{datasink}/{target}')
-            if target in ['commonspace_mask','commonspace_WM_mask','commonspace_CSF_mask','commonspace_vascular_mask','commonspace_labels']: # the split_name is not found in the filename for commonspace masks
+            if target in ['commonspace_mask','commonspace_WM_mask','commonspace_CSF_mask','commonspace_vascular_mask']: # the split_name is not found in the filename for commonspace masks
                 if len(file_list)>1:
                     raise ValueError(f"There is more than one {target} file found: {file_list}")
                 for split in split_name:
@@ -468,7 +468,7 @@ def read_preproc_workflow(preproc_output, nativespace_analysis, preprocess_opts)
                     }
 
     # these parameters may be empty
-    for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+    for opt_key in ['WM_mask','CSF_mask','vascular_mask']:
         opt_file = getattr(preprocess_opts, opt_key)
         if opt_file is not None:
             match_targets[f'commonspace_{opt_key}'] = [f'main_wf.bold_main_wf.mask_commonspace_trans_wf.{opt_key}_resample', 'resampled_file']
@@ -492,7 +492,7 @@ def read_preproc_workflow(preproc_output, nativespace_analysis, preprocess_opts)
                         'native_brain_mask':['main_wf.bold_main_wf.mask_native_trans_wf.brain_mask_resample', 'resampled_file'],
                         })
         # these parameters may be empty
-        for opt_key in ['WM_mask','CSF_mask','vascular_mask','labels']:
+        for opt_key in ['WM_mask','CSF_mask','vascular_mask']:
             opt_file = getattr(preprocess_opts, opt_key)
             if opt_file is not None:
                 match_targets[f'native_{opt_key}'] = [f'main_wf.bold_main_wf.mask_native_trans_wf.{opt_key}_resample', 'resampled_file']

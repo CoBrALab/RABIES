@@ -39,8 +39,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             Preprocessed anatomical image after bias field correction and denoising
         anat_mask
             Brain mask inherited from the common space registration
-        anat_labels
-            Anatomical labels inherited from the common space registration
         WM_mask
             Eroded WM mask inherited from the common space registration
         CSF_mask
@@ -81,8 +79,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             EPI WM mask for native corrected bold
         bold_CSF_mask
             EPI CSF mask for native corrected bold
-        bold_labels
-            EPI anatomical labels for native corrected bold
         commonspace_bold
             Motion and SDC-corrected EPI timeseries resampled into common space
             by applying transforms from the anatomical common space registration
@@ -94,8 +90,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             EPI CSF mask for commonspace bold
         commonspace_vascular_mask
             EPI vascular mask for commonspace bold
-        commonspace_labels
-            EPI anatomical labels for commonspace bold
         std_filename
             temporal STD map of the preprocessed timeseries
         tSNR_filename
@@ -108,9 +102,9 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     outputnode = pe.Node(niu.IdentityInterface(
         fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
-                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
+                'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
-                'commonspace_labels', 'std_filename', 'tSNR_filename', 'boldspace_brain_mask']),
+                'std_filename', 'tSNR_filename', 'boldspace_brain_mask']),
         name='outputnode')
 
     # Datasink - creates output folder for important outputs
@@ -376,7 +370,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.native_WM_mask", "native_WM_mask"),
             ("outputnode.native_CSF_mask", "native_CSF_mask"),
             ("outputnode.native_vascular_mask", "native_vascular_mask"),
-            ("outputnode.native_labels", "native_labels"),
             ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_voxelwise", "FD_voxelwise"),
             ("outputnode.pos_voxelwise", "pos_voxelwise"),
@@ -392,7 +385,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.commonspace_WM_mask", "commonspace_WM_mask"),
             ("outputnode.commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("outputnode.commonspace_vascular_mask", "commonspace_vascular_mask"),
-            ("outputnode.commonspace_labels", "commonspace_labels"),
             ("outputnode.boldspace_brain_mask", "boldspace_brain_mask"),
             ]),
         (bold_main_wf, bold_inho_cor_diagnosis, [
@@ -562,7 +554,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("native_WM_mask", "native_WM_mask"),  # get the EPI labels
             ("native_CSF_mask", "native_CSF_mask"),  # get the EPI labels
             ("native_vascular_mask", "native_vascular_mask"),  # get the EPI labels
-            ("native_labels", "native_labels"),  # get the EPI labels
             # warped EPI to anat
             ("inho_cor_bold_warped2anat", "inho_cor_bold_warped2anat"),
             # resampled EPI after motion realignment and SDC
@@ -575,7 +566,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("commonspace_WM_mask", "commonspace_WM_mask"),
             ("commonspace_CSF_mask", "commonspace_CSF_mask"),
             ("commonspace_vascular_mask", "commonspace_vascular_mask"),
-            ("commonspace_labels", "commonspace_labels"),
             ("tSNR_filename", "tSNR_map_preprocess"),
             ("std_filename", "std_map_preprocess"),
             ("commonspace_resampled_template", "commonspace_resampled_template"),

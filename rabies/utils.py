@@ -628,14 +628,11 @@ def generate_token_data(tmppath, number_scans):
 
     os.makedirs(tmppath+'/inputs', exist_ok=True)
 
-    if 'XDG_DATA_HOME' in os.environ.keys():
-        rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
-    else:
-        rabies_path = os.environ['HOME']+'/.local/share/rabies'
-
-    template = f"{rabies_path}/DSURQE_40micron_average.nii.gz"
-    mask = f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
-    melodic_file = f"{rabies_path}/melodic_IC.nii.gz"
+    from . import run_main
+    template = run_main.DSURQE_ANAT
+    mask = run_main.DSURQE_MASK
+    labels_file = run_main.DSURQE_LABELS
+    melodic_file = run_main.DSURQE_ICA
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
@@ -651,6 +648,8 @@ def generate_token_data(tmppath, number_scans):
     binarized = sitk.GetImageFromArray(array, isVector=False)
     binarized.CopyInformation(resampled_mask)
     sitk.WriteImage(binarized, tmppath+'/inputs/token_mask_half.nii.gz')
+    resampled_labels = resample_image_spacing(sitk.ReadImage(labels_file), spacing)
+    sitk.WriteImage(resampled_labels, tmppath+'/inputs/token_labels.nii.gz')
 
     # generate fake scans from the template
     array = sitk.GetArrayFromImage(resampled_template)

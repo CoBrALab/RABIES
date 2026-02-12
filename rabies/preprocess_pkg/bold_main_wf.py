@@ -38,8 +38,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             CSF mask inherited from the common space registration
         vascular_mask
             vascular mask inherited from the common space registration
-        labels
-            Anatomical labels inherited from the common space registration
         unbiased_to_atlas_affine
             affine transform from the dataset template space to the commonspace space
         unbiased_to_atlas_warp
@@ -99,8 +97,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             EPI WM mask for resampled bold
         EPI_CSF_mask
             EPI CSF mask for resampled bold
-        EPI_labels
-            EPI anatomical labels for resampled bold
         commonspace_bold
             Motion and SDC-corrected EPI timeseries resampled into common space
             by applying transforms from the anatomical common space registration
@@ -112,8 +108,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             EPI CSF mask for commonspace bold
         commonspace_vascular_mask
             EPI vascular mask for commonspace bold
-        commonspace_labels
-            EPI anatomical labels for commonspace bold
     """
 
     workflow = pe.Workflow(name=name)
@@ -128,9 +122,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     outputnode = pe.Node(niu.IdentityInterface(
                 fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
                         'output_warped_bold', 'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp',
-                        'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask', 'native_labels',
+                        'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask',
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
-                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask', 'commonspace_labels',
+                        'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                         'boldspace_brain_mask',
                         'hmc_qc_figure','hmc_qc_csv','hmc_qc_video',
                         ]),
@@ -473,7 +467,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('outputnode.WM_mask', 'commonspace_WM_mask'),
             ('outputnode.CSF_mask', 'commonspace_CSF_mask'),
             ('outputnode.vascular_mask', 'commonspace_vascular_mask'),
-            ('outputnode.labels', 'commonspace_labels'),
             ]),
         ])
 
@@ -534,7 +527,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 ('outputnode.WM_mask', 'native_WM_mask'),
                 ('outputnode.CSF_mask', 'native_CSF_mask'),
                 ('outputnode.vascular_mask', 'native_vascular_mask'),
-                ('outputnode.labels', 'native_labels'),
                 ]),
             ])
 

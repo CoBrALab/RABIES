@@ -72,13 +72,13 @@ def template_info(anat_template, opts, out_dir,figure_format):
 
     scaled = otsu_scaling(anat_template)
 
-    fig,axes = plt.subplots(nrows=3, ncols=6, figsize=(4*6,2*2))
+    fig,axes = plt.subplots(nrows=3, ncols=5, figsize=(4*5,2*2))
     axes[0,0].set_title('Anatomical Template', fontsize=30, color='white')
     plot_3d(axes[:,0],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
 
-    for mask,title,ax_i in zip([opts.brain_mask,opts.WM_mask,opts.CSF_mask,opts.vascular_mask,opts.labels],
-                    ['Brain Mask', 'WM Mask', 'CSF Mask', 'Vascular Mask', 'Atlas Labels'],
-                    list(range(1,6))):
+    for mask,title,ax_i in zip([opts.brain_mask,opts.WM_mask,opts.CSF_mask,opts.vascular_mask],
+                    ['Brain Mask', 'WM Mask', 'CSF Mask', 'Vascular Mask'],
+                    list(range(1,5))):
         plot_3d(axes[:,ax_i],scaled,fig=fig,vmin=0,vmax=1,cmap='gray')
         if mask is None:
             continue
@@ -87,10 +87,7 @@ def template_info(anat_template, opts, out_dir,figure_format):
         # resample mask to match template
         sitk_mask = sitk.Resample(sitk_mask, scaled)
         axes[0,ax_i].set_title(title, fontsize=30, color='white')
-        if title=='Atlas Labels':
-            plot_3d(axes[:,5],sitk_mask,fig=fig,vmin=1,vmax=sitk.GetArrayFromImage(sitk_mask).max(),cmap='rainbow', alpha=0.5, cbar=False)
-        else:
-            plot_3d(axes[:,ax_i],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
+        plot_3d(axes[:,ax_i],sitk_mask,fig=fig,vmin=-1,vmax=1,cmap='bwr', alpha=0.3, cbar=False)
 
     plt.tight_layout()
 
