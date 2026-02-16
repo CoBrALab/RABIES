@@ -299,12 +299,11 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     import pathlib  # Better path manipulation
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
-    brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file, sitk.sitkFloat32))
-    volume_indices = brain_mask.astype(bool)
+    volume_idx = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file)).astype(bool)
 
     from rabies.utils import get_sitk_header
     header=get_sitk_header(bold_file)
-    timeseries = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))[:,volume_indices] # read directly as a 2D array
+    timeseries = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
     timeseries = timeseries[time_range,:]
 
     if TR=='auto':
@@ -384,7 +383,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         df.to_csv(mc_file)
 
         cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
-        timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_indices] # read directly as a 2D array
+        timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
     else:
         aroma_out = None
 
@@ -438,7 +437,9 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
         minimize re-introduction of previously corrected signal fluctuations.
     '''    
-    regressors_array = compute_signal_regressors(timeseries,volume_indices, nuisance_regressors, brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file)
+    # indices for each mask are first loaded in vector format that matches the timeseries array
+    [brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx] = [sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)[volume_idx] for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]]
+    regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
     confounds_array = np.append(confounds_array,regressors_array,axis=1)
 
     '''
@@ -540,19 +541,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         del predicted_random
     del predicted
 
-    # save output files
-    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
-    STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
-    CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
-    del VE_spatial, temporal_std, predicted_std
-    timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
-    del timeseries
-    if generate_CR_null:
-        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
-        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
-        del predicted_random_std, corrected_predicted_std
-
-    
     # apply the frame mask to FD trace/DVARS to prepare outputs from the function
     DVARS_trace = DVARS_trace[frame_mask]
     FD_trace = FD_trace[frame_mask]
@@ -565,6 +553,18 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         aroma_rm = 0
     num_regressors = confounds_array.shape[1]
     tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
+
+    # save output files
+    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
+    STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
+    CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+    del VE_spatial, temporal_std, predicted_std
+    timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
+    del timeseries
+    if generate_CR_null:
+        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
+        del predicted_random_std, corrected_predicted_std
 
 
     if smoothing_filter is not None:

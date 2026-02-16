@@ -200,17 +200,16 @@ def select_motion_regressors(nuisance_regressors,motion_params_csv):
     return np.asarray(confounds[conf_keys])
 
 
-def compute_signal_regressors(timeseries,volume_indices, nuisance_regressors, brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file):
+def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx):
 
     # make sure there are no NaN voxels
     timeseries[np.isnan(timeseries)] = 0
 
     regressors_array = np.empty([timeseries.shape[0],0])
-    for conf,mask_file in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
-                                [WM_mask_file,CSF_mask_file,vascular_mask_file,brain_mask_file]):
+    for conf,mask_idx in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
+                                [WM_mask_idx,CSF_mask_idx,vascular_mask_idx,brain_mask_idx]):
         if conf in nuisance_regressors:
-            mask_idx = sitk.GetArrayFromImage(sitk.ReadImage(mask_file, sitk.sitkFloat32)).astype(bool)
-            regressor_trace = timeseries.T[mask_idx[volume_indices]].mean(axis=0)
+            regressor_trace = timeseries.T[mask_idx].mean(axis=0)
             regressors_array = np.append(regressors_array,regressor_trace.reshape(-1,1),axis=1)
     
     if ('aCompCor_5' in nuisance_regressors) or ('aCompCor_percent' in nuisance_regressors):
@@ -225,11 +224,9 @@ def compute_signal_regressors(timeseries,volume_indices, nuisance_regressors, br
             raise
 
         from sklearn.decomposition import PCA
-        WM_mask_idx = sitk.GetArrayFromImage(sitk.ReadImage(WM_mask_file, sitk.sitkFloat32))
-        CSF_mask_idx = sitk.GetArrayFromImage(sitk.ReadImage(CSF_mask_file, sitk.sitkFloat32))
         combined_mask_idx = (WM_mask_idx+CSF_mask_idx) > 0
 
-        masked_timeseries = timeseries[:,combined_mask_idx[volume_indices]]
+        masked_timeseries = timeseries[:,combined_mask_idx]
 
         if method == 'aCompCor_percent':
             pca = PCA()
