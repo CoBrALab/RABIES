@@ -449,11 +449,9 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     timeseries[:,nan_voxels] = 0
 
     # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
-    X=confounds_array
-    Y=timeseries
     try:
-        predicted = X.dot(closed_form(X,Y))
-        res = Y-predicted
+        predicted = confounds_array.dot(closed_form(confounds_array,timeseries))
+        residuals = timeseries-predicted
     except:
         if nipype_log:
             nipype_log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
@@ -462,22 +460,22 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         sitk.WriteImage(empty_img, empty_file)
         return None
 
-    VE_total_ratio = 1-(res.var()/Y.var())
-    VE_spatial = 1-(res.var(axis=0)/Y.var(axis=0))
-    VE_temporal = 1-(res.var(axis=1)/Y.var(axis=1))
+    # estimates of variance explained
+    VE_total_ratio = 1-(residuals.var()/timeseries.var())
+    VE_spatial = 1-(residuals.var(axis=0)/timeseries.var(axis=0))
+    VE_temporal = 1-(residuals.var(axis=1)/timeseries.var(axis=1))
 
     if generate_CR_null:
         # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
         randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
-        X=randomized_confounds_array 
-        Y = timeseries
-        predicted_random = X.dot(closed_form(X,Y))
+        predicted_random = randomized_confounds_array.dot(closed_form(randomized_confounds_array,timeseries))
     else:
         predicted_random = np.empty([0,timeseries.shape[1]])
 
     if len(nuisance_regressors) > 0:
         # if confound regression is applied
-        timeseries = res
+        timeseries = residuals
+    del residuals
 
     '''
     #11 - Scaling of timeseries.
@@ -535,11 +533,42 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     predicted_time = np.sqrt((predicted.T**2).mean(axis=0))
     predicted_global_std = predicted.std()
 
+    if generate_CR_null:
+        predicted_random_std = predicted_random.std(axis=0)
+
+        # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
+        var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
+        var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
+        corrected_predicted_std = np.sqrt(var_dif)
+        del predicted_random
+    del predicted
+
     # save output files
     VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
     STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
     CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+    del VE_spatial, temporal_std, predicted_std
     timeseries_img = recover_4D(brain_mask_file, timeseries, bold_file)
+    del timeseries
+    if generate_CR_null:
+        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
+        del predicted_random_std, corrected_predicted_std
+
+    
+    # apply the frame mask to FD trace/DVARS to prepare outputs from the function
+    DVARS_trace = DVARS_trace[frame_mask]
+    FD_trace = FD_trace[frame_mask]
+
+    # calculate temporal degrees of freedom left after confound correction
+    num_timepoints = frame_mask.sum()
+    if apply_ica_aroma:
+        aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
+    else:
+        aroma_rm = 0
+    num_regressors = confounds_array.shape[1]
+    tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
+
 
     if smoothing_filter is not None:
         '''
@@ -562,15 +591,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
 
     if generate_CR_null:
-        predicted_random_std = predicted_random.std(axis=0)
-
-        # here we correct the previous STD estimates by substrating the variance explained by that of the overfitting with random regressors
-        var_dif = predicted.var(axis=0) - predicted_random.var(axis=0)
-        var_dif[var_dif<0] = 0 # when there's more variance explained in random regressors, set variance explained to 0
-        corrected_predicted_std = np.sqrt(var_dif)
-        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
-        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
-
         random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
         sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
         corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
@@ -578,19 +598,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     else:
         random_CR_STD_file_path=''
         corrected_CR_STD_file_path=''
-
-    # apply the frame mask to FD trace/DVARS
-    DVARS_trace = DVARS_trace[frame_mask]
-    FD_trace = FD_trace[frame_mask]
-
-    # calculate temporal degrees of freedom left after confound correction
-    num_timepoints = frame_mask.sum()
-    if apply_ica_aroma:
-        aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
-    else:
-        aroma_rm = 0
-    num_regressors = confounds_array.shape[1]
-    tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
     return {
         'cleaned_path':cleaned_path, 'VE_file_path':VE_file_path, 'STD_file_path':STD_file_path, 'CR_STD_file_path':CR_STD_file_path, 'random_CR_STD_file_path':random_CR_STD_file_path, 'corrected_CR_STD_file_path':corrected_CR_STD_file_path, 'frame_mask_file':frame_mask_file, 'aroma_out':aroma_out,
