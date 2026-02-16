@@ -143,29 +143,32 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
     data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'motion_params_csv':motion_params_csv, 'time_range':time_range}
     return data_dict
 
-def temporal_censoring(timeseries, FD_trace, 
-        FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint):
 
+def get_DVARS(timeseries):
     # compute the DVARS before denoising
     derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
-    DVARS=np.sqrt((derivative**2).mean(axis=1))
+    DVARS_trace=np.sqrt((derivative**2).mean(axis=1))
+    return DVARS_trace
 
-    # apply the temporal censoring
-    frame_mask = np.ones(timeseries.shape[0]).astype(bool)
+
+def temporal_censoring(FD_trace, 
+        FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint):
+
+    num_frames = len(FD_trace) # FD_trace length must correspond with the timeseries length
+    frame_mask = np.ones(num_frames).astype(bool)
     if FD_censoring:
         FD_mask = gen_FD_mask(FD_trace, FD_threshold)
         frame_mask*=FD_mask
     if DVARS_censoring:
         # create a distribution where no timepoint falls more than 2.5 STD away from the mean
-        trace=DVARS
-        mask1=np.zeros(len(trace)).astype(bool)
-        mask2=np.ones(len(trace)).astype(bool)
+        mask1=np.zeros(len(DVARS_trace)).astype(bool)
+        mask2=np.ones(len(DVARS_trace)).astype(bool)
         mask2[0]=False # remove the first timepoint, which is always 0
         while ((mask2!=mask1).sum()>0):
             mask1=mask2
-            mean=trace[mask1].mean()
-            std=trace[mask1].std()
-            norm=(trace-mean)/std
+            mean=DVARS_trace[mask1].mean()
+            std=DVARS_trace[mask1].std()
+            norm=(DVARS_trace-mean)/std
             mask2=np.abs(norm)<2.5
         DVARS_mask=mask2
         frame_mask*=DVARS_mask
@@ -173,9 +176,9 @@ def temporal_censoring(timeseries, FD_trace,
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
         log.warning(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        return None,None,None
+        return None
 
-    return frame_mask,FD_trace,DVARS
+    return frame_mask
 
 
 def select_motion_regressors(nuisance_regressors,motion_params_csv):

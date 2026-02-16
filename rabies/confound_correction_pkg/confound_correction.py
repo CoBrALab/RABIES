@@ -292,7 +292,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     import pandas as pd
     import SimpleITK as sitk
     from rabies.utils import recover_3D,recover_4D
-    from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors
+    from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors, get_DVARS
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     cr_out = os.getcwd()
@@ -315,8 +315,12 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     '''
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     '''
-    frame_mask,FD_trace,DVARS = temporal_censoring(timeseries, FD_trace, 
-            FD_censoring, FD_threshold, DVARS_censoring, minimum_timepoint)
+
+    # compute the DVARS before denoising
+    DVARS_trace = get_DVARS(timeseries)
+
+    frame_mask = temporal_censoring(FD_trace, 
+            FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint)
     if frame_mask is None:
         return None
 
@@ -576,7 +580,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         corrected_CR_STD_file_path=''
 
     # apply the frame mask to FD trace/DVARS
-    DVARS = DVARS[frame_mask]
+    DVARS_trace = DVARS_trace[frame_mask]
     FD_trace = FD_trace[frame_mask]
 
     # calculate temporal degrees of freedom left after confound correction
@@ -590,6 +594,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
 
     return {
         'cleaned_path':cleaned_path, 'VE_file_path':VE_file_path, 'STD_file_path':STD_file_path, 'CR_STD_file_path':CR_STD_file_path, 'random_CR_STD_file_path':random_CR_STD_file_path, 'corrected_CR_STD_file_path':corrected_CR_STD_file_path, 'frame_mask_file':frame_mask_file, 'aroma_out':aroma_out,
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
         }
 
