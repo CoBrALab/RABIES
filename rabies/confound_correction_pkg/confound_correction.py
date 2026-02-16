@@ -66,8 +66,8 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
-    regress_node = pe.Node(Regress(cr_opts=cr_opts),
-                           name='regress', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
+    clean_image_node = pe.Node(CleanImage(cr_opts=cr_opts),
+                           name='clean_image', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
 
     prep_CR_node = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_file', 'cr_opts'],
                                               output_names=['data_dict'],
@@ -81,7 +81,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("motion_params_csv", "motion_params_csv"),
             ("FD_file", "FD_file"),
             ]),
-        (inputnode, regress_node, [
+        (inputnode, clean_image_node, [
             ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
             ("WM_mask", "WM_mask_file"),
@@ -89,10 +89,10 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("vascular_mask", "vascular_mask_file"),
             ("raw_input_file", "raw_input_file"),
             ]),
-        (prep_CR_node, regress_node, [
+        (prep_CR_node, clean_image_node, [
             ("data_dict", "data_dict"),
             ]),
-        (regress_node, outputnode, [
+        (clean_image_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
             ("VE_file_path", "VE_file"),
             ("STD_file_path", "STD_file"),
@@ -108,7 +108,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     return workflow
 
 
-class RegressInputSpec(BaseInterfaceInputSpec):
+class CleanImageInputSpec(BaseInterfaceInputSpec):
     raw_input_file = File(exists=True, mandatory=True,
                       desc="The raw EPI scan before preprocessing.")
     bold_file = File(exists=True, mandatory=True,
@@ -126,7 +126,7 @@ class RegressInputSpec(BaseInterfaceInputSpec):
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")
 
-class RegressOutputSpec(TraitedSpec):
+class CleanImageOutputSpec(TraitedSpec):
     cleaned_path = File(exists=True, mandatory=True,
                       desc="Cleaned timeseries.")
     VE_file_path = File(exists=True, mandatory=True,
@@ -146,7 +146,7 @@ class RegressOutputSpec(TraitedSpec):
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
 
-class Regress(BaseInterface):
+class CleanImage(BaseInterface):
     '''
     Apply a flexible confound correction pipeline in line with recommendations from
     human litterature. 
@@ -180,8 +180,8 @@ class Regress(BaseInterface):
         Modular preprocessing pipelines can reintroduce artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
     '''
 
-    input_spec = RegressInputSpec
-    output_spec = RegressOutputSpec
+    input_spec = CleanImageInputSpec
+    output_spec = CleanImageOutputSpec
 
     def _run_interface(self, runtime):
         import os
