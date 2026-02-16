@@ -455,9 +455,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     except:
         if nipype_log:
             nipype_log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-        empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-        empty_file = os.path.abspath('empty.nii.gz')
-        sitk.WriteImage(empty_img, empty_file)
         return None
 
     # estimates of variance explained
