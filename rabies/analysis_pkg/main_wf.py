@@ -516,13 +516,13 @@ def read_confound_workflow(conf_output, cr_opts):
                     'motion_params_csv':[preproc_outputnode_name, 'motion_params_csv'],
                     'FD_csv':[preproc_outputnode_name, 'FD_csv'],
                     'commonspace_resampled_template':[preproc_outputnode_name, 'commonspace_resampled_template'],
-                    'cleaned_path':['confound_correction_main_wf.confound_correction_wf.regress', 'cleaned_path'],
-                    'data_dict':['confound_correction_main_wf.confound_correction_wf.regress', 'data_dict'],
-                    'VE_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'VE_file_path'],
-                    'STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'STD_file_path'],
-                    'CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'CR_STD_file_path'],
-                    'random_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'random_CR_STD_file_path'],
-                    'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.regress', 'corrected_CR_STD_file_path'],
+                    'cleaned_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'cleaned_path'],
+                    'data_dict':['confound_correction_main_wf.confound_correction_wf.clean_image', 'data_dict'],
+                    'VE_file_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'VE_file_path'],
+                    'STD_file_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'STD_file_path'],
+                    'CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'CR_STD_file_path'],
+                    'random_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'random_CR_STD_file_path'],
+                    'corrected_CR_STD_file_path':['confound_correction_main_wf.confound_correction_wf.clean_image', 'corrected_CR_STD_file_path'],
                     }
 
     if not cr_opts.nativespace_analysis:
