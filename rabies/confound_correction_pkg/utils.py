@@ -109,16 +109,15 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
 
 def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
     import pandas as pd
-    import SimpleITK as sitk
     from rabies.confound_correction_pkg.utils import select_motion_regressors
 
     # save specifically the 6 rigid parameters for AROMA
     confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv)
 
-    if len(cr_opts.conf_list)==0:
+    if len(cr_opts.nuisance_regressors)==0:
         confounds_array = confounds_6rigid_array
     else:
-        confounds_array = select_motion_regressors(cr_opts.conf_list,motion_params_csv)
+        confounds_array = select_motion_regressors(cr_opts.nuisance_regressors,motion_params_csv)
 
     FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
@@ -179,9 +178,9 @@ def temporal_censoring(timeseries, FD_trace,
     return frame_mask,FD_trace,DVARS
 
 
-def select_motion_regressors(conf_list,motion_params_csv):
+def select_motion_regressors(nuisance_regressors,motion_params_csv):
     import pandas as pd
-    if ('mot_6' in conf_list) and ('mot_24' in conf_list):
+    if ('mot_6' in nuisance_regressors) and ('mot_24' in nuisance_regressors):
         raise ValueError(
             "Can't select both the mot_6 and mot_24 options; must pick one.")
 
@@ -189,7 +188,7 @@ def select_motion_regressors(conf_list,motion_params_csv):
     keys = confounds.keys()
     conf_keys = []
     # only inputing motion regressors at this stage
-    for conf in conf_list:
+    for conf in nuisance_regressors:
         if conf == 'mot_6':
             conf_keys += ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
         elif conf == 'mot_24':
@@ -198,7 +197,7 @@ def select_motion_regressors(conf_list,motion_params_csv):
     return np.asarray(confounds[conf_keys])
 
 
-def compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file):
+def compute_signal_regressors(timeseries,volume_indices, nuisance_regressors, brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file):
 
     # make sure there are no NaN voxels
     timeseries[np.isnan(timeseries)] = 0
@@ -206,18 +205,18 @@ def compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_fi
     regressors_array = np.empty([timeseries.shape[0],0])
     for conf,mask_file in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
                                 [WM_mask_file,CSF_mask_file,vascular_mask_file,brain_mask_file]):
-        if conf in conf_list:
+        if conf in nuisance_regressors:
             mask_idx = sitk.GetArrayFromImage(sitk.ReadImage(mask_file, sitk.sitkFloat32)).astype(bool)
             regressor_trace = timeseries.T[mask_idx[volume_indices]].mean(axis=0)
             regressors_array = np.append(regressors_array,regressor_trace.reshape(-1,1),axis=1)
     
-    if ('aCompCor_5' in conf_list) or ('aCompCor_percent' in conf_list):
-        if ('aCompCor_5' in conf_list) and ('aCompCor_percent' in conf_list):
+    if ('aCompCor_5' in nuisance_regressors) or ('aCompCor_percent' in nuisance_regressors):
+        if ('aCompCor_5' in nuisance_regressors) and ('aCompCor_percent' in nuisance_regressors):
             raise ValueError(
                 "Can't select both the aCompCor_5 and aCompCor_percent options; must pick one.")
-        if 'aCompCor_5' in conf_list:
+        if 'aCompCor_5' in nuisance_regressors:
             method='aCompCor_5'
-        elif 'aCompCor_percent' in conf_list:
+        elif 'aCompCor_percent' in nuisance_regressors:
             method='aCompCor_percent'
         else:
             raise

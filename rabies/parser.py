@@ -53,7 +53,7 @@ def get_parser():
             "   #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance \n"
             "       regressors, taking out the simulated timepoints. Edge artefacts from frequency \n"
             "       filtering can also be removed as recommended in Power et al. (2014, Neuroimage).\n"
-            "   #9 - Apply confound regression using the selected nuisance regressors (see --conf_list\n" 
+            "   #9 - Apply confound regression using the selected nuisance regressors (see --nuisance_regressors\n" 
             "       options).\n"
             "   #10 - Scaling of timeseries variance\n"
             "   #11 - Apply Gaussian spatial smoothing.\n"
@@ -725,7 +725,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--conf_list', type=str,
+        '--nuisance_regressors', type=str,
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         choices=["WM_signal", "CSF_signal", "vascular_signal",
@@ -743,6 +743,13 @@ def get_parser():
             "   Components adding up to 50 percent of the variance are included.\n"
             "*** aCompCor_5: aCompCor method, but taking 5 first principal components. \n"
             "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--conf_list', type=str,
+        default='',
+        help=
+            "DEPRECIATED PARAMETER: This was replaced by --nuisance_regressors, throws an error any input is provided. \n"
             "\n"
         )
     confound_correction.add_argument(

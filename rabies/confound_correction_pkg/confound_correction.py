@@ -239,7 +239,7 @@ class CleanImage(BaseInterface):
             highpass=cr_opts.highpass, 
             lowpass=cr_opts.lowpass, 
             edge_cutoff=cr_opts.edge_cutoff,
-            conf_list = cr_opts.conf_list, 
+            nuisance_regressors = cr_opts.nuisance_regressors, 
             generate_CR_null=cr_opts.generate_CR_null,
             scale_variance_voxelwise=cr_opts.scale_variance_voxelwise,
             image_scaling=cr_opts.image_scaling,
@@ -282,7 +282,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
                 detrending_order=1, detrending_time_interval='all', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
-                conf_list = [], generate_CR_null=False,
+                nuisance_regressors = [], generate_CR_null=False,
                 scale_variance_voxelwise=False,image_scaling='grand_mean_scaling',
                 smoothing_filter=None,
                 nipype_log=None,
@@ -434,7 +434,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
         minimize re-introduction of previously corrected signal fluctuations.
     '''    
-    regressors_array = compute_signal_regressors(timeseries,volume_indices, conf_list,brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file)
+    regressors_array = compute_signal_regressors(timeseries,volume_indices, nuisance_regressors, brain_mask_file,WM_mask_file,CSF_mask_file,vascular_mask_file)
     confounds_array = np.append(confounds_array,regressors_array,axis=1)
 
     '''
@@ -471,7 +471,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     else:
         predicted_random = np.empty([0,timeseries.shape[1]])
 
-    if len(conf_list) > 0:
+    if len(nuisance_regressors) > 0:
         # if confound regression is applied
         timeseries = res
 

@@ -171,7 +171,7 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list aCompCor_5 --nativespace_analysis --resample_to_commonspace"
+command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --nuisance_regressors aCompCor_5 --nativespace_analysis --resample_to_commonspace"
 process = subprocess.run(
     command,
     check=True,
@@ -225,9 +225,9 @@ if opts.complete:
         shell=True,
         )
 
-    # testing --conf_list on its own to retain degrees of freedom
+    # testing --nuisance_regressors on its own to retain degrees of freedom
     command = f"rabies --force --verbose 1 --data_type int16 confound_correction --read_datasink {tmppath}/outputs {tmppath}/outputs \
-        --conf_list mot_24 aCompCor_percent global_signal"
+        --nuisance_regressors mot_24 aCompCor_percent global_signal"
     repeat_attempts(command, number_attempts=3)
 
     ####ANALYSIS####
@@ -251,7 +251,7 @@ if opts.complete:
         shell=True,
         )
 
-    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --conf_list mot_6"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --nuisance_regressors mot_6"
     process = subprocess.run(
         command,
         check=True,
