@@ -866,6 +866,20 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    confound_correction.add_argument(
+        '--slicewise_correction_direction', type=str, default='Off',
+        choices=['Off', 'RL', 'AP', 'SI'],
+        help=
+            "It is possible with this parameter to carry out slice-wise 2D confound correction. This will \n"
+            "influence the calculation of nuisance regressors using brain masks, image scaling and smoothing \n"
+            "on a per slice basis. This is incompatible with ICA-AROMA, which requires volumetric correction. \n"
+            "To apply slicewise correction, provide as input one of the RAS axial direction for slice \n"
+            "selection, i.e. this parameter takes as input one of: 'RL', 'AP' or 'SI'. \n"
+            "For accurate slice selection, the axial directions of the input nifti images must be properly \n"
+            "encoded. If no direction is provided, standard whole-brain correction is conducted. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis

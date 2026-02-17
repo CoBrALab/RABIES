@@ -244,6 +244,7 @@ class CleanImage(BaseInterface):
             scale_variance_voxelwise=cr_opts.scale_variance_voxelwise,
             image_scaling=cr_opts.image_scaling,
             smoothing_filter=cr_opts.smoothing_filter,
+            slicewise_correction_direction=cr_opts.slicewise_correction_direction,
             nipype_log=nipype_log,
             )
 
@@ -285,7 +286,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
                 nuisance_regressors = [], generate_CR_null=False,
                 scale_variance_voxelwise=False,image_scaling='grand_mean_scaling',
                 smoothing_filter=None,
-                slicewise_correction = False,
+                slicewise_correction_direction = 'Off',
                 nipype_log=None,
                 ):
     import os
@@ -358,10 +359,21 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     '''
     Beginning of slicewise operations (if slicewise_correction=True)
     '''
+    if slicewise_correction_direction=='Off':
+        slicewise_correction=False
+    else:
+        slicewise_correction=True
+        if slicewise_correction_direction=='RL':
+            slice_direction = 0
+        elif slicewise_correction_direction=='AP':
+            slice_direction = 1
+        elif slicewise_correction_direction=='SI':
+            slice_direction = 2
+        else:
+            raise ValueError(f"slicewise_correction_direction must be one of 'RL', 'AP' or 'SI', got {slicewise_correction_direction} instead.")
 
     if slicewise_correction:
         # create slicewise masks for managing slicewise operations
-        slice_direction = 2
         dim_size = header.GetSize()[slice_direction]
         slices = list(range(dim_size))
         slice_idx_l = []    

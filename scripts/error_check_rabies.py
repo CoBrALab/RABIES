@@ -196,7 +196,7 @@ if opts.complete:
         shell=True,
         )
 
-    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --nativespace_analysis --resample_to_commonspace"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --nativespace_analysis --resample_to_commonspace --slicewise_correction_direction AP --smoothing_filter 0.3"
     process = subprocess.run(
         command,
         check=True,
