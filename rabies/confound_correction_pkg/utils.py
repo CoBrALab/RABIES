@@ -253,7 +253,7 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
 
 
 
-def remove_trend(timeseries, frame_mask, order=1 , time_interval='all', keep_intercept=False):
+def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):
     '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
     num_timepoints = len(frame_mask)
@@ -284,12 +284,10 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='all', keep_int
         W = closed_form(X[lowcut:highcut, :],Y[lowcut:highcut, :])
     predicted = X.dot(W) #always subtract the trend over the whole timeseries
     
-    res = (Y-predicted) # add back the intercept after
-    if keep_intercept:
-        fitted_intercept = X[:,-1:].dot(W[-1:,:]) # predicted intercept
-        res += fitted_intercept
+    residuals = (Y-predicted) # add back the intercept after
+    fitted_intercept = X[:,-1:].dot(W[-1:,:]) # predicted intercept
 
-    return res
+    return residuals, fitted_intercept
     
 
 def lombscargle_mathias(t, x, w):

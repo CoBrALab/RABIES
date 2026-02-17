@@ -424,15 +424,11 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         '''
         #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
         '''
-        # apply detrending, after censoring
-        # save grand mean prior to detrending
-        timeseries_ = remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval, keep_intercept=True)
-        grand_mean = timeseries_.mean()
-        voxelwise_mean = timeseries_.mean(axis=0)
-        del timeseries_ # free space
-
-        timeseries = remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval, keep_intercept=False)
-        confounds_array = remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval, keep_intercept=False)
+        timeseries, fitted_intercept = remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        grand_mean = fitted_intercept.mean() # the average is estimated from the intercept of the linear model
+        voxelwise_mean = fitted_intercept # the average is estimated from the intercept of the linear model
+        del fitted_intercept
+        confounds_array, fitted_intercept = remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
 
         '''
         #4 - Apply ICA-AROMA.
@@ -445,7 +441,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             sitk.WriteImage(recover_4D(brain_mask_file, timeseries, bold_file), inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array = remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval, keep_intercept=False) # apply detrending to the confounds too
+            confounds_6rigid_array, fitted_intercept = remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
