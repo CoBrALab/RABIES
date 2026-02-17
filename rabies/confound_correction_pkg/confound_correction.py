@@ -365,6 +365,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         dim_size = header.GetSize()[slice_direction]
         slices = list(range(dim_size))
         slice_idx_l = []    
+        smoothing_slice_l = []
         for slice in slices:
             slice_idx = volume_idx.copy().astype(int)
             # multiply by 2 only that slice so that only that slice equals 2
@@ -383,6 +384,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
                     nipype_log.warning(f"A slice with {slice_idx.sum()} voxels was excluded from confound correction, and set with 0s.")
             else:
                 slice_idx_l.append(slice_idx)
+                smoothing_slice_l.append(slice)
 
         # prepare arrays that will be filled
         predicted_vol = np.zeros(timeseries_vol.shape)
@@ -391,7 +393,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         VE_total_ratio = 0
         VE_spatial = np.zeros(timeseries_vol.shape[1])
         VE_temporal = np.zeros(timeseries_vol.shape[0])
-
 
         # need to create a copy before preprocessing so it can by recycled for each slice
         confounds_array_ = confounds_array
@@ -630,18 +631,9 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     num_regressors = confounds_array.shape[1]
     tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
-    # save output files
-    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
-    STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
-    CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
-    del VE_spatial, temporal_std, predicted_std
+    # smoothing takes an SITK image
     timeseries_img = recover_4D(brain_mask_file, timeseries_vol, bold_file)
     del timeseries_vol
-    if generate_CR_null:
-        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
-        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
-        del predicted_random_std, corrected_predicted_std
-
 
     if smoothing_filter is not None:
         '''
@@ -650,7 +642,35 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         import nibabel as nb
         affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
         mask_img = sitk.ReadImage(brain_mask_file, sitk.sitkFloat32)
-        timeseries_img = smooth_image(timeseries_img, affine, smoothing_filter, mask_img)
+
+        if slicewise_correction:
+            # smooth 1 slice at a time
+            for slice in smoothing_slice_l:
+                if slice_direction==0:
+                    timeseries_img[:,:,slice:slice+1,:] = smooth_image(
+                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, mask_img[:,:,slice:slice+1])
+                elif slice_direction==1:
+                    timeseries_img[:,slice:slice+1,:,:] = smooth_image(
+                        timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, mask_img[:,slice:slice+1,:])
+                elif slice_direction==2:
+                    timeseries_img[slice:slice+1,:,:,:] = smooth_image(
+                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, mask_img[slice:slice+1,:,:])
+                else:
+                    raise ValueError("Slice direction must be 1, 2 or 3.")
+        else:
+            timeseries_img = smooth_image(
+                timeseries_img, affine, smoothing_filter, mask_img)
+
+    # save output files
+    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
+    STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
+    CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+    del VE_spatial, temporal_std, predicted_std
+    if generate_CR_null:
+        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
+        del predicted_random_std, corrected_predicted_std
+
 
     cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
     sitk.WriteImage(timeseries_img, cleaned_path)
