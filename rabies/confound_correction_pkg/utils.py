@@ -201,6 +201,8 @@ def select_motion_regressors(nuisance_regressors,motion_params_csv):
 
 
 def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx):
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
 
     # make sure there are no NaN voxels
     timeseries[np.isnan(timeseries)] = 0
@@ -209,8 +211,11 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
     for conf,mask_idx in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
                                 [WM_mask_idx,CSF_mask_idx,vascular_mask_idx,brain_mask_idx]):
         if conf in nuisance_regressors:
-            regressor_trace = timeseries.T[mask_idx].mean(axis=0)
-            regressors_array = np.append(regressors_array,regressor_trace.reshape(-1,1),axis=1)
+            if mask_idx.sum()==0:
+                log.warning(f"0 voxels were found for the {conf} mask. No regressors are computed using this mask.")
+            else:
+                regressor_trace = timeseries.T[mask_idx].mean(axis=0)
+                regressors_array = np.append(regressors_array,regressor_trace.reshape(-1,1),axis=1)
     
     if ('aCompCor_5' in nuisance_regressors) or ('aCompCor_percent' in nuisance_regressors):
         if ('aCompCor_5' in nuisance_regressors) and ('aCompCor_percent' in nuisance_regressors):
@@ -223,34 +228,50 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
         else:
             raise
 
-        from sklearn.decomposition import PCA
         combined_mask_idx = (WM_mask_idx+CSF_mask_idx) > 0
+        if combined_mask_idx.sum()<5:
+            log.warning(f"Less than 5 voxels were found within the combined WM and CSF masks - no aCompCor regressors will be computed.")
+        else:
+            masked_timeseries = timeseries[:,combined_mask_idx]
 
-        masked_timeseries = timeseries[:,combined_mask_idx]
+            from sklearn.decomposition import PCA
+            if method == 'aCompCor_percent':
+                pca = PCA()
+                comp_timeseries = pca.fit_transform(masked_timeseries)
+                explained_variance = pca.explained_variance_ratio_
+                cum_var = 0
+                num_comp = 0
+                # evaluate the # of components to explain 50% of the variance
+                while(cum_var <= 0.5):
+                    cum_var += explained_variance[num_comp]
+                    num_comp += 1
+                log.info("Extracting "+str(num_comp)+" components for aCompCorr.")
+                comp_timeseries = comp_timeseries[:,:num_comp]
 
-        if method == 'aCompCor_percent':
-            pca = PCA()
-            pca.fit(masked_timeseries)
-            explained_variance = pca.explained_variance_ratio_
-            cum_var = 0
-            num_comp = 0
-            # evaluate the # of components to explain 50% of the variance
-            while(cum_var <= 0.5):
-                cum_var += explained_variance[num_comp]
-                num_comp += 1
-            from nipype import logging
-            log = logging.getLogger('nipype.workflow')
-            log.info("Extracting "+str(num_comp)+" components for aCompCorr.")
+            elif method == 'aCompCor_5':
+                num_comp = 5
+                pca = PCA(n_components=num_comp)
+                comp_timeseries = pca.fit_transform(masked_timeseries)
 
-        elif method == 'aCompCor_5':
-            num_comp = 5
+            # double check that a singular matrix is not outputed
+            A = comp_timeseries
+            is_singular = np.linalg.matrix_rank(A) < min(A.shape)
+            if not is_singular:
+                regressors_array = np.append(regressors_array,comp_timeseries,axis=1)
+            else:
+                log.warning(f"aCompCor regressors yielded a singular matrix - these regressors are not included.")
 
-        pca = PCA(n_components=num_comp)
-        comp_timeseries = pca.fit_transform(masked_timeseries)
-        regressors_array = np.append(regressors_array,comp_timeseries,axis=1)
-
-    return regressors_array
-
+    if regressors_array.shape[1]>0:
+        # double check that a singular matrix is not outputed
+        A = regressors_array
+        is_singular = np.linalg.matrix_rank(A) < min(A.shape)
+        if not is_singular:
+            return regressors_array
+        else:
+            log.warning(f"Nuisance regressors yielded a singular matrix - an empty matrix is outputed instead.")
+            return np.empty([timeseries.shape[0],0])
+    else:
+        return regressors_array
 
 
 def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):

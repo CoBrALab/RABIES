@@ -289,6 +289,13 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
                 slicewise_correction_direction = 'Off',
                 nipype_log=None,
                 ):
+    '''
+    slicewise_correction_direction: if applying slicewise correction, detrending, bandpass filtering, nuisance regression
+    and smoothing are all applied on a per slice basis. In such case, the output array confound_array will be the mean of 
+    regressors computed across slices, to output a representative average. Similarly VE_temporal and VE_total_ratio are
+    averaged across slices. If there is not sufficient data point within the brain masks for nuisance regressors, those 
+    regressors are excluded for that slice - meaning that certain corrections are not necessarily applied in each slice.
+    '''
     import os
     import numpy as np
     import pandas as pd
@@ -390,11 +397,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             else:
                 raise ValueError("Slice direction must be 1, 2 or 3.")
             slice_idx = (slice_idx==2)[volume_idx] # convert to vector that matches timeseries_vol array
-            if slice_idx.sum()<10: # exclude slices with less than 10 voxels to avoid matrix operation errors, fill with 0s
-                timeseries_vol[:,slice_idx] = 0
-                if nipype_log:
-                    nipype_log.warning(f"A slice with {slice_idx.sum()} voxels was excluded from confound correction, and set with 0s.")
-            else:
+            if slice_idx.sum()>0:
                 slice_idx_l.append(slice_idx)
                 smoothing_slice_l.append(slice)
 
