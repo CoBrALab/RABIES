@@ -212,7 +212,7 @@ class DatasetDiagnosis(BaseInterface):
                 continue
             scan_name = pathlib.Path(scan_data['name_source']).name.rsplit(".nii")[0]
             scan_name_list.append(scan_name)
-            mean_maps.append(scan_data['voxelwise_mean'])            
+            mean_maps.append(scan_data['voxelwise_mean'])
             std_maps.append(temporal_std)
             CRsd_maps.append(CRsd)
             total_CRsd_list.append(scan_data['CR_global_std'])

@@ -306,7 +306,7 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):
     predicted = X.dot(W) #always subtract the trend over the whole timeseries
     
     residuals = (Y-predicted) # add back the intercept after
-    fitted_intercept = X[:,-1:].dot(W[-1:,:]) # predicted intercept
+    fitted_intercept = W[-1,:] # predicted intercept
 
     return residuals, fitted_intercept
     
