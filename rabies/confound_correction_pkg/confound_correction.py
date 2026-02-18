@@ -417,6 +417,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         # create only a single mask the returns the whole array
         slice_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
 
+    num_regressors_ = 0 # set to 0 for now
     num_slices = len(slice_idx_l)
     for slice_idx in slice_idx_l:
         if slicewise_correction:
@@ -545,7 +546,9 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         if len(nuisance_regressors) > 0:
             # if confound regression is applied
             timeseries = residuals
-        del residuals
+
+        num_regressors = confounds_array.shape[1] # save the number of regressors applied
+        del residuals, confounds_array
 
         '''
         #11 - Scaling of timeseries.
@@ -617,11 +620,8 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             VE_spatial = VE_spatial_slice
             VE_temporal = VE_temporal_slice
 
-    if slicewise_correction:
-        # replace the slice-specific nuisance regressors with an average across all slices
-        num_mask_regressors = regressors_array.shape[1]
-        if num_mask_regressors>0:
-            confounds_array[:,-num_mask_regressors:] = np.array(regressors_array_l).mean(axis=0)
+        if num_regressors>num_regressors_: # keep track of the maximal number of regressors across slices
+            num_regressors_ = num_regressors
 
     # after variance scaling, compute the variability estimates
     temporal_std = timeseries_vol.std(axis=0)
@@ -649,8 +649,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         aroma_rm = (pd.read_csv(f'{aroma_out}/classification_overview.txt', sep='\t')['Motion/noise']).sum()
     else:
         aroma_rm = 0
-    num_regressors = confounds_array.shape[1]
-    tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
+    tDOF = num_timepoints - (aroma_rm+num_regressors_) + number_extra_timepoints
 
     # smoothing takes an SITK image
     timeseries_img = recover_4D(brain_mask_file, timeseries_vol, bold_file)
@@ -715,6 +714,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
 
     return {
         'cleaned_path':cleaned_path, 'VE_file_path':VE_file_path, 'STD_file_path':STD_file_path, 'CR_STD_file_path':CR_STD_file_path, 'random_CR_STD_file_path':random_CR_STD_file_path, 'corrected_CR_STD_file_path':corrected_CR_STD_file_path, 'frame_mask_file':frame_mask_file, 'aroma_out':aroma_out,
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'confounds_array':confounds_array, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
         }
 
