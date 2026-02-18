@@ -411,8 +411,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
 
         # need to create a copy before preprocessing so it can by recycled for each slice
         confounds_array_ = confounds_array
-        # will stack a list of regressors computed at each slice, to take the average at the end for the final confound_array
-        regressors_array_l = [] 
     else:
         # create only a single mask the returns the whole array
         slice_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
@@ -511,8 +509,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         # indices for each mask are first loaded in vector format that matches the timeseries array
         [brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx] = [sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)[volume_idx][slice_idx] for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]]
         regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
-        if slicewise_correction:
-            regressors_array_l.append(regressors_array)
         confounds_array = np.append(confounds_array,regressors_array,axis=1)
 
         '''
