@@ -606,9 +606,9 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             predicted_vol[:,slice_idx] = predicted
             if generate_CR_null:
                 predicted_random_vol[:,slice_idx] = predicted_random
-
-            VE_total_ratio += VE_total_ratio_slice/num_slices # we divide by num_slices, since we take a mean across all slices
-            VE_temporal += VE_temporal_slice/num_slices # we divide by num_slices, since we take a mean across all slices
+            slice_weight = slice_idx.sum()/volume_idx.sum() # compute what proportion of voxels this slice counts as
+            VE_total_ratio += VE_total_ratio_slice*slice_weight # create weighted average from the proportion of voxels
+            VE_temporal += VE_temporal_slice*slice_weight # create weighted average from the proportion of voxels
             VE_spatial[slice_idx] = VE_spatial_slice
 
         else:
