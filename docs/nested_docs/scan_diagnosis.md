@@ -31,7 +31,7 @@ Above is an example of the report (files generated into the `data_diagnosis_data
 * **K) Network spatial maps:** Finally, the diagnosis shows the spatial network maps fitted using dual regression (or seed-based analysis) from the selected set of brain networks of interest (in this case the somatomotor and default mode networks). These fits provide insights into the quality of network analysis, and how they may affect downstream statistical analyses.
 
 * Note that if frame censoring was applied, the time axis is discontinued (i.e. there are holes that are not shown.)
-* Note that $CR_{SD}$ and $CR_{R^2}$ are computing according to the specified list of regressors `--conf_list` during confound correction. If no regressor was specified, $CR_{SD}$ and $CR_{R^2}$ are still estimated with a regression of the 6 motion parameters, but the regression isn't applied to remove signal from the timeseries.
+* Note that $CR_{SD}$ and $CR_{R^2}$ are computing according to the specified list of regressors `--nuisance_regressors` during confound correction. If no regressor was specified, $CR_{SD}$ and $CR_{R^2}$ are still estimated with a regression of the 6 motion parameters, but the regression isn't applied to remove signal from the timeseries.
 
 ## Interpretation of the report and main features to inspect
 (quality_marker_target)=
