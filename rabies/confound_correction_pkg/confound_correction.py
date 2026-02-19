@@ -336,7 +336,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
     '''
     if match_number_timepoints:
-        if (not highpass is None) or (not lowpass is None):
+        if (highpass is not None) or (lowpass is not None):
             # if frequency filtering is applied, avoid selecting timepoints that would be removed with --edge_cutoff
             num_cut = int(edge_cutoff/TR)
             if not num_cut==0:
@@ -387,7 +387,8 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         smoothing_slice_l = []
         for slice in slices:
             slice_idx = volume_idx.copy().astype(int)
-            # multiply by 2 only that slice so that only that slice equals 2
+            # multiply by the slice mask values by 2 so that only it can be isolated with ==2
+            # here the axis direction is inverted since the array is a conversion from a SITK image
             if slice_direction==0:
                 slice_idx[:,:,slice]*=2
             elif slice_direction==1:
@@ -416,7 +417,6 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         slice_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
 
     num_regressors_ = 0 # set to 0 for now
-    num_slices = len(slice_idx_l)
     for slice_idx in slice_idx_l:
         if slicewise_correction:
             timeseries = timeseries_vol[:,slice_idx]
@@ -432,7 +432,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         grand_mean = fitted_intercept.mean() # the average is estimated from the intercept of the linear model
         voxelwise_mean = fitted_intercept # the average is estimated from the intercept of the linear model
         del fitted_intercept
-        confounds_array, fitted_intercept = remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        confounds_array, _ = remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
 
         '''
         #4 - Apply ICA-AROMA.
@@ -445,7 +445,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             sitk.WriteImage(recover_4D(brain_mask_file, timeseries, bold_file), inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array, fitted_intercept = remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
+            confounds_6rigid_array, _ = remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
@@ -456,7 +456,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         else:
             aroma_out = None
 
-        if (not highpass is None) or (not lowpass is None):
+        if (highpass is not None) or (lowpass is not None):
             '''
             #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
                 as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
@@ -506,8 +506,15 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
             minimize re-introduction of previously corrected signal fluctuations.
         '''    
+
+        def _mask_idx(mask_file):
+            if mask_file is None:
+                return None
+            return sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)[volume_idx][slice_idx]
         # indices for each mask are first loaded in vector format that matches the timeseries array
-        [brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx] = [sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)[volume_idx][slice_idx] for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]]
+        brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx = [
+            _mask_idx(mask_file) for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]
+        ]        
         regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
         confounds_array = np.append(confounds_array,regressors_array,axis=1)
 
@@ -522,7 +529,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         try:
             predicted = confounds_array.dot(closed_form(confounds_array,timeseries))
             residuals = timeseries-predicted
-        except:
+        except np.linalg.LinAlgError:
             if nipype_log:
                 nipype_log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             return None
@@ -662,17 +669,18 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         if slicewise_correction:
             # smooth 1 slice at a time
             for slice in smoothing_slice_l:
+                # here the axis direction is in proper order since we are indexing a SITK image
                 if slice_direction==0:
-                    timeseries_img[:,:,slice:slice+1,:] = smooth_image(
-                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, mask_img[:,:,slice:slice+1])
+                    timeseries_img[slice:slice+1,:,:,:] = smooth_image(
+                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, mask_img[slice:slice+1,:,:])
                 elif slice_direction==1:
                     timeseries_img[:,slice:slice+1,:,:] = smooth_image(
                         timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, mask_img[:,slice:slice+1,:])
                 elif slice_direction==2:
-                    timeseries_img[slice:slice+1,:,:,:] = smooth_image(
-                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, mask_img[slice:slice+1,:,:])
+                    timeseries_img[:,:,slice:slice+1,:] = smooth_image(
+                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, mask_img[:,:,slice:slice+1])
                 else:
-                    raise ValueError("Slice direction must be 1, 2 or 3.")
+                    raise ValueError("Slice direction must be 0, 1 or 2.")
         else:
             timeseries_img = smooth_image(
                 timeseries_img, affine, smoothing_filter, mask_img)

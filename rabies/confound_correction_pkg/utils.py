@@ -146,7 +146,8 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
 
 def get_DVARS(timeseries):
     # compute the DVARS before denoising
-    derivative=np.concatenate((np.empty([1,timeseries.shape[1]]),timeseries[1:,:]-timeseries[:-1,:]))
+    # the first data point is set to 0
+    derivative=np.concatenate((np.zeros((1, timeseries.shape[1])),timeseries[1:,:]-timeseries[:-1,:]))
     DVARS_trace=np.sqrt((derivative**2).mean(axis=1))
     return DVARS_trace
 
@@ -211,7 +212,9 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
     for conf,mask_idx in zip(['WM_signal','CSF_signal','vascular_signal','global_signal'],
                                 [WM_mask_idx,CSF_mask_idx,vascular_mask_idx,brain_mask_idx]):
         if conf in nuisance_regressors:
-            if mask_idx.sum()==0:
+            if mask_idx is None:
+                raise ValueError(f"Received a None value for mask_idx computing {conf}.")
+            elif mask_idx.sum()==0:
                 log.warning(f"0 voxels were found for the {conf} mask. No regressors are computed using this mask.")
             else:
                 regressor_trace = timeseries.T[mask_idx].mean(axis=0)
