@@ -121,10 +121,20 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
 
     FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
-    if cr_opts.timeseries_interval == 'all':
+    time_range = prep_timeseries_interval(cr_opts.timeseries_interval, bold_file)
+    confounds_array = confounds_array[time_range, :]
+    confounds_6rigid_array = confounds_6rigid_array[time_range, :]
+    FD_trace = FD_trace[time_range]
+
+    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'motion_params_csv':motion_params_csv, 'time_range':time_range}
+    return data_dict
+
+
+def prep_timeseries_interval(timeseries_interval, bold_file):
+    if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
     # select the subset of timeseries specified
-    split = cr_opts.timeseries_interval.split(',')
+    split = timeseries_interval.split(',')
     if not len(split)==2:
         raise ValueError(f"--timeseries_interval wasn't split into 2: {split}")
     begin=int(split[0]) # must be an integer
@@ -136,12 +146,7 @@ def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
         end=int(end)
 
     time_range = range(begin,end)
-    confounds_array = confounds_array[time_range, :]
-    confounds_6rigid_array = confounds_6rigid_array[time_range, :]
-    FD_trace = FD_trace[time_range]
-
-    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'motion_params_csv':motion_params_csv, 'time_range':time_range}
-    return data_dict
+    return time_range
 
 
 def get_DVARS(timeseries):

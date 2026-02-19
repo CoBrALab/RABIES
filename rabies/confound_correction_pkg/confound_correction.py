@@ -1,7 +1,5 @@
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
-from nipype import Function
-from .utils import prep_CR
 from nipype.interfaces.base import (
     traits, TraitedSpec, BaseInterfaceInputSpec,
     File, BaseInterface
@@ -69,18 +67,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     clean_image_node = pe.Node(CleanImage(cr_opts=cr_opts),
                            name='clean_image', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
 
-    prep_CR_node = pe.Node(Function(input_names=['bold_file', 'motion_params_csv', 'FD_file', 'cr_opts'],
-                                              output_names=['data_dict'],
-                                              function=prep_CR),
-                                     name='prep_CR', mem_gb=1)
-    prep_CR_node.inputs.cr_opts = cr_opts
-
     workflow.connect([
-        (inputnode, prep_CR_node, [
-            ("bold_file", "bold_file"),
-            ("motion_params_csv", "motion_params_csv"),
-            ("FD_file", "FD_file"),
-            ]),
         (inputnode, clean_image_node, [
             ("bold_file", "bold_file"),
             ("brain_mask", "brain_mask_file"),
@@ -88,9 +75,8 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("CSF_mask", "CSF_mask_file"),
             ("vascular_mask", "vascular_mask_file"),
             ("raw_input_file", "raw_input_file"),
-            ]),
-        (prep_CR_node, clean_image_node, [
-            ("data_dict", "data_dict"),
+            ("motion_params_csv", "motion_params_csv"),
+            ("FD_file", "FD_file"),
             ]),
         (clean_image_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
@@ -113,8 +99,6 @@ class CleanImageInputSpec(BaseInterfaceInputSpec):
                       desc="The raw EPI scan before preprocessing.")
     bold_file = File(exists=True, mandatory=True,
                       desc="Timeseries to denoise.")
-    data_dict = traits.Dict(
-        exists=True, mandatory=True, desc="Dictionary with extra inputs.")
     brain_mask_file = File(exists=True, mandatory=True,
                       desc="Brain mask.")
     WM_mask_file = traits.Any(mandatory=True,
@@ -123,6 +107,10 @@ class CleanImageInputSpec(BaseInterfaceInputSpec):
                       desc="CSF mask.")
     vascular_mask_file = traits.Any(mandatory=True,
                       desc="vascular mask.")
+    FD_file = File(exists=True, mandatory=True,
+                      desc="CSV with framewise displacement.")
+    motion_params_csv = File(exists=True, mandatory=True,
+                      desc="CSV with motion parameters.")
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")
 
@@ -188,9 +176,6 @@ class CleanImage(BaseInterface):
         import numpy as np
         import pandas as pd
         import SimpleITK as sitk
-        from rabies.utils import recover_3D,recover_4D
-        from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors
-        from rabies.analysis_pkg.analysis_functions import closed_form
 
         ### set null returns in case the workflow is interrupted
         empty_img = sitk.GetImageFromArray(np.empty([1,1]))
@@ -209,7 +194,6 @@ class CleanImage(BaseInterface):
         ###
 
         cr_opts = self.inputs.cr_opts
-        data_dict = self.inputs.data_dict
 
         from nipype import logging
         nipype_log = logging.getLogger('nipype.workflow')
@@ -220,11 +204,9 @@ class CleanImage(BaseInterface):
             WM_mask_file = self.inputs.WM_mask_file,
             CSF_mask_file = self.inputs.CSF_mask_file,
             vascular_mask_file = self.inputs.vascular_mask_file,
-            FD_trace=data_dict['FD_trace'],
-            confounds_array=data_dict['confounds_array'],
-            motion_params_csv=data_dict['motion_params_csv'],
-            time_range=data_dict['time_range'],
-            confounds_6rigid_array=data_dict['confounds_6rigid_array'],
+            FD_file = self.inputs.FD_file,
+            motion_params_csv=self.inputs.motion_params_csv,
+            timeseries_interval = cr_opts.timeseries_interval,
             FD_censoring=cr_opts.frame_censoring['FD_censoring'], 
             FD_threshold=cr_opts.frame_censoring['FD_threshold'], 
             DVARS_censoring=cr_opts.frame_censoring['DVARS_censoring'], 
@@ -277,9 +259,8 @@ class CleanImage(BaseInterface):
                 }
     
 
-def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file,
-                FD_trace, confounds_array, motion_params_csv, time_range, confounds_6rigid_array, # replacing data_dict
-                FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
+def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file, FD_file, motion_params_csv,
+                timeseries_interval='0,end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
                 detrending_order=1, detrending_time_interval='all', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
@@ -301,7 +282,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     import pandas as pd
     import SimpleITK as sitk
     from rabies.utils import recover_3D,recover_4D
-    from rabies.confound_correction_pkg.utils import temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors, get_DVARS
+    from rabies.confound_correction_pkg.utils import select_motion_regressors, prep_timeseries_interval, temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors, get_DVARS
     from rabies.analysis_pkg.analysis_functions import closed_form
 
     cr_out = os.getcwd()
@@ -309,17 +290,30 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
     filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
 
     volume_idx = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file)).astype(bool)
-
     from rabies.utils import get_sitk_header
     header=get_sitk_header(bold_file)
     timeseries_vol = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
-    timeseries_vol = timeseries_vol[time_range,:]
 
     if TR=='auto':
         TR = float(header.GetSpacing()[3])
     else:
         TR = float(TR)
-                
+
+    # save specifically the 6 rigid parameters for AROMA
+    confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv)
+    if len(nuisance_regressors)==0:
+        confounds_array = confounds_6rigid_array
+    else:
+        confounds_array = select_motion_regressors(nuisance_regressors,motion_params_csv)
+
+    FD_trace = pd.read_csv(FD_file).get('MeanFD')
+
+    time_range = prep_timeseries_interval(timeseries_interval, bold_file)
+    confounds_array = confounds_array[time_range, :]
+    confounds_6rigid_array = confounds_6rigid_array[time_range, :]
+    FD_trace = FD_trace[time_range]
+    timeseries_vol = timeseries_vol[time_range,:]
+
     '''
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     '''
