@@ -198,7 +198,7 @@ class CleanImage(BaseInterface):
         from nipype import logging
         nipype_log = logging.getLogger('nipype.workflow')
 
-        cleaning_out_dict = clean_image(
+        cleaning_out = clean_image(
             bold_file = self.inputs.bold_file,
             brain_mask_file = self.inputs.brain_mask_file,
             WM_mask_file = self.inputs.WM_mask_file,
@@ -230,19 +230,62 @@ class CleanImage(BaseInterface):
             nipype_log=nipype_log,
             )
 
-        if cleaning_out_dict is None:
+        if cleaning_out is None:
             return runtime
-        
-        setattr(self, 'cleaned_path', cleaning_out_dict['cleaned_path'])
-        setattr(self, 'VE_file_path', cleaning_out_dict['VE_file_path'])
-        setattr(self, 'STD_file_path', cleaning_out_dict['STD_file_path'])
-        setattr(self, 'CR_STD_file_path', cleaning_out_dict['CR_STD_file_path'])
-        setattr(self, 'random_CR_STD_file_path', cleaning_out_dict['random_CR_STD_file_path'])
-        setattr(self, 'corrected_CR_STD_file_path', cleaning_out_dict['corrected_CR_STD_file_path'])
-        setattr(self, 'frame_mask_file', cleaning_out_dict['frame_mask_file'])
-        setattr(self, 'data_dict', cleaning_out_dict)
-        if cleaning_out_dict['aroma_out'] is not None:
-            setattr(self, 'aroma_out', cleaning_out_dict['aroma_out'])
+        else:
+            [timeseries_img, 
+            CR_data_dict, 
+            VE_spatial_map, 
+            STD_spatial_map, 
+            CR_STD_spatial_map, 
+            random_CR_STD_spatial_map, 
+            corrected_CR_STD_spatial_map] = cleaning_out
+
+        '''
+        Generate all the output files
+        '''
+        cr_out = os.getcwd()
+        import pathlib  # Better path manipulation
+        filename_split = pathlib.Path(self.inputs.raw_input_file).name.rsplit(".nii")
+
+        cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
+        sitk.WriteImage(timeseries_img, cleaned_path)
+        VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
+        sitk.WriteImage(VE_spatial_map, VE_file_path)
+        STD_file_path = cr_out+'/'+filename_split[0]+'_STD_map.nii.gz'
+        sitk.WriteImage(STD_spatial_map, STD_file_path)
+        CR_STD_file_path = cr_out+'/'+filename_split[0]+'_CR_STD_map.nii.gz'
+        sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
+        frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
+        pd.DataFrame(CR_data_dict['frame_mask']).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
+
+        if cr_opts.generate_CR_null:
+            random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
+            sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
+            corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
+            sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
+        else:
+            random_CR_STD_file_path=''
+            corrected_CR_STD_file_path=''
+
+        CR_data_dict['cleaned_path'] = cleaned_path
+        CR_data_dict['VE_file_path'] = VE_file_path
+        CR_data_dict['STD_file_path'] = STD_file_path
+        CR_data_dict['CR_STD_file_path'] = CR_STD_file_path
+        CR_data_dict['random_CR_STD_file_path'] = random_CR_STD_file_path
+        CR_data_dict['corrected_CR_STD_file_path'] = corrected_CR_STD_file_path
+        CR_data_dict['frame_mask_file'] = frame_mask_file
+                
+        setattr(self, 'cleaned_path', cleaned_path)
+        setattr(self, 'VE_file_path', VE_file_path)
+        setattr(self, 'STD_file_path', STD_file_path)
+        setattr(self, 'CR_STD_file_path', CR_STD_file_path)
+        setattr(self, 'random_CR_STD_file_path', random_CR_STD_file_path)
+        setattr(self, 'corrected_CR_STD_file_path', corrected_CR_STD_file_path)
+        setattr(self, 'frame_mask_file', frame_mask_file)
+        setattr(self, 'data_dict', CR_data_dict)
+        if CR_data_dict['aroma_out'] is not None:
+            setattr(self, 'aroma_out', CR_data_dict['aroma_out'])
 
         return runtime
 
@@ -259,7 +302,8 @@ class CleanImage(BaseInterface):
                 }
     
 
-def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file, FD_file, motion_params_csv,
+def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necessary input files
+                WM_mask_file=None, CSF_mask_file=None, vascular_mask_file=None,
                 timeseries_interval='0,end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
                 detrending_order=1, detrending_time_interval='all', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
@@ -690,30 +734,14 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
         random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
         corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
         del predicted_random_std, corrected_predicted_std
-
-
-    cleaned_path = cr_out+'/'+filename_split[0]+'_cleaned.nii.gz'
-    sitk.WriteImage(timeseries_img, cleaned_path)
-    VE_file_path = cr_out+'/'+filename_split[0]+'_VE_map.nii.gz'
-    sitk.WriteImage(VE_spatial_map, VE_file_path)
-    STD_file_path = cr_out+'/'+filename_split[0]+'_STD_map.nii.gz'
-    sitk.WriteImage(STD_spatial_map, STD_file_path)
-    CR_STD_file_path = cr_out+'/'+filename_split[0]+'_CR_STD_map.nii.gz'
-    sitk.WriteImage(CR_STD_spatial_map, CR_STD_file_path)
-    frame_mask_file = cr_out+'/'+filename_split[0]+'_frame_censoring_mask.csv'
-    pd.DataFrame(frame_mask).to_csv(frame_mask_file, index=False, header=['False = Masked Frames'])
-
-    if generate_CR_null:
-        random_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_random_CR_STD_map.nii.gz'
-        sitk.WriteImage(random_CR_STD_spatial_map, random_CR_STD_file_path)
-        corrected_CR_STD_file_path = cr_out+'/'+filename_split[0]+'_corrected_CR_STD_map.nii.gz'
-        sitk.WriteImage(corrected_CR_STD_spatial_map, corrected_CR_STD_file_path)
     else:
-        random_CR_STD_file_path=''
-        corrected_CR_STD_file_path=''
+        random_CR_STD_spatial_map = None
+        corrected_CR_STD_spatial_map = None
 
-    return {
-        'cleaned_path':cleaned_path, 'VE_file_path':VE_file_path, 'STD_file_path':STD_file_path, 'CR_STD_file_path':CR_STD_file_path, 'random_CR_STD_file_path':random_CR_STD_file_path, 'corrected_CR_STD_file_path':corrected_CR_STD_file_path, 'frame_mask_file':frame_mask_file, 'aroma_out':aroma_out,
+    CR_data_dict = {
         'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
+        'aroma_out':aroma_out,
         }
+    return timeseries_img, CR_data_dict, VE_spatial_map, STD_spatial_map, CR_STD_spatial_map, random_CR_STD_spatial_map, corrected_CR_STD_spatial_map
+
 
