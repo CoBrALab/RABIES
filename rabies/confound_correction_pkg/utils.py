@@ -230,6 +230,8 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
             method='aCompCor_percent'
         else:
             raise
+        if WM_mask_idx is None or CSF_mask_idx is None:
+            raise ValueError(f"WM_mask or CSF_mask are None - cannot compute aCompCor.")
 
         combined_mask_idx = (WM_mask_idx+CSF_mask_idx) > 0
         if combined_mask_idx.sum()<5:
