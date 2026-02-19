@@ -107,29 +107,6 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     return mask
 
 
-def prep_CR(bold_file, motion_params_csv, FD_file, cr_opts):
-    import pandas as pd
-    from rabies.confound_correction_pkg.utils import select_motion_regressors
-
-    # save specifically the 6 rigid parameters for AROMA
-    confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv)
-
-    if len(cr_opts.nuisance_regressors)==0:
-        confounds_array = confounds_6rigid_array
-    else:
-        confounds_array = select_motion_regressors(cr_opts.nuisance_regressors,motion_params_csv)
-
-    FD_trace = pd.read_csv(FD_file).get('MeanFD')
-
-    time_range = prep_timeseries_interval(cr_opts.timeseries_interval, bold_file)
-    confounds_array = confounds_array[time_range, :]
-    confounds_6rigid_array = confounds_6rigid_array[time_range, :]
-    FD_trace = FD_trace[time_range]
-
-    data_dict = {'FD_trace':FD_trace, 'confounds_array':confounds_array, 'confounds_6rigid_array':confounds_6rigid_array, 'motion_params_csv':motion_params_csv, 'time_range':time_range}
-    return data_dict
-
-
 def prep_timeseries_interval(timeseries_interval, bold_file):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
