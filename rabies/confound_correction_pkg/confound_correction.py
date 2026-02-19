@@ -579,6 +579,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
                     scaled_timeseries[:,nan_voxels] = 0
                     scaled_timeseries = (scaled_timeseries/scaled_total_std)*total_std
                     scaled_list.append(scaled_timeseries)
+                del scaled_timeseries
                 [predicted,predicted_random] = scaled_list
 
 
@@ -601,6 +602,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
             scaled_timeseries[:,nan_voxels] = 0
             scaled_list.append(scaled_timeseries)
+        del scaled_timeseries
         [timeseries,predicted,predicted_random] = scaled_list
 
         if slicewise_correction:
