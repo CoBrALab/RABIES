@@ -279,8 +279,8 @@ def preprocess(opts, log):
 
 def confound_correction(opts, log):
 
-    if len(opts.conf_list)>0:
-        raise ValueError("--conf_list parameter is depreciated, and was replaced by --nuisance_regressors.")
+    if opts.conf_list:
+        raise ValueError("--conf_list parameter is deprecated, and was replaced by --nuisance_regressors.")
 
     if opts.edge_cutoff == 0 and (opts.highpass is not None):
         log.warning(

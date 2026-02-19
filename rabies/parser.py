@@ -747,9 +747,9 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--conf_list', type=str,
-        default='',
+        default=None,
         help=
-            "DEPRECIATED PARAMETER: This was replaced by --nuisance_regressors, throws an error any input is provided. \n"
+            "DEPRECATED PARAMETER: This was replaced by --nuisance_regressors, throws an error if any input is provided. \n"
             "\n"
         )
     confound_correction.add_argument(

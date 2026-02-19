@@ -396,7 +396,7 @@ def clean_image(bold_file, brain_mask_file, WM_mask_file, CSF_mask_file, vascula
             elif slice_direction==2:
                 slice_idx[slice,:,:]*=2
             else:
-                raise ValueError("Slice direction must be 1, 2 or 3.")
+                raise ValueError("Slice direction must be 0, 1 or 2.")
             slice_idx = (slice_idx==2)[volume_idx] # convert to vector that matches timeseries_vol array
             if slice_idx.sum()>0:
                 slice_idx_l.append(slice_idx)
