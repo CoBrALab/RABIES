@@ -108,7 +108,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         import tempfile
         tmppath = tempfile.mkdtemp()
         def resample_brain_map(brain_map):
-            image_3d = recover_3D(mask_file=sub_maps_data_dict['mask_file'], vector_map=brain_map)
+            image_3d = recover_3D(sub_maps_data_dict['mask_file'], brain_map)
             resampled_img = resample_volumes(image_3d, common_maps_data_dict['anat_ref_file'], 
                                              transforms_3d_files=resampling_specs['transforms'], inverses_3d=resampling_specs['inverses'], 
                                              motcorr_params_file = None, interpolation=resampling_specs['interpolation'], 
@@ -349,13 +349,12 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax4.set_xlim(x_lim)
 
     # plot the motion timecourses
-    motion_params_csv = CR_CR_data_dict['motion_params_csv']
+    motion_params_df = CR_CR_data_dict['motion_params_df']
     time_range = CR_CR_data_dict['time_range']
-    df = pd.read_csv(motion_params_csv)
     # take proper subset of timepoints
-    ax1.plot(x,df['mov1'].to_numpy()[time_range][frame_mask])
-    ax1.plot(x,df['mov2'].to_numpy()[time_range][frame_mask])
-    ax1.plot(x,df['mov3'].to_numpy()[time_range][frame_mask])
+    ax1.plot(x,motion_params_df['mov1'].to_numpy()[time_range][frame_mask])
+    ax1.plot(x,motion_params_df['mov2'].to_numpy()[time_range][frame_mask])
+    ax1.plot(x,motion_params_df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1.set_ylabel('mm', fontsize=20)
@@ -363,9 +362,9 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
-    ax1_.plot(x,df['rot1'].to_numpy()[time_range][frame_mask])
-    ax1_.plot(x,df['rot2'].to_numpy()[time_range][frame_mask])
-    ax1_.plot(x,df['rot3'].to_numpy()[time_range][frame_mask])
+    ax1_.plot(x,motion_params_df['rot1'].to_numpy()[time_range][frame_mask])
+    ax1_.plot(x,motion_params_df['rot2'].to_numpy()[time_range][frame_mask])
+    ax1_.plot(x,motion_params_df['rot3'].to_numpy()[time_range][frame_mask])
     ax1_.legend(['Euler angle 1', 'Euler angle 2', 'Euler angle 3'],
                 loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1_.set_ylabel('radians', fontsize=20)

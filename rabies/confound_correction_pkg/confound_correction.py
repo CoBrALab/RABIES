@@ -199,12 +199,13 @@ class CleanImage(BaseInterface):
         nipype_log = logging.getLogger('nipype.workflow')
 
         cleaning_out = clean_image(
-            bold_file = self.inputs.bold_file,
-            brain_mask_file = self.inputs.brain_mask_file,
-            WM_mask_file = self.inputs.WM_mask_file,
-            CSF_mask_file = self.inputs.CSF_mask_file,
-            vascular_mask_file = self.inputs.vascular_mask_file,
-            FD_file = self.inputs.FD_file,
+            input_bold = self.inputs.bold_file,
+            bold_file_ref = self.inputs.bold_file,
+            brain_mask = self.inputs.brain_mask_file,
+            WM_mask = self.inputs.WM_mask_file,
+            CSF_mask = self.inputs.CSF_mask_file,
+            vascular_mask = self.inputs.vascular_mask_file,
+            FD_csv = self.inputs.FD_file,
             motion_params_csv=self.inputs.motion_params_csv,
             timeseries_interval = cr_opts.timeseries_interval,
             FD_censoring=cr_opts.frame_censoring['FD_censoring'], 
@@ -302,8 +303,8 @@ class CleanImage(BaseInterface):
                 }
     
 
-def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necessary input files
-                WM_mask_file=None, CSF_mask_file=None, vascular_mask_file=None,
+def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv, # necessary input files
+                WM_mask=None, CSF_mask=None, vascular_mask=None,
                 timeseries_interval='0,end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
                 detrending_order=1, detrending_time_interval='all', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
@@ -315,6 +316,9 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
                 nipype_log=None,
                 ):
     '''
+    input_bold: timeseries file or SITK image to clean
+    bold_file_ref: this nifti file's header is read only for metadata purpose, it should match the input_bold
+
     slicewise_correction_direction: if applying slicewise correction, detrending, bandpass filtering, nuisance regression
     and smoothing are all applied on a per slice basis. In such case, the output array confound_array will be the mean of 
     regressors computed across slices, to output a representative average. Similarly VE_temporal and VE_total_ratio are
@@ -329,30 +333,61 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
     from rabies.analysis_pkg.analysis_functions import closed_form
     from . import utils as cr_utils
 
-    cr_out = os.getcwd()
-    import pathlib  # Better path manipulation
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    '''
+    The function can take as input either an adequately pre-loaded python object or a file path
+    '''
+    def read_input(input):
+        if isinstance(input, sitk.Image) or isinstance(input, pd.DataFrame):
+            return input
+        elif os.path.isfile(input):
+            if '.nii' in input:
+                return sitk.ReadImage(input, sitk.sitkFloat32)
+            elif '.csv' in input:
+                return pd.read_csv(input)
+            else:
+                raise ValueError(f"The input {input} was neither a .nii or .csv file.")
+        else:
+            raise ValueError(f"The input {input} was neither a file nor a recognized python object.")
 
-    volume_idx = sitk.GetArrayFromImage(sitk.ReadImage(brain_mask_file)).astype(bool)
+    [input_bold, 
+     FD_csv, 
+     motion_params_df, 
+     brain_mask, 
+     WM_mask, 
+     CSF_mask, 
+     vascular_mask] = [read_input(input) for input in [
+         input_bold, 
+         FD_csv, 
+         motion_params_csv, 
+         brain_mask, 
+         WM_mask, 
+         CSF_mask, 
+         vascular_mask,
+         ]]
+
+    volume_idx = sitk.GetArrayFromImage(brain_mask).astype(bool)
     from rabies.utils import get_sitk_header
-    header=get_sitk_header(bold_file)
-    timeseries_vol = sitk.GetArrayFromImage(sitk.ReadImage(bold_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
+    bold_header = get_sitk_header(bold_file_ref)
 
     if TR=='auto':
-        TR = float(header.GetSpacing()[3])
+        TR = float(bold_header.GetSpacing()[3])
     else:
         TR = float(TR)
 
     # save specifically the 6 rigid parameters for AROMA
-    confounds_6rigid_array = cr_utils.select_motion_regressors(['mot_6'],motion_params_csv)
+    confounds_6rigid_array = cr_utils.select_motion_regressors(['mot_6'],motion_params_df)
     if len(nuisance_regressors)==0:
         confounds_array = confounds_6rigid_array
     else:
-        confounds_array = cr_utils.select_motion_regressors(nuisance_regressors,motion_params_csv)
+        confounds_array = cr_utils.select_motion_regressors(nuisance_regressors,motion_params_df)
 
-    FD_trace = pd.read_csv(FD_file).get('MeanFD')
+    FD_trace = FD_csv.get('MeanFD')
 
-    time_range = cr_utils.prep_timeseries_interval(timeseries_interval, bold_file)
+    # header should be read from input_bold in case the # of frames is not the same as bold_file_ref
+    time_range = cr_utils.prep_timeseries_interval(timeseries_interval, input_bold)
+
+    timeseries_vol = sitk.GetArrayFromImage(input_bold)[:,volume_idx] # read directly as a 2D array
+    del input_bold # free memory
     confounds_array = confounds_array[time_range, :]
     confounds_6rigid_array = confounds_6rigid_array[time_range, :]
     FD_trace = FD_trace[time_range]
@@ -419,7 +454,7 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
 
     if slicewise_correction:
         # create slicewise masks for managing slicewise operations
-        dim_size = header.GetSize()[slice_direction]
+        dim_size = bold_header.GetSize()[slice_direction]
         slices = list(range(dim_size))
         slice_idx_l = []    
         smoothing_slice_l = []
@@ -479,14 +514,18 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
             if slicewise_correction:
                 raise ValueError("slicewise_correction is incompatible with AROMA.")
             # write intermediary output files for timeseries and 6 rigid body parameters
-            inFile = f'{cr_out}/{filename_split[0]}_aroma_input.nii.gz'
-            sitk.WriteImage(recover_4D(brain_mask_file, timeseries, bold_file), inFile)
+            inFile = os.path.abspath('aroma_input_timeseries.nii.gz')
+            sitk.WriteImage(recover_4D(brain_mask, timeseries, bold_header), inFile)
+            brain_mask_file = os.path.abspath("aroma_brain_mask.nii.gz")
+            sitk.WriteImage(brain_mask, brain_mask_file)
+            CSF_mask_file = os.path.abspath("aroma_CSF_mask.nii.gz")
+            sitk.WriteImage(CSF_mask, CSF_mask_file)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
             confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
-            mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
+            mc_file = os.path.abspath('aroma_motion_params.csv')
             df.to_csv(mc_file)
 
             cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
@@ -543,15 +582,15 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
         '''
         #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
             minimize re-introduction of previously corrected signal fluctuations.
-        '''    
+        '''
 
-        def _mask_idx(mask_file):
-            if mask_file is None:
+        def _mask_idx(mask_img):
+            if mask_img is None:
                 return None
-            return sitk.GetArrayFromImage(sitk.ReadImage(mask_file)).astype(bool)[volume_idx][slice_idx]
+            return sitk.GetArrayFromImage(mask_img).astype(bool)[volume_idx][slice_idx]
         # indices for each mask are first loaded in vector format that matches the timeseries array
         brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx = [
-            _mask_idx(mask_file) for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]
+            _mask_idx(mask_img) for mask_img in [brain_mask, WM_mask, CSF_mask, vascular_mask]
         ]        
         regressors_array = cr_utils.compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
         confounds_array = np.append(confounds_array,regressors_array,axis=1)
@@ -695,7 +734,7 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
     tDOF = num_timepoints - (aroma_rm+num_regressors_) + number_extra_timepoints
 
     # smoothing takes an SITK image
-    timeseries_img = recover_4D(brain_mask_file, timeseries_vol, bold_file)
+    timeseries_img = recover_4D(brain_mask, timeseries_vol, bold_header)
     del timeseries_vol
 
     if smoothing_filter is not None:
@@ -703,8 +742,7 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
         #12 - Apply Gaussian spatial smoothing.
         '''
         import nibabel as nb
-        affine = nb.load(bold_file).affine[:3,:3] # still not sure how to match nibabel's affine reliably
-        mask_img = sitk.ReadImage(brain_mask_file, sitk.sitkFloat32)
+        affine = nb.load(bold_file_ref).affine[:3,:3] # still not sure how to match nibabel's affine reliably
 
         if slicewise_correction:
             # smooth 1 slice at a time
@@ -712,34 +750,34 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
                 # here the axis direction is in proper order since we are indexing a SITK image
                 if slice_direction==0:
                     timeseries_img[slice:slice+1,:,:,:] = cr_utils.smooth_image(
-                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, mask_img[slice:slice+1,:,:])
+                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, brain_mask[slice:slice+1,:,:])
                 elif slice_direction==1:
                     timeseries_img[:,slice:slice+1,:,:] = cr_utils.smooth_image(
-                        timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, mask_img[:,slice:slice+1,:])
+                        timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, brain_mask[:,slice:slice+1,:])
                 elif slice_direction==2:
                     timeseries_img[:,:,slice:slice+1,:] = cr_utils.smooth_image(
-                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, mask_img[:,:,slice:slice+1])
+                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, brain_mask[:,:,slice:slice+1])
                 else:
                     raise ValueError("Slice direction must be 0, 1 or 2.")
         else:
             timeseries_img = cr_utils.smooth_image(
-                timeseries_img, affine, smoothing_filter, mask_img)
+                timeseries_img, affine, smoothing_filter, brain_mask)
 
     # save output files
-    VE_spatial_map = recover_3D(brain_mask_file, VE_spatial)
-    STD_spatial_map = recover_3D(brain_mask_file, temporal_std)
-    CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_std)
+    VE_spatial_map = recover_3D(brain_mask, VE_spatial)
+    STD_spatial_map = recover_3D(brain_mask, temporal_std)
+    CR_STD_spatial_map = recover_3D(brain_mask, predicted_std)
     del VE_spatial, temporal_std, predicted_std
     if generate_CR_null:
-        random_CR_STD_spatial_map = recover_3D(brain_mask_file, predicted_random_std)
-        corrected_CR_STD_spatial_map = recover_3D(brain_mask_file, corrected_predicted_std)
+        random_CR_STD_spatial_map = recover_3D(brain_mask, predicted_random_std)
+        corrected_CR_STD_spatial_map = recover_3D(brain_mask, corrected_predicted_std)
         del predicted_random_std, corrected_predicted_std
     else:
         random_CR_STD_spatial_map = None
         corrected_CR_STD_spatial_map = None
 
     CR_data_dict = {
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_csv':motion_params_csv, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
         'aroma_out':aroma_out,
         }
     return timeseries_img, CR_data_dict, VE_spatial_map, STD_spatial_map, CR_STD_spatial_map, random_CR_STD_spatial_map, corrected_CR_STD_spatial_map

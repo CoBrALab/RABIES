@@ -107,7 +107,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     return mask
 
 
-def prep_timeseries_interval(timeseries_interval, bold_file):
+def prep_timeseries_interval(timeseries_interval, bold_header):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
     # select the subset of timeseries specified
@@ -117,8 +117,7 @@ def prep_timeseries_interval(timeseries_interval, bold_file):
     begin=int(split[0]) # must be an integer
     end=split[1]
     if end=='end':
-        from rabies.utils import get_sitk_header
-        end=get_sitk_header(bold_file).GetSize()[3] # take the total number of time frames
+        end=bold_header.GetSize()[3] # take the total number of time frames
     else:
         end=int(end)
 
@@ -170,8 +169,11 @@ def select_motion_regressors(nuisance_regressors,motion_params_csv):
         raise ValueError(
             "Can't select both the mot_6 and mot_24 options; must pick one.")
 
-    confounds = pd.read_csv(motion_params_csv)
-    keys = confounds.keys()
+    if isinstance(motion_params_csv, pd.DataFrame):
+        motion_params_df = motion_params_csv
+    else:
+        motion_params_df = pd.read_csv(motion_params_csv)
+    keys = motion_params_df.keys()
     conf_keys = []
     # only inputing motion regressors at this stage
     for conf in nuisance_regressors:
@@ -180,7 +182,7 @@ def select_motion_regressors(nuisance_regressors,motion_params_csv):
         elif conf == 'mot_24':
             conf_keys += [s for s in keys if "rot" in s or "mov" in s]
 
-    return np.asarray(confounds[conf_keys])
+    return np.asarray(motion_params_df[conf_keys])
 
 
 def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx):
