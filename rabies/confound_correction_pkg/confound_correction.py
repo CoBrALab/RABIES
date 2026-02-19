@@ -326,8 +326,8 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
     import pandas as pd
     import SimpleITK as sitk
     from rabies.utils import recover_3D,recover_4D
-    from rabies.confound_correction_pkg.utils import select_motion_regressors, prep_timeseries_interval, temporal_censoring,lombscargle_fill, exec_ICA_AROMA,butterworth, phase_randomized_regressors, smooth_image, remove_trend,compute_signal_regressors, get_DVARS
     from rabies.analysis_pkg.analysis_functions import closed_form
+    from . import utils as cr_utils
 
     cr_out = os.getcwd()
     import pathlib  # Better path manipulation
@@ -344,15 +344,15 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
         TR = float(TR)
 
     # save specifically the 6 rigid parameters for AROMA
-    confounds_6rigid_array = select_motion_regressors(['mot_6'],motion_params_csv)
+    confounds_6rigid_array = cr_utils.select_motion_regressors(['mot_6'],motion_params_csv)
     if len(nuisance_regressors)==0:
         confounds_array = confounds_6rigid_array
     else:
-        confounds_array = select_motion_regressors(nuisance_regressors,motion_params_csv)
+        confounds_array = cr_utils.select_motion_regressors(nuisance_regressors,motion_params_csv)
 
     FD_trace = pd.read_csv(FD_file).get('MeanFD')
 
-    time_range = prep_timeseries_interval(timeseries_interval, bold_file)
+    time_range = cr_utils.prep_timeseries_interval(timeseries_interval, bold_file)
     confounds_array = confounds_array[time_range, :]
     confounds_6rigid_array = confounds_6rigid_array[time_range, :]
     FD_trace = FD_trace[time_range]
@@ -363,9 +363,9 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
     '''
 
     # compute the DVARS before denoising
-    DVARS_trace = get_DVARS(timeseries_vol)
+    DVARS_trace = cr_utils.get_DVARS(timeseries_vol)
 
-    frame_mask = temporal_censoring(FD_trace, 
+    frame_mask = cr_utils.temporal_censoring(FD_trace, 
             FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint)
     if frame_mask is None:
         return None
@@ -466,11 +466,11 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
         '''
         #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
         '''
-        timeseries, fitted_intercept = remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        timeseries, fitted_intercept = cr_utils.remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
         grand_mean = fitted_intercept.mean() # the average is estimated from the intercept of the linear model
         voxelwise_mean = fitted_intercept # the average is estimated from the intercept of the linear model
         del fitted_intercept
-        confounds_array, _ = remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        confounds_array, _ = cr_utils.remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
 
         '''
         #4 - Apply ICA-AROMA.
@@ -483,13 +483,13 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
             sitk.WriteImage(recover_4D(brain_mask_file, timeseries, bold_file), inFile)
 
             confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array, _ = remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
+            confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = f'{cr_out}/{filename_split[0]}_aroma_input.csv'
             df.to_csv(mc_file)
 
-            cleaned_file, aroma_out = exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
+            cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
             timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
         else:
             aroma_out = None
@@ -499,22 +499,22 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
             #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
                 as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
             '''
-            timeseries = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
-            confounds_array = lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+            timeseries = cr_utils.lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+            confounds_array = cr_utils.lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
             ### arrays are now interpolated
 
             '''
             #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
                 to the temporal filter.
             '''
-            confounds_array = butterworth(confounds_array, TR=TR,
+            confounds_array = cr_utils.butterworth(confounds_array, TR=TR,
                                     high_pass=highpass, low_pass=lowpass)
 
             '''
             #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
             '''
 
-            timeseries = butterworth(timeseries, TR=TR,
+            timeseries = cr_utils.butterworth(timeseries, TR=TR,
                                     high_pass=highpass, low_pass=lowpass)
 
             # correct for edge effects of the filters
@@ -553,7 +553,7 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
         brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx = [
             _mask_idx(mask_file) for mask_file in [brain_mask_file, WM_mask_file, CSF_mask_file, vascular_mask_file]
         ]        
-        regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
+        regressors_array = cr_utils.compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
         confounds_array = np.append(confounds_array,regressors_array,axis=1)
 
         '''
@@ -579,7 +579,7 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
 
         if generate_CR_null:
             # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
-            randomized_confounds_array = phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
+            randomized_confounds_array = cr_utils.phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
             predicted_random = randomized_confounds_array.dot(closed_form(randomized_confounds_array,timeseries))
         else:
             predicted_random = np.empty([0,timeseries.shape[1]])
@@ -711,18 +711,18 @@ def clean_image(bold_file, brain_mask_file, FD_file, motion_params_csv, # necess
             for slice in smoothing_slice_l:
                 # here the axis direction is in proper order since we are indexing a SITK image
                 if slice_direction==0:
-                    timeseries_img[slice:slice+1,:,:,:] = smooth_image(
+                    timeseries_img[slice:slice+1,:,:,:] = cr_utils.smooth_image(
                         timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, mask_img[slice:slice+1,:,:])
                 elif slice_direction==1:
-                    timeseries_img[:,slice:slice+1,:,:] = smooth_image(
+                    timeseries_img[:,slice:slice+1,:,:] = cr_utils.smooth_image(
                         timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, mask_img[:,slice:slice+1,:])
                 elif slice_direction==2:
-                    timeseries_img[:,:,slice:slice+1,:] = smooth_image(
+                    timeseries_img[:,:,slice:slice+1,:] = cr_utils.smooth_image(
                         timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, mask_img[:,:,slice:slice+1])
                 else:
                     raise ValueError("Slice direction must be 0, 1 or 2.")
         else:
-            timeseries_img = smooth_image(
+            timeseries_img = cr_utils.smooth_image(
                 timeseries_img, affine, smoothing_filter, mask_img)
 
     # save output files
