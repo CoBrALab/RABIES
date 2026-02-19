@@ -19,8 +19,13 @@ def get_sitk_header(file_path): # read a nifti header without loading the data
     return reader
 
 
-def recover_3D(mask_file, vector_map):
-    mask_img = sitk.ReadImage(mask_file)
+def recover_3D(mask_img, vector_map):
+    if isinstance(mask_img, sitk.Image):
+        pass
+    elif os.path.isfile(mask_img):
+        mask_img = sitk.ReadImage(mask_img)
+    else:
+        raise ValueError(f"{mask_img} is neither an SITK image nor a file path.")
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
     volume=np.zeros(brain_mask.shape)
@@ -30,9 +35,24 @@ def recover_3D(mask_file, vector_map):
     return volume_img
 
 
-def recover_4D(mask_file, vector_maps, ref_4d):
+def recover_4D(mask_img, vector_maps, ref_4d):
+    if isinstance(mask_img, sitk.Image):
+        pass
+    elif os.path.isfile(mask_img):
+        mask_img = sitk.ReadImage(mask_img)
+    else:
+        raise ValueError(f"{mask_img} is neither an SITK image nor a file path.")
+ 
+    if isinstance(ref_4d, sitk.Image):
+        pass
+    elif isinstance(ref_4d, sitk.ImageFileReader):
+        pass
+    elif os.path.isfile(ref_4d):
+        ref_4d = get_sitk_header(ref_4d)
+    else:
+        raise ValueError(f"{ref_4d} is neither an SITK image nor a file path.")
+    
     #vector maps of shape num_volumeXnum_voxel
-    mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
     shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
@@ -42,7 +62,7 @@ def recover_4D(mask_file, vector_maps, ref_4d):
         volume[volume_indices]=vector_maps[i,:]
         volumes[i,:,:,:]=volume
     volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
-        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
+        volumes, isVector=False), mask_img, ref_4d)
     return volume_img
 
 
