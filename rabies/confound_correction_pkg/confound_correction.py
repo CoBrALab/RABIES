@@ -335,7 +335,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     The function can take as input either an adequately pre-loaded python object or a file path
     '''
     def read_input(input):
-        if isinstance(input, sitk.Image) or isinstance(input, pd.DataFrame):
+        if (input is None) or isinstance(input, sitk.Image) or isinstance(input, pd.DataFrame):
             return input
         elif os.path.isfile(input):
             if '.nii' in input:
