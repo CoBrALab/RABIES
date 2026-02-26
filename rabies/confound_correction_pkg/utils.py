@@ -108,7 +108,7 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
     return mask
 
 
-def prep_timeseries_interval(timeseries_interval, bold_header):
+def prep_timeseries_interval(timeseries_interval, num_frames):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
     # select the subset of timeseries specified
@@ -118,7 +118,7 @@ def prep_timeseries_interval(timeseries_interval, bold_header):
     begin=int(split[0]) # must be an integer
     end=split[1]
     if end=='end':
-        end=bold_header.GetSize()[3] # take the total number of time frames
+        end=num_frames # take the total number of time frames
     else:
         end=int(end)
 

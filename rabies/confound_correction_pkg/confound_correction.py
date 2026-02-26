@@ -200,7 +200,6 @@ class CleanImage(BaseInterface):
 
         cleaning_out = clean_image(
             input_bold = self.inputs.bold_file,
-            bold_file_ref = self.inputs.bold_file,
             brain_mask = self.inputs.brain_mask_file,
             WM_mask = self.inputs.WM_mask_file,
             CSF_mask = self.inputs.CSF_mask_file,
@@ -303,7 +302,7 @@ class CleanImage(BaseInterface):
                 }
     
 
-def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv, # necessary input files
+def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
                 timeseries_interval='0,end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
                 detrending_order=1, detrending_time_interval='all', 
@@ -317,7 +316,6 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
                 ):
     '''
     input_bold: timeseries file or SITK image to clean
-    bold_file_ref: this nifti file's header is read only for metadata purpose, it should match the input_bold, except it can handle a mismatch in the number of frames
 
     slicewise_correction_direction: if applying slicewise correction, detrending, bandpass filtering, nuisance regression
     and smoothing are all applied on a per slice basis. In such case, the output array confound_array will be the mean of 
@@ -366,11 +364,13 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
          ]]
 
     volume_idx = sitk.GetArrayFromImage(brain_mask).astype(bool)
-    from rabies.utils import get_sitk_header
-    bold_header = get_sitk_header(bold_file_ref)
+     # save the header and original array size, since the image will be removed to space memory below
+    from rabies.utils import get_geometry_header
+    header_geo = get_geometry_header(input_bold)
+    orig_4d_size = input_bold.GetSize() # copy the original array size
 
     if TR=='auto':
-        TR = float(bold_header.GetSpacing()[3])
+        TR = float(header_geo.GetSpacing()[3])
     else:
         TR = float(TR)
 
@@ -383,8 +383,7 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
 
     FD_trace = FD_csv.get('MeanFD')
 
-    # header should be read from input_bold in case the # of frames is not the same as bold_file_ref
-    time_range = cr_utils.prep_timeseries_interval(timeseries_interval, input_bold)
+    time_range = cr_utils.prep_timeseries_interval(timeseries_interval, num_frames=orig_4d_size[3])
 
     timeseries_vol = sitk.GetArrayFromImage(input_bold)[:,volume_idx] # read directly as a 2D array
     del input_bold # free memory
@@ -454,7 +453,7 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
 
     if slicewise_correction:
         # create slicewise masks for managing slicewise operations
-        dim_size = bold_header.GetSize()[slice_direction]
+        dim_size = orig_4d_size[slice_direction]
         slices = list(range(dim_size))
         slice_idx_l = []    
         smoothing_slice_l = []
@@ -515,7 +514,7 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
                 raise ValueError("slicewise_correction is incompatible with AROMA.")
             # write intermediary output files for timeseries and 6 rigid body parameters
             inFile = os.path.abspath('aroma_input_timeseries.nii.gz')
-            sitk.WriteImage(recover_4D(brain_mask, timeseries, bold_header), inFile)
+            sitk.WriteImage(recover_4D(brain_mask, timeseries, header_geo), inFile)
             brain_mask_file = os.path.abspath("aroma_brain_mask.nii.gz")
             sitk.WriteImage(brain_mask, brain_mask_file)
             CSF_mask_file = os.path.abspath("aroma_CSF_mask.nii.gz")
@@ -734,7 +733,7 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
     tDOF = num_timepoints - (aroma_rm+num_regressors_) + number_extra_timepoints
 
     # smoothing takes an SITK image
-    timeseries_img = recover_4D(brain_mask, timeseries_vol, bold_header)
+    timeseries_img = recover_4D(brain_mask, timeseries_vol, header_geo)
     del timeseries_vol
 
     if smoothing_filter is not None:
