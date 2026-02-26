@@ -47,19 +47,20 @@ def find_scans(scan_info, bold_files, brain_mask_files, confounds_files, csf_mas
     return bold_file, brain_mask_file, confounds_file, csf_mask, FD_file
 
 
-def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, tr, aroma_dim, random_seed=1):
+def exec_ICA_AROMA(inFile, mc_file, brain_mask, csf_mask, aroma_out=None, tr='auto', aroma_dim=0, random_seed=1):
     import os
     from rabies.confound_correction_pkg.utils import csv2par
     from rabies.confound_correction_pkg.mod_ICA_AROMA.ICA_AROMA_functions import run_ICA_AROMA
     import pathlib
     filename_split = pathlib.Path(inFile).name.rsplit(".nii")
-    aroma_out = os.getcwd()+'/aroma_out'
+    if not aroma_out:
+        aroma_out = os.getcwd()+'/aroma_out'
     cleaned_file = aroma_out+f'/{filename_split[0]}_aroma.nii.gz'
 
     if tr=='auto':
-        import SimpleITK as sitk
-        img = sitk.ReadImage(os.path.abspath(inFile))
-        tr = float(img.GetSpacing()[3])
+        from rabies.utils import get_sitk_header
+        header = get_sitk_header(os.path.abspath(inFile))
+        tr = float(header.GetSpacing()[3])
     else:
         tr = float(tr)
 

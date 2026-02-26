@@ -317,7 +317,7 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
                 ):
     '''
     input_bold: timeseries file or SITK image to clean
-    bold_file_ref: this nifti file's header is read only for metadata purpose, it should match the input_bold
+    bold_file_ref: this nifti file's header is read only for metadata purpose, it should match the input_bold, except it can handle a mismatch in the number of frames
 
     slicewise_correction_direction: if applying slicewise correction, detrending, bandpass filtering, nuisance regression
     and smoothing are all applied on a per slice basis. In such case, the output array confound_array will be the mean of 
@@ -527,8 +527,8 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = os.path.abspath('aroma_motion_params.csv')
             df.to_csv(mc_file)
-
-            cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
+            aroma_out = os.path.abspath('aroma_out/')
+            cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, aroma_out, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
             timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
         else:
             aroma_out = None
