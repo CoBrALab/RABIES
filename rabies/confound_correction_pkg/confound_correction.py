@@ -475,12 +475,10 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
                 smoothing_slice_l.append(slice)
 
         # prepare arrays that will be filled
-        predicted_vol = np.zeros(timeseries_vol.shape)
-        if generate_CR_null:
-            predicted_random_vol = np.zeros(timeseries_vol.shape)
+        timeseries_slice_l = [] # each slice will be appended to this list
         VE_total_ratio = 0
         VE_spatial = np.zeros(timeseries_vol.shape[1])
-        VE_temporal = np.zeros(timeseries_vol.shape[0])
+        VE_temporal_l = []
 
         # need to create a copy before preprocessing so it can by recycled for each slice
         confounds_array_ = confounds_array
@@ -497,14 +495,16 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
             timeseries = timeseries_vol
             del timeseries_vol # minimize memory load
 
+        frame_mask_slice = frame_mask.copy() # need to create copy per slice, so that the original frame_mask is unchanged for next slice
+
         '''
         #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
         '''
-        timeseries, fitted_intercept = cr_utils.remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        timeseries, fitted_intercept = cr_utils.remove_trend(timeseries, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval)
         grand_mean = fitted_intercept.mean() # the average is estimated from the intercept of the linear model
         voxelwise_mean = fitted_intercept # the average is estimated from the intercept of the linear model
         del fitted_intercept
-        confounds_array, _ = cr_utils.remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+        confounds_array, _ = cr_utils.remove_trend(confounds_array, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval)
 
         '''
         #4 - Apply ICA-AROMA.
@@ -520,8 +520,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
             CSF_mask_file = os.path.abspath("aroma_CSF_mask.nii.gz")
             sitk.WriteImage(CSF_mask, CSF_mask_file)
 
-            confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
-            confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
+            confounds_6rigid_array=confounds_6rigid_array[frame_mask_slice,:]
+            confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
             df = pd.DataFrame(confounds_6rigid_array)
             df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
             mc_file = os.path.abspath('aroma_motion_params.csv')
@@ -537,8 +537,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
             #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
                 as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
             '''
-            timeseries = cr_utils.lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
-            confounds_array = cr_utils.lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+            timeseries = cr_utils.lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask_slice)
+            confounds_array = cr_utils.lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask_slice)
             ### arrays are now interpolated
 
             '''
@@ -557,12 +557,12 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
             # correct for edge effects of the filters
             num_cut = int(edge_cutoff/TR)
-            if len(frame_mask)<2*num_cut:
+            if len(frame_mask_slice)<2*num_cut:
                 raise ValueError(f"The timeseries are too short to remove {edge_cutoff}sec of data at each edge.")
 
             if not num_cut==0:
-                frame_mask[:num_cut]=0
-                frame_mask[-num_cut:]=0
+                frame_mask_slice[:num_cut]=0
+                frame_mask_slice[-num_cut:]=0
 
 
             '''
@@ -570,10 +570,10 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
                 simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
             '''
             # re-apply the masks to take out simulated data points, and take off the edges
-            timeseries = timeseries[frame_mask]
-            confounds_array = confounds_array[frame_mask]
+            timeseries = timeseries[frame_mask_slice]
+            confounds_array = confounds_array[frame_mask_slice]
         
-        if frame_mask.sum()<int(minimum_timepoint):
+        if frame_mask_slice.sum()<int(minimum_timepoint):
             if nipype_log:
                 nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
             return None
@@ -617,7 +617,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
         if generate_CR_null:
             # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
-            randomized_confounds_array = cr_utils.phase_randomized_regressors(confounds_array, frame_mask, TR=TR)
+            randomized_confounds_array = cr_utils.phase_randomized_regressors(confounds_array, frame_mask_slice, TR=TR)
             predicted_random = randomized_confounds_array.dot(closed_form(randomized_confounds_array,timeseries))
         else:
             predicted_random = np.empty([0,timeseries.shape[1]])
@@ -682,14 +682,10 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         [timeseries,predicted,predicted_random] = scaled_list
 
         if slicewise_correction:
-            # Add the slices to create timeseries,predicted,predicted_random volumetric arrays
-            timeseries_vol[:,slice_idx] = timeseries
-            predicted_vol[:,slice_idx] = predicted
-            if generate_CR_null:
-                predicted_random_vol[:,slice_idx] = predicted_random
+            timeseries_slice_l.append([timeseries,predicted,predicted_random])
             slice_weight = slice_idx.sum()/volume_idx.sum() # compute what proportion of voxels this slice counts as
             VE_total_ratio += VE_total_ratio_slice*slice_weight # create weighted average from the proportion of voxels
-            VE_temporal += VE_temporal_slice*slice_weight # create weighted average from the proportion of voxels
+            VE_temporal_l.append(VE_temporal_slice*slice_weight) # create weighted average from the proportion of voxels
             VE_spatial[slice_idx] = VE_spatial_slice
 
         else:
@@ -703,6 +699,29 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
         if num_regressors>num_regressors_: # keep track of the maximal number of regressors across slices
             num_regressors_ = num_regressors
+
+    frame_mask = frame_mask_slice
+    del frame_mask_slice
+    
+    # reconstruct the 4D array after slicewise processing
+    if slicewise_correction:
+        num_frames = timeseries_slice_l[0][0].shape[0] # check the finalized number of frames
+        timeseries_vol = np.zeros([num_frames, timeseries_vol.shape[1]]) # the number of frames can change, not the number of voxels
+        predicted_vol = np.zeros(timeseries_vol.shape)
+        if generate_CR_null:
+            predicted_random_vol = np.zeros(timeseries_vol.shape)
+
+        for slice_idx,timeseries_slice in zip(slice_idx_l,timeseries_slice_l):
+            [timeseries,predicted,predicted_random] = timeseries_slice
+            timeseries_vol[:,slice_idx] = timeseries
+            predicted_vol[:,slice_idx] = predicted
+            if generate_CR_null:
+                predicted_random_vol[:,slice_idx] = predicted_random
+        del timeseries_slice_l, timeseries_slice, timeseries, predicted, predicted_random
+
+        # compute the sum across slices
+        VE_temporal = np.array(VE_temporal_l).sum(axis=0)
+        del VE_temporal_l
 
     # after variance scaling, compute the variability estimates
     temporal_std = timeseries_vol.std(axis=0)
