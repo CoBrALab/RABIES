@@ -741,27 +741,24 @@ def clean_image(input_bold, bold_file_ref, brain_mask, FD_csv, motion_params_csv
         '''
         #12 - Apply Gaussian spatial smoothing.
         '''
-        import nibabel as nb
-        affine = nb.load(bold_file_ref).affine[:3,:3] # still not sure how to match nibabel's affine reliably
-
         if slicewise_correction:
             # smooth 1 slice at a time
             for slice in smoothing_slice_l:
                 # here the axis direction is in proper order since we are indexing a SITK image
                 if slice_direction==0:
                     timeseries_img[slice:slice+1,:,:,:] = cr_utils.smooth_image(
-                        timeseries_img[slice:slice+1,:,:,:], affine, smoothing_filter, brain_mask[slice:slice+1,:,:])
+                        timeseries_img[slice:slice+1,:,:,:], smoothing_filter, brain_mask[slice:slice+1,:,:])
                 elif slice_direction==1:
                     timeseries_img[:,slice:slice+1,:,:] = cr_utils.smooth_image(
-                        timeseries_img[:,slice:slice+1,:,:], affine, smoothing_filter, brain_mask[:,slice:slice+1,:])
+                        timeseries_img[:,slice:slice+1,:,:], smoothing_filter, brain_mask[:,slice:slice+1,:])
                 elif slice_direction==2:
                     timeseries_img[:,:,slice:slice+1,:] = cr_utils.smooth_image(
-                        timeseries_img[:,:,slice:slice+1,:], affine, smoothing_filter, brain_mask[:,:,slice:slice+1])
+                        timeseries_img[:,:,slice:slice+1,:], smoothing_filter, brain_mask[:,:,slice:slice+1])
                 else:
                     raise ValueError("Slice direction must be 0, 1 or 2.")
         else:
             timeseries_img = cr_utils.smooth_image(
-                timeseries_img, affine, smoothing_filter, brain_mask)
+                timeseries_img, smoothing_filter, brain_mask)
 
     # save output files
     VE_spatial_map = recover_3D(brain_mask, VE_spatial)

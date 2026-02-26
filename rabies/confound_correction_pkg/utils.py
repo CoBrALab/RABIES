@@ -476,48 +476,67 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
     return randomized_confounds_array
 
 
-def smooth_image(img, affine, fwhm, mask_img):
+def smooth_image(img, fwhm, mask_img):
     # apply nilearn's Gaussian smoothing on a SITK image
     from nilearn.image.image import _smooth_array
     from rabies.utils import copyInfo_4DImage, copyInfo_3DImage
 
-    # the affine is a 3 by 3 matrix of the spacing*direction for the 3 spatial dimensions
-    #spacing_3d = np.array(timeseries_img.GetSpacing())[:3]
-    #direction_4d = np.array(timeseries_img.GetDirection())
-    #direction_3d = np.array([list(direction_4d[:3]),list(direction_4d[4:7]),list(direction_4d[8:11])])
-    #affine = direction_3d*spacing_3d
-
     dim = img.GetDimension()
+    if not (dim==3 or dim==4):
+        raise ValueError("Image must be 3D or 4D")
+
+    # Build the affine matrix from SITK image
+    affine = sitk_affine_lps(img)
+    affine = affine[:3, :3]
+
     if dim==4:
         array_4d = sitk.GetArrayFromImage(img)
         arr = array_4d.transpose(3,2,1,0) # re-orient the array to match the affine
     elif dim==3:
         array_3d = sitk.GetArrayFromImage(img)
         arr = array_3d.transpose(2,1,0) # re-orient the array to match the affine
-    smoothed_arr = _smooth_array(arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
+    smoothed_arr = _smooth_array(arr, affine, fwhm=fwhm, ensure_finite=True, copy=False)
+    del arr
+    
+    # recover SITK orientation
+    if dim==4:
+        smoothed_arr = smoothed_arr.transpose(3,2,1,0)
+    elif dim==3:
+        smoothed_arr = smoothed_arr.transpose(2,1,0)
     
     # smoothing creates leakage around mask boundaries
     # correct for edge effects by dividing by the smoothed mask like FSL https://johnmuschelli.com/fslr/reference/fslsmooth.html
     mask_arr = sitk.GetArrayFromImage(mask_img).transpose(2,1,0) # re-orient the array to match the affine
-    smoothed_mask = _smooth_array(mask_arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
+    smoothed_mask = _smooth_array(mask_arr, affine, fwhm=fwhm, ensure_finite=True, copy=False)
     smoothed_mask = smoothed_mask.transpose(2,1,0) # recover SITK orientation
-
+    mask_arr = mask_arr.transpose(2,1,0) # recover SITK orientation
+    
+    smoothed_arr /= smoothed_mask # correct for edge effect
+    smoothed_arr *= mask_arr # re-apply mask to avoid leakage from smoothing
+    smoothed_arr[np.isnan(smoothed_arr)] = 0
+    
     # recover SITK img
     if dim==4:
-        smoothed_arr = smoothed_arr.transpose(3,2,1,0)
-        smoothed_arr /= smoothed_mask # correct for edge effect
-        smoothed_arr *= sitk.GetArrayFromImage(mask_img) # re-apply mask
-        smoothed_arr[np.isnan(smoothed_arr)] = 0
-        
         smoothed_img = copyInfo_4DImage(sitk.GetImageFromArray(
             smoothed_arr, isVector=False), img, img)
     elif dim==3:
-        smoothed_arr = smoothed_arr.transpose(2,1,0)
-        smoothed_arr /= smoothed_mask # correct for edge effect
-        smoothed_arr *= sitk.GetArrayFromImage(mask_img) # re-apply mask
-        smoothed_arr[np.isnan(smoothed_arr)] = 0
-        
         smoothed_img = copyInfo_3DImage(sitk.GetImageFromArray(
             smoothed_arr, isVector=False), img)
 
     return smoothed_img
+
+
+def sitk_affine_lps(img):
+    '''
+    Generate the affine matrix from a SITK image.
+    Note that SITK affines follow the LPS coordinate.
+    '''
+    dim = img.GetDimension()
+    direction = np.array(img.GetDirection()).reshape(dim, dim)
+    spacing = np.diag(img.GetSpacing())
+    origin = np.array(img.GetOrigin())
+
+    affine = np.eye(dim + 1)
+    affine[:dim, :dim] = direction @ spacing
+    affine[:dim, dim] = origin
+    return affine
