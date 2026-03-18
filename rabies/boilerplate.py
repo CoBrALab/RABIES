@@ -268,8 +268,6 @@ is removed at each edge of the timeseries to account for edge artefacts followin
             references[aCompCor]=i
             i+=1
             str_list.append(f'the timecourses from principal components explaining 50% of the variance among the voxels from the combined WM and CSF masks (aCompCor)[{references[aCompCor]}]')
-        if 'mean_FD' in opts.nuisance_regressors:
-            str_list.append(f'the mean framewise displacement')
         if 'WM_signal' in opts.nuisance_regressors or 'CSF_signal' in opts.nuisance_regressors or 'vascular_signal' in opts.nuisance_regressors:
             mask_str='the mean signal from the '
 

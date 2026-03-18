@@ -731,8 +731,7 @@ def get_parser():
         choices=["WM_signal", "CSF_signal", "vascular_signal",
                 "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24"],
         help=
-            "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
-            "regression.\n"
+            "Select list of nuisance regressors that will be removed voxelwise.\n"
             "*** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain \n"
             "   masks.\n"
             "*** mot_6: 6 rigid head motion correction parameters.\n"
@@ -870,9 +869,14 @@ def get_parser():
         '--slicewise_correction_direction', type=str, default='Off',
         choices=['Off', 'RL', 'AP', 'SI'],
         help=
-            "It is possible with this parameter to carry out slice-wise 2D confound correction. This will \n"
-            "influence the calculation of nuisance regressors using brain masks, image scaling and smoothing \n"
-            "on a per slice basis. This is incompatible with ICA-AROMA, which requires volumetric correction. \n"
+            "By inputing a slice direction with this parameters, the computation of nuisance signals, \n"
+            "nuisance regression, and smoothing, are all conducted on each 2D slice independently along \n"
+            "the provided slice direction. \n"
+            "This strategy can be useful in the presence of artefacts (e.g. intensity spikes) that are \n"
+            "not shared across slices due to time delays between slice acquisition, in which case a slicewise \n"
+            "nuisance regression may perform better. Otherwise, in the case of images with spatial gaps \n"
+            "between slices, smoothing should be applied slicewise using this parameter. \n"
+            "\n"
             "To apply slicewise correction, provide as input one of the RAS axial direction for slice \n"
             "selection, i.e. this parameter takes as input one of: 'RL', 'AP' or 'SI'. \n"
             "For accurate slice selection, the axial directions of the input nifti images must be properly \n"
