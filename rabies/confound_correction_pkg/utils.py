@@ -264,6 +264,165 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
         return regressors_array
 
 
+def nuisance_regression(timeseries_vol, confounds_array, TR, frame_mask, orig_4d_size, brain_mask, WM_mask, CSF_mask, vascular_mask, nuisance_regressors=[], slicewise_correction_direction='Off', generate_CR_null=False, nipype_log=None):
+    volume_idx = sitk.GetArrayFromImage(brain_mask).astype(bool)
+
+    if slicewise_correction_direction=='Off':
+        slicewise_correction=False
+    else:
+        '''
+        Prepare the indices for selecting individual slices for slicewise nuisance regression
+        '''
+        slicewise_correction=True
+        if slicewise_correction_direction=='RL':
+            slice_direction = 0
+        elif slicewise_correction_direction=='AP':
+            slice_direction = 1
+        elif slicewise_correction_direction=='SI':
+            slice_direction = 2
+        else:
+            raise ValueError(f"slicewise_correction_direction must be one of 'RL', 'AP' or 'SI', got {slicewise_correction_direction} instead.")
+
+    if slicewise_correction:
+        # create slicewise masks for managing slicewise operations
+        dim_size = orig_4d_size[slice_direction]
+        all_slices = list(range(dim_size))
+        slice_mask_idx_l = [] # list of the index mask to pick an individual slice
+        cleaned_slice_l = [] # the list of slices included post-cleaning
+        for slice in all_slices:
+            slice_mask_idx = volume_idx.copy().astype(int)
+            # multiply by the slice mask values by 2 so that only it can be isolated with ==2
+            # here the axis direction is inverted since the array is a conversion from a SITK image
+            if slice_direction==0:
+                slice_mask_idx[:,:,slice]*=2
+            elif slice_direction==1:
+                slice_mask_idx[:,slice,:]*=2
+            elif slice_direction==2:
+                slice_mask_idx[slice,:,:]*=2
+            else:
+                raise ValueError("Slice direction must be 0, 1 or 2.")
+            slice_mask_idx = (slice_mask_idx==2)[volume_idx] # convert to vector that matches timeseries_vol array
+            if slice_mask_idx.sum()>0:
+                slice_mask_idx_l.append(slice_mask_idx)
+                cleaned_slice_l.append(slice)
+
+        # prepare arrays that will be filled
+        timeseries_slice_l = [] # each slice will be appended to this list
+        VE_total_ratio = 0
+        VE_spatial = np.zeros(timeseries_vol.shape[1])
+        VE_temporal_l = []
+
+    else:
+        # create only a single mask that returns the whole array
+        slice_mask_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
+        cleaned_slice_l = None
+
+    num_regressors_ = 0 # set to 0 for now
+    for slice_mask_idx in slice_mask_idx_l:
+        if slicewise_correction:
+            timeseries = timeseries_vol[:,slice_mask_idx]
+        else:
+            timeseries = timeseries_vol
+            del timeseries_vol # minimize memory load
+
+        '''
+        #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
+            minimize re-introduction of previously corrected signal fluctuations.
+        '''
+
+        def _mask_idx(mask_img):
+            if mask_img is None:
+                return None
+            return sitk.GetArrayFromImage(mask_img).astype(bool)[volume_idx][slice_mask_idx]
+        # indices for each mask are first loaded in vector format that matches the timeseries array
+        brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx = [
+            _mask_idx(mask_img) for mask_img in [brain_mask, WM_mask, CSF_mask, vascular_mask]
+        ]        
+        signal_regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
+        # we can now create the full list of regressors
+        regressors_array = np.append(confounds_array,signal_regressors_array,axis=1)
+
+        '''
+        #10 - Apply confound regression using the selected nuisance regressors.
+        '''
+        # voxels that have a NaN value are set to 0
+        nan_voxels = np.isnan(timeseries).sum(axis=0)>1
+        timeseries[:,nan_voxels] = 0
+
+        # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
+        try:
+            predicted = regressors_array.dot(closed_form(regressors_array,timeseries))
+            residuals = timeseries-predicted
+        except np.linalg.LinAlgError:
+            if nipype_log:
+                nipype_log.warning("SINGULAR MATRIX ERROR DURING CONFOUND REGRESSION. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            return None
+
+        # estimates of variance explained
+        VE_total_ratio_slice = 1-(residuals.var()/timeseries.var())
+        VE_spatial_slice = 1-(residuals.var(axis=0)/timeseries.var(axis=0))
+        VE_temporal_slice = 1-(residuals.var(axis=1)/timeseries.var(axis=1))
+
+        if generate_CR_null:
+            # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
+            randomized_regressors_array = phase_randomized_regressors(regressors_array, frame_mask, TR=TR)
+            predicted_random = randomized_regressors_array.dot(closed_form(randomized_regressors_array,timeseries))
+        else:
+            predicted_random = np.empty([0,timeseries.shape[1]])
+
+        if len(nuisance_regressors) > 0:
+            # if confound regression is applied
+            timeseries = residuals
+
+        num_regressors = regressors_array.shape[1] # save the number of regressors applied
+        del residuals, regressors_array
+
+
+        if slicewise_correction:
+            timeseries_slice_l.append([timeseries,predicted,predicted_random])
+            slice_weight = slice_mask_idx.sum()/volume_idx.sum() # compute what proportion of voxels this slice counts as
+            VE_total_ratio += VE_total_ratio_slice*slice_weight # create weighted average from the proportion of voxels
+            VE_temporal_l.append(VE_temporal_slice*slice_weight) # create weighted average from the proportion of voxels
+            VE_spatial[slice_mask_idx] = VE_spatial_slice
+        else:
+            timeseries_vol = timeseries
+            predicted_vol = predicted
+            predicted_random_vol = predicted_random
+            VE_total_ratio = VE_total_ratio_slice
+            VE_spatial = VE_spatial_slice
+            VE_temporal = VE_temporal_slice
+        del timeseries, predicted, predicted_random
+
+        if num_regressors>num_regressors_: # keep track of the maximal number of regressors across slices
+            num_regressors_ = num_regressors
+    
+    num_regressors = num_regressors_ # final top # of regressors
+    del num_regressors_
+    # reconstruct the volumetric array after slicewise processing
+    if slicewise_correction:
+        num_frames = timeseries_slice_l[0][0].shape[0] # check the finalized number of frames
+        timeseries_vol = np.zeros([num_frames, timeseries_vol.shape[1]]) # the number of frames can change, not the number of voxels
+        predicted_vol = np.zeros(timeseries_vol.shape)
+        if generate_CR_null:
+            predicted_random_vol = np.zeros(timeseries_vol.shape)
+        else:
+            predicted_random_vol = np.empty([0,timeseries_vol.shape[1]])
+
+        for slice_mask_idx,timeseries_slice in zip(slice_mask_idx_l,timeseries_slice_l):
+            [timeseries,predicted,predicted_random] = timeseries_slice
+            timeseries_vol[:,slice_mask_idx] = timeseries
+            predicted_vol[:,slice_mask_idx] = predicted
+            if generate_CR_null:
+                predicted_random_vol[:,slice_mask_idx] = predicted_random
+        del timeseries_slice_l, timeseries_slice, timeseries, predicted, predicted_random
+
+        # compute the sum across slices
+        VE_temporal = np.array(VE_temporal_l).sum(axis=0)
+        del VE_temporal_l
+
+    return timeseries_vol, predicted_vol, predicted_random_vol, num_regressors, VE_temporal, VE_spatial, VE_total_ratio, cleaned_slice_l
+
+
 def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):
     '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
@@ -486,6 +645,8 @@ def smooth_image(img, fwhm, mask_img):
         raise ValueError("Image must be 3D or 4D")
 
     # Build the affine matrix from SITK image
+    # even thought the affine is in LPS instead of RAS (the nibabel/nilearn convention),
+    # the +/- sign of the affine values have no incidence on smooth_array calculations
     affine = sitk_affine_lps(img)
     affine = affine[:3, :3]
 
