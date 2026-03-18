@@ -210,7 +210,7 @@ if opts.complete:
     repeat_attempts(command, number_attempts=3)
 
     # testing censoring on its own, since it removes all scans and prevent further testing
-    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --frame_censoring FD_censoring=true,FD_threshold=0.05,DVARS_censoring=true,minimum_timepoint=3 --timeseries_interval 2,12"
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs --frame_censoring FD_censoring=true,FD_threshold=0.05,DVARS_censoring=true,minimum_timepoint=3 --timeseries_interval 2-12"
     process = subprocess.run(
         command,
         check=True,

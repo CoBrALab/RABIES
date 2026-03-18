@@ -305,8 +305,8 @@ class CleanImage(BaseInterface):
 
 def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
-                timeseries_interval='0,end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
-                detrending_order=1, detrending_time_interval='all', 
+                timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
+                detrending_order=1, detrending_time_interval='0-end', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
                 nuisance_regressors = [], generate_CR_null=False,
@@ -341,7 +341,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     vascular_mask : filepath or sitk.Image, default=None
         A vascular mask in the same space as input_bold
                 
-    timeseries_interval : str, default='0,end'
+    timeseries_interval : str, default='0-end'
         The chunk of frames to clean controlled by --timeseries_interval.
 
     FD_censoring : bool, default=False
@@ -362,9 +362,11 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     detrending_order : int, default=1
         The polynomial order for detrending.
 
-    detrending_time_interval : str, default='all'
-        The time interval over which the trends are computed for detrending. If 'all', 
-        it is computed across all frames.
+    detrending_time_interval : str, default='0-end'
+        The time interval over which the trends are computed for detrending. The trends
+        are always removed across the entire timeseries, even if they were estimated from
+        a subset of frames.
+        This follows the same syntax as timeseries_interval.
 
     apply_ica_aroma : bool, default=False
         Whether to apply ICA-AROMA.

@@ -111,8 +111,10 @@ def gen_FD_mask(FD_trace, scrubbing_threshold):
 def prep_timeseries_interval(timeseries_interval, num_frames):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
+    if ',' in timeseries_interval:
+        raise ValueError(f"Use the syntax first-last frame. The syntax with a comma first,last is depreciated.")
     # select the subset of timeseries specified
-    split = timeseries_interval.split(',')
+    split = timeseries_interval.split('-')
     if not len(split)==2:
         raise ValueError(f"--timeseries_interval wasn't split into 2: {split}")
     begin=int(split[0]) # must be an integer
@@ -423,11 +425,11 @@ def nuisance_regression(timeseries_vol, motion_regressors_array, TR, frame_mask,
     return timeseries_vol, predicted_vol, predicted_random_vol, num_regressors, VE_temporal, VE_spatial, VE_total_ratio, cleaned_slice_l
 
 
-def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):
+def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end'):
     '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
     num_timepoints = len(frame_mask)
-    
+
     # we create a centered time axis, to fit an intercept value in the center - Centering improves numerical stability when fitting polynomials (because otherwise high powers of large time indices can explode)
     time=np.linspace(-num_timepoints/2,num_timepoints/2 , num_timepoints)
     time_postcensor = time[frame_mask]
@@ -442,18 +444,22 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='all'):
     # Always add intercept as last column (if X is empty, the output will only be a column of intercepts)
     X = np.column_stack([X, np.ones(num_timepoints_postcensor)])
 
-    #fitting 
+    # prepare the time interval over which to compute the trends; this initial estimate does not take into account censoring
+    time_range = prep_timeseries_interval(time_interval, num_frames=num_timepoints)
+    first = time_range[0]
+    last = time_range[-1]
+    # the idx range must be shifted by the number of censored frames before the first index to match the censored timeseries array
+    if first>0:
+        first -= (frame_mask[:first]==False).sum()
+    # similarly for the last index
+    last -= (frame_mask[:last]==False).sum()
+    time_range = range(first,last) # we re-generated a corrected range
+
+    # fit the trends with linear regression
     Y=timeseries
-    # in most cases, we want to fit the trend to the whole timeseries
-    if time_interval == 'all':
-        W = closed_form(X,Y) #solves the linear regression in closed form
-    else:
-        #but sometimes we want to compute the trend over only a portion of the timeseries
-        lowcut = int(time_interval.split('-')[0])
-        highcut = int(time_interval.split('-')[1])
-        W = closed_form(X[lowcut:highcut, :],Y[lowcut:highcut, :])
+    W = closed_form(X[time_range, :],Y[time_range, :])
+
     predicted = X.dot(W) #always subtract the trend over the whole timeseries
-    
     residuals = (Y-predicted) # add back the intercept after
     fitted_intercept = W[-1,:] # predicted intercept
 

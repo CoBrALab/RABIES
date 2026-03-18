@@ -713,14 +713,14 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--detrending', type=str,
-        default='order=1,time_interval=all',
+        default='order=1,time_interval=0-end',
         help=
             "Detrend the voxel timeseries. \n"
             "* order: Specify the polynomial order for detrending as a integer. \n"
             "*** 0 for no detrending, 1 for linear detrending, 2 for quadratic etc. \n"
             "* time_interval: the time interval over which the trend is computed. \n "
+            "Follow the syntax from --timeseries_interval to select a subset of frames. \n"
             "Note the trend is always subtracted from the whole timeseries. \n"
-            "*** 0-80 will take the first 80 timepoints (e.g. baseline), compute their trend, then subtract it from the whole timeseries."
             "(default: %(default)s)\n"
             "\n"
         )
@@ -847,7 +847,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--timeseries_interval', type=str, default='0,end',
+        '--timeseries_interval', type=str, default='0-end',
         help=
             "Before confound correction, can crop the timeseries within a specific interval.\n"
             "e.g. '0,80' for timepoint 0 to 80. 0 is the first time frame, and 'end' stands for \n"
@@ -1262,7 +1262,7 @@ def read_parser(parser, args):
         
         opts.detrending = parse_argument(opt=opts.detrending, 
             key_value_pairs = {'order':int, 'time_interval':str},
-            defaults = {'order':1,'time_interval':'all'},
+            defaults = {'order':1,'time_interval':'0-end'},
             name='detrending')
 
         opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 
