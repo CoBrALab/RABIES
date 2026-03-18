@@ -264,7 +264,7 @@ def compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, W
         return regressors_array
 
 
-def nuisance_regression(timeseries_vol, confounds_array, TR, frame_mask, orig_4d_size, brain_mask, WM_mask, CSF_mask, vascular_mask, nuisance_regressors=[], slicewise_correction_direction='Off', generate_CR_null=False, nipype_log=None):
+def nuisance_regression(timeseries_vol, motion_regressors_array, TR, frame_mask, orig_4d_size, brain_mask, WM_mask, CSF_mask, vascular_mask, nuisance_regressors=[], slicewise_correction_direction='Off', generate_CR_null=False, nipype_log=None):
     volume_idx = sitk.GetArrayFromImage(brain_mask).astype(bool)
 
     if slicewise_correction_direction=='Off':
@@ -340,7 +340,7 @@ def nuisance_regression(timeseries_vol, confounds_array, TR, frame_mask, orig_4d
         ]        
         signal_regressors_array = compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
         # we can now create the full list of regressors
-        regressors_array = np.append(confounds_array,signal_regressors_array,axis=1)
+        regressors_array = np.append(motion_regressors_array,signal_regressors_array,axis=1)
 
         '''
         #10 - Apply confound regression using the selected nuisance regressors.
@@ -595,7 +595,7 @@ def phaseScrambleTS(ts):
     return tsrp.real
 
 
-def phase_randomized_regressors(confounds_array, frame_mask, TR):
+def phase_randomized_regressors(regressors_array, frame_mask, TR):
     """
     METHOD FROM BRIGHT AND MURPHY 2015
     "The true noise regressors were phase-randomised to create simulated noise regressors with similar frequency 
@@ -608,13 +608,13 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
 
     """
     from rabies.confound_correction_pkg.utils import lombscargle_fill
-    num_conf = confounds_array.shape[1]
-    randomized_confounds_array = np.zeros(confounds_array.shape)
+    num_conf = regressors_array.shape[1]
+    randomized_regressors_array = np.zeros(regressors_array.shape)
     for n in range(num_conf):
         corr=1
         iter=1
         while(corr>0.1):
-            x=confounds_array[:,n:n+1]
+            x=regressors_array[:,n:n+1]
             # fill missing datapoints to obtain a good reading of frequency spectrum
             y = lombscargle_fill(x,TR,frame_mask)
             # phase randomize
@@ -630,9 +630,9 @@ def phase_randomized_regressors(confounds_array, frame_mask, TR):
             iter += 1
             
         #### impose orthogonality relative to every original regressor      
-        y_m -= np.matmul(confounds_array, closed_form(confounds_array, y_m))
-        randomized_confounds_array[:,n:n+1] = y_m
-    return randomized_confounds_array
+        y_m -= np.matmul(regressors_array, closed_form(regressors_array, y_m))
+        randomized_regressors_array[:,n:n+1] = y_m
+    return randomized_regressors_array
 
 
 def smooth_image(img, fwhm, mask_img):
