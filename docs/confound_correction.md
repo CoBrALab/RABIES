@@ -28,7 +28,7 @@ where Y is the timeseries and the predictors are $X = [intercept, time, time^2]$
     2. Butterworth filter: Following the simulation, frequency filtering (highpass and/or lowpass) is applied using a 3rd-order Butterworth filter ([scipy.signal.butter](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html)). If applying highpass, it is recommended to remove 30 seconds at each end of the timeseries using `--edge_cutoff` to account for edge artefacts following filtering{cite}`Power2014-yf`. After frequency filtering, the temporal mask from censoring is re-applied to remove simulated timepoints.
 
 (CR_target)=
-5. **Confound regression** (`--conf_list`): For each voxel timeseries, a selected set of nuissance regressors (see [regressor options](regressor_target)) are modelled using OLS linear regression and their modelled contribution to the signal is removed. Regressed timeseries $\hat{Y}$ are obtained with 
+5. **Confound regression** (`--nuisance_regressors`): For each voxel timeseries, a selected set of nuisance regressors (see [regressor options](regressor_target)) are modelled using OLS linear regression and their modelled contribution to the signal is removed. Regressed timeseries $\hat{Y}$ are obtained with 
 $$\beta = OLS(X,Y)$$
 $$ Y_{CR} = X\beta $$ 
 $$ \hat{Y} = Y - Y_{CR} $$ 

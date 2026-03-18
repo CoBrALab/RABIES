@@ -132,10 +132,10 @@ First, we have to preprocess the dataset before it can be analyzed. In this exam
 
 **confound_correction**
 ```sh
-rabies -p MultiProc confound_correction preprocess_outputs/ confound_correction_outputs/ --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
+rabies -p MultiProc confound_correction preprocess_outputs/ confound_correction_outputs/ --nuisance_regressors WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
 ```
 Next, after completing preprocessing, in most cases the data should be corrected for potential confounds prior to analysis. This is done in the confound correction stage, where confounds are modelled and regressed from the data. In this example we correct the preprocessed data found in the `preprocess_outputs/` folder and store the cleaned outputs in the `confound_correction_outputs/` folder. Among the range of options available for confound correction, we define in this example three parameters:
-* `--conf_list` is the option to regress nuisance timeseries from the data, i.e., confound regression. This parameter takes a list as input, where each argument in the list is seperated by a space as follow `WM_signal CSF_signal mot_6`. This list defines which nuisance timeseries are going to model confounds during confound regression, in this case, the WM and CSF mean signals together with the 6 rigid realignment parameters from head motion realignment.
+* `--nuisance_regressors` is the option to regress nuisance timeseries from the data, i.e., confound regression. This parameter takes a list as input, where each argument in the list is seperated by a space as follow `WM_signal CSF_signal mot_6`. This list defines which nuisance timeseries are going to model confounds during confound regression, in this case, the WM and CSF mean signals together with the 6 rigid realignment parameters from head motion realignment.
 * `--smoothing_filter` will additionally apply Gaussian spatial smoothing, where in this case, a filter size of `0.3` mm is specified.
 
 **analysis**
@@ -167,7 +167,7 @@ Apptainer containers are stored in image files, for instance `rabies.sif`. `appt
 apptainer run -B $PWD/input_BIDS:/input_BIDS:ro \
 -B $PWD/preprocess_outputs:/preprocess_outputs/ \
 -B $PWD/confound_correction_outputs:/confound_correction_outputs/ \
-/path_to_apptainer_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --conf_list WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
+/path_to_apptainer_image/rabies.sif -p MultiProc confound_correction /preprocess_outputs/ /confound_correction_outputs/ --nuisance_regressors WM_signal CSF_signal vascular_signal mot_6 --smoothing_filter 0.3 
 ```
 The required paths are similarly provided for the confound correction stage. Note here that the path to `$PWD/input_BIDS` is still linked to the container, even though it is not explicitely part of the arguments during the confound correction call. This is necessary since the paths used in the preprocessing steps still need to be accessed at later stages, and there will be an error if the paths are not kept consistent across processing steps.
 

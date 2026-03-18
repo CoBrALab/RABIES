@@ -19,8 +19,25 @@ def get_sitk_header(file_path): # read a nifti header without loading the data
     return reader
 
 
-def recover_3D(mask_file, vector_map):
-    mask_img = sitk.ReadImage(mask_file)
+def get_geometry_header(img):
+    # this creates an empty SITK image that carries information about geometry, but not the voxel array size
+    # IMPORTANTLY: this means that header.GetSize() or CopyInformation(header) is inaccurate.
+    header_geo = sitk.Image([1]*img.GetDimension(), img.GetPixelID())
+    header_geo.SetSpacing(img.GetSpacing())
+    header_geo.SetOrigin(img.GetOrigin())
+    header_geo.SetDirection(img.GetDirection())
+    for k in img.GetMetaDataKeys(): # metadata is also copied in case
+        header_geo.SetMetaData(k, img.GetMetaData(k))
+    return header_geo
+
+
+def recover_3D(mask_img, vector_map):
+    if isinstance(mask_img, sitk.Image):
+        pass
+    elif os.path.isfile(mask_img):
+        mask_img = sitk.ReadImage(mask_img)
+    else:
+        raise ValueError(f"{mask_img} is neither an SITK image nor a file path.")
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
     volume=np.zeros(brain_mask.shape)
@@ -30,9 +47,24 @@ def recover_3D(mask_file, vector_map):
     return volume_img
 
 
-def recover_4D(mask_file, vector_maps, ref_4d):
+def recover_4D(mask_img, vector_maps, ref_4d):
+    if isinstance(mask_img, sitk.Image):
+        pass
+    elif os.path.isfile(mask_img):
+        mask_img = sitk.ReadImage(mask_img)
+    else:
+        raise ValueError(f"{mask_img} is neither an SITK image nor a file path.")
+ 
+    if isinstance(ref_4d, sitk.Image):
+        pass
+    elif isinstance(ref_4d, sitk.ImageFileReader):
+        pass
+    elif os.path.isfile(ref_4d):
+        ref_4d = get_sitk_header(ref_4d)
+    else:
+        raise ValueError(f"{ref_4d} is neither an SITK image nor a file path.")
+    
     #vector maps of shape num_volumeXnum_voxel
-    mask_img = sitk.ReadImage(mask_file)
     brain_mask = sitk.GetArrayFromImage(mask_img)
     volume_indices=brain_mask.astype(bool)
     shape=(vector_maps.shape[0],brain_mask.shape[0],brain_mask.shape[1],brain_mask.shape[2])
@@ -42,7 +74,7 @@ def recover_4D(mask_file, vector_maps, ref_4d):
         volume[volume_indices]=vector_maps[i,:]
         volumes[i,:,:,:]=volume
     volume_img = copyInfo_4DImage(sitk.GetImageFromArray(
-        volumes, isVector=False), mask_img, sitk.ReadImage(ref_4d))
+        volumes, isVector=False), mask_img, ref_4d)
     return volume_img
 
 
@@ -286,11 +318,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = N
             input_volumes.append(extractor.Execute(orig_img))
 
         # before releasing orig_img, copy the header into an empty image
-        size = (1,1,1,1)
-        header_4d = sitk.Image(size, orig_img.GetPixelID())
-        header_4d.SetSpacing(orig_img.GetSpacing())
-        header_4d.SetDirection(orig_img.GetDirection())
-        header_4d.SetOrigin(orig_img.GetOrigin())
+        header_geo = get_geometry_header(orig_img)
         del orig_img, extractor # free memory
 
         resampled_volumes = [None] * num_volumes
@@ -327,7 +355,7 @@ def resample_volumes(in_img, in_ref, transforms_3d_files = None, inverses_3d = N
                         raise e
                     pbar.update(1)
         resampled_img = sitk.JoinSeries(resampled_volumes)
-        resampled_img = copyInfo_4DImage(resampled_img, resampled_img, header_4d) # only copy original header for 4th dimension
+        resampled_img = copyInfo_4DImage(resampled_img, resampled_img, header_geo) # only copy original header for 4th dimension
     else:
         raise ValueError(f"Input image must be 3D or 4D. Got {orig_img.GetDimension()}D.")
     

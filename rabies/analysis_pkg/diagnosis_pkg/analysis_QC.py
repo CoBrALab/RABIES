@@ -58,10 +58,8 @@ def get_maps(prior, prior_list, corr_variable, mask_file, smoothing=False, non_p
         
     if smoothing:
         mask_img = sitk.ReadImage(mask_file)
-        import nibabel as nb
-        affine = nb.load(mask_file).affine[:3,:3]
         for i in range(len(maps)):
-            maps[i] = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,maps[i]), affine, 0.3, mask_img))[volume_indices]
+            maps[i] = sitk.GetArrayFromImage(smooth_image(recover_3D(mask_file,maps[i]), 0.3, mask_img))[volume_indices]
     
     return maps
 

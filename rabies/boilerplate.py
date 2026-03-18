@@ -243,7 +243,7 @@ the filters[{references[power2014]},{references[mathias]}]. "
         methods+=f"{filter} filtering({freq}Hz) was applied using a 3rd-order Butterworth filter, and {opts.edge_cutoff} seconds \
 is removed at each edge of the timeseries to account for edge artefacts following filtering [{references[power2014]}]. "
 
-        if len(opts.conf_list) > 0:
+        if len(opts.nuisance_regressors) > 0:
             references[Lindquist]=i
             i+=1
             methods+=f"The nuisance regressors are also filtered to ensure orthogonality between the frequency filters and subsequent confound regression, which can otherwise re-introduce removed confounds [{references[Lindquist]}]."
@@ -252,33 +252,31 @@ is removed at each edge of the timeseries to account for edge artefacts followin
             methods+=f"After frequency filtering, the temporal masks are re-applied to remove the simulated timepoints. "
 
     # Confound Regression
-    if len(opts.conf_list)>0:
+    if len(opts.nuisance_regressors)>0:
         str_list=[]
-        if 'mot_6' in opts.conf_list:
+        if 'mot_6' in opts.nuisance_regressors:
             str_list.append('the 6 rigid motion parameters')
-        if 'mot_24' in opts.conf_list:
+        if 'mot_24' in opts.nuisance_regressors:
             references[friston24]=i
             i+=1
             str_list.append(f'24 motion parameters (the 6 rigid motion parameters, their temporal derivative, together with all 12 parameters squared[{references[friston24]}])')
-        if 'aCompCor_5' in opts.conf_list:
+        if 'aCompCor_5' in opts.nuisance_regressors:
             references[aCompCor]=i
             i+=1
             str_list.append(f'the timecourses from the first 5 principal components derived from the voxels combining the WM and CSF masks (aCompCor)[{references[aCompCor]}]')
-        if 'aCompCor_percent' in opts.conf_list:
+        if 'aCompCor_percent' in opts.nuisance_regressors:
             references[aCompCor]=i
             i+=1
             str_list.append(f'the timecourses from principal components explaining 50% of the variance among the voxels from the combined WM and CSF masks (aCompCor)[{references[aCompCor]}]')
-        if 'mean_FD' in opts.conf_list:
-            str_list.append(f'the mean framewise displacement')
-        if 'WM_signal' in opts.conf_list or 'CSF_signal' in opts.conf_list or 'vascular_signal' in opts.conf_list:
+        if 'WM_signal' in opts.nuisance_regressors or 'CSF_signal' in opts.nuisance_regressors or 'vascular_signal' in opts.nuisance_regressors:
             mask_str='the mean signal from the '
 
             masks=[]
-            if 'WM_signal' in opts.conf_list:
+            if 'WM_signal' in opts.nuisance_regressors:
                 masks.append('WM')
-            if 'CSF_signal' in opts.conf_list:
+            if 'CSF_signal' in opts.nuisance_regressors:
                 masks.append('CSF')
-            if 'vascular_signal' in opts.conf_list:
+            if 'vascular_signal' in opts.nuisance_regressors:
                 masks.append('vascular')
 
             mask_str+=masks[0]
@@ -291,17 +289,17 @@ is removed at each edge of the timeseries to account for edge artefacts followin
 
             str_list.append(mask_str)
 
-        if 'global_signal' in opts.conf_list:
+        if 'global_signal' in opts.nuisance_regressors:
             str_list.append(f'the global signal')
 
-        conf_list_str=str_list[0]
+        nuisance_regressors_str=str_list[0]
         for str_ in str_list[1:-1]:
-            conf_list_str+=', '+str_
+            nuisance_regressors_str+=', '+str_
         if len(str_list)>1:
-            conf_list_str+=f' and {str_list[-1]}'
+            nuisance_regressors_str+=f' and {str_list[-1]}'
 
         methods+=f"Selected nuisance regressors were then used for confound regression. More specifically, using ordinary least square regression, \
-{conf_list_str} were modelled at each voxel and regressed from the data. "
+{nuisance_regressors_str} were modelled at each voxel and regressed from the data. "
 
     # variance standardization
     if opts.image_scaling=="grand_mean_scaling":

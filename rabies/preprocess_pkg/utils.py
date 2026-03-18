@@ -261,22 +261,15 @@ def resample_template(structural_scan_list, bold_scan_list, template_file, mask_
     import os
     import SimpleITK as sitk
     import numpy as np
-    from rabies.utils import resample_image_spacing, run_command, flatten_list
+    from rabies.utils import resample_image_spacing, run_command, flatten_list, get_sitk_header
     from nipype import logging
     log = logging.getLogger('nipype.workflow')
 
     bold_scan_list = flatten_list(bold_scan_list)
     structural_scan_list = flatten_list(structural_scan_list)
 
-    def sitk_get_spacing(f):
-        reader = sitk.ImageFileReader()
-        reader.SetFileName(f)
-        reader.LoadPrivateTagsOn()
-        reader.ReadImageInformation()
-        return reader.GetSpacing()
-
     if anatomical_resampling == 'inputs_defined':
-        spacing_list = [sitk_get_spacing(f)[:3] for f in structural_scan_list]
+        spacing_list = [get_sitk_header(f).GetSpacing()[:3] for f in structural_scan_list]
         
         # find the lowest dimension across all images and all axes
         low_dim = np.asarray([spacing for spacing in spacing_list]).flatten().min()
@@ -298,7 +291,7 @@ def resample_template(structural_scan_list, bold_scan_list, template_file, mask_
     if commonspace_resampling == 'inputs_defined':
         # if bold_only, bold_scan_list and structural_scan_list are the same; avoid re-loading images if already computed above
         if not (anatomical_resampling == 'inputs_defined' and bold_only):
-            spacing_list = [sitk_get_spacing(f)[:3] for f in bold_scan_list]
+            spacing_list = [get_sitk_header(f).GetSpacing()[:3] for f in bold_scan_list]
         
         # create a list of all the types of spacing across listed files
         spacing_types = [spacing_list[0]]

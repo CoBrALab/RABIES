@@ -53,7 +53,7 @@ def get_parser():
             "   #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance \n"
             "       regressors, taking out the simulated timepoints. Edge artefacts from frequency \n"
             "       filtering can also be removed as recommended in Power et al. (2014, Neuroimage).\n"
-            "   #9 - Apply confound regression using the selected nuisance regressors (see --conf_list\n" 
+            "   #9 - Apply confound regression using the selected nuisance regressors (see --nuisance_regressors\n" 
             "       options).\n"
             "   #10 - Scaling of timeseries variance\n"
             "   #11 - Apply Gaussian spatial smoothing.\n"
@@ -713,26 +713,25 @@ def get_parser():
         )
     confound_correction.add_argument(
         '--detrending', type=str,
-        default='order=1,time_interval=all',
+        default='order=1,time_interval=0-end',
         help=
             "Detrend the voxel timeseries. \n"
             "* order: Specify the polynomial order for detrending as a integer. \n"
             "*** 0 for no detrending, 1 for linear detrending, 2 for quadratic etc. \n"
             "* time_interval: the time interval over which the trend is computed. \n "
+            "Follow the syntax from --timeseries_interval to select a subset of frames. \n"
             "Note the trend is always subtracted from the whole timeseries. \n"
-            "*** 0-80 will take the first 80 timepoints (e.g. baseline), compute their trend, then subtract it from the whole timeseries."
             "(default: %(default)s)\n"
             "\n"
         )
     confound_correction.add_argument(
-        '--conf_list', type=str,
+        '--nuisance_regressors', type=str,
         nargs="*",  # 0 or more values expected => creates a list
         default=[],
         choices=["WM_signal", "CSF_signal", "vascular_signal",
                 "global_signal", "aCompCor_percent", "aCompCor_5", "mot_6", "mot_24"],
         help=
-            "Select list of nuisance regressors that will be applied on voxel timeseries, i.e., confound\n"
-            "regression.\n"
+            "Select list of nuisance regressors that will be removed voxelwise.\n"
             "*** WM/CSF/vascular/global_signal: correspond to mean signal from WM/CSF/vascular/brain \n"
             "   masks.\n"
             "*** mot_6: 6 rigid head motion correction parameters.\n"
@@ -743,6 +742,13 @@ def get_parser():
             "   Components adding up to 50 percent of the variance are included.\n"
             "*** aCompCor_5: aCompCor method, but taking 5 first principal components. \n"
             "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--conf_list', type=str,
+        default=None,
+        help=
+            "DEPRECATED PARAMETER: This was replaced by --nuisance_regressors, throws an error if any input is provided. \n"
             "\n"
         )
     confound_correction.add_argument(
@@ -841,7 +847,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--timeseries_interval', type=str, default='0,end',
+        '--timeseries_interval', type=str, default='0-end',
         help=
             "Before confound correction, can crop the timeseries within a specific interval.\n"
             "e.g. '0,80' for timepoint 0 to 80. 0 is the first time frame, and 'end' stands for \n"
@@ -856,6 +862,25 @@ def get_parser():
             "following the method by Bright and Murphy (2015), NeuroImage. By selecting this option, \n"
             "an additional figure will be generated to display the variance explained by the real \n"
             "regressors VS the randomized regressors to assess overfitting. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--slicewise_correction_direction', type=str, default='Off',
+        choices=['Off', 'RL', 'AP', 'SI'],
+        help=
+            "By inputing a slice direction with this parameters, the computation of nuisance signals, \n"
+            "nuisance regression, and smoothing, are all conducted on each 2D slice independently along \n"
+            "the provided slice direction. \n"
+            "This strategy can be useful in the presence of artefacts (e.g. intensity spikes) that are \n"
+            "not shared across slices due to time delays between slice acquisition, in which case a slicewise \n"
+            "nuisance regression may perform better. Otherwise, in the case of images with spatial gaps \n"
+            "between slices, smoothing should be applied slicewise using this parameter. \n"
+            "\n"
+            "To apply slicewise correction, provide as input one of the RAS axial direction for slice \n"
+            "selection, i.e. this parameter takes as input one of: 'RL', 'AP' or 'SI'. \n"
+            "For accurate slice selection, the axial directions of the input nifti images must be properly \n"
+            "encoded. If no direction is provided, standard whole-brain correction is conducted. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1237,7 +1262,7 @@ def read_parser(parser, args):
         
         opts.detrending = parse_argument(opt=opts.detrending, 
             key_value_pairs = {'order':int, 'time_interval':str},
-            defaults = {'order':1,'time_interval':'all'},
+            defaults = {'order':1,'time_interval':'0-end'},
             name='detrending')
 
         opts.ica_aroma = parse_argument(opt=opts.ica_aroma, 

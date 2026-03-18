@@ -192,29 +192,29 @@ def check_opts_compatibility(preprocess_opts, cr_opts):
         if cr_opts.ica_aroma['apply']:
             raise ValueError(
                 'A CSF mask is necessary for AROMA, but none was retrieved from preprocessing.')
-        if 'CSF_signal' in cr_opts.conf_list:
+        if 'CSF_signal' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'CSF regression cannot be applied since no CSF mask was retrieved from preprocessing.')
-        if 'aCompCor_5' in cr_opts.conf_list:
+        if 'aCompCor_5' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'aCompCor regression cannot be applied since no CSF mask was retrieved from preprocessing.')
-        if 'aCompCor_percent' in cr_opts.conf_list:
+        if 'aCompCor_percent' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'aCompCor regression cannot be applied since no CSF mask was retrieved from preprocessing.')
 
     if preprocess_opts.WM_mask is None:
-        if 'WM_signal' in cr_opts.conf_list:
+        if 'WM_signal' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'WM regression cannot be applied since no WM mask was retrieved from preprocessing.')
-        if 'aCompCor_5' in cr_opts.conf_list:
+        if 'aCompCor_5' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'aCompCor regression cannot be applied since no WM mask was retrieved from preprocessing.')
-        if 'aCompCor_percent' in cr_opts.conf_list:
+        if 'aCompCor_percent' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'aCompCor regression cannot be applied since no WM mask was retrieved from preprocessing.')
         
     if preprocess_opts.vascular_mask is None:
-        if 'vascular_signal' in cr_opts.conf_list:
+        if 'vascular_signal' in cr_opts.nuisance_regressors:
             raise ValueError(
                 'vascular regression cannot be applied since no vascular mask was retrieved from preprocessing.')
         
