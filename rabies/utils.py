@@ -26,7 +26,7 @@ def get_geometry_header(img):
     header_geo.SetSpacing(img.GetSpacing())
     header_geo.SetOrigin(img.GetOrigin())
     header_geo.SetDirection(img.GetDirection())
-    for k in header_geo.GetMetaDataKeys(): # metadata is also copied in case
+    for k in img.GetMetaDataKeys(): # metadata is also copied in case
         header_geo.SetMetaData(k, img.GetMetaData(k))
     return header_geo
 
