@@ -557,14 +557,12 @@ def get_parser():
             "\n"
         )
     g_stc.add_argument(
-        '--tpattern', type=str, default='alt-z',
-        choices=['alt-z', 'alt-z2', 'seq-z', 'alt+z', 'alt+z2', 'seq+z'],
+        '--args_3dTshift', type=str, default='-Fourier -tpattern alt-z',
         help=
-            "Specify if interleaved ('alt') or sequential ('seq') acquisition, and specify in which \n"
-            "direction (- or +) to apply the correction. If slices were acquired from front to back, \n"
-            "the correction should be in the negative (-) direction. If slices were collected in an interleaved \n"
-            "order starting with the second or (second-to-last) slice, use 'alt+z2' or 'alt-z2'. Refer to this discussion on the \n"
-            "topic for more information https://github.com/CoBrALab/RABIES/discussions/217.\n"
+            "Specify a string of custom parameters that is fed directly into the 3dTshift CLI. \n"
+            "For correct usage, follow this syntax: --args_3dTshift='-Fourier -tpattern alt-z'. \n"
+            "If -TR is not provided, the TR is read from the Nifti header. Do not provide a -prefix, \n"
+            "as RABIES uses this parameter.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -574,17 +572,6 @@ def get_parser():
         help=
             "Can specify over which axis of the image the STC must be applied. Generally, the correction \n"
             "should be over the Y axis, which corresponds to the anteroposterior axis in RAS convention. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_stc.add_argument(
-        '--interp_method', type=str, default='fourier',
-        choices=['linear', 'cubic', 'quintic', 'heptic', 'wsinc5', 'wsinc9', 'fourier'],
-        help=
-            "Can specify the interpolation method used for STC. Polynomial methods (e.g., linear, cubic, etc.) \n"
-            "will introduce greater autocorrelation to the interpolated timeseries, while wsinc and fourier methods \n"
-            "will introduce less (or none). Refer to this discussion on the topic for more information \n"
-            "https://github.com/CoBrALab/RABIES/discussions/267. \n"
             "(default: %(default)s)\n"
             "\n"
         )
