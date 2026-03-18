@@ -437,11 +437,88 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     confounds_array = confounds_array[frame_mask]
 
     '''
-    Beginning of slicewise operations (if slicewise_correction=True)
+    #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
     '''
+    timeseries_vol, voxelwise_intercept = cr_utils.remove_trend(timeseries_vol, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+    confounds_array, _ = cr_utils.remove_trend(confounds_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+
+    '''
+    #4 - Apply ICA-AROMA.
+    '''
+    if apply_ica_aroma:
+        # write intermediary output files for timeseries and 6 rigid body parameters
+        inFile = os.path.abspath('aroma_input_timeseries.nii.gz')
+        sitk.WriteImage(recover_4D(brain_mask, timeseries_vol, header_geo), inFile)
+        brain_mask_file = os.path.abspath("aroma_brain_mask.nii.gz")
+        sitk.WriteImage(brain_mask, brain_mask_file)
+        CSF_mask_file = os.path.abspath("aroma_CSF_mask.nii.gz")
+        sitk.WriteImage(CSF_mask, CSF_mask_file)
+
+        confounds_6rigid_array=confounds_6rigid_array[frame_mask,:]
+        confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
+        df = pd.DataFrame(confounds_6rigid_array)
+        df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
+        mc_file = os.path.abspath('aroma_motion_params.csv')
+        df.to_csv(mc_file)
+        aroma_out = os.path.abspath('aroma_out/')
+        cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, aroma_out, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
+        timeseries_vol = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
+    else:
+        aroma_out = None
+
+    if (highpass is not None) or (lowpass is not None):
+        '''
+        #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
+            as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
+        '''
+        timeseries_vol = cr_utils.lombscargle_fill(x=timeseries_vol,time_step=TR,time_mask=frame_mask)
+        confounds_array = cr_utils.lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask)
+        ### arrays are now interpolated
+
+        '''
+        #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
+            to the temporal filter.
+        '''
+        confounds_array = cr_utils.butterworth(confounds_array, TR=TR,
+                                high_pass=highpass, low_pass=lowpass)
+
+        '''
+        #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
+        '''
+
+        timeseries_vol = cr_utils.butterworth(timeseries_vol, TR=TR,
+                                high_pass=highpass, low_pass=lowpass)
+
+        # correct for edge effects of the filters
+        num_cut = int(edge_cutoff/TR)
+        if len(frame_mask)<2*num_cut:
+            raise ValueError(f"The timeseries are too short to remove {edge_cutoff}sec of data at each edge.")
+
+        if not num_cut==0:
+            frame_mask[:num_cut]=0
+            frame_mask[-num_cut:]=0
+
+
+        '''
+        #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
+            simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
+        '''
+        # re-apply the masks to take out simulated data points, and take off the edges
+        timeseries_vol = timeseries_vol[frame_mask]
+        confounds_array = confounds_array[frame_mask]
+    
+    if frame_mask.sum()<int(minimum_timepoint):
+        if nipype_log:
+            nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        return None
+
+
     if slicewise_correction_direction=='Off':
         slicewise_correction=False
     else:
+        '''
+        Prepare the indices for selecting individual slices for slicewise nuisance regression
+        '''
         slicewise_correction=True
         if slicewise_correction_direction=='RL':
             slice_direction = 0
@@ -456,24 +533,24 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         # create slicewise masks for managing slicewise operations
         dim_size = orig_4d_size[slice_direction]
         slices = list(range(dim_size))
-        slice_idx_l = []    
-        smoothing_slice_l = []
+        slice_mask_idx_l = [] # list of the index mask to pick an individual slice
+        smoothing_slice_idx_l = [] # the list of slices to apply smoothing on
         for slice in slices:
-            slice_idx = volume_idx.copy().astype(int)
+            slice_mask_idx = volume_idx.copy().astype(int)
             # multiply by the slice mask values by 2 so that only it can be isolated with ==2
             # here the axis direction is inverted since the array is a conversion from a SITK image
             if slice_direction==0:
-                slice_idx[:,:,slice]*=2
+                slice_mask_idx[:,:,slice]*=2
             elif slice_direction==1:
-                slice_idx[:,slice,:]*=2
+                slice_mask_idx[:,slice,:]*=2
             elif slice_direction==2:
-                slice_idx[slice,:,:]*=2
+                slice_mask_idx[slice,:,:]*=2
             else:
                 raise ValueError("Slice direction must be 0, 1 or 2.")
-            slice_idx = (slice_idx==2)[volume_idx] # convert to vector that matches timeseries_vol array
-            if slice_idx.sum()>0:
-                slice_idx_l.append(slice_idx)
-                smoothing_slice_l.append(slice)
+            slice_mask_idx = (slice_mask_idx==2)[volume_idx] # convert to vector that matches timeseries_vol array
+            if slice_mask_idx.sum()>0:
+                slice_mask_idx_l.append(slice_mask_idx)
+                smoothing_slice_idx_l.append(slice)
 
         # prepare arrays that will be filled
         timeseries_slice_l = [] # each slice will be appended to this list
@@ -481,103 +558,17 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         VE_spatial = np.zeros(timeseries_vol.shape[1])
         VE_temporal_l = []
 
-        # need to create a copy before preprocessing so it can by recycled for each slice
-        confounds_array_ = confounds_array
     else:
-        # create only a single mask the returns the whole array
-        slice_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
+        # create only a single mask that returns the whole array
+        slice_mask_idx_l = [np.ones(timeseries_vol.shape[1]).astype(bool)]
 
     num_regressors_ = 0 # set to 0 for now
-    for slice_idx in slice_idx_l:
+    for slice_mask_idx in slice_mask_idx_l:
         if slicewise_correction:
-            timeseries = timeseries_vol[:,slice_idx]
-            confounds_array = confounds_array_.copy() # reset the array for each slice
+            timeseries = timeseries_vol[:,slice_mask_idx]
         else:
             timeseries = timeseries_vol
             del timeseries_vol # minimize memory load
-
-        frame_mask_slice = frame_mask.copy() # need to create copy per slice, so that the original frame_mask is unchanged for next slice
-
-        '''
-        #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
-        '''
-        timeseries, fitted_intercept = cr_utils.remove_trend(timeseries, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval)
-        grand_mean = fitted_intercept.mean() # the average is estimated from the intercept of the linear model
-        voxelwise_mean = fitted_intercept # the average is estimated from the intercept of the linear model
-        del fitted_intercept
-        confounds_array, _ = cr_utils.remove_trend(confounds_array, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval)
-
-        '''
-        #4 - Apply ICA-AROMA.
-        '''
-        if apply_ica_aroma:
-            if slicewise_correction:
-                raise ValueError("slicewise_correction is incompatible with AROMA.")
-            # write intermediary output files for timeseries and 6 rigid body parameters
-            inFile = os.path.abspath('aroma_input_timeseries.nii.gz')
-            sitk.WriteImage(recover_4D(brain_mask, timeseries, header_geo), inFile)
-            brain_mask_file = os.path.abspath("aroma_brain_mask.nii.gz")
-            sitk.WriteImage(brain_mask, brain_mask_file)
-            CSF_mask_file = os.path.abspath("aroma_CSF_mask.nii.gz")
-            sitk.WriteImage(CSF_mask, CSF_mask_file)
-
-            confounds_6rigid_array=confounds_6rigid_array[frame_mask_slice,:]
-            confounds_6rigid_array, _ = cr_utils.remove_trend(confounds_6rigid_array, frame_mask_slice, order = detrending_order, time_interval = detrending_time_interval) # apply detrending to the confounds too
-            df = pd.DataFrame(confounds_6rigid_array)
-            df.columns = ['mov1', 'mov2', 'mov3', 'rot1', 'rot2', 'rot3']
-            mc_file = os.path.abspath('aroma_motion_params.csv')
-            df.to_csv(mc_file)
-            aroma_out = os.path.abspath('aroma_out/')
-            cleaned_file, aroma_out = cr_utils.exec_ICA_AROMA(inFile, mc_file, brain_mask_file, CSF_mask_file, aroma_out, TR, ica_aroma_dim, random_seed=ica_aroma_random_seed)
-            timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_file, sitk.sitkFloat32))[:,volume_idx] # read directly as a 2D array
-        else:
-            aroma_out = None
-
-        if (highpass is not None) or (lowpass is not None):
-            '''
-            #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
-                as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
-            '''
-            timeseries = cr_utils.lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask_slice)
-            confounds_array = cr_utils.lombscargle_fill(x=confounds_array,time_step=TR,time_mask=frame_mask_slice)
-            ### arrays are now interpolated
-
-            '''
-            #6 - As recommended in Lindquist et al. (2019, Human brain mapping), make the nuisance regressors orthogonal
-                to the temporal filter.
-            '''
-            confounds_array = cr_utils.butterworth(confounds_array, TR=TR,
-                                    high_pass=highpass, low_pass=lowpass)
-
-            '''
-            #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
-            '''
-
-            timeseries = cr_utils.butterworth(timeseries, TR=TR,
-                                    high_pass=highpass, low_pass=lowpass)
-
-            # correct for edge effects of the filters
-            num_cut = int(edge_cutoff/TR)
-            if len(frame_mask_slice)<2*num_cut:
-                raise ValueError(f"The timeseries are too short to remove {edge_cutoff}sec of data at each edge.")
-
-            if not num_cut==0:
-                frame_mask_slice[:num_cut]=0
-                frame_mask_slice[-num_cut:]=0
-
-
-            '''
-            #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
-                simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-            '''
-            # re-apply the masks to take out simulated data points, and take off the edges
-            timeseries = timeseries[frame_mask_slice]
-            confounds_array = confounds_array[frame_mask_slice]
-        
-        if frame_mask_slice.sum()<int(minimum_timepoint):
-            if nipype_log:
-                nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-            return None
 
         '''
         #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
@@ -587,13 +578,14 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         def _mask_idx(mask_img):
             if mask_img is None:
                 return None
-            return sitk.GetArrayFromImage(mask_img).astype(bool)[volume_idx][slice_idx]
+            return sitk.GetArrayFromImage(mask_img).astype(bool)[volume_idx][slice_mask_idx]
         # indices for each mask are first loaded in vector format that matches the timeseries array
         brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx = [
             _mask_idx(mask_img) for mask_img in [brain_mask, WM_mask, CSF_mask, vascular_mask]
         ]        
-        regressors_array = cr_utils.compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
-        confounds_array = np.append(confounds_array,regressors_array,axis=1)
+        signal_regressors_array = cr_utils.compute_signal_regressors(timeseries, nuisance_regressors, brain_mask_idx, WM_mask_idx, CSF_mask_idx, vascular_mask_idx)
+        # we can now create the full list of regressors
+        regressors_array = np.append(confounds_array,signal_regressors_array,axis=1)
 
         '''
         #10 - Apply confound regression using the selected nuisance regressors.
@@ -604,7 +596,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
         # estimate the VE from the CR selection, or 6 rigid motion parameters if no CR is applied
         try:
-            predicted = confounds_array.dot(closed_form(confounds_array,timeseries))
+            predicted = regressors_array.dot(closed_form(regressors_array,timeseries))
             residuals = timeseries-predicted
         except np.linalg.LinAlgError:
             if nipype_log:
@@ -618,8 +610,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
         if generate_CR_null:
             # estimate the fit from CR with randomized regressors as in BRIGHT AND MURPHY 2015
-            randomized_confounds_array = cr_utils.phase_randomized_regressors(confounds_array, frame_mask_slice, TR=TR)
-            predicted_random = randomized_confounds_array.dot(closed_form(randomized_confounds_array,timeseries))
+            randomized_regressors_array = cr_utils.phase_randomized_regressors(regressors_array, frame_mask, TR=TR)
+            predicted_random = randomized_regressors_array.dot(closed_form(randomized_regressors_array,timeseries))
         else:
             predicted_random = np.empty([0,timeseries.shape[1]])
 
@@ -627,102 +619,102 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
             # if confound regression is applied
             timeseries = residuals
 
-        num_regressors = confounds_array.shape[1] # save the number of regressors applied
-        del residuals, confounds_array
+        num_regressors = regressors_array.shape[1] # save the number of regressors applied
+        del residuals, regressors_array
 
-        '''
-        #11 - Scaling of timeseries.
-        '''
-        if scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
-            if image_scaling=='voxelwise_standardization' or image_scaling=='voxelwise_mean':
-                raise ValueError(f"Can't select --scale_variance_voxelwise with --image_scaling {image_scaling}.")
-            else:
-                temporal_std = timeseries.std(axis=0)
-                total_std = timeseries.std()
-
-                # homogenize variance across voxels
-                timeseries /= temporal_std
-                nan_voxels = np.isnan(timeseries).sum(axis=0)>1
-                timeseries[:,nan_voxels] = 0
-                scaled_total_std = timeseries.std()
-                # rescale to preserve total variance
-                timeseries = (timeseries/scaled_total_std)*total_std
-
-                # the same scaling estimated from BOLD is applied to CR estimates to preserve accurate ratios of variance explained per voxel
-                scaled_list = []
-                for scaled_timeseries in [predicted,predicted_random]:
-                    scaled_timeseries /= temporal_std
-                    nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
-                    scaled_timeseries[:,nan_voxels] = 0
-                    scaled_timeseries = (scaled_timeseries/scaled_total_std)*total_std
-                    scaled_list.append(scaled_timeseries)
-                del scaled_timeseries
-                [predicted,predicted_random] = scaled_list
-
-
-        if image_scaling=='global_variance':
-            scaling_factor = timeseries.std()
-        elif image_scaling=='grand_mean_scaling':
-            scaling_factor = grand_mean/100 # we scale BOLD in % fluctuations, hence dividing by 100
-        elif image_scaling=='voxelwise_standardization':
-            # each voxel is scaled according to its STD
-            scaling_factor = timeseries.std(axis=0) 
-        elif image_scaling=='voxelwise_mean':
-            scaling_factor = voxelwise_mean/100 # we scale BOLD in % fluctuations, hence dividing by 100
-        else:
-            scaling_factor = 1
-
-        # scale fMRI timeseries, as well as the CR prediction to keep consistent scaling
-        scaled_list = []
-        for scaled_timeseries in [timeseries,predicted,predicted_random]:
-            scaled_timeseries /= scaling_factor
-            nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
-            scaled_timeseries[:,nan_voxels] = 0
-            scaled_list.append(scaled_timeseries)
-        del scaled_timeseries
-        [timeseries,predicted,predicted_random] = scaled_list
 
         if slicewise_correction:
             timeseries_slice_l.append([timeseries,predicted,predicted_random])
-            slice_weight = slice_idx.sum()/volume_idx.sum() # compute what proportion of voxels this slice counts as
+            slice_weight = slice_mask_idx.sum()/volume_idx.sum() # compute what proportion of voxels this slice counts as
             VE_total_ratio += VE_total_ratio_slice*slice_weight # create weighted average from the proportion of voxels
             VE_temporal_l.append(VE_temporal_slice*slice_weight) # create weighted average from the proportion of voxels
-            VE_spatial[slice_idx] = VE_spatial_slice
-
+            VE_spatial[slice_mask_idx] = VE_spatial_slice
         else:
             timeseries_vol = timeseries
             predicted_vol = predicted
             predicted_random_vol = predicted_random
-            del timeseries, predicted, predicted_random
             VE_total_ratio = VE_total_ratio_slice
             VE_spatial = VE_spatial_slice
             VE_temporal = VE_temporal_slice
+        del timeseries, predicted, predicted_random
 
         if num_regressors>num_regressors_: # keep track of the maximal number of regressors across slices
             num_regressors_ = num_regressors
-
-    frame_mask = frame_mask_slice
-    del frame_mask_slice
     
-    # reconstruct the 4D array after slicewise processing
+    # reconstruct the volumetric array after slicewise processing
     if slicewise_correction:
         num_frames = timeseries_slice_l[0][0].shape[0] # check the finalized number of frames
         timeseries_vol = np.zeros([num_frames, timeseries_vol.shape[1]]) # the number of frames can change, not the number of voxels
         predicted_vol = np.zeros(timeseries_vol.shape)
         if generate_CR_null:
             predicted_random_vol = np.zeros(timeseries_vol.shape)
+        else:
+            predicted_random_vol = np.empty([0,timeseries_vol.shape[1]])
 
-        for slice_idx,timeseries_slice in zip(slice_idx_l,timeseries_slice_l):
+        for slice_mask_idx,timeseries_slice in zip(slice_mask_idx_l,timeseries_slice_l):
             [timeseries,predicted,predicted_random] = timeseries_slice
-            timeseries_vol[:,slice_idx] = timeseries
-            predicted_vol[:,slice_idx] = predicted
+            timeseries_vol[:,slice_mask_idx] = timeseries
+            predicted_vol[:,slice_mask_idx] = predicted
             if generate_CR_null:
-                predicted_random_vol[:,slice_idx] = predicted_random
+                predicted_random_vol[:,slice_mask_idx] = predicted_random
         del timeseries_slice_l, timeseries_slice, timeseries, predicted, predicted_random
 
         # compute the sum across slices
         VE_temporal = np.array(VE_temporal_l).sum(axis=0)
         del VE_temporal_l
+
+
+    '''
+    #11 - Scaling of timeseries.
+    '''
+    if scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
+        if image_scaling=='voxelwise_standardization' or image_scaling=='voxelwise_mean':
+            raise ValueError(f"Can't select --scale_variance_voxelwise with --image_scaling {image_scaling}.")
+        else:
+            temporal_std = timeseries_vol.std(axis=0)
+            total_std = timeseries_vol.std()
+
+            # homogenize variance across voxels
+            timeseries_vol /= temporal_std
+            nan_voxels = np.isnan(timeseries_vol).sum(axis=0)>1
+            timeseries_vol[:,nan_voxels] = 0
+            scaled_total_std = timeseries_vol.std()
+            # rescale to preserve total variance
+            timeseries_vol = (timeseries_vol/scaled_total_std)*total_std
+
+            # the same scaling estimated from BOLD is applied to CR estimates to preserve accurate ratios of variance explained per voxel
+            scaled_list = []
+            for scaled_timeseries in [predicted_vol,predicted_random_vol]:
+                scaled_timeseries /= temporal_std
+                nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
+                scaled_timeseries[:,nan_voxels] = 0
+                scaled_timeseries = (scaled_timeseries/scaled_total_std)*total_std
+                scaled_list.append(scaled_timeseries)
+            del scaled_timeseries
+            [predicted_vol,predicted_random_vol] = scaled_list
+
+
+    if image_scaling=='global_variance':
+        scaling_factor = timeseries_vol.std()
+    elif image_scaling=='grand_mean_scaling':
+        scaling_factor = voxelwise_intercept.mean()/100 # we scale BOLD in % fluctuations, hence dividing by 100
+    elif image_scaling=='voxelwise_standardization':
+        # each voxel is scaled according to its STD
+        scaling_factor = timeseries_vol.std(axis=0) 
+    elif image_scaling=='voxelwise_mean':
+        scaling_factor = voxelwise_intercept/100 # we scale BOLD in % fluctuations, hence dividing by 100
+    else:
+        scaling_factor = 1
+
+    # scale fMRI timeseries, as well as the CR prediction to keep consistent scaling
+    scaled_list = []
+    for scaled_timeseries in [timeseries_vol,predicted_vol,predicted_random_vol]:
+        scaled_timeseries /= scaling_factor
+        nan_voxels = np.isnan(scaled_timeseries).sum(axis=0)>1
+        scaled_timeseries[:,nan_voxels] = 0
+        scaled_list.append(scaled_timeseries)
+    del scaled_timeseries
+    [timeseries_vol,predicted_vol,predicted_random_vol] = scaled_list
 
     # after variance scaling, compute the variability estimates
     temporal_std = timeseries_vol.std(axis=0)
@@ -762,7 +754,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         '''
         if slicewise_correction:
             # smooth 1 slice at a time
-            for slice in smoothing_slice_l:
+            for slice in smoothing_slice_idx_l:
                 # here the axis direction is in proper order since we are indexing a SITK image
                 if slice_direction==0:
                     timeseries_img[slice:slice+1,:,:,:] = cr_utils.smooth_image(
@@ -793,9 +785,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         corrected_CR_STD_spatial_map = None
 
     CR_data_dict = {
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_mean,
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_intercept,
         'aroma_out':aroma_out,
         }
     return timeseries_img, CR_data_dict, VE_spatial_map, STD_spatial_map, CR_STD_spatial_map, random_CR_STD_spatial_map, corrected_CR_STD_spatial_map
-
-
