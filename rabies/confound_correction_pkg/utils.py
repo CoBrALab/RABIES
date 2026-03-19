@@ -136,6 +136,20 @@ def get_DVARS(timeseries):
     return DVARS_trace
 
 
+def outlier_censoring(qc_trace, std_thresh=2.5):
+    # this function will iteratively censore each data point that falls std_thresh standard deviation
+    # away from the mean, until a distribution is obtained with no such outliers remaining
+    mask1=np.zeros(len(qc_trace)).astype(bool)
+    mask2=np.ones(len(qc_trace)).astype(bool)
+    while ((mask2!=mask1).sum()>0):
+        mask1=mask2
+        mean=qc_trace[mask1].mean()
+        std=qc_trace[mask1].std()
+        norm=(qc_trace-mean)/std
+        mask2=np.abs(norm)<std_thresh
+    return mask2
+
+
 def temporal_censoring(FD_trace, 
         FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint):
 
@@ -145,17 +159,8 @@ def temporal_censoring(FD_trace,
         FD_mask = gen_FD_mask(FD_trace, FD_threshold)
         frame_mask*=FD_mask
     if DVARS_censoring:
-        # create a distribution where no timepoint falls more than 2.5 STD away from the mean
-        mask1=np.zeros(len(DVARS_trace)).astype(bool)
-        mask2=np.ones(len(DVARS_trace)).astype(bool)
-        mask2[0]=False # remove the first timepoint, which is always 0
-        while ((mask2!=mask1).sum()>0):
-            mask1=mask2
-            mean=DVARS_trace[mask1].mean()
-            std=DVARS_trace[mask1].std()
-            norm=(DVARS_trace-mean)/std
-            mask2=np.abs(norm)<2.5
-        DVARS_mask=mask2
+        DVARS_mask = outlier_censoring(DVARS_trace)
+        DVARS_mask[0]=False # remove the first timepoint, which is always 0
         frame_mask*=DVARS_mask
     if frame_mask.sum()<int(minimum_timepoint):
         from nipype import logging
