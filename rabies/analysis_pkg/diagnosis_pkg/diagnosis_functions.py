@@ -29,10 +29,8 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
 
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
 
-    FD_trace = CR_CR_data_dict['FD_trace']
-    DVARS = CR_CR_data_dict['DVARS']
-    temporal_info['FD_trace'] = FD_trace
-    temporal_info['DVARS'] = DVARS
+    temporal_info['FD_trace'] = CR_CR_data_dict['FD_trace']
+    temporal_info['DVARS'] = CR_CR_data_dict['DVARS']
     temporal_info['VE_temporal'] = CR_CR_data_dict['VE_temporal']
 
 
@@ -195,45 +193,20 @@ Subject-level QC
 '''
 
 
-def grayplot_regional(timeseries_file, mask_file_dict, fig, ax):
-    timeseries_4d = sitk.GetArrayFromImage(sitk.ReadImage(timeseries_file))
-
-    WM_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['WM_mask'])).astype(bool)
-    CSF_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['CSF_mask'])).astype(bool)
-    right_hem_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['right_hem_mask'])).astype(bool)
-    left_hem_mask = sitk.GetArrayFromImage(
-        sitk.ReadImage(mask_file_dict['left_hem_mask'])).astype(bool)
-
-    grayplot_array = np.empty((0, timeseries_4d.shape[0]))
-    slice_alt = np.array([])
-    region_mask_label = np.array([])
-    c = 0
-    for mask_indices in [right_hem_mask, left_hem_mask, WM_mask, CSF_mask]:
-        region_mask_label = np.append(
-            region_mask_label, np.ones(mask_indices.sum())*c)
-        c += 1
-        token = False
-        for i in range(mask_indices.shape[1]):
-            grayplot_array = np.append(
-                grayplot_array, timeseries_4d[:, :, i, :][mask_indices[:, i, :]], axis=0)
-            slice_alt = np.append(slice_alt, np.ones(
-                mask_indices[:, i, :].sum())*token)
-            token = not token
-
-    vmax = grayplot_array.std()
-    im = ax.imshow(grayplot_array, cmap='gray',
+def carpetplot(timeseries, ax, frame_mask=None):
+    vmax = timeseries.std()
+    if frame_mask is not None:
+        filled_timeseries = np.zeros([len(frame_mask), timeseries.shape[1]])
+        filled_timeseries[frame_mask] = timeseries
+        filled_timeseries[(frame_mask==False)] = None
+        censoring_array = np.ones([len(frame_mask), timeseries.shape[1]])
+        censoring_array[frame_mask] = None
+        timeseries = filled_timeseries
+    im = ax.imshow(timeseries.T, cmap='gray',
                    vmax=vmax, vmin=-vmax, aspect='auto')
-    return im, slice_alt, region_mask_label
-
-
-def grayplot(timeseries, ax):
-    grayplot_array = timeseries.T
-    vmax = grayplot_array.std()
-    im = ax.imshow(grayplot_array, cmap='gray',
-                   vmax=vmax, vmin=-vmax, aspect='auto')
+    if frame_mask is not None:
+        im = ax.imshow(censoring_array.T, cmap='Reds',
+                       vmax=1, vmin=0, alpha=0.5, aspect='auto')
     return im
 
 
@@ -261,8 +234,8 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     ax.plot(freqs[pos_idx], ps_mean[pos_idx])
     ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
     ax.set_ylim([0,y_max])
-    xticks = np.arange(0,freqs.max(),0.05)
-    ax.set_xticks(xticks)    
+    #xticks = np.arange(0,freqs.max(),0.05)
+    #ax.set_xticks(xticks)    
 
     x_max = freqs.max()
     xlim_edge_percent = 0.02
@@ -270,13 +243,19 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     ax.set_xlim(x_lim)
 
 
-def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, regional_grayplot=False, brainmap_percent_threshold=10):
+def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, brainmap_percent_threshold=10, display_censoring=True):
     timeseries = CR_data_dict['timeseries']
     template_file = maps_data_dict['anat_ref_file']
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
     frame_mask = CR_CR_data_dict['frame_mask']
-    
-    fig = plt.figure(figsize=(12, 24))
+
+    if display_censoring:
+        num_timepoints = len(frame_mask)
+    else:
+        num_timepoints = frame_mask.sum()
+        
+    fig_width = int(num_timepoints/20)
+    fig = plt.figure(figsize=(fig_width, 24))
 
     ax0 = fig.add_subplot(4,2,3)
     ax0_f = fig.add_subplot(9,2,3) # plot frequencies
@@ -304,29 +283,11 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax0_f.legend(freq_legend,
                 loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
 
-    # disable function
-    regional_grayplot=False
-    if regional_grayplot:
-        
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        divider = make_axes_locatable(ax0)
-        
-        im, slice_alt, region_mask_label = grayplot_regional(
-            bold_file, mask_file_dict, fig, ax0)
-        ax0.yaxis.labelpad = 40
-        ax_slice = divider.append_axes('left', size='5%', pad=0.0)
-        ax_label = divider.append_axes('left', size='5%', pad=0.0)
-
-        ax_slice.imshow(slice_alt.reshape(-1, 1), cmap='gray',
-                        vmin=0, vmax=1.1, aspect='auto')
-        ax_label.imshow(region_mask_label.reshape(-1, 1),
-                        cmap='Spectral', aspect='auto')
-        ax_slice.axis('off')
-        ax_label.axis('off')
-
+    # carpet plot
+    if display_censoring:
+        im = carpetplot(timeseries, ax0, frame_mask)
     else:
-        im = grayplot(timeseries, ax0)
-
+        im = carpetplot(timeseries, ax0, frame_mask=None)
     ax0.set_ylabel('Voxels', fontsize=20)
     ax0.spines['right'].set_visible(False)
     ax0.spines['top'].set_visible(False)
@@ -336,8 +297,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     plt.setp(ax0.get_xticklabels(), fontsize=15)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
-    y = temporal_info['FD_trace'].to_numpy()
-    num_timepoints = len(y)
+    # set a common x time axis
     x = range(num_timepoints)
     xlim_edge_percent = 0.02
     x_lim = [-(num_timepoints*xlim_edge_percent),(num_timepoints-1)+(num_timepoints*xlim_edge_percent)]
@@ -352,9 +312,14 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     motion_params_df = CR_CR_data_dict['motion_params_df']
     time_range = CR_CR_data_dict['time_range']
     # take proper subset of timepoints
-    ax1.plot(x,motion_params_df['mov1'].to_numpy()[time_range][frame_mask])
-    ax1.plot(x,motion_params_df['mov2'].to_numpy()[time_range][frame_mask])
-    ax1.plot(x,motion_params_df['mov3'].to_numpy()[time_range][frame_mask])
+    if display_censoring:
+        ax1.plot(x,motion_params_df['mov1'].to_numpy()[time_range])
+        ax1.plot(x,motion_params_df['mov2'].to_numpy()[time_range])
+        ax1.plot(x,motion_params_df['mov3'].to_numpy()[time_range])
+    else:
+        ax1.plot(x,motion_params_df['mov1'].to_numpy()[time_range][frame_mask])
+        ax1.plot(x,motion_params_df['mov2'].to_numpy()[time_range][frame_mask])
+        ax1.plot(x,motion_params_df['mov3'].to_numpy()[time_range][frame_mask])
     ax1.legend(['translation 1', 'translation 2', 'translation 3'],
                loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1.set_ylabel('mm', fontsize=20)
@@ -362,9 +327,14 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax1.spines['top'].set_visible(False)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
-    ax1_.plot(x,motion_params_df['rot1'].to_numpy()[time_range][frame_mask])
-    ax1_.plot(x,motion_params_df['rot2'].to_numpy()[time_range][frame_mask])
-    ax1_.plot(x,motion_params_df['rot3'].to_numpy()[time_range][frame_mask])
+    if display_censoring:
+        ax1_.plot(x,motion_params_df['rot1'].to_numpy()[time_range])
+        ax1_.plot(x,motion_params_df['rot2'].to_numpy()[time_range])
+        ax1_.plot(x,motion_params_df['rot3'].to_numpy()[time_range])
+    else:
+        ax1_.plot(x,motion_params_df['rot1'].to_numpy()[time_range][frame_mask])
+        ax1_.plot(x,motion_params_df['rot2'].to_numpy()[time_range][frame_mask])
+        ax1_.plot(x,motion_params_df['rot3'].to_numpy()[time_range][frame_mask])
     ax1_.legend(['Euler angle 1', 'Euler angle 2', 'Euler angle 3'],
                 loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
     ax1_.set_ylabel('radians', fontsize=20)
@@ -372,13 +342,22 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax1_.spines['right'].set_visible(False)
     ax1_.spines['top'].set_visible(False)
 
-    y = temporal_info['FD_trace'].to_numpy()
+    def fill_censored_vector(vector,frame_mask):
+        if not display_censoring:
+            return vector
+        filled = np.zeros(len(frame_mask))
+        filled[frame_mask] = vector
+        filled[frame_mask==False] = None
+        return filled
+
+    y = fill_censored_vector(temporal_info['FD_trace'].to_numpy(), frame_mask)
     ax2.plot(x,y, 'r')
     ax2.set_ylabel('FD (mm)', fontsize=20)
     DVARS = temporal_info['DVARS']
     DVARS[0] = None
     ax2_ = ax2.twinx()
-    y2 = DVARS
+
+    y2 = fill_censored_vector(DVARS, frame_mask)
     ax2_.plot(x,y2, 'b')
     ax2_.set_ylabel('DVARS', fontsize=20)
     ax2.spines['right'].set_visible(False)
@@ -391,20 +370,20 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     ax2_.legend(['DVARS'
                 ], loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.3))
 
-    ax3.plot(x,temporal_info['global_signal'], alpha=0.7)
-    ax3.plot(x,temporal_info['edge_trace'], alpha=0.7)
+    ax3.plot(x,fill_censored_vector(temporal_info['global_signal'], frame_mask), alpha=0.7)
+    ax3.plot(x,fill_censored_vector(temporal_info['edge_trace'], frame_mask), alpha=0.7)
     if temporal_info['WM_trace'] is not None:
-        ax3.plot(x,temporal_info['WM_trace'], alpha=0.7)
+        ax3.plot(x,fill_censored_vector(temporal_info['WM_trace'], frame_mask), alpha=0.7)
     else:
         ax3.plot([],[])
     if temporal_info['CSF_trace'] is not None:
-        ax3.plot(x,temporal_info['CSF_trace'], alpha=0.7)
+        ax3.plot(x,fill_censored_vector(temporal_info['CSF_trace'], frame_mask), alpha=0.7)
     else:
         ax3.plot([],[])
-    ax3.plot(x,temporal_info['predicted_time'], alpha=0.7)
+    ax3.plot(x,fill_censored_vector(temporal_info['predicted_time'], frame_mask), alpha=0.7)
     ax3.set_ylabel('Amplitude \n(RMS)', fontsize=20)
     ax3_ = ax3.twinx()
-    ax3_.plot(x,temporal_info['VE_temporal'], 'darkviolet', alpha=0.7)
+    ax3_.plot(x,fill_censored_vector(temporal_info['VE_temporal'], frame_mask), 'darkviolet', alpha=0.7)
     ax3_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax3_.spines['right'].set_visible(False)
     ax3_.spines['top'].set_visible(False)
@@ -435,7 +414,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
             network_time_avg = np.abs(network_time).mean(axis=1)
             # we introduce a scaler to prevent overlap of confound with network timecourses
             network_time_avg += scaler
-            ax4.plot(x,network_time_avg, color=color, alpha=0.6)
+            ax4.plot(x,fill_censored_vector(network_time_avg, frame_mask), color=color, alpha=0.6)
             legend.append(name)
 
     ax4.legend(legend, loc='center left', fontsize=15, bbox_to_anchor=(1.15, 0.5))
