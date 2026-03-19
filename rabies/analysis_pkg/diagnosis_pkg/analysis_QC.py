@@ -259,97 +259,97 @@ def plot_density(v, bounds, outliers, ax, axis='x'):
                     raise
 
 
-def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=3.5):
-    
-    fig = plt.figure(figsize=(20, 30))
+def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bounds_dict={}, QC_inclusion=None, scan_QC_thresholds={}, outlier_threshold=3.5, write_corr=False):
 
-    ax_x_2 = fig.add_subplot(10,3,5)
-    ax_y_1 = fig.add_subplot(5,6,11)
-    ax_y_2 = fig.add_subplot(5,6,17)
-    ax_y_3 = fig.add_subplot(5,6,23)
+    n_cols=len(net_metric_dict.keys())
+    n_rows=len(qc_metric_dict.keys())
 
-    ax2 = fig.add_subplot(5,3,5)
-    ax4 = fig.add_subplot(5,3,8)
-    ax6 = fig.add_subplot(5,3,11)
-    if not tdof_array is None:
-        ax8 = fig.add_subplot(5,3,14)
-        ax_y_4 = fig.add_subplot(5,6,29)
-        ax8.set_xlabel('Network specificity (Dice)', color='White', fontsize=25)
-    else:
-        ax8=None
-        ax_y_4=None
-        ax6.set_xlabel('Network specificity (Dice)', color='White', fontsize=25)
+    if QC_inclusion is None:
+        key, value = next(iter(net_metric_dict.items()))
+        QC_inclusion = np.ones(len(value)).astype(bool)
 
-    if not network_var is None:
-        ax_x_1 = fig.add_subplot(10,3,4)
-        ax1 = fig.add_subplot(5,3,4)
-        ax3 = fig.add_subplot(5,3,7)
-        ax5 = fig.add_subplot(5,3,10)
-        ax1.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
-        ax3.set_ylabel('$CR_{SD}$', color='White', fontsize=25)
-        ax5.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
 
-        if not tdof_array is None:
-            ax7 = fig.add_subplot(5,3,13)
-            ax7.set_ylabel('Degrees of freedom', color='White', fontsize=25)
-            ax7.set_xlabel('Network amplitude', color='White', fontsize=25)
-        else:
-            ax7 = None
-            ax5.set_xlabel('Network amplitude', color='White', fontsize=25)
+    if n_cols==0 or n_rows==0:
+        raise ValueError("Must have at minimum 1 row and 1 column.")
 
-    else:
-        ax_x_1 = None
-        ax1 = None
-        ax3 = None
-        ax5 = None
-        ax7 = None
-        ax2.set_ylabel('DR confound corr.\n(mean |pearson r|)', color='White', fontsize=25)
-        ax4.set_ylabel('$CR_{SD}$', color='White', fontsize=25)
-        ax6.set_ylabel('Mean FD (mm)', color='White', fontsize=25)
+    height_ratios = [1]+[2]*n_rows # top row half height
+    width_ratios = [2]*n_cols+[1] # last column half width
+    fig, axes = plt.subplots(
+        n_rows+1, n_cols+1,
+        gridspec_kw={
+            "height_ratios": height_ratios,
+            "width_ratios": width_ratios
+        },
+        figsize=(np.array(width_ratios).sum()*3.5, np.array(height_ratios).sum()*3.5)
+    )
+    axes[0,-1].axis('off') # remove top right corner
 
-        if not tdof_array is None:
-            ax8.set_ylabel('Degrees of freedom', color='White', fontsize=25)
-
-    # plot thresholds for Conf. Corr.
-    if not scan_QC_thresholds['Conf'] is None:
-        if not network_var is None:
-            x_bounds = list(set_bounds(network_var))
-            ax1.plot(x_bounds,[scan_QC_thresholds['Conf'],scan_QC_thresholds['Conf']], color='lightgray', linestyle='--')
-        ax2.plot([0,1.0],[scan_QC_thresholds['Conf'],scan_QC_thresholds['Conf']], color='lightgray', linestyle='--')
-
-    # plot thresholds for Dice
-    if not scan_QC_thresholds['Dice'] is None:
-        ax2.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], [0,1.0], color='lightgray', linestyle='--')
-        ax4.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(total_CRsd)), color='lightgray', linestyle='--')
-        ax6.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(mean_FD_array)), color='lightgray', linestyle='--')
-        if not tdof_array is None:
-            ax8.plot([scan_QC_thresholds['Dice'],scan_QC_thresholds['Dice']], list(set_bounds(tdof_array)), color='lightgray', linestyle='--')
-        
-            
-    axes = np.array([[ax1,ax2],[ax3,ax4],[ax5,ax6],[ax7,ax8]])
-    axes_x = [ax_x_1,ax_x_2]
-    axes_y = [ax_y_1,ax_y_2,ax_y_3,ax_y_4]
-
-    x_i=0
-    for x,x_bounds in zip([network_var,network_dice],[None,[0,1]]):
-        if x is None:
-            x_i+=1
-            continue
-
-        if x_bounds is None:
-            x_bounds = list(set_bounds(x))
-
-        ax = axes_x[x_i]
+    for ax in axes.flatten():
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
-        plt.setp(ax.get_xticklabels(), visible=False)
-        plt.setp(ax.get_yticklabels(), visible=False)
-        ax.set_xlim(x_bounds)
-        
+        plt.setp(ax.get_xticklabels(), fontsize=15)
+        plt.setp(ax.get_yticklabels(), fontsize=15)
+
+
+    j=0
+    for key_net in net_metric_dict.keys():
+        axes[-1,j].set_xlabel(key_net, color='White', fontsize=25)
+        if key_net in x_bounds_dict:
+            x_bounds = x_bounds_dict[key_net]
+        else:
+            x_bounds = list(set_bounds(net_metric_dict[key_net]))
+        for i in range(n_rows+1):
+            axes[i,j].set_xlim(x_bounds)
+        j+=1
+
+    i=0
+    for key_qc in qc_metric_dict.keys():
+        axes[i+1,0].set_ylabel(key_qc, color='White', fontsize=25)
+        if key_qc in y_bounds_dict:
+            y_bounds = y_bounds_dict[key_qc]
+        else:
+            y_bounds = list(set_bounds(qc_metric_dict[key_qc]))
+        for j in range(n_cols+1):
+            axes[i+1,j].set_ylim(y_bounds)
+        i+=1
+
+    # plot the thresholds for QC metrics
+    i=0
+    for key_qc in qc_metric_dict.keys():
+        if key_qc in scan_QC_thresholds: # if a threshold is set, plot the gray line
+            j=0
+            for key_net in net_metric_dict.keys():
+                ax = axes[i+1,j]
+                x_bounds = list(ax.get_xlim())
+                ax.plot(x_bounds,[scan_QC_thresholds[key_qc],scan_QC_thresholds[key_qc]], color='lightgray', linestyle='--')
+                j+=1
+        i+=1
+
+    # plot the thresholds for network metrics
+    j=0
+    for key_net in net_metric_dict.keys():
+        if key_net in scan_QC_thresholds: # if a threshold is set, plot the gray line
+            i=0
+            for key_qc in qc_metric_dict.keys():
+                ax = axes[i+1,j]
+                y_bounds = list(ax.get_ylim())
+                ax.plot([scan_QC_thresholds[key_net],scan_QC_thresholds[key_net]], y_bounds, color='lightgray', linestyle='--')
+                i+=1
+        j+=1
+
+
+    j=0
+    for key_net in net_metric_dict.keys():
+        x = net_metric_dict[key_net]
         # don't include removed scans in side plots
         x_in = x[QC_inclusion]
         x_outliers = detect_outliers(x_in, threshold=outlier_threshold)
 
+        # density plot for x axis along first row
+        ax = axes[0,j]
+        x_bounds = list(ax.get_xlim())
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
         try:
             plot_density(v=x_in, bounds=x_bounds, outliers=x_outliers, ax=ax, axis='x')
         except:
@@ -357,26 +357,18 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mea
             log = logging.getLogger('nipype.workflow')
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
-        y_i=0
-        for y,y_bounds in zip([DR_conf_corr,total_CRsd, mean_FD_array, tdof_array],[[0,1],None,None,None]):
-            if y is None:
-                y_i+=1
-                continue
-            if y_bounds is None:
-                y_bounds = list(set_bounds(y))
-
+        i=0
+        for key_qc in qc_metric_dict.keys():
+            y = qc_metric_dict[key_qc]
             # don't include removed scans in side plots
             y_in = y[QC_inclusion]
             y_outliers = detect_outliers(y_in, threshold=outlier_threshold)
             
-            if x_i==1:
-                ax = axes_y[y_i]
-                ax.spines['right'].set_visible(False)
-                ax.spines['top'].set_visible(False)
+            if j==0: # only need to plot the density during the first loop of rows
+                ax = axes[i+1,-1]
+                y_bounds = list(ax.get_ylim())
                 plt.setp(ax.get_xticklabels(), visible=False)
                 plt.setp(ax.get_yticklabels(), visible=False)
-                ax.set_ylim(y_bounds)
-                                
                 try:
                     plot_density(v=y_in, bounds=y_bounds, outliers=y_outliers, ax=ax, axis='y')
                 except:
@@ -384,15 +376,8 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mea
                     log = logging.getLogger('nipype.workflow')
                     log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
-            ax = axes[y_i,x_i]
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            plt.setp(ax.get_xticklabels(), fontsize=15)
-            plt.setp(ax.get_yticklabels(), fontsize=15)
-
-            ax.set_xlim(x_bounds)
-            ax.set_ylim(y_bounds)
-
+            # now manage the scatter/2D density plots
+            ax = axes[i+1,j]
             union_outliers = x_outliers+y_outliers
 
             for outlier in [False,True]:
@@ -408,11 +393,22 @@ def plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mea
                         log.warning("Singular matrix error when computing KDE. Density won't be shown.")
                 
                 ax.scatter(x_,y_, s=30, edgecolor='black')
+                if not outlier and write_corr:
+                    corr = np.corrcoef(x_,y_)[0,1]
+                    ax.text(
+                        0.02, 0.98,
+                        f"Scatter Correlation: {np.around(corr,3)}",
+                        fontsize=20,
+                        transform=ax.transAxes, # select coordinates of the axis
+                        ha="left",
+                        va="top"
+                    )                    
                 
             # show removed scans in gray
             ax.scatter(x[QC_inclusion==False],y[QC_inclusion==False], s=30, color='lightgray', edgecolor='black')
-            y_i+=1
-        x_i+=1
+
+            i+=1
+        j+=1
 
     return fig
 
@@ -433,10 +429,13 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
 
     # apply QC thresholds
     QC_inclusion = np.ones(len(scan_name_list)).astype(bool)
+    plot_QC_thresholds = {}
     if not scan_QC_thresholds['Dice'] is None:
         QC_inclusion *= (scan_QC_thresholds['Dice']<network_dice)
+        plot_QC_thresholds['Network specificity (Dice)']=scan_QC_thresholds['Dice']
     if not scan_QC_thresholds['Conf'] is None:
         QC_inclusion *= (scan_QC_thresholds['Conf']>DR_conf_corr)
+        plot_QC_thresholds['DR confound corr.\n(mean |pearson r|)']=scan_QC_thresholds['Conf']
     if scan_QC_thresholds['Amp']:
         while(True): # this is done iteratively, as new outliers may appear in the new distribution after removing a first set
             # we apply previous Dice/conf filters so removed scans don't contribute to estimating outliers
@@ -445,7 +444,16 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
                 break
             QC_inclusion[QC_inclusion] = Amp_QC
     
-    fig = plot_QC_distributions(network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, QC_inclusion, scan_QC_thresholds, outlier_threshold=outlier_threshold)
+    net_metric_dict = {'Network amplitude':np.array(network_var), 'Network specificity (Dice)':np.array(network_dice)}
+    qc_metric_dict = {'DR confound corr.\n(mean |pearson r|)':DR_conf_corr, '$CR_{SD}$':total_CRsd, 'Mean FD (mm)':mean_FD_array}
+    if tdof_array: # exclude tdof_array if None
+         qc_metric_dict['Degrees of freedom'] = tdof_array
+    x_bounds_dict = {'Network specificity (Dice)':[0,1.0]}
+    y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
+    fig = plot_QC_distributions(
+        net_metric_dict,qc_metric_dict, x_bounds_dict=x_bounds_dict, y_bounds_dict=y_bounds_dict, 
+        QC_inclusion=QC_inclusion, scan_QC_thresholds=plot_QC_thresholds, outlier_threshold=outlier_threshold, 
+        write_corr=True)
 
     df = pd.DataFrame(data=np.array([scan_name_list, QC_inclusion]).T, columns=['scan ID', 'QC inclusion?'])
 
