@@ -94,20 +94,6 @@ def csv2par(in_confounds):
     return out_confounds
 
 
-def gen_FD_mask(FD_trace, scrubbing_threshold):
-    '''
-    Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
-    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
-    '''
-    import numpy as np
-    cutoff = np.asarray(FD_trace) >= scrubbing_threshold
-    mask = np.ones(len(FD_trace)).astype(bool)
-    for i in range(len(mask)):
-        if cutoff[i]:
-            mask[i-1:i+2] = 0
-    return mask
-
-
 def prep_timeseries_interval(timeseries_interval, num_frames):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
@@ -126,6 +112,23 @@ def prep_timeseries_interval(timeseries_interval, num_frames):
 
     time_range = range(begin,end)
     return time_range
+
+
+def compute_FD_censoring(FD_trace, scrubbing_threshold):
+    '''
+    Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
+    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
+    '''
+    import numpy as np
+    cutoff = np.asarray(FD_trace) >= scrubbing_threshold
+    mask = np.ones(len(FD_trace)).astype(bool)
+    for i in range(len(mask)):
+        if cutoff[i]:
+            if i==0:
+                mask[i:i+2] = 0
+            else:
+                mask[i-1:i+2] = 0
+    return mask
 
 
 def get_DVARS(timeseries):
@@ -156,7 +159,7 @@ def temporal_censoring(FD_trace,
     num_frames = len(FD_trace) # FD_trace length must correspond with the timeseries length
     frame_mask = np.ones(num_frames).astype(bool)
     if FD_censoring:
-        FD_mask = gen_FD_mask(FD_trace, FD_threshold)
+        FD_mask = compute_FD_censoring(FD_trace, FD_threshold)
         frame_mask*=FD_mask
     if DVARS_censoring:
         DVARS_mask = outlier_censoring(DVARS_trace)
