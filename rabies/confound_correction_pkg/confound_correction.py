@@ -741,6 +741,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     # apply the frame mask to FD trace/DVARS to prepare outputs from the function
     DVARS_trace = DVARS_trace[frame_mask]
     FD_trace = FD_trace[frame_mask]
+    mse_trace = mse_trace[frame_mask]
 
     # calculate temporal degrees of freedom left after confound correction
     num_timepoints = frame_mask.sum()
