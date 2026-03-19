@@ -739,7 +739,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,minimum_timepoint=3',
+        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,MSE_censoring=false,minimum_timepoint=3',
         help=
             "Censor frames that are highly corrupted (i.e. 'scrubbing'). \n"
             "* FD_censoring: Apply frame censoring based on a framewise displacement threshold. The frames \n"
@@ -751,6 +751,15 @@ def get_parser():
             " (temporal derivative of global signal). This method will censor timepoints until the \n" 
             " distribution of DVARS values across time does not contain outliers values above or below 2.5 \n" 
             " standard deviations.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* MSE_censoring: Apply censoring based on the mean square error (MSE) between each frame and \n"
+            " the average EPI (computed as the tri-mean across time voxelwise). Censoring is estimated \n"
+            " automatically through outlier detection as with DVARS_censoring . \n"
+            " This MSE metric is computed on the input preprocessed timeseries before any mean removal or \n"
+            " confound correction, meaning that metric represents changes in raw image contrast across time, \n"
+            " which is equivalent to the registration error computed post-head motion realignment with \n"
+            " --hmc_qc_report, or in other words, MSE captures residual motion or intensity spikes.\n"
+            " MSE can be a effective complement to FD to measure motion that was not well capture by registration. \n"
             "*** Specify 'true' or 'false'. \n"
             "* minimum_timepoint: Can set a minimum number of timepoints remaining after frame censoring. \n" 
             " If the threshold is not met, an empty file is generated and the scan is not considered in \n" 
@@ -1243,8 +1252,8 @@ def read_parser(parser, args):
     elif opts.rabies_stage == 'confound_correction':
         opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
             key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
-                'minimum_timepoint':int},
-            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'minimum_timepoint':3},
+                'MSE_censoring':['true', 'false'], 'minimum_timepoint':int},
+            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'MSE_censoring':False,'minimum_timepoint':3},
             name='frame_censoring')
         
         opts.detrending = parse_argument(opt=opts.detrending, 

@@ -131,6 +131,18 @@ def compute_FD_censoring(FD_trace, scrubbing_threshold):
     return mask
 
 
+def MSE_relative_to_average(timeseries_4d_arr):
+    # timeseries_4d_arr should be a 4d timeseries array before any mean removal,
+    # and before any brain mask occured, i.e. we want to include the whole image
+    # including non-brain tissue to capture movement and the computation should be
+    # driven primarily by image raw constrast
+    timeseries_2d_arr = timeseries_4d_arr.reshape(timeseries_4d_arr.shape[0],-1) # reshape to time by voxel array
+    # compute an average using trimean
+    ref_average_arr = np.quantile(timeseries_2d_arr, (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+    mse_trace = np.mean((timeseries_2d_arr - ref_average_arr)**2, axis=1) # taking mean square error
+    return mse_trace
+
+
 def get_DVARS(timeseries):
     # compute the DVARS before denoising
     # the first data point is set to 0
@@ -154,7 +166,8 @@ def outlier_censoring(qc_trace, std_thresh=2.5):
 
 
 def temporal_censoring(FD_trace, 
-        FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint):
+        FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
+        mse_trace, MSE_censoring, minimum_timepoint):
 
     num_frames = len(FD_trace) # FD_trace length must correspond with the timeseries length
     frame_mask = np.ones(num_frames).astype(bool)
@@ -165,10 +178,13 @@ def temporal_censoring(FD_trace,
         DVARS_mask = outlier_censoring(DVARS_trace)
         DVARS_mask[0]=False # remove the first timepoint, which is always 0
         frame_mask*=DVARS_mask
+    if MSE_censoring:
+        mse_mask = outlier_censoring(mse_trace)
+        frame_mask*=mse_mask
     if frame_mask.sum()<int(minimum_timepoint):
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
-        log.warning(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        log.warning(f"CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
 
     return frame_mask

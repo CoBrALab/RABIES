@@ -211,6 +211,7 @@ class CleanImage(BaseInterface):
                 FD_censoring=cr_opts.frame_censoring['FD_censoring'], 
                 FD_threshold=cr_opts.frame_censoring['FD_threshold'], 
                 DVARS_censoring=cr_opts.frame_censoring['DVARS_censoring'], 
+                MSE_censoring=cr_opts.frame_censoring['MSE_censoring'], 
                 minimum_timepoint=cr_opts.frame_censoring['minimum_timepoint'],
                 TR=cr_opts.TR,
                 detrending_order=cr_opts.detrending['order'], 
@@ -305,7 +306,8 @@ class CleanImage(BaseInterface):
 
 def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
-                timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
+                timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, 
+                DVARS_censoring=False, MSE_censoring=False, minimum_timepoint=3, TR='auto',
                 detrending_order=1, detrending_time_interval='0-end', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
@@ -352,6 +354,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     DVARS_censoring : bool, default=False
         Whether to apply DVARS censoring.
+
+    MSE_censoring : bool, default=False
+        Whether to apply MSE censoring.
 
     minimum_timepoint : int, default=3
         Minimum number of frames left post-cleaning, otherwise returns None.
@@ -523,8 +528,11 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     time_range = cr_utils.prep_timeseries_interval(timeseries_interval, num_frames=orig_4d_size[3])
 
-    timeseries = sitk.GetArrayFromImage(input_bold)[:,volume_idx] # read directly as a 2D array
-    del input_bold # free memory
+    timeseries_4d_arr = sitk.GetArrayFromImage(input_bold)
+    del input_bold
+    mse_trace = cr_utils.MSE_relative_to_average(timeseries_4d_arr)
+    timeseries = timeseries_4d_arr[:,volume_idx] # read directly as a 2D array
+    del timeseries_4d_arr # free memory
     motion_regressors_array = motion_regressors_array[time_range, :]
     motion6_regressors_array = motion6_regressors_array[time_range, :]
     FD_trace = FD_trace[time_range]
@@ -538,7 +546,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     DVARS_trace = cr_utils.get_DVARS(timeseries)
 
     frame_mask = cr_utils.temporal_censoring(FD_trace, 
-            FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint)
+            FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
+            mse_trace, MSE_censoring, minimum_timepoint)
     if frame_mask is None:
         return None
 
@@ -782,7 +791,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         corrected_CR_STD_spatial_map = None
 
     CR_data_dict = {
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'mse_trace':mse_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
         'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 
         'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_intercept, 'aroma_out':aroma_out,
         }
