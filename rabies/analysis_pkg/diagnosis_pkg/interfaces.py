@@ -90,20 +90,30 @@ class ScanDiagnosis(BaseInterface):
             prior_bold_idx, prior_confound_idx,
             nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
 
-        fig, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
+        temporal_fig_list, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
                                    spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, 
                                    brainmap_percent_threshold=self.inputs.brainmap_percent_threshold)
 
         import pathlib
         filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]
         figure_path = os.path.abspath(filename_template)
-        fig.savefig(figure_path+f'_temporal_diagnosis.{figure_format}', bbox_inches='tight')
-        fig2.savefig(figure_path+f'_spatial_diagnosis.{figure_format}', bbox_inches='tight')
+        spatial_fig_file = figure_path+f'_spatial_diagnosis.{figure_format}'
+        fig2.savefig(spatial_fig_file, bbox_inches='tight')
+
+        if len(temporal_fig_list)==1:
+            temporal_fig_file = figure_path+f'_temporal_diagnosis.{figure_format}'
+            temporal_fig_list[0].savefig(temporal_fig_file, bbox_inches='tight')
+        else: # long scans have figures stacked in PDF
+            from matplotlib.backends.backend_pdf import PdfPages
+            temporal_fig_file = figure_path+f'_temporal_diagnosis.pdf'
+            with PdfPages(temporal_fig_file) as pdf:
+                for fig in temporal_fig_list:
+                    pdf.savefig(fig)
 
         setattr(self, 'figure_temporal_diagnosis',
-                figure_path+f'_temporal_diagnosis.{figure_format}')
+                temporal_fig_file)
         setattr(self, 'figure_spatial_diagnosis',
-                figure_path+f'_spatial_diagnosis.{figure_format}')
+                spatial_fig_file)
         setattr(self, 'temporal_info', temporal_info)
         setattr(self, 'spatial_info', spatial_info)
 
@@ -220,15 +230,17 @@ class DatasetDiagnosis(BaseInterface):
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
             FC_maps_dict['DR'].append(scan_data['DR_BOLD'])
-            FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
-            FC_maps_dict['SBC'].append(scan_data['seed_map_list'])
+            if scan_data['NPR_maps'] is not None:
+                FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
+            if scan_data['seed_map_list'] is not None:
+                FC_maps_dict['SBC'].append(scan_data['seed_map_list'])
 
             # computing the temporal correlation between network and confound timecourses
             DR_confound_time = scan_data['DR_confound_time']
             for network_time,key in zip(
                 [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
                 ['DR','NPR','SBC']):
-                if len(network_time)>0:
+                if network_time is not None:
                     # for each network, compute its confound correlation as mean across all DR confound components
                     corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
                     DR_conf_corr_dict[key].append(corr_list)
@@ -289,7 +301,8 @@ class DatasetDiagnosis(BaseInterface):
         def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
 
             for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
-                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold, smoothing=self.inputs.add_smoothing)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold, smoothing=self.inputs.add_smoothing)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
@@ -303,7 +316,8 @@ class DatasetDiagnosis(BaseInterface):
 
         def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
-            fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')
@@ -369,9 +383,8 @@ class DatasetDiagnosis(BaseInterface):
 
                 analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
-
-        NPR_maps_list=np.array(FC_maps_dict['NPR'])
-        if NPR_maps_list.shape[1]>0:
+        if len(FC_maps_dict['NPR'])>0:
+            NPR_maps_list=np.array(FC_maps_dict['NPR'])
             if self.inputs.group_avg_prior:
                 num_priors = NPR_maps_list.shape[1]
                 prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
@@ -399,8 +412,8 @@ class DatasetDiagnosis(BaseInterface):
 
                     analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
-        seed_maps_list=np.array(FC_maps_dict['SBC'])
-        if seed_maps_list.shape[1]>0:
+        if len(FC_maps_dict['SBC'])>0:
+            seed_maps_list=np.array(FC_maps_dict['SBC'])
 
             if self.inputs.group_avg_prior:
                 num_priors = seed_maps_list.shape[1]

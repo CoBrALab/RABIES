@@ -1,8 +1,7 @@
-import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from rabies.utils import copyInfo_3DImage, recover_3D
+from rabies.utils import recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 import nilearn.plotting
@@ -47,8 +46,8 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
             time_list.append(np.array(pd.read_csv(time_csv, header=None)).flatten())
         temporal_info['SBC_time'] = np.array(time_list).T # convert to time by network matrix
     else:
-        spatial_info['seed_map_list'] = []
-        temporal_info['SBC_time'] = []
+        spatial_info['seed_map_list'] = None
+        temporal_info['SBC_time'] = None
 
     ### DR analysis
     DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
@@ -92,7 +91,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
-    prior_fit_out = {'C': [], 'W': []}
+    prior_fit_out = {'C': None, 'W': None}
     if not analysis_dict['NPR_prior_filename'] is None:
         prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
@@ -248,10 +247,98 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
 
 
 def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, brainmap_percent_threshold=10, display_censoring=True):
-    timeseries = CR_data_dict['timeseries']
-    template_file = maps_data_dict['anat_ref_file']
+    TR = CR_data_dict['CR_data_dict']['TR']
+
+    total_time_length = len(CR_data_dict['CR_data_dict']['frame_mask'])
+    n_frames_per_fig = 1000 # max 1000 frames per figure
+    num_figs = int(np.ceil(total_time_length/n_frames_per_fig))
+    start_time = 0
+    temporal_fig_list = []
+    for n in range(num_figs):
+        plot_time_subset = range(start_time, min(total_time_length, start_time+n_frames_per_fig))
+        start_time+=n_frames_per_fig
+
+        [
+            timeseries, frame_mask, motion_params_df,
+            FD_trace, DVARS, mse_trace,
+            CR_VE_temporal, CR_var_temporal,
+            global_signal, WM_trace, CSF_trace, edge_trace,
+            DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+            ] = prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info)
+
+        time0 = plot_time_subset.start
+        fig,axes = temporal_diagnosis_plot(
+            time0, timeseries, frame_mask, TR, motion_params_df,
+            FD_trace, DVARS, mse_trace,
+            CR_VE_temporal, CR_var_temporal,
+            global_signal, WM_trace, CSF_trace, edge_trace,
+            DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+            plot_seed_frequencies=plot_seed_frequencies, display_censoring=display_censoring)
+        temporal_fig_list.append(fig)
+        plt.close(fig)
+
+    fig2 = spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_threshold=brainmap_percent_threshold)
+    plt.close(fig2)
+    return temporal_fig_list, fig2
+
+
+def prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info):
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
-    frame_mask = CR_CR_data_dict['frame_mask']
+
+    frame_mask = CR_CR_data_dict['frame_mask'][plot_time_subset]
+    # the motion parameters are the entire original length, so both the time_range from confound_correction and plot_time_subset must be applied
+    time_range = CR_CR_data_dict['time_range']
+    motion_params_df = CR_CR_data_dict['motion_params_df'][time_range.start:time_range.stop][plot_time_subset.start:plot_time_subset.stop]
+
+    # the remaining timeseries were censored with frame_mask, and plot_time_subset is not aligned with the censored time axis
+    first = plot_time_subset.start
+    last = plot_time_subset.stop # .stop actually returns the max value for range(), which is excluded as an index
+    # the idx range must be shifted by the number of censored frames before the first index to match the censored timeseries array
+    frame_mask_full = CR_CR_data_dict['frame_mask']
+    if first>0:
+        first -= (frame_mask_full[:first]==False).sum()
+    # similarly for the last index
+    last -= (frame_mask_full[:last]==False).sum()
+    plot_time_subset_censored = range(first,last) # we re-generated a corrected range
+
+    timeseries = CR_data_dict['timeseries'][plot_time_subset_censored]
+
+    FD_trace=temporal_info['FD_trace'].to_numpy()[plot_time_subset_censored]
+    DVARS=temporal_info['DVARS'][plot_time_subset_censored]
+    mse_trace=temporal_info['mse_trace'][plot_time_subset_censored]
+
+    CR_VE_temporal=temporal_info['VE_temporal'][plot_time_subset_censored]
+    CR_var_temporal=temporal_info['predicted_time'][plot_time_subset_censored]
+
+    SBC_time=temporal_info['SBC_time']
+    if SBC_time is not None: # might be None
+        SBC_time=SBC_time[plot_time_subset_censored]
+    DR_bold_time=temporal_info['DR_bold'][plot_time_subset_censored]
+    DR_confound_time=temporal_info['DR_confound'][plot_time_subset_censored]
+    NPR_time=temporal_info['NPR_time']
+    if NPR_time is not None: # might be None
+        NPR_time=NPR_time[plot_time_subset_censored]
+
+    global_signal=temporal_info['global_signal'][plot_time_subset_censored]
+    edge_trace=temporal_info['edge_trace'][plot_time_subset_censored]
+    WM_trace=temporal_info['WM_trace'][plot_time_subset_censored]
+    CSF_trace=temporal_info['CSF_trace'][plot_time_subset_censored]
+    return [
+        timeseries, frame_mask, motion_params_df,
+        FD_trace, DVARS, mse_trace,
+        CR_VE_temporal, CR_var_temporal,
+        global_signal, WM_trace, CSF_trace, edge_trace,
+        DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+    ]
+
+
+def temporal_diagnosis_plot(
+        time0, timeseries, frame_mask, TR, motion_params_df,
+        FD_trace, DVARS, mse_trace,
+        CR_VE_temporal, CR_var_temporal,
+        global_signal, WM_trace, CSF_trace, edge_trace,
+        DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+        plot_seed_frequencies={}, display_censoring=True):
 
     if display_censoring:
         num_timepoints = len(frame_mask)
@@ -266,9 +353,13 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         figsize=(fig_width, 24),
     )
 
+    import matplotlib.transforms as mtransforms
+    # set a consistent # of pixels to offset the axis legend, regardless of figure size
+    offset = mtransforms.ScaledTranslation(70/72, 0, fig.dpi_scale_trans)
+
     a=0
     ax = axes[a]
-    plot_freqs(ax,timeseries, CR_CR_data_dict['TR'], frame_mask)
+    plot_freqs(ax,timeseries, TR, frame_mask)
     plt.setp(ax.get_yticklabels(), visible=False)
     plt.setp(ax.get_xticklabels(), fontsize=15)
     ax.set_xlabel('Frequency (Hz)', fontsize=20)
@@ -276,14 +367,17 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
 
     freq_legend = ['Whole brain']
     # plot the spectrum for specific seeds
-    seed_time_arr = temporal_info['SBC_time']
     seed_names = list(plot_seed_frequencies.keys())
     for seed_name in seed_names:
         seed_idx = plot_seed_frequencies[seed_name]
-        plot_freqs(ax,seed_time_arr[:,[seed_idx]], CR_CR_data_dict['TR'], frame_mask)
+        plot_freqs(ax,SBC_time[:,[seed_idx]], TR, frame_mask)
         freq_legend.append(seed_name)
-    ax.legend(freq_legend,
-                loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.5))
+    ax.legend(
+        freq_legend,
+        loc='center left', 
+        bbox_transform=ax.transAxes+offset,    
+        fontsize=15, 
+        bbox_to_anchor=(1, 0.5))
     a+=1
 
     ax = axes[a]
@@ -294,9 +388,16 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     x = range(num_timepoints)
     xlim_edge_percent = 0.02
     x_lim = [-(num_timepoints*xlim_edge_percent),(num_timepoints-1)+(num_timepoints*xlim_edge_percent)]
+
+    x_ticks = np.array([i*100 for i in range(int(num_timepoints/100)+1)])
+    x_ticks_labels = x_ticks+time0
+    x_ticks_labels = np.ceil(x_ticks_labels.astype(float)*TR).astype(int) # convert to real time in seconds
     for ax in axes[1:]:
         ax.set_xlim(x_lim)
-    
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels(x_ticks_labels)
+
+
     # carpet plot
     ax = axes[a]
     if display_censoring:
@@ -314,19 +415,22 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     a+=1
 
     # plot the motion timecourses
-    motion_params_df = CR_CR_data_dict['motion_params_df']
-    time_range = CR_CR_data_dict['time_range']
     ax = axes[a]
     if display_censoring:
-        ax.plot(x,motion_params_df['mov1'].to_numpy()[time_range], alpha=0.7)
-        ax.plot(x,motion_params_df['mov2'].to_numpy()[time_range], alpha=0.7)
-        ax.plot(x,motion_params_df['mov3'].to_numpy()[time_range], alpha=0.7)
+        ax.plot(x,motion_params_df['mov1'].to_numpy(), alpha=0.7)
+        ax.plot(x,motion_params_df['mov2'].to_numpy(), alpha=0.7)
+        ax.plot(x,motion_params_df['mov3'].to_numpy(), alpha=0.7)
     else:
-        ax.plot(x,motion_params_df['mov1'].to_numpy()[time_range][frame_mask], alpha=0.7)
-        ax.plot(x,motion_params_df['mov2'].to_numpy()[time_range][frame_mask], alpha=0.7)
-        ax.plot(x,motion_params_df['mov3'].to_numpy()[time_range][frame_mask], alpha=0.7)
-    ax.legend(['translation 1', 'translation 2', 'translation 3'],
-               loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.5))
+        ax.plot(x,motion_params_df['mov1'].to_numpy()[frame_mask], alpha=0.7)
+        ax.plot(x,motion_params_df['mov2'].to_numpy()[frame_mask], alpha=0.7)
+        ax.plot(x,motion_params_df['mov3'].to_numpy()[frame_mask], alpha=0.7)
+
+    ax.legend(
+        ['translation 1', 'translation 2', 'translation 3'],
+        loc='center left', 
+        fontsize=15, 
+        bbox_transform=ax.transAxes+offset,    
+        bbox_to_anchor=(1, 0.5))
     ax.set_ylabel('mm', fontsize=20)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -336,15 +440,19 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
 
     ax = axes[a]
     if display_censoring:
-        ax.plot(x,motion_params_df['rot1'].to_numpy()[time_range], alpha=0.7)
-        ax.plot(x,motion_params_df['rot2'].to_numpy()[time_range], alpha=0.7)
-        ax.plot(x,motion_params_df['rot3'].to_numpy()[time_range], alpha=0.7)
+        ax.plot(x,motion_params_df['rot1'].to_numpy(), alpha=0.7)
+        ax.plot(x,motion_params_df['rot2'].to_numpy(), alpha=0.7)
+        ax.plot(x,motion_params_df['rot3'].to_numpy(), alpha=0.7)
     else:
-        ax.plot(x,motion_params_df['rot1'].to_numpy()[time_range][frame_mask], alpha=0.7)
-        ax.plot(x,motion_params_df['rot2'].to_numpy()[time_range][frame_mask], alpha=0.7)
-        ax.plot(x,motion_params_df['rot3'].to_numpy()[time_range][frame_mask], alpha=0.7)
-    ax.legend(['Euler angle 1', 'Euler angle 2', 'Euler angle 3'],
-                loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.5))
+        ax.plot(x,motion_params_df['rot1'].to_numpy()[frame_mask], alpha=0.7)
+        ax.plot(x,motion_params_df['rot2'].to_numpy()[frame_mask], alpha=0.7)
+        ax.plot(x,motion_params_df['rot3'].to_numpy()[frame_mask], alpha=0.7)
+    ax.legend(
+        ['Euler angle 1', 'Euler angle 2', 'Euler angle 3'],
+        loc='center left', 
+        fontsize=15, 
+        bbox_transform=ax.transAxes+offset,    
+        bbox_to_anchor=(1, 0.5))
     ax.set_ylabel('radians', fontsize=20)
     plt.setp(ax.get_xticklabels(), visible=False)
     plt.setp(ax.get_yticklabels(), fontsize=15)
@@ -361,25 +469,22 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         return filled
     
     ax = axes[a]
-    y = fill_censored_vector(temporal_info['mse_trace'], frame_mask)
+    y = fill_censored_vector(mse_trace, frame_mask)
     ax.plot(x,y, 'r', alpha=0.7)
     ax.set_ylabel('MSE', fontsize=20)
     plt.setp(ax.get_xticklabels(), visible=False)
     plt.setp(ax.get_yticklabels(), fontsize=15)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
-    ax.legend(['Framewise\ndistance\nfrom mean'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.7))
     a+=1
     
     ax = axes[a]
-    y = fill_censored_vector(temporal_info['FD_trace'].to_numpy(), frame_mask)
+    y = fill_censored_vector(FD_trace, frame_mask)
     ax.plot(x,y, 'r', alpha=0.7)
     ax.set_ylabel('FD (mm)', fontsize=20)
-    DVARS = temporal_info['DVARS']
-    DVARS[0] = None
     ax_ = ax.twinx()
 
+    DVARS[0] = None
     y2 = fill_censored_vector(DVARS, frame_mask)
     ax_.plot(x,y2, 'b', alpha=0.7)
     ax_.set_ylabel('DVARS', fontsize=20)
@@ -390,17 +495,28 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     plt.setp(ax.get_yticklabels(), fontsize=15)
     plt.setp(ax_.get_xticklabels(), visible=False)
     plt.setp(ax_.get_yticklabels(), fontsize=15)
-    ax.legend(['Framewise \nDisplacement (FD)'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.7))
-    ax_.legend(['DVARS'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.3))
+
+    ax.legend(
+        ['Framewise \nDisplacement (FD)'], 
+        loc='center left',
+        bbox_to_anchor=(1, 0.7),
+        bbox_transform=ax.transAxes+offset,    
+        fontsize=15,
+        )
+    ax_.legend(
+        ['DVARS'], 
+        loc='center left',
+        bbox_to_anchor=(1, 0.3),
+        bbox_transform=ax.transAxes+offset,    
+        fontsize=15,
+        )
     a+=1
 
     ax = axes[a]
-    ax.plot(x,fill_censored_vector(temporal_info['predicted_time'], frame_mask), 'red', alpha=0.7)
+    ax.plot(x,fill_censored_vector(CR_var_temporal, frame_mask), 'red', alpha=0.7)
     ax.set_ylabel('$CR_{var}$', fontsize=20)
     ax_ = ax.twinx()
-    ax_.plot(x,fill_censored_vector(temporal_info['VE_temporal'], frame_mask), 'darkviolet', alpha=0.7)
+    ax_.plot(x,fill_censored_vector(CR_VE_temporal, frame_mask), 'darkviolet', alpha=0.7)
     ax_.set_ylabel('CR $\mathregular{R^2}$', fontsize=20)
     ax_.spines['right'].set_visible(False)
     ax_.spines['top'].set_visible(False)
@@ -408,29 +524,41 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     plt.setp(ax.get_yticklabels(), fontsize=15)
     plt.setp(ax_.get_xticklabels(), visible=False)
     plt.setp(ax_.get_yticklabels(), fontsize=15)
-    ax.legend(['$CR_{var}$'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.7))
-    ax_.legend(['CR $\mathregular{R^2}$'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.1))
+    ax.legend(
+        ['$CR_{var}$'], 
+        loc='center left', 
+        fontsize=15, 
+        bbox_transform=ax.transAxes+offset,    
+        bbox_to_anchor=(1, 0.7))
+    ax_.legend(
+        ['CR $\mathregular{R^2}$'], 
+        loc='center left', 
+        fontsize=15, 
+        bbox_transform=ax.transAxes+offset,    
+        bbox_to_anchor=(1, 0.3))
     ax_.set_ylim([0,1])
     a+=1
     
     ax = axes[a]
-    ax.plot(x,fill_censored_vector(temporal_info['global_signal'], frame_mask), alpha=0.7)
-    ax.plot(x,fill_censored_vector(temporal_info['edge_trace'], frame_mask), alpha=0.7)
-    if temporal_info['WM_trace'] is not None:
-        ax.plot(x,fill_censored_vector(temporal_info['WM_trace'], frame_mask), alpha=0.7)
+    ax.plot(x,fill_censored_vector(global_signal, frame_mask), alpha=0.7)
+    ax.plot(x,fill_censored_vector(edge_trace, frame_mask), alpha=0.7)
+    if WM_trace is not None:
+        ax.plot(x,fill_censored_vector(WM_trace, frame_mask), alpha=0.7)
     else:
         ax.plot([],[])
-    if temporal_info['CSF_trace'] is not None:
-        ax.plot(x,fill_censored_vector(temporal_info['CSF_trace'], frame_mask), alpha=0.7)
+    if CSF_trace is not None:
+        ax.plot(x,fill_censored_vector(CSF_trace, frame_mask), alpha=0.7)
     else:
         ax.plot([],[])
     ax.set_ylabel('Mean signal', fontsize=20)
     plt.setp(ax.get_xticklabels(), visible=False)
     plt.setp(ax.get_yticklabels(), fontsize=15)
-    ax.legend(['Brain mask\n(global signal)', 'Edge Mask', 'WM Mask', 'CSF Mask'
-                ], loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.7))
+    ax.legend(
+        ['Brain mask\n(global signal)', 'Edge Mask', 'WM Mask', 'CSF Mask'], 
+        loc='center left', 
+        fontsize=15, 
+        bbox_transform=ax.transAxes+offset,    
+        bbox_to_anchor=(1, 0.5))
     a+=1
 
     ax = axes[a]
@@ -442,11 +570,11 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
     legend=[]
     for network_time,name,color,scaler in zip(
-            [temporal_info['DR_confound'], temporal_info['DR_bold'],temporal_info['SBC_time'],temporal_info['NPR_time']],
+            [DR_confound_time, DR_bold_time,SBC_time,NPR_time],
             ['DR confounds', 'DR networks','SBC networks','NPR networks'],
             [YlOrRd_colors[2], Blues_colors[1],Purples_colors[1],Greens_colors[1]],
             [0,-1,-1,-1]):
-        if len(network_time)>0:
+        if network_time is not None:
             # make sure the timecourses are normalized
             network_time = network_time.copy()
             network_time /= np.sqrt((network_time ** 2).mean(axis=0))
@@ -456,21 +584,37 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
             ax.plot(x,fill_censored_vector(network_time_avg, frame_mask), color=color, alpha=0.7)
             legend.append(name)
 
-    ax.legend(legend, loc='center left', fontsize=15, bbox_to_anchor=(1.25, 0.5))
+    ax.legend(
+        legend, 
+        loc='center left',
+        bbox_to_anchor=(1, 0.5),
+        bbox_transform=ax.transAxes+offset,    
+        fontsize=15,
+        )
+
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
-    ax.set_xlabel('Timepoint', fontsize=25)
+    ax.set_xlabel('Time (seconds)', fontsize=25)
     ax.set_ylabel('Mean amplitude \n(a.u.)', fontsize=20)
     ax.yaxis.set_ticklabels([])
     plt.setp(ax.get_xticklabels(), fontsize=15)
     plt.setp(ax.get_yticklabels(), fontsize=15)
     a+=1
+    return fig,axes
 
 
+def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_threshold=10):
+    template_file = maps_data_dict['anat_ref_file']
     dr_maps = spatial_info['DR_BOLD']
     SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
     mask_file = maps_data_dict['mask_file']
+
+    # convert to empty list to read len() of 0
+    if SBC_maps is None:
+        SBC_maps=[]
+    if NPR_maps is None:
+        NPR_maps=[]
 
     nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 
@@ -609,5 +753,4 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         for ax in axes:
             ax.set_title(f'NPR network {i}', fontsize=30, color='white')
 
-    return fig, fig2
-
+    return fig2
