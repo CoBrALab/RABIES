@@ -529,6 +529,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     time_range = cr_utils.prep_timeseries_interval(timeseries_interval, num_frames=orig_4d_size[3])
 
     timeseries_4d_arr = sitk.GetArrayFromImage(input_bold)
+    timeseries_4d_arr = timeseries_4d_arr[time_range]
     del input_bold
     mse_trace = cr_utils.MSE_relative_to_average(timeseries_4d_arr)
     timeseries = timeseries_4d_arr[:,volume_idx] # read directly as a 2D array
@@ -536,7 +537,6 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     motion_regressors_array = motion_regressors_array[time_range, :]
     motion6_regressors_array = motion6_regressors_array[time_range, :]
     FD_trace = FD_trace[time_range]
-    timeseries = timeseries[time_range,:]
 
     '''
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
