@@ -30,17 +30,21 @@ EPICOMMON_VASC=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_vascular_mask
 EPICOMMON_LABELS=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_labels.nii.gz"
 EPICOMMON_ICA=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/melodic_IC_resampled.nii.gz"
 
+RABIES_SEED_NAMES = [
+        'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
+        'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
+        'MO_seed', 'SS_dorsal_seed', 'VIS_seed']
 
 def execute_workflow(args=None, return_workflow=False):
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
     opts = read_parser(parser, args)
 
-    try: # convert the output path to absolute if not already the case
-        opts.output_dir = os.path.abspath(str(opts.output_dir))
-    except:
-        parser.print_help()
-        return
+    # convert all input paths to absolute paths
+    for arg in vars(opts):
+        attr = getattr(opts, arg)
+        if isinstance(attr,pathlib.Path):
+            setattr(opts, arg, attr.resolve())
 
     if not os.path.isdir(opts.output_dir):
         os.makedirs(opts.output_dir)
@@ -185,8 +189,6 @@ def prep_logging(opts, output_folder):
 
 
 def preprocess(opts, log):
-    # convert the input path to absolute if not already the case
-    opts.bids_dir = os.path.abspath(str(opts.bids_dir))
 
     if not os.path.isdir(opts.bids_dir):
         raise ValueError("The provided BIDS data path doesn't exists.")
@@ -343,18 +345,15 @@ def analysis(opts, log):
     seed_file_list = []
     seed_name_list = []
     for seed in opts.seed_list:
-        if seed in [
-            'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
-            'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
-            'MO_seed', 'SS_dorsal_seed', 'VIS_seed']:
+        if seed in RABIES_SEED_NAMES:
             if preprocess_opts.bold_only:
                 seed_file = f'{rabies_path}/DSURQE_seeds/EPICOMMON_resampled/{seed}_left_EPICOMMON_resampled.nii.gz'
             else:
                 seed_file = f'{rabies_path}/DSURQE_seeds/{seed}_left.nii.gz'
             seed_name = seed
         else:
-            seed_file = seed
-            seed_name = pathlib.Path(seed).name.rsplit(".nii")[0]
+            seed_file = pathlib.Path(seed).resolve() # convert to absolute path
+            seed_name = seed_file.name.rsplit(".nii")[0]
         if not os.path.isfile(seed_file):
             raise ValueError(
                 f"Provide seed file path {seed_file} doesn't exists.")
@@ -379,10 +378,7 @@ def install_DSURQE(log):
               EPICOMMON_ANAT,EPICOMMON_MASK,EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS,EPICOMMON_ICA]:
         if not os.path.isfile(f):
             install = True
-    for seed in [
-        'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
-        'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
-        'MO_seed', 'SS_dorsal_seed', 'VIS_seed']:
+    for seed in RABIES_SEED_NAMES:
         seed_file = f'{rabies_path}/DSURQE_seeds/EPICOMMON_resampled/{seed}_left_EPICOMMON_resampled.nii.gz'
         if not os.path.isfile(seed_file):
             install = True
