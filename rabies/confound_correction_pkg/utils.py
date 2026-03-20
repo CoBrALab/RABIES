@@ -125,9 +125,9 @@ def compute_FD_censoring(FD_trace, scrubbing_threshold):
     for i in range(len(mask)):
         if cutoff[i]:
             if i==0:
-                mask[i:i+2] = 0
+                mask[i:i+3] = 0
             else:
-                mask[i-1:i+2] = 0
+                mask[i-1:i+3] = 0
     return mask
 
 
