@@ -476,6 +476,13 @@ def temporal_diagnosis_plot(
     plt.setp(ax.get_yticklabels(), fontsize=15)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
+    ax.legend(
+        ['Framewise\ndistance\nfrom mean'], 
+        loc='center left',
+        bbox_to_anchor=(1, 0.5),
+        bbox_transform=ax.transAxes+offset,    
+        fontsize=15,
+        )
     a+=1
     
     ax = axes[a]
@@ -554,7 +561,7 @@ def temporal_diagnosis_plot(
     plt.setp(ax.get_xticklabels(), visible=False)
     plt.setp(ax.get_yticklabels(), fontsize=15)
     ax.legend(
-        ['Brain mask\n(global signal)', 'Edge Mask', 'WM Mask', 'CSF Mask'], 
+        ['Whole-brain mask\n(global signal)', 'Edge Mask', 'WM Mask', 'CSF Mask'], 
         loc='center left', 
         fontsize=15, 
         bbox_transform=ax.transAxes+offset,    
