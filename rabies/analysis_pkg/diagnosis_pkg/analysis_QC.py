@@ -291,8 +291,7 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
         plt.setp(ax.get_yticklabels(), fontsize=15)
 
 
-    j=0
-    for key_net in net_metric_dict.keys():
+    for j, key_net in enumerate(net_metric_dict):
         axes[-1,j].set_xlabel(key_net, color='White', fontsize=25)
         if key_net in x_bounds_dict:
             x_bounds = x_bounds_dict[key_net]
@@ -300,10 +299,8 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
             x_bounds = list(set_bounds(net_metric_dict[key_net]))
         for i in range(n_rows+1):
             axes[i,j].set_xlim(x_bounds)
-        j+=1
 
-    i=0
-    for key_qc in qc_metric_dict.keys():
+    for i, key_qc in enumerate(qc_metric_dict):
         axes[i+1,0].set_ylabel(key_qc, color='White', fontsize=25)
         if key_qc in y_bounds_dict:
             y_bounds = y_bounds_dict[key_qc]
@@ -311,35 +308,25 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
             y_bounds = list(set_bounds(qc_metric_dict[key_qc]))
         for j in range(n_cols+1):
             axes[i+1,j].set_ylim(y_bounds)
-        i+=1
 
     # plot the thresholds for QC metrics
-    i=0
-    for key_qc in qc_metric_dict.keys():
+    for i, key_qc in enumerate(qc_metric_dict):
         if key_qc in scan_QC_thresholds: # if a threshold is set, plot the gray line
-            j=0
-            for key_net in net_metric_dict.keys():
+            for j, key_net in enumerate(net_metric_dict):
                 ax = axes[i+1,j]
                 x_bounds = list(ax.get_xlim())
                 ax.plot(x_bounds,[scan_QC_thresholds[key_qc],scan_QC_thresholds[key_qc]], color='lightgray', linestyle='--')
-                j+=1
-        i+=1
 
     # plot the thresholds for network metrics
-    j=0
-    for key_net in net_metric_dict.keys():
+    for j, key_net in enumerate(net_metric_dict):
         if key_net in scan_QC_thresholds: # if a threshold is set, plot the gray line
-            i=0
-            for key_qc in qc_metric_dict.keys():
+            for i, key_qc in enumerate(qc_metric_dict):
                 ax = axes[i+1,j]
                 y_bounds = list(ax.get_ylim())
                 ax.plot([scan_QC_thresholds[key_net],scan_QC_thresholds[key_net]], y_bounds, color='lightgray', linestyle='--')
-                i+=1
-        j+=1
 
 
-    j=0
-    for key_net in net_metric_dict.keys():
+    for j, key_net in enumerate(net_metric_dict):
         x = net_metric_dict[key_net]
         # don't include removed scans in side plots
         x_in = x[QC_inclusion]
@@ -352,13 +339,12 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
         plt.setp(ax.get_yticklabels(), visible=False)
         try:
             plot_density(v=x_in, bounds=x_bounds, outliers=x_outliers, ax=ax, axis='x')
-        except:
+        except np.linalg.LinAlgError:
             from nipype import logging
             log = logging.getLogger('nipype.workflow')
             log.warning("Singular matrix error when computing KDE. Density won't be shown.")
 
-        i=0
-        for key_qc in qc_metric_dict.keys():
+        for i, key_qc in enumerate(qc_metric_dict):
             y = qc_metric_dict[key_qc]
             # don't include removed scans in side plots
             y_in = y[QC_inclusion]
@@ -371,7 +357,7 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
                 plt.setp(ax.get_yticklabels(), visible=False)
                 try:
                     plot_density(v=y_in, bounds=y_bounds, outliers=y_outliers, ax=ax, axis='y')
-                except:
+                except np.linalg.LinAlgError:
                     from nipype import logging
                     log = logging.getLogger('nipype.workflow')
                     log.warning("Singular matrix error when computing KDE. Density won't be shown.")
@@ -384,10 +370,10 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
                 idx = (union_outliers==outlier)
                 x_=x_in[idx]
                 y_=y_in[idx]
-                if not outlier:
+                if not outlier and idx.sum()>2: # only plot density if more than 2 data points
                     try:
                         plot_density_2D(x_,y_, cm='Blues', ax=ax, xlim=ax.get_xlim(), ylim=ax.get_ylim())
-                    except:
+                    except np.linalg.LinAlgError:
                         from nipype import logging
                         log = logging.getLogger('nipype.workflow')
                         log.warning("Singular matrix error when computing KDE. Density won't be shown.")
@@ -406,9 +392,6 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
                 
             # show removed scans in gray
             ax.scatter(x[QC_inclusion==False],y[QC_inclusion==False], s=30, color='lightgray', edgecolor='black')
-
-            i+=1
-        j+=1
 
     return fig
 
@@ -449,9 +432,11 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
         net_metric_dict['Network amplitude']=np.array(network_var)
     net_metric_dict['Network specificity (Dice)']=np.array(network_dice)
 
-    qc_metric_dict = {'DR confound corr.\n(mean |pearson r|)':DR_conf_corr, '$CR_{SD}$':total_CRsd, 'Mean FD (mm)':mean_FD_array}
+    qc_metric_dict = {'DR confound corr.\n(mean |pearson r|)':np.array(DR_conf_corr), 
+                      '$CR_{SD}$':np.array(total_CRsd), 
+                      'Mean FD (mm)':np.array(mean_FD_array)}
     if tdof_array is not None: # exclude tdof_array if None
-         qc_metric_dict['Degrees of freedom'] = tdof_array
+         qc_metric_dict['Degrees of freedom'] = np.array(tdof_array)
     x_bounds_dict = {'Network specificity (Dice)':[0,1.0]}
     y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
     fig = plot_QC_distributions(

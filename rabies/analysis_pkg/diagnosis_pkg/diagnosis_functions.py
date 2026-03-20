@@ -258,7 +258,7 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
     else:
         num_timepoints = frame_mask.sum()
     
-    fig_width = int(num_timepoints/40)
+    fig_width = max(1, int(np.ceil(num_timepoints / 40)))
     rows_height = [2,0.1,4,1,1,1,2,2,2,2]
     fig, axes = plt.subplots(
         nrows=len(rows_height), ncols=1,
