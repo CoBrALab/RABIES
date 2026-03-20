@@ -65,7 +65,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     clean_image_node = pe.Node(CleanImage(cr_opts=cr_opts),
-                           name='clean_image', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
+                           name='clean_image', mem_gb=3*cr_opts.scale_min_memory) # 3X memory as the timeseries is expanded into many arrays
 
     workflow.connect([
         (inputnode, clean_image_node, [
@@ -751,6 +751,10 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         aroma_rm = 0
     tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
 
+    # compute DVARS correlation with FD post-correction
+    DVARS_cleaned_trace = cr_utils.get_DVARS(timeseries)
+    FD_DVARS_corr = np.corrcoef(DVARS_cleaned_trace[1:], FD_trace[1:])[0,1] # skip first index which is 0 for DVARS
+
     # smoothing takes an SITK image
     timeseries_img = recover_4D(brain_mask, timeseries, header_geo)
     del timeseries
@@ -792,7 +796,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         corrected_CR_STD_spatial_map = None
 
     CR_data_dict = {
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'mse_trace':mse_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS_pre_correction':DVARS_trace, 'DVARS_post_correction':DVARS_cleaned_trace, 'FD_DVARS_corr':FD_DVARS_corr, 'mse_trace':mse_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
         'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 
         'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_intercept, 'aroma_out':aroma_out,
         }

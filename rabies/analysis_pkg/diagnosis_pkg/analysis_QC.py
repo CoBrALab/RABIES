@@ -395,7 +395,7 @@ def plot_QC_distributions(net_metric_dict,qc_metric_dict, x_bounds_dict={}, y_bo
     return fig
 
 
-def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array, 
+def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, FD_DVARS_corr, total_CRsd, mean_FD_array, tdof_array, 
                      scan_name_list, scan_QC_thresholds, outlier_threshold=3.5, top_percent=10):
 
     threshold = threshold_top_percent(prior_map, top_percent=top_percent)
@@ -431,13 +431,29 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
         net_metric_dict['Network amplitude']=np.array(network_var)
     net_metric_dict['Network specificity (Dice)']=np.array(network_dice)
 
-    qc_metric_dict = {'DR confound corr.\n(mean |pearson r|)':np.array(DR_conf_corr), 
-                      '$CR_{SD}$':np.array(total_CRsd), 
-                      'Mean FD (mm)':np.array(mean_FD_array)}
-    if tdof_array is not None: # exclude tdof_array if None
-         qc_metric_dict['Degrees of freedom'] = np.array(tdof_array)
+    qc_metric_dict = {}
+    for qc_arr,qc_name in zip(
+        [DR_conf_corr,
+         FD_DVARS_corr,
+         total_CRsd,
+         mean_FD_array,
+         tdof_array,
+         ],
+        ['DR confound corr.\n(mean |pearson r|)',
+         'FD-DVARS corr.',
+         '$CR_{SD}$',
+         'Mean FD (mm)',
+         'Degrees of freedom',
+         ],
+        ):
+        if qc_arr is not None: # exclude array if None
+            qc_metric_dict[qc_name] = np.array(qc_arr)
+
     x_bounds_dict = {'Network specificity (Dice)':[0,1.0]}
     y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
+    if FD_DVARS_corr is not None:
+        y_bounds_dict['FD-DVARS corr.'] = [min(0,np.array(FD_DVARS_corr).min()),1.0] # its possible that there are negative values
+
     fig = plot_QC_distributions(
         net_metric_dict,qc_metric_dict, x_bounds_dict=x_bounds_dict, y_bounds_dict=y_bounds_dict, 
         QC_inclusion=QC_inclusion, scan_QC_thresholds=plot_QC_thresholds, outlier_threshold=outlier_threshold, 
@@ -446,8 +462,8 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
     df = pd.DataFrame(data=np.array([scan_name_list, QC_inclusion]).T, columns=['scan ID', 'QC inclusion?'])
 
     for feature,name in zip(
-            [network_var,network_dice,DR_conf_corr, total_CRsd, mean_FD_array, tdof_array],
-            ['Component variance','Dice overlap','DR confound corr.','$CR_{SD}$','mean FD','tDOF']):
+            [network_var,network_dice,DR_conf_corr, FD_DVARS_corr, total_CRsd, mean_FD_array, tdof_array],
+            ['Component variance','Dice overlap','DR confound corr.', 'FD-DVARS corr.','$CR_{SD}$','mean FD','tDOF']):
         if feature is None:
             continue
         df[name] = feature

@@ -148,6 +148,7 @@ def get_DVARS(timeseries):
     # the first data point is set to 0
     derivative=np.concatenate((np.zeros((1, timeseries.shape[1])),timeseries[1:,:]-timeseries[:-1,:]))
     DVARS_trace=np.sqrt((derivative**2).mean(axis=1))
+    DVARS_trace[0]=None # first index is not sensible
     return DVARS_trace
 
 

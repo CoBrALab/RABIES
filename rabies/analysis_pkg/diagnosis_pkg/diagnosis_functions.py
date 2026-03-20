@@ -29,7 +29,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     CR_CR_data_dict = CR_data_dict['CR_data_dict']
 
     temporal_info['FD_trace'] = CR_CR_data_dict['FD_trace']
-    temporal_info['DVARS'] = CR_CR_data_dict['DVARS']
+    temporal_info['DVARS_pre_correction'] = CR_CR_data_dict['DVARS_pre_correction']
     temporal_info['mse_trace'] = CR_CR_data_dict['mse_trace']
     temporal_info['VE_temporal'] = CR_CR_data_dict['VE_temporal']
 
@@ -306,7 +306,7 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info):
     timeseries = CR_data_dict['timeseries'][plot_time_subset_censored]
 
     FD_trace=temporal_info['FD_trace'].to_numpy()[plot_time_subset_censored]
-    DVARS=temporal_info['DVARS'][plot_time_subset_censored]
+    DVARS=temporal_info['DVARS_pre_correction'][plot_time_subset_censored]
     mse_trace=temporal_info['mse_trace'][plot_time_subset_censored]
 
     CR_VE_temporal=temporal_info['VE_temporal'][plot_time_subset_censored]
@@ -493,7 +493,6 @@ def temporal_diagnosis_plot(
     ax.set_ylabel('FD (mm)', fontsize=20)
     ax_ = ax.twinx()
 
-    DVARS[0] = None
     y2 = fill_censored_vector(DVARS, frame_mask)
     ax_.plot(x,y2, 'b', alpha=0.7)
     ax_.set_ylabel('DVARS', fontsize=20)
@@ -513,7 +512,7 @@ def temporal_diagnosis_plot(
         fontsize=15,
         )
     ax_.legend(
-        ['DVARS'], 
+        ['DVARS\n(before denoising)'], 
         loc='center left',
         bbox_to_anchor=(1, 0.3),
         bbox_transform=ax.transAxes+offset,    

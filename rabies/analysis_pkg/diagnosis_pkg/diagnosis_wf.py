@@ -97,6 +97,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
             scan_data['FD_trace'] = CR_data_dict['CR_data_dict']['FD_trace']
+            scan_data['FD_DVARS_corr'] = CR_data_dict['CR_data_dict']['FD_DVARS_corr']
             scan_data['tDOF'] = CR_data_dict['CR_data_dict']['tDOF']
             scan_data['CR_global_std'] = CR_data_dict['CR_data_dict']['CR_global_std']
             scan_data['VE_total_ratio'] = CR_data_dict['CR_data_dict']['VE_total_ratio']
@@ -124,7 +125,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
             name='DatasetDiagnosis',
-            n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
+            n_procs=num_procs, mem_gb=0.2*num_scan*analysis_opts.scale_min_memory) # 0.2Gb, since no timeseries are inputted here
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
         DatasetDiagnosis_node.inputs.outlier_threshold = analysis_opts.outlier_threshold
         DatasetDiagnosis_node.inputs.network_weighting = analysis_opts.network_weighting

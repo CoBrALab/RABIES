@@ -200,6 +200,7 @@ class DatasetDiagnosis(BaseInterface):
         mean_maps=[]
         std_maps=[]
         CRsd_maps=[]
+        FD_DVARS_corr_list=[]
         tdof_list=[]
         mean_FD_list=[]
         total_CRsd_list=[]
@@ -226,6 +227,7 @@ class DatasetDiagnosis(BaseInterface):
             std_maps.append(temporal_std)
             CRsd_maps.append(CRsd)
             total_CRsd_list.append(scan_data['CR_global_std'])
+            FD_DVARS_corr_list.append(scan_data['FD_DVARS_corr'])
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
@@ -269,6 +271,7 @@ class DatasetDiagnosis(BaseInterface):
 
         mean_FD_array = np.array(mean_FD_list)
         total_CRsd = np.array(total_CRsd_list)
+        FD_DVARS_corr = np.array(FD_DVARS_corr_list)
 
         # tdof effect; if there's no variability don't compute
         if not np.array(tdof_list).std()==0:
@@ -314,10 +317,10 @@ class DatasetDiagnosis(BaseInterface):
                 plt.close(fig)
                 plt.close(fig_unthresholded)
 
-        def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
+        def distribution_network_i(i,prior_map,FC_maps,network_var,DR_conf_corr,FD_DVARS_corr, total_CRsd, mean_FD_array, tdof_array, scan_name_list, outlier_threshold,out_dir_dist,scan_QC_thresholds, analysis_prefix):
             ### PLOT DISTRIBUTIONS FOR OUTLIER DETECTION
             with np.errstate(invalid='ignore', divide='ignore'):
-                fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
+                fig,df,QC_inclusion = QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr,FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, scan_QC_thresholds=scan_QC_thresholds, outlier_threshold=outlier_threshold, top_percent=self.inputs.brainmap_percent_threshold)
             df.to_csv(f'{out_dir_dist}/{analysis_prefix}{i}_outlier_detection.csv', index=None)
             fig_path = f'{out_dir_dist}/{analysis_prefix}{i}_sample_distribution.{figure_format}'
             fig.savefig(fig_path, bbox_inches='tight')
@@ -373,7 +376,7 @@ class DatasetDiagnosis(BaseInterface):
             DR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='DR', network_i=i, num_priors=num_priors)
 
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
-            QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
+            QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
 
             # compute group stats only if there is at least 3 scans
             if QC_inclusion.sum()>2:
@@ -402,7 +405,7 @@ class DatasetDiagnosis(BaseInterface):
                 NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
 
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:
@@ -429,7 +432,7 @@ class DatasetDiagnosis(BaseInterface):
                 prior_maps = np.array(prior_maps)[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
             else:
-                raise
+                raise ValueError("Must select either --group_avg_prior or --seed_prior_maps as an option for group statistics with SBC.")
             
             for i in range(num_priors):
                 # network amplitude as L2-norm of a connectivity map
@@ -438,7 +441,7 @@ class DatasetDiagnosis(BaseInterface):
                 SBC_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='SBC', network_i=i, num_priors=num_priors)
 
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:
