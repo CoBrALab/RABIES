@@ -352,8 +352,8 @@ class DatasetDiagnosis(BaseInterface):
             if self.inputs.network_weighting=='relative':
                 network_var=None
             else:
-                # we don't apply the non_zero_voxels mask as it changes the original variance estimate
-                network_var = np.sqrt((DR_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
+                # network amplitude as L2-norm of a connectivity map
+                network_var = np.sqrt((DR_maps_list[:,i,:] ** 2).sum(axis=1))
             DR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='DR', network_i=i, num_priors=num_priors)
 
             FC_maps = DR_maps_list[:,i,non_zero_voxels]
@@ -381,8 +381,8 @@ class DatasetDiagnosis(BaseInterface):
                 if self.inputs.network_weighting=='relative':
                     network_var=None
                 else:
-                    # we don't apply the non_zero_voxels mask as it changes the original variance estimate
-                    network_var = np.sqrt((NPR_maps_list[:,i,:] ** 2).sum(axis=1)) # the component variance/scaling is taken from the spatial maps
+                    # network amplitude as L2-norm of a connectivity map
+                    network_var = np.sqrt((NPR_maps_list[:,i,:] ** 2).sum(axis=1))
 
                 NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
 
@@ -417,7 +417,8 @@ class DatasetDiagnosis(BaseInterface):
                 raise
             
             for i in range(num_priors):
-                network_var=None
+                # network amplitude as L2-norm of a connectivity map
+                network_var = np.sqrt((seed_maps_list[:,i,:] ** 2).sum(axis=1))
 
                 SBC_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='SBC', network_i=i, num_priors=num_priors)
 
