@@ -444,7 +444,11 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, total_CRsd, mea
                 break
             QC_inclusion[QC_inclusion] = Amp_QC
     
-    net_metric_dict = {'Network amplitude':np.array(network_var), 'Network specificity (Dice)':np.array(network_dice)}
+    net_metric_dict = {}
+    if network_var is not None:
+        net_metric_dict['Network amplitude']=np.array(network_var)
+    net_metric_dict['Network specificity (Dice)']=np.array(network_dice)
+
     qc_metric_dict = {'DR confound corr.\n(mean |pearson r|)':DR_conf_corr, '$CR_{SD}$':total_CRsd, 'Mean FD (mm)':mean_FD_array}
     if tdof_array is not None: # exclude tdof_array if None
          qc_metric_dict['Degrees of freedom'] = tdof_array
