@@ -135,6 +135,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Whether to include image intensity and BOLDsd in the group stats.")
     brainmap_percent_threshold = traits.Float(
         desc="Input percentage value for thresholding images.")
+    add_smoothing = traits.Bool(
+        desc="When to smooth all brain maps prior to QC metric computation with 0.3mm kernel.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -287,7 +289,7 @@ class DatasetDiagnosis(BaseInterface):
         def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
 
             for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
-                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold)
+                dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold, smoothing=self.inputs.add_smoothing)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)

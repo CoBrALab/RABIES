@@ -133,6 +133,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
         DatasetDiagnosis_node.inputs.extended_QC = analysis_opts.extended_QC
         DatasetDiagnosis_node.inputs.group_avg_prior = analysis_opts.group_avg_prior
         DatasetDiagnosis_node.inputs.brainmap_percent_threshold = analysis_opts.brainmap_percent_threshold
+        DatasetDiagnosis_node.inputs.add_smoothing = analysis_opts.qc_smooth_maps
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [

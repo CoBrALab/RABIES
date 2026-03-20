@@ -1174,6 +1174,16 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    analysis.add_argument(
+        "--qc_smooth_maps", dest='qc_smooth_maps', action='store_true',
+        help=
+            "Whether to apply 0.3mm smoothing on each brain map prior to QC calculation (e.g. Dice overlap). \n"
+            "This may be useful for reducing the impact of background noise on estimates of network specificity, \n"
+            "and improve comparability across datasets from different scanning protocols/setups. \n"
+            "This was always ON for RABIES version <0.6.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )    
 
     return parser
 

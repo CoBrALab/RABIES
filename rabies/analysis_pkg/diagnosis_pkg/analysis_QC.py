@@ -9,11 +9,10 @@ from rabies.confound_correction_pkg.utils import smooth_image
 import tempfile
 
 
-def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False, top_percent=10):
+def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False, top_percent=10, smoothing=False):
 
     scaled = otsu_scaling(template_file)
         
-    smoothing=True
     if non_parametric:
         name_list = ['Prior network', 'Group average', 'Cross-scan variability']+variable_name
         measure_list = ["Median", "Median Absolute \nDeviation", "Spearman rho"]
