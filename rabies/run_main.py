@@ -44,7 +44,8 @@ def execute_workflow(args=None, return_workflow=False):
     for arg in vars(opts):
         attr = getattr(opts, arg)
         if isinstance(attr,pathlib.Path):
-            setattr(opts, arg, attr.resolve())
+            # convert to string since some downstream code needs cannot process pathlib.Path as input
+            setattr(opts, arg, str(attr.resolve()))
 
     if not os.path.isdir(opts.output_dir):
         os.makedirs(opts.output_dir)
@@ -194,7 +195,7 @@ def preprocess(opts, log):
         raise ValueError("The provided BIDS data path doesn't exists.")
     else:
         # print the input data directory tree
-        log.info("INPUT BIDS DATASET:  \n" + list_files(opts.bids_dir))
+        log.info("INPUT BIDS DATASET:  \n" + list_files(str(opts.bids_dir)))
     
     # if the default template is not used, then brain mask input is required, 
     # and other optional files are set to None if no input was provided 
