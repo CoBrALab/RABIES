@@ -214,7 +214,6 @@ def carpetplot(timeseries, ax, frame_mask=None):
 
 
 def plot_freqs(ax,timeseries, TR, frame_mask):
-
     if (frame_mask==0).sum()>0: # only simulate data points if some censoring was applied
         from rabies.confound_correction_pkg.utils import lombscargle_fill
         timeseries_ = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
@@ -224,18 +223,19 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     # voxels that have a NaN value are set to 0
     timeseries_[np.isnan(timeseries_)] = 0
 
-    freqs = np.fft.fftfreq(timeseries_.shape[0], TR)
-    idx = np.argsort(freqs)
-    pos_idx = idx[freqs[idx]>0]
+    from scipy.signal import welch
+    fs = 1/TR
+    N = timeseries.shape[0]
+    nperseg = N // 4 # proxy to scale the resolution of the filter to the number of data points
+    freqs, psds = welch(timeseries_, fs=fs, nperseg=nperseg, axis=0)
 
-    ps = np.abs(np.fft.fft(timeseries_.T))**2
-    ps_mean = ps.mean(axis=0)
-    ps_std = ps.std(axis=0)
+    ps_mean = psds.mean(axis=1)
+    ps_std = psds.std(axis=1)
 
     y_max = ps_mean[freqs>0.01].max()*1.5
 
-    ax.plot(freqs[pos_idx], ps_mean[pos_idx])
-    ax.fill_between(freqs[pos_idx], (ps_mean-ps_std)[pos_idx],(ps_mean+ps_std)[pos_idx], alpha=0.4)
+    ax.plot(freqs, ps_mean)
+    ax.fill_between(freqs, (ps_mean-ps_std),(ps_mean+ps_std), alpha=0.4)
     ax.set_ylim([0,y_max])
     #xticks = np.arange(0,freqs.max(),0.05)
     #ax.set_xticks(xticks)    
