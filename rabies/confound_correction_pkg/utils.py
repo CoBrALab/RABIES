@@ -470,8 +470,8 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end'):
 
     # prepare the time interval over which to compute the trends; this initial estimate does not take into account censoring
     time_range = prep_timeseries_interval(time_interval, num_frames=num_timepoints)
-    first = time_range[0]
-    last = time_range[-1]
+    first = time_range.start
+    last = time_range.stop # .stop actually returns the max value for range(), which is excluded as an index
     # the idx range must be shifted by the number of censored frames before the first index to match the censored timeseries array
     if first>0:
         first -= (frame_mask[:first]==False).sum()
