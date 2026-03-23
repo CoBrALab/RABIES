@@ -22,6 +22,7 @@ REQUIRES_PYTHON = '>=3.9.0'
 # What packages are required for this module to be executed?
 REQUIRED = [
     # 'requests', 'maya', 'records',
+    'pip>=23.0',
     'matplotlib>=3.3.4',
     'nibabel>=3.2.1',
     'nilearn>=0.7.1',
@@ -39,7 +40,7 @@ REQUIRED = [
     'networkx<3',
     'traits<7.0',
     'tqdm',
-    'simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@rabies_conform',
+    'simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@8cc2b031c22df5cf8d01f75ec186570dd3ffb3e9',
 ]
 
 # What packages are optional?
