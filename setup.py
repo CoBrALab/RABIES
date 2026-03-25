@@ -17,25 +17,24 @@ DESCRIPTION = 'RABIES: Rodent Automated Bold Improvement of EPI Sequences.'
 URL = 'https://github.com/CoBrALab/RABIES'
 EMAIL = 'contact@cobralab.ca'
 AUTHOR = 'CoBrALab'
-REQUIRES_PYTHON = '>=3.9.0'
+REQUIRES_PYTHON = '>=3.9.0, <=3.13' # the package was tested up to 3.12
 
-# What packages are required for this module to be executed?
 REQUIRED = [
     # 'requests', 'maya', 'records',
     'pip>=23.0',
-    'matplotlib>=3.3.4',
-    'nibabel>=3.2.1',
-    'nipype>=1.6.1',
-    'numpy>=1.20.1',
-    'pandas>=1.2.4',
-    'pathos>=0.2.7',
-    'pybids==0.16.3',
-    'scikit-learn>=0.24.1',
-    'scikit-image>=0.18.2',
-    'scipy>=1.8.1',
-    'seaborn>=0.11.1',
+    'matplotlib>=3.3.4', # tested up to 3.10.8
+    'nibabel>=3.2.1', # tested up to 5.4.0
+    'nipype>=1.6.1', # tested up to 1.11.0
+    'numpy>=1.20.1', # tested up to 2.4.3
+    'pandas>=1.2.4', # tested up to 3.0.1
+    'pathos>=0.2.7', # tested up to 0.3.5
+    'pybids==0.16.3', # only tested with 0.16.3, newer versions have some issues with the BIDS layout of our data
+    'scikit-learn>=0.24.1', # tested up to 1.8.0
+    'scikit-image>=0.18.2', # tested up to 0.24.0
+    'scipy>=1.8.1', # tested up to 1.17.1
+    'seaborn>=0.11.1', # tested up to 0.13.2
     'simpleitk>=2.5.0',
-    'qbatch==2.3',
+    'qbatch==2.3', # tested only with 2.3
     'networkx<3',
     'traits<7.0',
     'tqdm',
