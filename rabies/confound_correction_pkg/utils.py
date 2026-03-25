@@ -176,11 +176,15 @@ def temporal_censoring(FD_trace,
         FD_mask = compute_FD_censoring(FD_trace, FD_threshold)
         frame_mask*=FD_mask
     if DVARS_censoring:
-        DVARS_mask = outlier_censoring(DVARS_trace)
-        DVARS_mask[0]=False # remove the first timepoint, which is always 0
+        # usually the first index is nan since the derivative is not sensible for the first timepoint
+        nan_idx = np.isnan(DVARS_trace)
+        non_nan_idx = nan_idx==False
+        DVARS_mask = np.ones(num_frames).astype(bool)
+        DVARS_mask[nan_idx] = False # censor all nan values
+        DVARS_mask[non_nan_idx] = outlier_censoring(DVARS_trace[non_nan_idx], std_thresh=2.5)
         frame_mask*=DVARS_mask
     if MSE_censoring:
-        mse_mask = outlier_censoring(mse_trace)
+        mse_mask = outlier_censoring(mse_trace, std_thresh=2.5)
         frame_mask*=mse_mask
     if frame_mask.sum()<int(minimum_timepoint):
         from nipype import logging
