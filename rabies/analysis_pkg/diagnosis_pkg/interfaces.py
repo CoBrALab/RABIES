@@ -108,7 +108,7 @@ class ScanDiagnosis(BaseInterface):
             temporal_fig_file = figure_path+f'_temporal_diagnosis.pdf'
             with PdfPages(temporal_fig_file) as pdf:
                 for fig in temporal_fig_list:
-                    pdf.savefig(fig)
+                    pdf.savefig(fig, bbox_inches='tight')
 
         setattr(self, 'figure_temporal_diagnosis',
                 temporal_fig_file)

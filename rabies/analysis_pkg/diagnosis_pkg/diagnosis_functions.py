@@ -246,6 +246,7 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     xlim_edge_percent = 0.02
     x_lim = [-(x_max*xlim_edge_percent),x_max+(x_max*xlim_edge_percent)]
     ax.set_xlim(x_lim)
+    return freqs, psds, y_max
 
 
 def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, brainmap_percent_threshold=10, display_censoring=True):
@@ -361,19 +362,23 @@ def temporal_diagnosis_plot(
 
     a=0
     ax = axes[a]
-    plot_freqs(ax,timeseries, TR, frame_mask)
+    freqs, psds, y_max = plot_freqs(ax,timeseries, TR, frame_mask)
     plt.setp(ax.get_yticklabels(), visible=False)
     plt.setp(ax.get_xticklabels(), fontsize=15)
     ax.set_xlabel('Frequency (Hz)', fontsize=20)
     ax.set_ylabel('Power (a.u.)', fontsize=20)
+
+    y_max_l = [y_max]
 
     freq_legend = ['Whole brain']
     # plot the spectrum for specific seeds
     seed_names = list(plot_seed_frequencies.keys())
     for seed_name in seed_names:
         seed_idx = plot_seed_frequencies[seed_name]
-        plot_freqs(ax,SBC_time[:,[seed_idx]], TR, frame_mask)
+        freqs, psds, y_max = plot_freqs(ax,SBC_time[:,[seed_idx]], TR, frame_mask)
         freq_legend.append(seed_name)
+        y_max_l += [y_max]
+    ax.set_ylim([0,max(y_max_l)])
     ax.legend(
         freq_legend,
         loc='center left', 
@@ -391,7 +396,8 @@ def temporal_diagnosis_plot(
     xlim_edge_percent = 0.02
     x_lim = [-(num_timepoints*xlim_edge_percent),(num_timepoints-1)+(num_timepoints*xlim_edge_percent)]
 
-    x_ticks = np.array([i*100 for i in range(int(num_timepoints/100)+1)])
+    n_ticks = max(min(11, int(num_timepoints/50)+1), 2) # we want a max of 11 ticks, but at least 2
+    x_ticks = np.linspace(0, num_timepoints, n_ticks)
     x_ticks_labels = x_ticks+time0
     x_ticks_labels = np.ceil(x_ticks_labels.astype(float)*TR).astype(int) # convert to real time in seconds
     for ax in axes[1:]:
