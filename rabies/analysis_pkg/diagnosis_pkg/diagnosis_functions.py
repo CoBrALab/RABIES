@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from rabies.utils import recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
-import nilearn.plotting
 from .analysis_QC import masked_plot, threshold_top_percent
 
 def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
@@ -635,7 +634,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
 
-    from rabies.visualization import otsu_scaling, plot_3d
+    from rabies.visualization import otsu_scaling, plot_3d, cold_hot
 
     axes = axes2[0, :]
     scaled = otsu_scaling(template_file)
@@ -704,7 +703,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
     vector = spatial_info['GS_cov'].flatten()
     vector.sort()
     vmax = vector[int(len(vector)*0.95)]
-    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-vmax, vmax=vmax, cmap='cold_hot',
+    cbar_list = plot_3d(axes, sitk_img, fig2, vmin=-vmax, vmax=vmax, cmap=cold_hot,
             alpha=1, cbar=True, num_slices=6)
     for cbar in cbar_list:
         cbar.ax.get_yaxis().labelpad = 20

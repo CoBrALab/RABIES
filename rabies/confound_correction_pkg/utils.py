@@ -671,8 +671,6 @@ def phase_randomized_regressors(regressors_array, frame_mask, TR):
 
 
 def smooth_image(img, fwhm, mask_img):
-    # apply nilearn's Gaussian smoothing on a SITK image
-    from nilearn.image.image import _smooth_array
     from rabies.utils import copyInfo_4DImage, copyInfo_3DImage
 
     dim = img.GetDimension()
@@ -736,3 +734,93 @@ def sitk_affine_lps(img):
     affine[:dim, :dim] = direction @ spacing
     affine[:dim, dim] = origin
     return affine
+
+
+"""
+Reproduction of Nilearn's nilearn.image.smooth_img smoothing function (version 0.7.1)
+
+Original reference:
+Nilearn developers. Nilearn: Statistical learning for neuroimaging in Python.
+URL: https://nilearn.github.io/
+"""
+def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
+    """Smooth images by applying a Gaussian filter.
+
+    Apply a Gaussian filter along the three first dimensions of `arr`.
+
+    Parameters
+    ----------
+    arr : :class:`numpy.ndarray`
+        4D array, with image number as last dimension. 3D arrays are also
+        accepted.
+
+    affine : :class:`numpy.ndarray`
+        (4, 4) matrix, giving affine transformation for image. (3, 3) matrices
+        are also accepted (only these coefficients are used).
+        If `fwhm='fast'`, the affine is not used and can be None.
+
+    fwhm : scalar, :class:`numpy.ndarray`/:obj:`tuple`/:obj:`list`, 'fast' or None, optional
+        Smoothing strength, as a full-width at half maximum, in millimeters.
+        If a nonzero scalar is given, width is identical in all 3 directions.
+        A :class:`numpy.ndarray`, :obj:`tuple`, or :obj:`list` must have 3 elements,
+        giving the FWHM along each axis.
+        If any of the elements is zero or None, smoothing is not performed
+        along that axis.
+        If  `fwhm='fast'`, a fast smoothing will be performed with a filter
+        [0.2, 1, 0.2] in each direction and a normalisation
+        to preserve the local average value.
+        If fwhm is None, no filtering is performed (useful when just removal
+        of non-finite values is needed).
+
+    ensure_finite : :obj:`bool`, optional
+        If True, replace every non-finite values (like NaNs) by zero before
+        filtering. Default=True.
+
+    copy : :obj:`bool`, optional
+        If True, input array is not modified. True by default: the filtering
+        is not performed in-place. Default=True.
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+        Filtered `arr`.
+
+    Notes
+    -----
+    This function is most efficient with arr in C order.
+
+    """
+    # Here, we have to investigate use cases of fwhm. Particularly, if fwhm=0.
+    # See issue #1537
+    if isinstance(fwhm, (int, float)) and (fwhm == 0.0):
+        import warnings
+        warnings.warn("The parameter 'fwhm' for smoothing is specified "
+                      "as {0}. Setting it to None "
+                      "(no smoothing will be performed)"
+                      .format(fwhm))
+        fwhm = None
+    if arr.dtype.kind == 'i':
+        if arr.dtype == np.int64:
+            arr = arr.astype(np.float64)
+        else:
+            arr = arr.astype(np.float32)  # We don't need crazy precision.
+    if copy:
+        arr = arr.copy()
+    if ensure_finite:
+        # SPM tends to put NaNs in the data outside the brain
+        arr[np.logical_not(np.isfinite(arr))] = 0
+    if isinstance(fwhm, str) and (fwhm == 'fast'):
+        raise NotImplementedError("The 'fast' option for fwhm is not implemented in rabies confound correction. Please specify a numeric value for fwhm or set to None for no smoothing.")
+        arr = _fast_smooth_array(arr)
+    elif fwhm is not None:
+        from scipy.ndimage import gaussian_filter1d
+        fwhm = np.asarray([fwhm]).ravel()
+        fwhm = np.asarray([0. if elem is None else elem for elem in fwhm])
+        affine = affine[:3, :3]  # Keep only the scale part.
+        fwhm_over_sigma_ratio = np.sqrt(8 * np.log(2))  # FWHM to sigma.
+        vox_size = np.sqrt(np.sum(affine ** 2, axis=0))
+        sigma = fwhm / (fwhm_over_sigma_ratio * vox_size)
+        for n, s in enumerate(sigma):
+            if s > 0.0:
+                gaussian_filter1d(arr, s, output=arr, axis=n)
+    return arr
