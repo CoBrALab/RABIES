@@ -94,20 +94,6 @@ def csv2par(in_confounds):
     return out_confounds
 
 
-def gen_FD_mask(FD_trace, scrubbing_threshold):
-    '''
-    Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
-    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
-    '''
-    import numpy as np
-    cutoff = np.asarray(FD_trace) >= scrubbing_threshold
-    mask = np.ones(len(FD_trace)).astype(bool)
-    for i in range(len(mask)):
-        if cutoff[i]:
-            mask[i-1:i+2] = 0
-    return mask
-
-
 def prep_timeseries_interval(timeseries_interval, num_frames):
     if timeseries_interval == 'all':
         raise ValueError(f"'all' is depreciated as an input for --timeseries_interval. Consult rabies confound_correction --help for new syntax. ")
@@ -128,39 +114,82 @@ def prep_timeseries_interval(timeseries_interval, num_frames):
     return time_range
 
 
+def compute_FD_censoring(FD_trace, scrubbing_threshold):
+    '''
+    Scrubbing based on FD: The frames that exceed the given threshold together with 1 back
+    and 2 forward frames will be masked out from the data (as in Power et al. 2012)
+    '''
+    import numpy as np
+    cutoff = np.asarray(FD_trace) >= scrubbing_threshold
+    mask = np.ones(len(FD_trace)).astype(bool)
+    for i in range(len(mask)):
+        if cutoff[i]:
+            if i==0:
+                mask[i:i+3] = 0
+            else:
+                mask[i-1:i+3] = 0
+    return mask
+
+
+def MSE_relative_to_average(timeseries_4d_arr):
+    # timeseries_4d_arr should be a 4d timeseries array before any mean removal,
+    # and before any brain mask occured, i.e. we want to include the whole image
+    # including non-brain tissue to capture movement and the computation should be
+    # driven primarily by image raw constrast
+    timeseries_2d_arr = timeseries_4d_arr.reshape(timeseries_4d_arr.shape[0],-1) # reshape to time by voxel array
+    # compute an average using trimean
+    ref_average_arr = np.quantile(timeseries_2d_arr, (0.2, 0.5, 0.8), axis=0).mean(axis=0)
+    mse_trace = np.mean((timeseries_2d_arr - ref_average_arr)**2, axis=1) # taking mean square error
+    return mse_trace
+
+
 def get_DVARS(timeseries):
     # compute the DVARS before denoising
     # the first data point is set to 0
     derivative=np.concatenate((np.zeros((1, timeseries.shape[1])),timeseries[1:,:]-timeseries[:-1,:]))
     DVARS_trace=np.sqrt((derivative**2).mean(axis=1))
+    DVARS_trace[0]=None # first index is not sensible
     return DVARS_trace
 
 
+def outlier_censoring(qc_trace, std_thresh=2.5):
+    # this function will iteratively censore each data point that falls std_thresh standard deviation
+    # away from the mean, until a distribution is obtained with no such outliers remaining
+    mask1=np.zeros(len(qc_trace)).astype(bool)
+    mask2=np.ones(len(qc_trace)).astype(bool)
+    while ((mask2!=mask1).sum()>0):
+        mask1=mask2
+        mean=qc_trace[mask1].mean()
+        std=qc_trace[mask1].std()
+        norm=(qc_trace-mean)/std
+        mask2=np.abs(norm)<std_thresh
+    return mask2
+
+
 def temporal_censoring(FD_trace, 
-        FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint):
+        FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
+        mse_trace, MSE_censoring, minimum_timepoint):
 
     num_frames = len(FD_trace) # FD_trace length must correspond with the timeseries length
     frame_mask = np.ones(num_frames).astype(bool)
     if FD_censoring:
-        FD_mask = gen_FD_mask(FD_trace, FD_threshold)
+        FD_mask = compute_FD_censoring(FD_trace, FD_threshold)
         frame_mask*=FD_mask
     if DVARS_censoring:
-        # create a distribution where no timepoint falls more than 2.5 STD away from the mean
-        mask1=np.zeros(len(DVARS_trace)).astype(bool)
-        mask2=np.ones(len(DVARS_trace)).astype(bool)
-        mask2[0]=False # remove the first timepoint, which is always 0
-        while ((mask2!=mask1).sum()>0):
-            mask1=mask2
-            mean=DVARS_trace[mask1].mean()
-            std=DVARS_trace[mask1].std()
-            norm=(DVARS_trace-mean)/std
-            mask2=np.abs(norm)<2.5
-        DVARS_mask=mask2
+        # usually the first index is nan since the derivative is not sensible for the first timepoint
+        nan_idx = np.isnan(DVARS_trace)
+        non_nan_idx = nan_idx==False
+        DVARS_mask = np.ones(num_frames).astype(bool)
+        DVARS_mask[nan_idx] = False # censor all nan values
+        DVARS_mask[non_nan_idx] = outlier_censoring(DVARS_trace[non_nan_idx], std_thresh=2.5)
         frame_mask*=DVARS_mask
+    if MSE_censoring:
+        mse_mask = outlier_censoring(mse_trace, std_thresh=2.5)
+        frame_mask*=mse_mask
     if frame_mask.sum()<int(minimum_timepoint):
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
-        log.warning(f"FD/DVARS CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        log.warning(f"CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
 
     return frame_mask
@@ -446,8 +475,8 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end'):
 
     # prepare the time interval over which to compute the trends; this initial estimate does not take into account censoring
     time_range = prep_timeseries_interval(time_interval, num_frames=num_timepoints)
-    first = time_range[0]
-    last = time_range[-1]
+    first = time_range.start
+    last = time_range.stop # .stop actually returns the max value for range(), which is excluded as an index
     # the idx range must be shifted by the number of censored frames before the first index to match the censored timeseries array
     if first>0:
         first -= (frame_mask[:first]==False).sum()

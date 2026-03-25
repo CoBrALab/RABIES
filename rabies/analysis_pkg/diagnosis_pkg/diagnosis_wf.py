@@ -16,14 +16,8 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
                                                        'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
 
-    if os.path.basename(preprocess_opts.anat_template)=='DSURQE_40micron_average.nii.gz':
-        DSURQE_regions=True
-    else:
-        DSURQE_regions=False
-
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
-            DSURQE_regions=DSURQE_regions,
             plot_seed_frequencies=analysis_opts.plot_seed_frequencies,
             figure_format=analysis_opts.figure_format, 
             nativespace_analysis=nativespace_analysis, 
@@ -103,6 +97,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
             scan_data['FD_trace'] = CR_data_dict['CR_data_dict']['FD_trace']
+            scan_data['FD_DVARS_corr'] = CR_data_dict['CR_data_dict']['FD_DVARS_corr']
             scan_data['tDOF'] = CR_data_dict['CR_data_dict']['tDOF']
             scan_data['CR_global_std'] = CR_data_dict['CR_data_dict']['CR_global_std']
             scan_data['VE_total_ratio'] = CR_data_dict['CR_data_dict']['VE_total_ratio']
@@ -130,7 +125,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
 
         DatasetDiagnosis_node = pe.Node(DatasetDiagnosis(),
             name='DatasetDiagnosis',
-            n_procs=num_procs, mem_gb=1*num_scan*analysis_opts.scale_min_memory)
+            n_procs=num_procs, mem_gb=0.2*num_scan*analysis_opts.scale_min_memory) # 0.2Gb, since no timeseries are inputted here
         DatasetDiagnosis_node.inputs.seed_prior_maps = analysis_opts.seed_prior_list
         DatasetDiagnosis_node.inputs.outlier_threshold = analysis_opts.outlier_threshold
         DatasetDiagnosis_node.inputs.network_weighting = analysis_opts.network_weighting
@@ -139,6 +134,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
         DatasetDiagnosis_node.inputs.extended_QC = analysis_opts.extended_QC
         DatasetDiagnosis_node.inputs.group_avg_prior = analysis_opts.group_avg_prior
         DatasetDiagnosis_node.inputs.brainmap_percent_threshold = analysis_opts.brainmap_percent_threshold
+        DatasetDiagnosis_node.inputs.add_smoothing = analysis_opts.qc_smooth_maps
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [

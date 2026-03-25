@@ -65,7 +65,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
     clean_image_node = pe.Node(CleanImage(cr_opts=cr_opts),
-                           name='clean_image', mem_gb=5*cr_opts.scale_min_memory) # 5X memory as the timeseries is expanded into many arrays
+                           name='clean_image', mem_gb=3*cr_opts.scale_min_memory) # 3X memory as the timeseries is expanded into many arrays
 
     workflow.connect([
         (inputnode, clean_image_node, [
@@ -211,6 +211,7 @@ class CleanImage(BaseInterface):
                 FD_censoring=cr_opts.frame_censoring['FD_censoring'], 
                 FD_threshold=cr_opts.frame_censoring['FD_threshold'], 
                 DVARS_censoring=cr_opts.frame_censoring['DVARS_censoring'], 
+                MSE_censoring=cr_opts.frame_censoring['MSE_censoring'], 
                 minimum_timepoint=cr_opts.frame_censoring['minimum_timepoint'],
                 TR=cr_opts.TR,
                 detrending_order=cr_opts.detrending['order'], 
@@ -305,7 +306,8 @@ class CleanImage(BaseInterface):
 
 def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
-                timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, DVARS_censoring=False, minimum_timepoint=3, TR='auto', # replacing cr_opts
+                timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, 
+                DVARS_censoring=False, MSE_censoring=False, minimum_timepoint=3, TR='auto',
                 detrending_order=1, detrending_time_interval='0-end', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
@@ -352,6 +354,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     DVARS_censoring : bool, default=False
         Whether to apply DVARS censoring.
+
+    MSE_censoring : bool, default=False
+        Whether to apply MSE censoring.
 
     minimum_timepoint : int, default=3
         Minimum number of frames left post-cleaning, otherwise returns None.
@@ -523,12 +528,15 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     time_range = cr_utils.prep_timeseries_interval(timeseries_interval, num_frames=orig_4d_size[3])
 
-    timeseries = sitk.GetArrayFromImage(input_bold)[:,volume_idx] # read directly as a 2D array
-    del input_bold # free memory
+    timeseries_4d_arr = sitk.GetArrayFromImage(input_bold)
+    timeseries_4d_arr = timeseries_4d_arr[time_range]
+    del input_bold
+    mse_trace = cr_utils.MSE_relative_to_average(timeseries_4d_arr)
+    timeseries = timeseries_4d_arr[:,volume_idx] # read directly as a 2D array
+    del timeseries_4d_arr # free memory
     motion_regressors_array = motion_regressors_array[time_range, :]
     motion6_regressors_array = motion6_regressors_array[time_range, :]
     FD_trace = FD_trace[time_range]
-    timeseries = timeseries[time_range,:]
 
     '''
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
@@ -538,7 +546,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     DVARS_trace = cr_utils.get_DVARS(timeseries)
 
     frame_mask = cr_utils.temporal_censoring(FD_trace, 
-            FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, minimum_timepoint)
+            FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
+            mse_trace, MSE_censoring, minimum_timepoint)
     if frame_mask is None:
         return None
 
@@ -732,6 +741,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     # apply the frame mask to FD trace/DVARS to prepare outputs from the function
     DVARS_trace = DVARS_trace[frame_mask]
     FD_trace = FD_trace[frame_mask]
+    mse_trace = mse_trace[frame_mask]
 
     # calculate temporal degrees of freedom left after confound correction
     num_timepoints = frame_mask.sum()
@@ -740,6 +750,10 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     else:
         aroma_rm = 0
     tDOF = num_timepoints - (aroma_rm+num_regressors) + number_extra_timepoints
+
+    # compute DVARS correlation with FD post-correction
+    DVARS_cleaned_trace = cr_utils.get_DVARS(timeseries)
+    FD_DVARS_corr = np.corrcoef(DVARS_cleaned_trace[1:], FD_trace[1:])[0,1] # skip first index which is 0 for DVARS
 
     # smoothing takes an SITK image
     timeseries_img = recover_4D(brain_mask, timeseries, header_geo)
@@ -782,7 +796,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         corrected_CR_STD_spatial_map = None
 
     CR_data_dict = {
-        'TR':TR, 'FD_trace':FD_trace, 'DVARS':DVARS_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
+        'TR':TR, 'FD_trace':FD_trace, 'DVARS_pre_correction':DVARS_trace, 'DVARS_post_correction':DVARS_cleaned_trace, 'FD_DVARS_corr':FD_DVARS_corr, 'mse_trace':mse_trace, 'time_range':time_range, 'frame_mask':frame_mask, 'VE_temporal':VE_temporal, 
         'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 
         'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_intercept, 'aroma_out':aroma_out,
         }

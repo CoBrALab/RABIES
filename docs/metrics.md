@@ -35,8 +35,8 @@ $$
 DVARS_t = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(Y_{i,t}-Y_{i,t-1})^2}
 $$
 where $Y_{i,t}$ corresponds to the BOLD signal in brain voxel $i$ at timepoint $t$. The first timepoint is set to 0 (has no previous timepoint).
-* **Global signal**: The mean across the whole-brain mask over time.
-* **Edge/WM/CSF mask**: The RMS across voxels within a mask, at each timepoint.
+* **Framewise distance from mean**: This corresponds to the mean square error (MSE) between each frame and the average EPI, with the average computed as the tri-mean across time voxelwise. The input to this function is the resampled timeseries outputed from the `preprocess` stage. 
+* **Whole-brain/Edge/WM/CSF mask**: The mean signal across a certain brain mask, either whole-brain (i.e. the global signal), WM, CSF or brain edge.
 * **$CR_{var}$**: The variance estimated by confound regression is computed for each timepoint. This is done by taking $CR_{var} = RMS(Y_{CR})$ across voxels at each timepoints, where $Y_{CR}$ is the [predicted confound timeseries](CR_target).
 * **CR $R^2$**: Represents the proportion of variance explained (and removed) by confound regression. This is obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y})}{Var(Y)}$ at each timepoint, where $Y$ and $\hat{Y}$ are the timeseries pre- and post-regression respectively, and $Var(x) = \frac{1}{n}\sum_{i=1}^{n}(x_i - \mu_x)^2$ calculates the variance, with $\mu$ as the mean.
 * **Mean amplitude**: A set of timecourse are averaged as $\frac{1}{n}\sum_{i=1}^{n}|X_i|$, where $X_i$ is the timecourse $i$. Timecourses can correspond to either of the following sets:
@@ -57,14 +57,15 @@ where $Y_{i,t}$ corresponds to the BOLD signal in brain voxel $i$ at timepoint $
 ## Distribution plot
 (dist_plot_metrics)=
 
-* **Network amplitude (not computed for seed-based connectivity)**: The overall network amplitude is summarized by computing the L2-norm across the network connectivity map outputed from dual regression (i.e. linear coefficients from the [second regression ${\beta}_{SM}$](DR_target))
-* **Network specificity**: The network map (seed-based or dual regression) and the corresponding canonical network map are thresholded to include the top 4% of voxels with highest connectivity, and the overlap of the thresholded area is computed using Dice overlap. For dual regression, the 'canonical network' map will consist of the original ICA component corresponding to that network provided with `--prior_maps`, and for seed-based connectivity, the reference network maps are provided using the `--seed_prior_list` parameter.
+* **Network amplitude**: The overall network amplitude is summarized by computing the L2-norm across a network connectivity map from a subject-level analysis (such a map can be derived from seed-based correlation, or correspond to the linear coefficients from the [second regression ${\beta}_{SM}$](DR_target) for dual regression)
+* **Network specificity**: The network map (seed-based or dual regression) and the corresponding canonical network map are thresholded to include the top X% of voxels with highest connectivity (X% is defined by `--brainmap_percent_threshold`), and the overlap of the thresholded area is computed using Dice overlap. For dual regression, the 'canonical network' map will consist of the original ICA component corresponding to that network provided with `--prior_maps`, and for seed-based connectivity, the reference network maps are provided using the `--seed_prior_list` parameter.
 * **Dual regression confound correlation**: The timecourse for a single network (from a seed or dual regression) is correlated with the timecourse from each confound component (provided using `--prior_confound_idx`) modelled through dual regression, then the absolute mean correlation is computed to obtain the average amplitude of confound correlations for this specific network analysis.
+* **FD-DVARS corr.**: For each scan, this QC metric corresponds to the correlation between the framewise displacement (FD) timecourse and the DVARS timecourse **computed post-confound correction** (i.e. this is not the DVARS plotted in the temporal diagnosis figure). Crucially, censored timeframes are excluded from both timecourses, and DVARS was recomputed after applying confound correction so that this metric represents *uncorrected/residual* associations between spontaneous motion and the cleaned global signal fluctuations.
 * **Total $CR_{SD}$**: The total standard deviation across the [predicted confound timeseries $Y_{CR}$](CR_target).
 * **Mean framewise displacement**: The mean framewise displacement computed across time (only including frames after censoring applied for confound correction).
 * **Temporal degrees of freedom**: The remaining degrees of freedom post-confound correction are calculated as `tDOF = Original number of timepoints - Number of censored timepoints - Number of AROMA components removed - Number of nuisance regressors`.
 
 ## Group statistical QC report
 (group_QC_metrics)=
-* **Specificity of network variability**: similarly to network specificity in the distribution plot, the network variability map  and the corresponding canonical network map are thresholded to include the top 4% of voxels, and then the overlap is estimated using Dice overlap.
+* **Specificity of network variability**: similarly to network specificity in the distribution plot, the network variability map  and the corresponding canonical network map are thresholded to include the top X% of voxels (X% is defined by `--brainmap_percent_threshold`), and then the overlap is estimated using Dice overlap.
 * **Mean confound correlation**: for each confound correlation map (either $CR_{SD}$, mean FD or tDOF), the mean is computed across voxels included within the thresholded area of the canonical network map, to obtain a mean correlation within the network's core region.
