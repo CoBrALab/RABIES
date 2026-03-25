@@ -1,8 +1,7 @@
 import SimpleITK as sitk
 import numpy as np
 import matplotlib.pyplot as plt
-import nilearn
-from rabies.visualization import otsu_scaling, plot_3d
+from rabies.visualization import otsu_scaling, plot_3d, cold_hot
 from rabies.analysis_pkg.analysis_math import elementwise_spearman, elementwise_corrcoef, dice_coefficient
 from rabies.utils import recover_3D
 from rabies.confound_correction_pkg.utils import smooth_image
@@ -180,7 +179,7 @@ def masked_plot(fig,axes, img, scaled, mask_img, vmax=None):
     plot_3d(axes,scaled,fig,vmin=0,vmax=1,cmap='gray', alpha=1, cbar=False, num_slices=6, planes=planes)
     # resample to match template
     sitk_img = sitk.Resample(masked, scaled)
-    cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap='cold_hot', alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
+    cbar_list = plot_3d(axes,sitk_img,fig,vmin=-vmax,vmax=vmax,cmap=cold_hot, alpha=1, cbar=True, threshold=vmax*0.001, num_slices=6, planes=planes)
     return cbar_list
 
 

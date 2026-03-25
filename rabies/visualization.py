@@ -18,6 +18,46 @@ plt.rcParams.update({
     "savefig.facecolor": "black",
     "savefig.edgecolor": "black"})
 
+"""
+Standalone reproduction of Nilearn's 'cold_hot' colormap.
+
+Original reference:
+Nilearn developers. Nilearn: Statistical learning for neuroimaging in Python.
+URL: https://nilearn.github.io/
+"""
+from matplotlib.colors import LinearSegmentedColormap
+# Segment data extracted from the actual Nilearn 'cold_hot'
+_cold_hot_segments = {
+    'red': [
+        (0.0, 1.0, 1.0),
+        (0.126984, 0.0, 0.0),
+        (0.5, 0.0, 0.0),
+        (0.5, 0.0416, 0.0416),
+        (0.682540, 1.0, 1.0),
+        (1.0, 1.0, 1.0),
+    ],
+    'green': [
+        (0.0, 1.0, 1.0),
+        (0.126984, 1.0, 1.0),
+        (0.317461, 0.0, 0.0),
+        (0.5, 0.0, 0.0),
+        (0.5, 0.0, 0.0),
+        (0.682540, 0.0, 0.0),
+        (0.873016, 1.0, 1.0),
+        (1.0, 1.0, 1.0),
+    ],
+    'blue': [
+        (0.0, 1.0, 1.0),
+        (0.317461, 1.0, 1.0),
+        (0.5, 0.0416, 0.0416),
+        (0.5, 0.0, 0.0),
+        (0.873016, 0.0, 0.0),
+        (1.0, 1.0, 1.0),
+    ]
+}
+# Create the LinearSegmentedColormap
+cold_hot = LinearSegmentedColormap('cold_hot', _cold_hot_segments, N=256)
+
 
 def otsu_scaling(input_image):
     from skimage.filters import threshold_multiotsu

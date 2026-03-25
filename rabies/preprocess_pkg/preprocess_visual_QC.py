@@ -65,7 +65,6 @@ def template_info(anat_template, opts, out_dir,figure_format):
     import SimpleITK as sitk
     # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
-    from nilearn import plotting
     import matplotlib.pyplot as plt
     from rabies.visualization import plot_3d, otsu_scaling
     os.makedirs(out_dir, exist_ok=True)
@@ -99,7 +98,6 @@ def template_masking(template, mask, out_dir, figure_format):
     import SimpleITK as sitk
     # set default threader to platform to avoid freezing with MultiProc https://github.com/SimpleITK/SimpleITK/issues/1239
     sitk.ProcessObject_SetGlobalDefaultThreader('Platform')
-    from nilearn import plotting
     import matplotlib.pyplot as plt
     from rabies.visualization import plot_3d, otsu_scaling
 
