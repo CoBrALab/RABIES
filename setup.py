@@ -17,7 +17,7 @@ DESCRIPTION = 'RABIES: Rodent Automated Bold Improvement of EPI Sequences.'
 URL = 'https://github.com/CoBrALab/RABIES'
 EMAIL = 'contact@cobralab.ca'
 AUTHOR = 'CoBrALab'
-REQUIRES_PYTHON = '>=3.9.0, <=3.13' # the package was tested up to 3.12
+REQUIRES_PYTHON = '>=3.9.0, <3.13' # the package was tested up to 3.12
 
 REQUIRED = [
     # 'requests', 'maya', 'records',
