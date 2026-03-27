@@ -68,8 +68,6 @@ COPY optimized_antsMultivariateTemplateConstruction $RABIES/optimized_antsMultiv
 COPY scripts $RABIES/scripts
 
 RUN micromamba install -y -n base -f $RABIES/rabies_environment.yml && \
-    micromamba install -n base -y -c conda-forge git && \
-    micromamba run -n base pip install git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@8cc2b031c22df5cf8d01f75ec186570dd3ffb3e9 && \
     micromamba run -n base pip install -e $RABIES && \
     micromamba clean --all --yes
 

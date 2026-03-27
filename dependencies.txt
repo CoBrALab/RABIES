@@ -2,4 +2,4 @@ minc-toolkit-v2>=1.9.18
 ANTs>=v2.4.3
 FSL
 AFNI
-https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@rabies_conform
+simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@8cc2b031c22df5cf8d01f75ec186570dd3ffb3e9
