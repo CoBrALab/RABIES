@@ -846,7 +846,7 @@ def get_parser():
         '--timeseries_interval', type=str, default='0-end',
         help=
             "Before confound correction, can crop the timeseries within a specific interval.\n"
-            "e.g. '0,80' for timepoint 0 to 80. 0 is the first time frame, and 'end' stands for \n"
+            "e.g. '0-80' for timepoint 0 to 80. 0 is the first time frame, and 'end' stands for \n"
             "the last time frame. \n"
             "(default: %(default)s)\n"
             "\n"
