@@ -85,13 +85,20 @@ jobs:
         id: latest-release
         if: github.event_name != 'pull_request'
         run: |
-          LATEST_TAG=$(gh release view --json tagName -q .tagName)
-          echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            LATEST_TAG="${{ github.ref_name }}"
+          else
+            LATEST_TAG=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          fi
+
+          if [ -n "$LATEST_TAG" ]; then
+            echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag latest release as :latest
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.latest-release.outputs.tag != ''
         run: |
           IMAGE_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           docker buildx imagetools create \
