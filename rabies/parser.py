@@ -702,10 +702,11 @@ def get_parser():
         '--detrending', type=str,
         default='order=1,time_interval=0-end',
         help=
-            "Detrend the voxel timeseries. \n"
+            "Parameters for voxelwise detrending of timeseries. Note that an intercept is also always fitted and \n"
+            "removed to derive mean-centered timeseries, even if no trend is fitted (with order=0). \n"
             "* order: Specify the polynomial order for detrending as a integer. \n"
             "*** 0 for no detrending, 1 for linear detrending, 2 for quadratic etc. \n"
-            "* time_interval: the time interval over which the trend is computed. \n "
+            "* time_interval: the time interval over which the trend and intercept are computed. \n "
             "Follow the syntax from --timeseries_interval to select a subset of frames. \n"
             "Note the trend is always subtracted from the whole timeseries. \n"
             "(default: %(default)s)\n"
