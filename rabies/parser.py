@@ -702,10 +702,11 @@ def get_parser():
         '--detrending', type=str,
         default='order=1,time_interval=0-end',
         help=
-            "Detrend the voxel timeseries. \n"
+            "Parameters for voxelwise detrending of timeseries. Note that an intercept is also always fitted and \n"
+            "removed to derive mean-centered timeseries, even if no trend is fitted (with order=0). \n"
             "* order: Specify the polynomial order for detrending as a integer. \n"
             "*** 0 for no detrending, 1 for linear detrending, 2 for quadratic etc. \n"
-            "* time_interval: the time interval over which the trend is computed. \n "
+            "* time_interval: the time interval over which the trend and intercept are computed. \n "
             "Follow the syntax from --timeseries_interval to select a subset of frames. \n"
             "Note the trend is always subtracted from the whole timeseries. \n"
             "(default: %(default)s)\n"
@@ -877,6 +878,24 @@ def get_parser():
             "selection, i.e. this parameter takes as input one of: 'RL', 'AP' or 'SI'. \n"
             "For accurate slice selection, the axial directions of the input nifti images must be properly \n"
             "encoded. If no direction is provided, standard whole-brain correction is conducted. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    confound_correction.add_argument(
+        '--keep_EPI_average', dest='keep_EPI_average', action='store_true',
+        help=
+            "This option allows to re-introduce the voxelwise average that was removed during\n"
+            "detrending at the end of confound correction, so that the original EPI background\n"
+            "intensity is preserved.\n"
+            "Specifically, the intercept that is calculated from the linear model during \n"
+            "detrending is re-introduced. This intercept is also subjected to the same \n"
+            "image_scaling as the timeseries, so as to retain the proportion between the \n"
+            "average and variance of timeseries.\n"
+            "Because this parameter re-introduces the intercept from detrending, if the \n"
+            "trend was estimated over a specific data subset with time_interval,\n"
+            "the intercept is the average over that time interval.\n"
+            "At the downstream analysis stage, the intercept is removed again since analysis\n" 
+            "expects mean-centered data.\n"
             "(default: %(default)s)\n"
             "\n"
         )

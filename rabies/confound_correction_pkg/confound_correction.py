@@ -227,6 +227,7 @@ class CleanImage(BaseInterface):
                 generate_CR_null=cr_opts.generate_CR_null,
                 scale_variance_voxelwise=cr_opts.scale_variance_voxelwise,
                 image_scaling=cr_opts.image_scaling,
+                keep_EPI_average=cr_opts.keep_EPI_average,
                 smoothing_filter=cr_opts.smoothing_filter,
                 slicewise_correction_direction=cr_opts.slicewise_correction_direction,
                 nipype_log=nipype_log,
@@ -313,6 +314,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
                 nuisance_regressors = [], generate_CR_null=False,
                 scale_variance_voxelwise=False,image_scaling='grand_mean_scaling',
+                keep_EPI_average=False,
                 smoothing_filter=None,
                 slicewise_correction_direction = 'Off',
                 nipype_log=None,
@@ -415,6 +417,18 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     image_scaling : str, default='grand_mean_scaling'
         Method for image scaling, select among: "None", "global_variance", 
         "voxelwise_standardization", "grand_mean_scaling", "voxelwise_mean"
+
+    keep_EPI_average : bool, default=False
+        This option allows to re-introduce the voxelwise average that was removed during
+        detrending at the end of confound correction, so that the original EPI background 
+        intensity is preserved.
+        Specifically, the intercept that is calculated from the linear model during 
+        detrending is re-introduced. This intercept is also subjected to the same 
+        image_scaling as the timeseries, so as to retain the proportion between the 
+        average and variance of timeseries.
+        Because this parameter re-introduces the intercept from detrending, if the 
+        trend was estimated over a specific time intervel with detrending_time_interval,
+        the intercept is the average over that time interval.
 
     smoothing_filter : float, default=None
         Gaussian smoothing filter to apply.
@@ -585,8 +599,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     '''
     #3 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
     '''
-    timeseries, voxelwise_intercept = cr_utils.remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
-    motion_regressors_array, _ = cr_utils.remove_trend(motion_regressors_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval)
+    timeseries, voxelwise_intercept = cr_utils.remove_trend(timeseries, frame_mask, order = detrending_order, time_interval = detrending_time_interval, remove_intercept=True)
+    motion_regressors_array, _ = cr_utils.remove_trend(motion_regressors_array, frame_mask, order = detrending_order, time_interval = detrending_time_interval, remove_intercept=True)
 
     '''
     #4 - Apply ICA-AROMA.
@@ -781,6 +795,14 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         else:
             timeseries_img = cr_utils.smooth_image(
                 timeseries_img, smoothing_filter, brain_mask)
+
+    voxelwise_intercept /= scaling_factor # the intercept is also scaling, so that the mean and variance remain proportional to the original data
+    if keep_EPI_average:
+        # this needs to be done after smoothing, because the intercept would impact smoothing results
+        timeseries = sitk.GetArrayFromImage(timeseries_img)[:,volume_idx]
+        del timeseries_img
+        timeseries += voxelwise_intercept
+        timeseries_img = recover_4D(brain_mask, timeseries, header_geo)
 
     # save output files
     VE_spatial_map = recover_3D(brain_mask, VE_spatial)
