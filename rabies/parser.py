@@ -880,6 +880,24 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    confound_correction.add_argument(
+        '--keep_EPI_average', dest='keep_EPI_average', action='store_true',
+        help=
+            "This option allows to re-introduce the voxelwise average that was removed during\n"
+            "detrending at the end of confound correction, so that the original EPI background\n"
+            "intensity is preserved.\n"
+            "Specifically, the intercept that is calculated from the linear model during \n"
+            "detrending is re-introduced. This intercept is also subjected to the same \n"
+            "image_scaling as the timeseries, so as to retain the proportion between the \n"
+            "average and variance of timeseries.\n"
+            "Because this parameter re-introduces the intercept from detrending, if the \n"
+            "trend was estimated over a specific time intervel with detrending_time_interval,\n"
+            "the intercept is the average over that time interval.\n"
+            "At the downstream analysis stage, the intercept is removed again since analysis\n" 
+            "expects mean-centered data.\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis

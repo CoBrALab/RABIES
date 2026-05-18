@@ -74,11 +74,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     if not os.path.isfile(str(analysis_opts.prior_maps)):
         raise ValueError("--prior_maps doesn't exists.")
 
-    load_CR_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'cleaned_bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source'],
+    load_CR_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'cleaned_bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source', 'remove_intercept'],
                                            output_names=[
                                                'CR_dict_file'],
                                        function=load_CR_input_dict),
                               name='load_CR_dict_node')
+    # if the average was kept, it needs to be removed before analysis computations
+    load_CR_dict_node.inputs.remove_intercept = cr_opts.keep_EPI_average
 
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
@@ -461,7 +463,7 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, anat_ref_
 
 
 # this function loads subject-specific data from confound correction
-def load_CR_input_dict(maps_dict_file, cleaned_bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source):
+def load_CR_input_dict(maps_dict_file, cleaned_bold_file, CR_data_dict, VE_file, STD_file, CR_STD_file, name_source, remove_intercept=False):
     import pickle
     import pathlib
     import os
@@ -472,13 +474,11 @@ def load_CR_input_dict(maps_dict_file, cleaned_bold_file, CR_data_dict, VE_file,
         maps_dict = pickle.load(handle)
 
     volume_indices = maps_dict['volume_indices']
+    timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_bold_file))[:,volume_indices] # read directly as a 2D array
 
-    data_img = sitk.ReadImage(cleaned_bold_file)
-    data_array = sitk.GetArrayFromImage(data_img)
-    num_volumes = data_array.shape[0]
-    timeseries = np.zeros([num_volumes, volume_indices.sum()])
-    for i in range(num_volumes):
-        timeseries[i, :] = (data_array[i, :, :, :])[volume_indices]
+    if remove_intercept:
+        # remove the intercept that was added since analysis computations expect mean-centered data
+        timeseries -= CR_data_dict['voxelwise_mean']
 
     VE_spatial = sitk.GetArrayFromImage(
         sitk.ReadImage(VE_file))[volume_indices]
