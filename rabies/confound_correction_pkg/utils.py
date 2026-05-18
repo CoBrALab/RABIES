@@ -454,7 +454,7 @@ def nuisance_regression(timeseries_vol, motion_regressors_array, TR, frame_mask,
     return timeseries_vol, predicted_vol, predicted_random_vol, num_regressors, VE_temporal, VE_spatial, VE_total_ratio, cleaned_slice_l
 
 
-def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end'):
+def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end', remove_intercept=True):
     '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
     #count number of non-censored timepoints
     num_timepoints = len(frame_mask)
@@ -488,7 +488,10 @@ def remove_trend(timeseries, frame_mask, order=1 , time_interval='0-end'):
     Y=timeseries
     W = closed_form(X[time_range, :],Y[time_range, :])
 
-    predicted = X.dot(W) #always subtract the trend over the whole timeseries
+    if remove_intercept:
+        predicted = X.dot(W) #always subtract the trend over the whole timeseries
+    else:
+        predicted = X[:,:-1].dot(W[:-1,:]) # only remove the trends, not the intercept
     residuals = (Y-predicted) # add back the intercept after
     fitted_intercept = W[-1,:] # predicted intercept
 
