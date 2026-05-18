@@ -708,7 +708,7 @@ def smooth_image(img, fwhm, mask_img):
     # smoothing creates leakage around mask boundaries
     # correct for edge effects by dividing by the smoothed mask like FSL https://johnmuschelli.com/fslr/reference/fslsmooth.html
     mask_arr = sitk.GetArrayFromImage(mask_img).transpose(2,1,0) # re-orient the array to match the affine
-    smoothed_mask = _smooth_array(mask_arr, affine, fwhm=fwhm, ensure_finite=True, copy=False)
+    smoothed_mask = _smooth_array(mask_arr, affine, fwhm=fwhm, ensure_finite=True, copy=True)
     smoothed_mask = smoothed_mask.transpose(2,1,0) # recover SITK orientation
     mask_arr = mask_arr.transpose(2,1,0) # recover SITK orientation
     
