@@ -892,7 +892,7 @@ def get_parser():
             "image_scaling as the timeseries, so as to retain the proportion between the \n"
             "average and variance of timeseries.\n"
             "Because this parameter re-introduces the intercept from detrending, if the \n"
-            "trend was estimated over a specific time intervel with detrending_time_interval,\n"
+            "trend was estimated over a specific data subset with time_interval,\n"
             "the intercept is the average over that time interval.\n"
             "At the downstream analysis stage, the intercept is removed again since analysis\n" 
             "expects mean-centered data.\n"

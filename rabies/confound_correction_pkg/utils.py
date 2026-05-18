@@ -457,7 +457,7 @@ def nuisance_regression(timeseries_vol, motion_regressors_array, TR, frame_mask,
 def remove_trend(timeseries, frame_mask=None, order=1 , time_interval='0-end', remove_intercept=True):
     '''The timeseries is already censored, we need to create a timeseries that is censored with the same time mask so that it matches'''
 
-    if not frame_mask: # create a mask including all frames if none is provided
+    if frame_mask is None: # create a mask including all frames if none is provided
         frame_mask = np.ones(timeseries.shape[0]).astype(bool)
         
     #count number of non-censored timepoints
