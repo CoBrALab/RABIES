@@ -685,6 +685,9 @@ def get_parser():
             "*** voxelwise_mean: each voxel is seperataly scaled according to its mean intensity, \n"
             "   a method suggested with AFNI https://afni.nimh.nih.gov/afni/community/board/read.php?1,161862,161864. \n"
             "   Timeseries are then multiplied by 100 to obtain percent BOLD fluctuations. \n"
+            "NOTE: for grand_mean_scaling and voxelwise_mean, the mean is actually estimated from the intercept \n"
+            "during detrending, meaning this is the mean after accounting for trends in the data, and computed over \n"
+            "the time_interval of detrending if specified. \n"
             "(default: %(default)s)\n"
             "\n"
         )
