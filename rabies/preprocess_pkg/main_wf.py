@@ -1,5 +1,4 @@
 import os
-import pathlib
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 from nipype.interfaces.io import DataSink
@@ -30,9 +29,6 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     **Outputs**
 
-
-        input_bold
-            Input EPIs to the preprocessing
         commonspace_resampled_template
             the anatomical commonspace template after initial resampling
         anat_preproc
@@ -100,7 +96,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # set output node
     outputnode = pe.Node(niu.IdentityInterface(
-        fields=['input_bold', 'commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
+        fields=['commonspace_resampled_template', 'anat_preproc', 'initial_bold_ref', 'inho_cor_bold', 'bold_to_anat_affine',
                 'bold_to_anat_warp', 'bold_to_anat_inverse_warp', 'inho_cor_bold_warped2anat', 'native_bold', 'native_bold_ref', 'motion_params_csv',
                 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask',
                 'commonspace_bold', 'commonspace_mask', 'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
@@ -178,38 +174,25 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     '''
     MATCHING INPUTS TO MAIN ITERABLES
     '''
-    format_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
-                                                output_names=['selected_file'],
-                                                function=match_iterables),
-                                        name='format_bold')
     
-    input_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+    select_input_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
                                                 output_names=['selected_file'],
                                                 function=match_iterables),
-                                        name='input_bold')
-
+                                        name='select_input_bold')
+    
     workflow.connect([
-        (prep_input_wf, format_bold_node, [
-            ("outputnode.prep_bold_list", "joined_file_list"),
-            ("outputnode.joined_scan_info", "joined_scan_info"),
-            ]),
-        (main_split, format_bold_node, [
-            ("scan_info", "scan_info"),
-            ]),
-        (prep_input_wf, input_bold_node, [
+        (prep_input_wf, select_input_bold_node, [
             ("outputnode.input_bold_list", "joined_file_list"),
             ("outputnode.joined_scan_info", "joined_scan_info"),
             ]),
-        (main_split, input_bold_node, [
+        (main_split, select_input_bold_node, [
             ("scan_info", "scan_info"),
             ]),
         ])
     
     if opts.bold_only:
-        format_bold_node.inputs.run = None
-        input_bold_node.inputs.run = None
-        format_bold_node.inputs.joined_run = None
-        input_bold_node.inputs.joined_run = None
+        select_input_bold_node.inputs.run = None
+        select_input_bold_node.inputs.joined_run = None
     else:
         run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
@@ -220,16 +203,10 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             (main_split, run_split, [
                 ("split_name", "split_name"),
                 ]),
-            (prep_input_wf, format_bold_node, [
+            (prep_input_wf, select_input_bold_node, [
                 ("outputnode.joined_run", "joined_run"),
                 ]),
-            (run_split, format_bold_node, [
-                ("run", "run"),
-                ]),
-            (prep_input_wf, input_bold_node, [
-                ("outputnode.joined_run", "joined_run"),
-                ]),
-            (run_split, input_bold_node, [
+            (run_split, select_input_bold_node, [
                 ("run", "run"),
                 ]),
             ])
@@ -341,8 +318,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (format_bold_node, bold_main_wf, [
-            ("selected_file", "inputnode.bold"),
+        (select_input_bold_node, bold_main_wf, [
+            ("selected_file", "inputnode.bold_file"),
             ]),
         (resample_template_node, template_diagnosis, [
             ("registration_template", "anat_template"),
@@ -393,13 +370,13 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             ("outputnode.corrected_EPI", "final_denoise"),
             ("outputnode.denoise_mask", "warped_mask"),
             ]),
-        (input_bold_node, bold_inho_cor_diagnosis,
+        (select_input_bold_node, bold_inho_cor_diagnosis,
          [("selected_file", "name_source")]),
         (bold_main_wf, temporal_diagnosis, [
             ("outputnode.motion_params_csv", "motion_params_csv"),
             ("outputnode.FD_csv", "FD_csv"),
             ]),
-        (input_bold_node, temporal_diagnosis,
+        (select_input_bold_node, temporal_diagnosis,
          [("selected_file", "name_source")]),
         (temporal_diagnosis, outputnode, [
             ("tSNR_filename", "tSNR_filename"),
@@ -491,8 +468,8 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("registration_template", "template_inputnode.template_anat"),
                 ("registration_mask", "template_inputnode.template_mask"),
                 ]),
-            (format_bold_node, inho_cor_bold_main_wf, [
-                ("selected_file", "inputnode.bold"),
+            (select_input_bold_node, inho_cor_bold_main_wf, [
+                ("selected_file", "inputnode.bold_file"),
                 ]),
             (EPI_target_buffer, inho_cor_bold_main_wf, [
                 ("EPI_template", "inputnode.inho_cor_anat"),
@@ -522,7 +499,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
             preprocess_visual_QC.PlotOverlap(), name='PlotOverlap_EPI2Anat')
         PlotOverlap_EPI2Anat_node.inputs.out_dir = output_folder+'/preprocess_QC_report/EPI2Anat'
         workflow.connect([
-            (input_bold_node, PlotOverlap_EPI2Anat_node,
+            (select_input_bold_node, PlotOverlap_EPI2Anat_node,
              [("selected_file", "name_source")]),
             (anat_inho_cor_wf, PlotOverlap_EPI2Anat_node,
              [("outputnode.corrected", "fixed")]),
@@ -533,7 +510,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # fill the datasinks
     workflow.connect([
-        (input_bold_node, bold_datasink, [
+        (select_input_bold_node, bold_datasink, [
             ("selected_file", "input_bold"),
             ]),
         (outputnode, motion_datasink, [

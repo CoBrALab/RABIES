@@ -51,8 +51,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
     **Outputs**
 
-        input_bold
-            The provided input BOLD file
         bold_ref
             Initial EPI median volume subsequently used as 3D reference EPI volume
         motcorr_params
@@ -113,14 +111,14 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(niu.IdentityInterface(
-                fields=['bold', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
+                fields=['bold_file', 'inho_cor_anat', 'inho_cor_mask', 'coreg_anat', 'coreg_mask',
                         'anat_to_commonspace_transform_list','anat_to_commonspace_inverse_list',
                         'commonspace_to_anat_transform_list','commonspace_to_anat_inverse_list',
                         'commonspace_ref']),
                         name="inputnode")
 
     outputnode = pe.Node(niu.IdentityInterface(
-                fields=['input_bold', 'bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
+                fields=['bold_ref', 'motcorr_params', 'init_denoise', 'denoise_mask', 'corrected_EPI',
                         'output_warped_bold', 'bold_to_anat_affine', 'bold_to_anat_warp', 'bold_to_anat_inverse_warp',
                         'native_bold', 'native_bold_ref', 'native_brain_mask', 'native_WM_mask', 'native_CSF_mask', 'native_vascular_mask',
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
@@ -181,12 +179,12 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                                                         function=apply_despike),
                                             name='despike')
             workflow.connect([
-                (inputnode, despike, [('bold', 'in_file')]),
+                (inputnode, despike, [('bold_file', 'in_file')]),
                 (despike, boldbuffer, [('out_file', 'bold_file')]),
                 ])
         else:
             workflow.connect([
-                (inputnode, boldbuffer, [('bold', 'bold_file')]),
+                (inputnode, boldbuffer, [('bold_file', 'bold_file')]),
                 ])
 
         if opts.detect_dummy:
@@ -237,7 +235,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             (inputnode, inho_cor_wf, [
                 ('inho_cor_anat', 'inputnode.anat_ref'),
                 ('inho_cor_mask', 'inputnode.anat_mask'),
-                ('bold', 'inputnode.name_source'),
+                ('bold_file', 'inputnode.name_source'),
                 ]),
             (template_inputnode, inho_cor_wf, [
                 ("template_anat", "template_inputnode.template_anat"),
@@ -409,7 +407,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ('corrected_EPI', 'corrected_EPI'),
             ]),
         (inputnode, estimate_motion_node, [
-            ('bold', 'boldspace_bold'),
+            ('bold_file', 'boldspace_bold'),
             ]),
         (bold_hmc_wf, estimate_motion_node, [
             ('outputnode.motcorr_params', 'motcorr_params'),
@@ -438,7 +436,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
     workflow.connect([
         (inputnode, boldspace_brain_mask, [
-            ('bold', 'name_source'),
+            ('bold_file', 'name_source'),
             ]),
         (transitionnode, boldspace_brain_mask, [
             ('bold_ref', 'ref_file'),
@@ -510,10 +508,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             (bold_hmc_wf, bold_native_trans_wf, [
                 ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
             (inputnode, bold_native_trans_wf, [
-                ('bold', 'inputnode.name_source'),
+                ('bold_file', 'inputnode.name_source'),
                 ]),
             (inputnode, mask_native_trans_wf, [
-                ('bold', 'inputnode.name_source'),
+                ('bold_file', 'inputnode.name_source'),
                 ]),
             (bold_native_trans_wf, mask_native_trans_wf, [
                 ('outputnode.bold_ref','inputnode.ref_file'),
@@ -544,7 +542,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             (bold_hmc_wf, bold_commonspace_trans_wf, [
             ('outputnode.motcorr_params', 'inputnode.motcorr_params')]),
             (inputnode, bold_commonspace_trans_wf, [
-                ('bold', 'inputnode.name_source'),
+                ('bold_file', 'inputnode.name_source'),
                 ('commonspace_ref', 'inputnode.ref_file'),
                 ]),
             (bold_commonspace_trans_wf, outputnode, [
