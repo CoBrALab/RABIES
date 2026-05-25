@@ -456,7 +456,7 @@ def read_preproc_workflow(preproc_output, nativespace_analysis, preprocess_opts)
 
     node_dict = get_workflow_dict(preproc_workflow_file)
 
-    match_targets = {'input_bold':['main_wf.input_bold', 'selected_file'],
+    match_targets = {'input_bold':['main_wf.select_input_bold', 'selected_file'],
                     'commonspace_mask':['main_wf.bold_main_wf.mask_commonspace_trans_wf.brain_mask_resample', 'resampled_file'],
                     'motion_params_csv':['main_wf.bold_main_wf.estimate_motion_node', 'motion_params_csv'],
                     'FD_csv':['main_wf.bold_main_wf.estimate_motion_node', 'FD_csv'],

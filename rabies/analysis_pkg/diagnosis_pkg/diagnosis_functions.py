@@ -224,7 +224,7 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
 
     from scipy.signal import welch
     fs = 1/TR
-    N = timeseries.shape[0]
+    N = timeseries_.shape[0]
     # N//4 : proxy to scale the resolution of the filter to the number of data points
     # minimum of 130 to be able to detect frequency spikes in the spectrum
     nperseg = max(N // 4, 130)
