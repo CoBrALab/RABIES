@@ -10,8 +10,8 @@ authors:
 - family-names: "Chakravarty"
   given-names: "M. Mallar"
 title: "RABIES: Rodent Automated Bold Improvement of EPI Sequences."
-version: 0.6.0
-date-released: 2026-03-26
+version: 0.6.1
+date-released: 2026-05-25
 url: "https://github.com/CoBrALab/RABIES"
 
 
