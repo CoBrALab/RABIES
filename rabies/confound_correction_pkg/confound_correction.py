@@ -631,8 +631,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
             as suggested in Power et al. (2014, Neuroimage), for both the fMRI timeseries and nuisance regressors prior to filtering.
         '''
-        timeseries = cr_utils.lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
-        motion_regressors_array = cr_utils.lombscargle_fill(x=motion_regressors_array,time_step=TR,time_mask=frame_mask)
+        from rabies.confound_correction_pkg.spectral_interpolation import lombscargle_fill
+        timeseries = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+        motion_regressors_array = lombscargle_fill(x=motion_regressors_array,time_step=TR,time_mask=frame_mask)
         ### arrays are now interpolated
 
         '''
