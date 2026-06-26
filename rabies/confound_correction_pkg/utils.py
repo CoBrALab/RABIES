@@ -529,9 +529,9 @@ def lombscargle_mathias(t, x, w):
     theta = np.empty((len(w)))
 
     w_t = w[:,np.newaxis].dot(t[np.newaxis,:])
-    theta = (1/(2*w))*np.arctan( \
-        np.sin(2*w_t).sum(axis=1)/ \
-        np.cos(2*w_t).sum(axis=1))
+    theta = (1 / (2 * w)) * np.arctan2(
+        np.sin(2 * w_t).sum(axis=1),
+        np.cos(2 * w_t).sum(axis=1))
 
         
     wt = (t[:,np.newaxis]-theta[np.newaxis,:])*w
