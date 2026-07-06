@@ -566,7 +566,7 @@ def phase_randomized_regressors(regressors_array, frame_mask, TR):
     of original regressors to make them independent from the true noise."
 
     """
-    from rabies.confound_correction_pkg.spectral_interpolation import lombscargle_fill
+    from rabies.confound_correction_pkg.spectral_interpolation import spectral_interpolation
     num_conf = regressors_array.shape[1]
     randomized_regressors_array = np.zeros(regressors_array.shape)
     for n in range(num_conf):
@@ -575,7 +575,8 @@ def phase_randomized_regressors(regressors_array, frame_mask, TR):
         while(corr>0.1):
             x=regressors_array[:,n:n+1]
             # fill missing datapoints to obtain a good reading of frequency spectrum
-            y = lombscargle_fill(x,TR,frame_mask)
+            y, _ = spectral_interpolation(x, TR, frame_mask, rescale=True)
+            del _
             # phase randomize
             y_r = phaseScrambleTS(y)
             # re-apply the time mask to the same number of timepoints
