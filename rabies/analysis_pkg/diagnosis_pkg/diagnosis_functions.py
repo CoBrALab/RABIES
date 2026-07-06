@@ -214,8 +214,9 @@ def carpetplot(timeseries, ax, frame_mask=None):
 
 def plot_freqs(ax,timeseries, TR, frame_mask):
     if (frame_mask==0).sum()>0: # only simulate data points if some censoring was applied
-        from rabies.confound_correction_pkg.utils import lombscargle_fill
-        timeseries_ = lombscargle_fill(x=timeseries,time_step=TR,time_mask=frame_mask)
+        from rabies.confound_correction_pkg.spectral_interpolation import spectral_interpolation
+        timeseries_, _ = spectral_interpolation(x=timeseries, time_step=TR, time_mask=frame_mask, rescale=True)
+        del _
     else:
         timeseries_ = timeseries
 
