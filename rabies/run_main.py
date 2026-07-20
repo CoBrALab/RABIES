@@ -40,6 +40,10 @@ def execute_workflow(args=None, return_workflow=False):
     parser = get_parser()
     opts = read_parser(parser, args)
 
+    if opts.rabies_stage is None: # no processing stage was selected, print the help message instead
+        parser.print_help()
+        return
+
     # convert all input paths to absolute paths
     for arg in vars(opts):
         attr = getattr(opts, arg)
