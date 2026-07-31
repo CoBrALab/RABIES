@@ -29,7 +29,7 @@ REQUIRED = [
     'pandas>=1.2.4', # tested up to 3.0.1
     'pathos>=0.2.7', # tested up to 0.3.5
     'pybids==0.16.3', # only tested with 0.16.3, newer versions have some issues with the BIDS layout of our data
-    'scikit-learn>=0.24.1', # tested up to 1.8.0
+    'scikit-learn>=1.6.1', # tested up to 1.8.0
     'scikit-image>=0.18.2', # tested up to 0.24.0
     'scipy>=1.8.1', # tested up to 1.17.1
     'seaborn>=0.11.1', # tested up to 0.13.2
