@@ -6,7 +6,7 @@ Some users arrive with functional data that was already preprocessed with their 
 
 Running `rabies confound_correction` directly on such data fails with missing `.pkl` file errors. Those `.pkl` files are serialized states of the internal preprocessing workflow and cannot be written by hand. Even with the `.pkl` in place, the confound correction stage expects the full range of output files produced by the preprocessing stage, so missing file errors would follow.
 
-The practical solution is to run a *SHAM* preprocessing, in which every operation that would modify the data is turned off. RABIES still computes the intermediary outputs that the confound correction and analysis stages require, but the image data passes through untouched:
+The practical solution is to run a *SHAM* preprocessing, in which the correction and registration steps are turned off. RABIES still computes the intermediary outputs that the confound correction and analysis stages require, while leaving the image data largely unchanged. It is not a strict pass-through, however, and the operations which remain applied are described under *What still happens* below:
 
 ```sh
 rabies preprocess bids_inputs/ preprocess_outputs/ \
@@ -38,6 +38,13 @@ Image orientation is worth confirming before you start, see [Troubleshooting](tr
 Operations which alter the data but are off by default stay off, and should not be added: `--apply_STC`, `--apply_despiking`, `--detect_dummy`, `--log_transform`, `--anat_autobox`, `--bold_autobox` and `--oblique2card`.
 
 The timeseries are still resampled onto the output grid, using the identity transforms described above. Use `--commonspace_resampling` and `--anatomical_resampling` to control the output voxel dimensions, and `--interpolation` to select the interpolator.
+
+Two further operations are applied unconditionally and cannot be turned off:
+
+* **Negative values are clipped to zero** when the preprocessed timeseries are written out. If your data legitimately contains negative values, for instance because it was already demeaned or detrended by your own pipeline, those voxels will be set to zero. Bring in data on a positive scale, and leave centering to `--detrending` at the confound correction stage.
+* **The output is cast** to the type given by `--data_type`, which is `float32` by default.
+
+A SHAM preprocessing is therefore a minimal pass, not a strictly non-modifying one.
 
 ### Alternative: `--read_datasink`
 
