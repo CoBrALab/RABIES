@@ -1,0 +1,28 @@
+/* The RTD theme caps content width at 800px, which is cramped for the
+   parcellation tables, --help output and the wider figures. */
+.wy-nav-content {
+    max-width: 1000px;
+}
+
+/* Keep wide content (help output, tables, diagrams) inside its own scroll
+   region rather than forcing the page to scroll horizontally. */
+.rst-content div[class^='highlight'] pre,
+.rst-content table.docutils {
+    overflow-x: auto;
+}
+
+/* sphinx-design cards inherit an RTD margin that double-spaces the grids. */
+.rst-content .sd-card {
+    margin-bottom: 0;
+}
+
+.rst-content .sd-card .sd-card-title {
+    font-weight: 600;
+}
+
+/* Definition lists are used heavily for parameter descriptions; give the term
+   enough weight to scan against the body text. */
+.rst-content dl:not(.docutils) > dt,
+.rst-content dl.simple > dt {
+    font-weight: 600;
+}

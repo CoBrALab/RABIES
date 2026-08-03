@@ -3,3 +3,5 @@
 build/
 dist/
 rabies.egg-info/
+docs/_build/
+__pycache__/

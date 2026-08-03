@@ -1,7 +1,13 @@
 sphinx==5.0
+# sphinx 5.0 needs docutils<0.19 and myst-parser needs <0.20, while
+# sphinxcontrib-bibtex rejects 0.18.* and 0.19.* — 0.17.1 is the only version
+# satisfying all three. Pinned so the resolver cannot pick a broken combination.
+docutils==0.17.1
 myst-parser
 sphinx-rtd-dark-mode
 sphinx-rtd-theme
+sphinx-design<0.6  # 0.6+ requires sphinx>=6
+sphinx-copybutton
 sphinxcontrib-bibtex
 sphinxcontrib-programoutput
 jinja2==3.1.6
