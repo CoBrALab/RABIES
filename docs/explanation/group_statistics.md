@@ -1,6 +1,6 @@
-# The group statistical report
-
 (group_stats_target)=
+
+# The group statistical report
 
 ```{figure} ../pics/group_stats_QC.svg
 :alt: Group-level maps of connectivity variability and its correlation with confound measures

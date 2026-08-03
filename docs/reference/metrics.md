@@ -1,6 +1,6 @@
-# Metric definitions
-
 (metrics_target)=
+
+# Metric definitions
 
 Precise definitions of every quantity RABIES computes and reports. Throughout
 this page, the root-mean square (RMS) is

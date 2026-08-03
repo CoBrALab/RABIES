@@ -1,6 +1,6 @@
-# Data quality assessment
-
 (analysis_QC_target)=
+
+# Data quality assessment
 
 Data quality can have serious impacts on analysis outcomes, leading to false
 findings. Rodent imaging can suffer from spurious effects on connectivity

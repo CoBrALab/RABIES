@@ -1,6 +1,6 @@
-# The distribution plot
-
 (dist_plot_target)=
+
+# The distribution plot
 
 ```{figure} ../pics/distribution_plot.png
 :alt: Scatter plots of network connectivity measures against confound measures across scans

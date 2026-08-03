@@ -1,6 +1,6 @@
-# The spatiotemporal diagnosis
-
 (diagnosis_target)=
+
+# The spatiotemporal diagnosis
 
 The spatiotemporal diagnosis is a visual report generated for each scan
 independently, after dual regression or seed-based connectivity analysis. It

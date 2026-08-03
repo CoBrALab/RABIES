@@ -1,6 +1,6 @@
-# How to optimise your confound correction strategy
-
 (optim_CR)=
+
+# How to optimise your confound correction strategy
 
 There is no single correct confound correction strategy. The right one is
 dataset-specific, and the way to find it is to start minimal and add one

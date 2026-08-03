@@ -1,6 +1,6 @@
-# The confound correction workflow
-
 (confound_pipeline_target)=
+
+# The confound correction workflow
 
 ```{figure} ../pics/confound_correction.png
 :alt: Diagram of the RABIES confound correction workflow
