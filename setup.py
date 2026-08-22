@@ -132,7 +132,8 @@ setup(
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
-    license='LICENSE',
+    license='Academic Public License',
+    license_files=('LICENSE', 'THIRD_PARTY_NOTICES.md'),
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
