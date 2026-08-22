@@ -55,6 +55,8 @@ Simple resting-state connectivity analyses are made available after preprocessin
 ## License
 The [RABIES license](https://github.com/CoBrALab/RABIES/blob/master/LICENSE) allows for uses in academic and educational environments only. Commercial use requires a commercial license from CoBrALab <contact@cobralab.ca>, <http://cobralab.ca>
 
+The RABIES license applies to the RABIES source code only. Third-party software and data distributed with RABIES, including in the container image, remain under their own licenses. See [THIRD_PARTY_NOTICES.md](https://github.com/CoBrALab/RABIES/blob/master/THIRD_PARTY_NOTICES.md).
+
 ## Acknowledgements
 This software was developped by the [CoBrALab](https://cobralab.ca/), located at the Cerebral Imaging Center of the Douglas Mental Health University Institute, Montreal, Canada, in affiliation with McGill University, Montreal, Canada. This work was supported by funding from Healthy Brains, Healthy Lives (HBHL), the Fonds de recherche du Québec - Santé (FRQS) and - Nature et technologies (FRQNT), and the Natural Sciences and Engineering Research Council (NSERC) of Canada. [fMRIPrep](https://fmriprep.org/en/stable/) was an important inspirational source for this project, in particular with regards to best practices for software reproducibility and code design using Nipype. We also thank the organizers of [BrainHack School Montreal](https://school.brainhackmtl.org/), which guided the initial steps of this project in 2018.
 

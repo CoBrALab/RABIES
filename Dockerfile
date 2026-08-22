@@ -22,6 +22,10 @@ RUN curl -L -O https://afni.nimh.nih.gov/pub/dist/tgz/linux_ubuntu_16_64.tgz && 
     rm -f linux_ubuntu_16_64.tgz
 ENV PATH=/opt/afni${PATH:+:$PATH}
 
+# record the AFNI build shipped here, so THIRD_PARTY_NOTICES.md can point at the
+# corresponding source (GPLv3 section 6(d))
+RUN (3dDespike -ver 2>&1 | head -1 || echo "unknown") > /AFNI_VERSION && cat /AFNI_VERSION
+
 # Install minc-toolkit
 RUN curl -L --output /tmp/minc-toolkit-1.9.18.deb \
   https://packages.bic.mni.mcgill.ca/minc-toolkit/min/minc-toolkit-1.9.18-20200813-Ubuntu_18.04-x86_64.deb && \
@@ -60,7 +64,7 @@ ENV HOME=/home/$MAMBA_USER
 ENV RABIES=${HOME}/RABIES
 RUN mkdir $RABIES
 
-COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE dependencies.txt $RABIES/
+COPY rabies_environment.yml setup.py MANIFEST.in README.md LICENSE THIRD_PARTY_NOTICES.md dependencies.txt $RABIES/
 
 COPY rabies $RABIES/rabies
 COPY minc-toolkit-extras $RABIES/minc-toolkit-extras
