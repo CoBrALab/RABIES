@@ -580,7 +580,7 @@ def get_parser():
         description=
             "Specify commonspace template and associated mask files. By default, RABIES\n"
             "provides the mouse DSURQE atlas\n"
-            "https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases.\n"
+            "https://www.mouseimaging.ca/repo/DSURQE_40micron/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/.\n"
         )
     g_commonspace.add_argument(
         '--anat_template', action='store', type=Path,

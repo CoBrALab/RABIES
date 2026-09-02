@@ -81,7 +81,7 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   $$
 
   using the 3D $x$, $y$ and $z$ spatial coordinates in mm for timepoints $t$
-  and $t+1$ and voxel indices $i$. Framewise displacement for the first frame,
+  and $t-1$ and voxel indices $i$. Framewise displacement for the first frame,
   which has no past timepoint, is set to 0.
 
 (DVARS_target)=

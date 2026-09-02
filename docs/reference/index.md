@@ -11,6 +11,7 @@ describe how RABIES behaves; they do not tell you what to do. For that, see the
 maxdepth: 1
 ---
 bids_inputs
+template_files
 cli
 ```
 
