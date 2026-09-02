@@ -9,15 +9,6 @@ For every analysis except group ICA, RABIES computes individualised
 connectivity maps for each scan separately. These can be exported for
 statistical analysis — group comparison and so on — conducted outside RABIES.
 
-```{important}
-Every analysis on this page assumes confounds have already been dealt with.
-Various fMRI confounds introduce spurious correlations that are
-indistinguishable from neural activity in the result, so the quality of a
-connectivity estimate is bounded by the quality of the
-[confound correction](confound_correction.md) that preceded it. See
-[Data quality assessment](data_quality.md).
-```
-
 ## Correlation-based connectivity
 
 Correlation-based analyses compute a temporal correlation between different
@@ -38,10 +29,10 @@ seed and every other brain region.
 
 ### Whole-brain connectivity
 
-`--FC_matrix` / `--ROI_type`
+`--FC_matrix` / `--ROI_type` / `--ROI_labels_file`
 
 An extension of seed-based connectivity to every brain region. Using the
-anatomical parcellation provided with the atlas during preprocessing, the seed
+anatomical parcellation provided with `--ROI_labels_file`, the seed
 timecourse for every parcel is extracted, then the cross-correlation (Pearson's
 r) is measured between every region pair. The correlation values are
 reorganised into a whole-brain matrix representing the connectivity between

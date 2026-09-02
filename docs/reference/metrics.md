@@ -2,9 +2,7 @@
 
 # Metric definitions
 
-Precise definitions of every quantity RABIES computes and reports. Throughout
-this page, the root-mean square (RMS) is
-$||x||_2 = \sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}$.
+Precise definitions of every quantity RABIES computes and reports.
 
 ```{seealso}
 For where these values appear, see [Output files](outputs.md). For how to
@@ -13,16 +11,13 @@ interpret them, see [Data quality assessment](../explanation/data_quality.md).
 
 (regressor_target)=
 
-## Nuisance regressors for confound regression
+## Nuisance regressors
 
 Selected with `--nuisance_regressors` at the confound correction stage.
 
 **mot_6**
-: The head motion translation and rotation parameters. Prior to the regression,
-  the motion regressors are subjected to the same frame censoring, detrending
-  and frequency filtering applied to the BOLD timeseries, to avoid the
-  re-introduction of previously corrected confounds, as recommended in
-  {cite}`Power2014-yf` and {cite}`Lindquist2019-lq`.
+: 3 rotations (Euler angles in radians) and 3 translations (in mm) measured from
+  the rigid-body head realignment algorithm.
 
 **mot_24**
 : The 6 motion parameters together with their temporal derivatives, plus 12
@@ -33,14 +28,11 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   mot24_t = [mot6_t,(mot6_t-mot6_{t-1}),(mot6_t)^2,(mot6_t-mot6_{t-1})^2]
   $$
 
-  with $mot24_t$ representing the list of 24 regressors for timepoint $t$. As
-  with mot_6, the 24 regressors are additionally subjected to censoring,
-  detrending and frequency filtering if applied on BOLD.
+  with $mot24_t$ representing the list of 24 regressors for timepoint $t$. 
 
 **WM/CSF/vascular/global signal**
 : The mean signal computed within the corresponding brain mask (WM, CSF,
-  vascular or whole-brain) from the partially cleaned timeseries, i.e. after
-  confound correction steps 1–4 up to frequency filtering.
+  vascular or whole-brain).
 
 **aCompCor_percent**
 : Principal component timecourses derived from timeseries within the combined
@@ -55,8 +47,8 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   with $C$ a set of spatial principal components and $W$ their associated
   loadings across time. The first components explaining 50% of the variance are
   kept, and their loadings $W_{aCompCor}$ provide the aCompCor nuisance
-  regressors. PCA is conducted on the partially cleaned timeseries, i.e. after
-  confound correction steps 1–4 up to frequency filtering.
+  regressors. The PCA is conducted on partially cleaned timeseries after
+  step 4 of the confound correction pipeline (see [Confound Correction Workflow](../explanation/confound_correction.md)).
 
 **aCompCor_5**
 : As **aCompCor_percent**, but the first 5 components are kept instead of a set
@@ -67,29 +59,30 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 (mot6_target)=
 
 **Head motion translation and rotation parameters**
-: 3 rotations (Euler angles in radians) and 3 translations (in mm) measured for
-  head motion realignment at each timeframe.
+: 3 rotations (Euler angles in radians) and 3 translations (in mm) measured from
+  the rigid-body head realignment algorithm.
 
 (FD_target)=
 
 **Framewise displacement**
-: For each timepoint, the displacement — mean across the brain voxels — between
-  the current and the next frame. For each brain voxel within the referential
-  space for head realignment (the [3D EPI](3D_EPI_target) provided as reference
+: For each timepoint, this is the displacement between
+  the current and the previous frame, averaged over all brain voxels. 
+  For each brain voxel within the referential
+  space for head realignment (i.e. the [3D EPI](3D_EPI_target) provided as reference
   for realignment) and for each timepoint, the inverse transform of the head
   motion parameters from the corresponding timepoint is applied to obtain the
   voxel position pre-motion correction. Framewise displacement is then computed
   for each voxel as the Euclidean distance between the pre-motion-correction
-  positions for the current and next timepoints. The mean framewise
+  positions for the current and previous timepoints. The mean framewise
   displacement $FD_t$ at timepoint $t$ is therefore
 
   $$
-  FD_t = \frac{1}{n}\sum_{i=1}^{n}\sqrt{(x_{i,t+1}-x_{i,t})^2+(y_{i,t+1}-y_{i,t})^2+(z_{i,t+1}-z_{i,t})^2}
+  FD_t = \frac{1}{n}\sum_{i=1}^{n}\sqrt{(x_{i,t}-x_{i,t-1})^2+(y_{i,t}-y_{i,t-1})^2+(z_{i,t}-z_{i,t-1})^2}
   $$
 
   using the 3D $x$, $y$ and $z$ spatial coordinates in mm for timepoints $t$
-  and $t+1$ and voxel indices $i$. Framewise displacement for the last frame,
-  which has no future timepoint, is set to 0.
+  and $t+1$ and voxel indices $i$. Framewise displacement for the first frame,
+  which has no past timepoint, is set to 0.
 
 (DVARS_target)=
 
@@ -113,19 +106,19 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 : The mean signal across a given brain mask: whole-brain (the global signal),
   WM, CSF or brain edge.
 
-**$CR_{var}$**
-: The variance estimated by confound regression at each timepoint, computed as
-  $CR_{var} = RMS(Y_{CR})$ across voxels, where $Y_{CR}$ is the
+**CR<sub>var</sub>** 
+: The variance estimated and removed by nuisance regression at each timepoint, computed as
+  the root-mean square (RMS) of $Y_{CR}$ across voxels, where $Y_{CR}$ is the
   [predicted confound timeseries](CR_target).
 
-**CR $R^2$**
-: The proportion of variance explained, and removed, by confound regression.
-  Obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y})}{Var(Y)}$ at each timepoint,
-  where $Y$ and $\hat{Y}$ are the timeseries pre- and post-regression, and
+**CR R<sup>2</sup>**
+: The proportion of variance explained, and removed, by nuisance regression.
+  Obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y_t})}{Var(Y_t)}$ for a given frame at timepoint $t$,
+  where $Y_t$ and $\hat{Y_t}$ are the BOLD frame at timepoint $t$ pre- and post-regression, and
   $Var(x) = \frac{1}{n}\sum_{i=1}^{n}(x_i - \mu_x)^2$ is the variance with
   $\mu$ the mean.
 
-**Mean amplitude**
+**Mean amplitude of network VS confound sources**
 : A set of timecourses averaged as $\frac{1}{n}\sum_{i=1}^{n}|X_i|$, where
   $X_i$ is timecourse $i$. The timecourses correspond to one of:
 
@@ -139,7 +132,7 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 ## Spatial scan diagnosis
 
 **BOLD<sub>SD</sub>**
-: The temporal standard deviation computed for each voxel from the BOLD
+: The temporal standard deviation computed for each voxel from the cleaned BOLD
   timeseries.
 
 **CR<sub>SD</sub>**
@@ -148,16 +141,14 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 
 **CR R<sup>2</sup>**
 : The proportion of variance explained by confound regression at each voxel.
-  Obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y})}{Var(Y)}$ at each voxel, where
-  $Y$ and $\hat{Y}$ are the timeseries pre- and post-regression, and
+  Obtained with $CR_{R^2}= 1-\frac{Var(\hat{Y_v})}{Var(Y_v)}$ for a given voxel $v$, where
+  $Y_v$ and $\hat{Y_v}$ are the timeseries pre- and post-regression for that voxel, and
   $Var(x) = \frac{1}{n}\sum_{i=1}^{n}(x_i - \mu_x)^2$ is the variance of $x$
   with $\mu$ the mean.
 
 **Global signal covariance (GS<sub>cov</sub>)**
-: The covariance between the global signal and the timeseries at each voxel,
-  measured as $GS_{cov} = \frac{1}{n}\sum_{t=1}^{n}Y_t \times GS_t$, where
-  $GS_t = \frac{1}{n}\sum_{i=1}^{n}Y_i$ is the mean across all brain voxels for
-  a given timepoint.
+: The covariance between the mean whole-brain signal (i.e. global signal) timecourse
+  and the timeseries at each voxel.
 
 **DR network X**
 : The linear coefficients resulting from the
@@ -179,14 +170,24 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   from the [second regression ${\beta}_{SM}$](DR_target) for dual regression.
 
 **Network specificity**
-: The network map (seed-based or dual regression) and the corresponding
-  canonical network map are thresholded to include the top X% of voxels with
+: The network map for a given analysis (seed-based or dual regression) and a given
+  fMRI scan is compared relative to a reference network map to assess specificity.
+  The reference map is either the original ICA component for dual regression, a
+  manually provided input map with `--seed_prior_list` for seed-based analysis, 
+  or the dataset average itself if selecting `--group_avg_prior`.
+  To compute specificity, both the reference and individual scan network maps
+  are thresholded to retain the top X% of voxels with
   highest connectivity, X% being defined by `--brainmap_percent_threshold`, and
-  the overlap of the thresholded area is computed using Dice overlap. For dual
-  regression, the canonical network map is the original ICA component
-  corresponding to that network, provided with `--prior_maps`. For seed-based
-  connectivity, the reference network maps are provided using
-  `--seed_prior_list`.
+  the overlap of the thresholded area is computed using Dice overlap.
+
+```{important}
+If the reference network map was generate from the dataset average, it is
+important to validate that the average can indeed provide a adequate
+representation of the expected network connectivity. If the reference does
+not represent a network, then the network specificity metric is meaningless.
+The average network used for those computations can be visualized in the 
+[group statistical report](group_stats_target).
+```
 
 **Dual regression confound correlation**
 : The timecourse for a single network, from a seed or from dual regression, is
@@ -225,13 +226,15 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 
 ## Group statistical QC report
 
+These quantities are stored inside the `analysis_QC/*_stats/*_QC_stats.csv` output files.
+
 **Specificity of network variability**
 : As with network specificity in the distribution plot, the network variability
-  map and the corresponding canonical network map are thresholded to include
+  map and the corresponding reference network map are thresholded to include
   the top X% of voxels (X% defined by `--brainmap_percent_threshold`), and the
   overlap is estimated using Dice overlap.
 
 **Mean confound correlation**
 : For each confound correlation map ($CR_{SD}$, mean FD or tDOF), the mean is
-  computed across voxels within the thresholded area of the canonical network
+  computed across voxels within the thresholded area of the reference network
   map, giving a mean correlation within the network's core region.

@@ -136,22 +136,22 @@ timeseries.
 
 (quality_marker_target)=
 
-## The four key quality markers
+## Four categories of quality outcome
 
 ```{figure} ../pics/diagnosis_key_markers.png
-:alt: Four key diagnostic features shown across four categories of scan quality
+:alt: Five key diagnostic features enable identifying four categories of scan quality
 
-Four features across four categories of scan quality.
+Five key diagnostic features enable identifying four categories of scan quality.
 ```
 
 A subset of the features above are the most decisive in determining scan
-quality in relation to connectivity analysis. They are shown here across the 4
-main categories of scan quality.
+quality in relation to connectivity analysis. We examplify here how these 
+can distinguish between 4 main categories of scan quality.
 
 **BOLD variability**
 : Presents a homogeneous contrast in uncorrupted scans, and otherwise reveals
-  the anatomical signature of a confound — which is what allows the type of
-  confound to be identified.
+  the anatomical signature of a confound — this can allow recognizing the type of
+  confound present.
 
 **Global signal covariance**
 : Sensitive to both non-neural confounds (the *spurious* category) and network
@@ -160,16 +160,18 @@ main categories of scan quality.
   most likely contributors to downstream connectivity measures.
 
 **Network map**
-: Shows whether the expected anatomical features of the network are effectively
-  captured, i.e. network specificity. This is what establishes that the network
+: By visualizing the network maps, we can directly intuit whether they 
+  reproduce expected anatomical features of the network of interest.
+  This is what establishes that the network
   is not absent (the *absent* category), and that its shape is not distorted by
   spurious features (the *spurious* category).
 
 **Network and confound timecourses**
-: The respective timecourses reveal direct relationships between network
+: The respective timecourses reveal relationships between network
   amplitude and confounds in the temporal domain. This does not describe the
-  *type* of confound, but it is the most direct indicator of spurious
-  connectivity, and an important complement to inspecting network shape —
+  *type* of confound, but a strong correlation in the temporal domain
+  is the most conclusive indicator of spurious connectivity, 
+  and an important complement to inspecting network shape —
   spurious effects can affect amplitude while leaving shape largely intact.
 
 These 4 features are sufficient to capture the essential characteristics of

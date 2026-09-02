@@ -16,7 +16,8 @@ error — it produces plausible-looking output that is wrong.
 ## Which folders you get
 
 Some folder names carry the name of the workflow that produced them as a
-prefix, and which commonspace folders exist depends on `--commonspace_reg`.
+prefix, and which commonspace folders exist depends on `--bold_only`, 
+`--commonspace_reg`, `--anat_robust_inho_cor` and `--bold_robust_inho_cor`.
 
 ```{list-table}
 :header-rows: 1
@@ -89,7 +90,10 @@ This registration controls the overlap between different scanning sessions.
 ```{figure} ../pics/sub-MFC067_ses-1_acq-FLASH_T1w_inho_cor_registration.png
 :alt: Overlap between a structural scan and the dataset-generated unbiased template
 
-Structural scan (top) against the unbiased template (bottom).
+Structural scan (top) against the unbiased template (bottom). The red lining is 
+an automated edge-detection computed from the **opposite** image - the lining on 
+the top image is computed from the bottom one and vice-versa. This enables 
+conveniently comparing edge-alignment.
 ```
 
 ## `commonspace_reg_wf.Unbiased2Atlas/`
@@ -101,7 +105,8 @@ its associated brain parcellation.
 ```{figure} ../pics/atlas_registration.png
 :alt: Overlap between the unbiased template and the reference atlas template
 
-Unbiased template (top) against the reference atlas template (bottom).
+Unbiased template (top) against the reference atlas template (bottom). The red
+lining on each image is the automated edge-detection computed from the other image.
 ```
 
 ## `commonspace_reg_wf.Anat2Atlas/`
@@ -119,7 +124,8 @@ susceptibility distortions through non-linear registration.
 ```{figure} ../pics/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold_registration.png
 :alt: Overlap between the volumetric EPI and the structural image
 
-Volumetric EPI (top) against the structural image (bottom).
+Volumetric EPI (top) against the structural image (bottom). The red lining on each 
+image is the automated edge-detection computed from the other image.
 ```
 
 ## `template_files/`

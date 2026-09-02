@@ -93,18 +93,3 @@ between them — as in every example above.
 
 `--inclusion_ids` and `--exclusion_ids` cannot be used together.
 ```
-
-## Drop scans after quality control
-
-The two options above are also how you act on a quality control decision. To
-carry out an analysis without scans you have judged unusable, re-run the
-confound correction and analysis stages with `--exclusion_ids` listing them.
-See [How to assess data quality](assess_data_quality.md) for how to arrive at
-that decision, and for `--scan_QC_thresholds`, which excludes scans by
-threshold rather than by name.
-
-```{seealso}
-[Input data requirements](../reference/bids_inputs.md) for how RABIES pairs
-functional scans with anatomical scans, and the
-[`preprocess` options](../reference/cli.md) for the full parameter list.
-```

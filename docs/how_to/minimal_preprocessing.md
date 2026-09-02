@@ -4,15 +4,10 @@ If your functional data was preprocessed with your own pipeline and you only
 want RABIES for confound correction and analysis, you cannot skip the
 preprocessing stage — but you can run it with almost everything turned off.
 
-Running `rabies confound_correction` directly on external data fails with
-missing `.pkl` file errors. Those `.pkl` files are serialised states of the
-internal preprocessing workflow and cannot be written by hand. Even with the
-`.pkl` in place, the confound correction stage expects the full range of files
-produced by preprocessing, so missing file errors would follow.
-
-The practical solution is a *SHAM* preprocessing run, with the correction and
-registration steps disabled. RABIES still computes the intermediary outputs that
-the later stages require, while leaving the image data largely unchanged.
+Because running `rabies confound_correction --read_datasinks` expects the full range of files
+produced by the `preprocess` stage, it is most convenient to produce the required
+intermediary outputs by running a *SHAM* preprocessing run, that minimally modifies
+the input data. 
 
 ## Run a SHAM preprocessing
 
@@ -46,8 +41,6 @@ rabies preprocess bids_inputs/ preprocess_outputs/ \
 If your dataset has no structural scans, add `--bold_only`, in which case
 `--anat_inho_cor` and `--bold2anat_coreg` no longer apply.
 
-## Your data must already be in commonspace
-
 ```{warning}
 `template_registration=no_reg` does not skip the resampling to commonspace — it
 replaces the estimated transform with an identity transform. The commonspace
@@ -59,9 +52,6 @@ If they do not overlap, the commonspace timeseries and the atlas masks
 (`--brain_mask`, `--WM_mask`, `--CSF_mask`, `--vascular_mask`) applied
 downstream will not correspond to your data.
 ```
-
-Confirm your image orientation before you start — see
-[How to check image orientation](check_orientation.md).
 
 ## What still happens
 

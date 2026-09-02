@@ -2,25 +2,23 @@
 
 # How to optimise your confound correction strategy
 
-There is no single correct confound correction strategy. The right one is
-dataset-specific, and the way to find it is to start minimal and add one
-correction at a time, checking after each addition whether the data quality
-reports improved.
+There is no agreed-upon single confound correction strategy for fMRI
+functional connectivity analysis. Designing a confound correction 
+pipeline is navigating a central trade-off: too little signal removal
+risks leaving uncorrected artefacts that corrupt downstream analyses,
+excessive signal removal risks removing signal of interest relating to 
+network activity. The ideal strategy will depend on the extent and 
+nature of artefacts present in a given dataset.
 
-This protocol comes from {cite}`Desrosiers-Gregoire2024-ou`. It assumes you can
+Here is described a protocol introduced by {cite}`Desrosiers-Gregoire2024-ou`
+to navigate these decisions on a per-dataset basis. It assumes you can
 already generate and read the data quality reports — if not, start with
 [How to assess data quality](assess_data_quality.md).
-
-```{important}
-Start minimal and stay minimal for as long as the reports allow. Excessive
-correction removes network activity along with the confounds, and
-over-correction is harder to detect after the fact than under-correction.
-```
 
 ## The protocol
 
 1. **Start with a minimal correction** and generate the data quality reports at
-   the analysis stage. A reasonable minimum is frame censoring on framewise
+   the analysis stage. A reasonable minimum can be frame censoring on framewise
    displacement, regression of the 6 motion parameters, and spatial smoothing:
 
    ```sh
@@ -29,6 +27,12 @@ over-correction is harder to detect after the fact than under-correction.
      --nuisance_regressors mot_6 \
      --smoothing_filter 0.3
    ```
+
+```{Advice}
+Starting minimal is ideal, as excessive
+correction removes network activity along with the confounds, and
+over-correction is harder to detect after the fact than under-correction.
+```
 
 2. **Evaluate the reports**, following
    [How to assess data quality](assess_data_quality.md).

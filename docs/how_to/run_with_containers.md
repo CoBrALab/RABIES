@@ -1,4 +1,4 @@
-# How to run RABIES in a container
+# How to handle container syntax
 
 A container has its own filesystem and cannot see your data unless you say so.
 Running RABIES in a container is therefore the same as running it natively,

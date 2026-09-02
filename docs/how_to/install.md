@@ -88,23 +88,3 @@ on the [Neurodesk platform](https://neurodesk.github.io/), a browser-based
 neuroimaging computing environment with community-maintained prebuilt tools.
 Nothing is installed on your own machine. See the
 [Neurodesk documentation](https://neurodesk.github.io/docs/) to get started.
-
-## The default atlas
-
-RABIES uses the DSURQE mouse atlas and a matching set of masks, labels, ICA
-priors and seeds by default. The container images have these preinstalled. A
-PyPI or development install downloads them into `$XDG_DATA_HOME/rabies`, or
-`~/.local/share/rabies` if `XDG_DATA_HOME` is unset, the first time you run a
-command that needs them.
-
-```{note}
-The first run after a fresh non-container install will therefore pause to
-download several hundred megabytes before any processing starts. This is
-expected, and happens once.
-```
-
-## Install for development
-
-If you intend to modify RABIES rather than just run it, see
-[How to contribute to RABIES](contribute.md), which covers setting up a
-development environment.

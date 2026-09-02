@@ -5,7 +5,7 @@
 ```{figure} ../pics/confound_correction.png
 :alt: Diagram of the RABIES confound correction workflow
 
-The confound correction workflow. Steps are applied in the order shown.
+The confound correction workflow.
 ```
 
 The confound correction workflow brings together a broad set of standard tools
@@ -13,12 +13,12 @@ from the human literature. Each step's implementation follows best practices
 and is structured to prevent the re-introduction of confounds, as recommended
 in {cite}`Power2014-yf` and {cite}`Lindquist2019-lq`.
 
-Every operation is optional except detrending, and a set of operations can be
+Every operation is optional (at minimum the temporal mean is removed), and a set of operations can be
 selected to design a customised workflow.
 
 ```{important}
-There is no universally optimal correction strategy. The right one is
-dataset-specific and should be tuned to address quality issues you have
+There is no universally optimal correction strategy. We provide guidlines for
+tuning the pipeline to address quality issues you can
 actually identified in your data — see
 [Data quality assessment](data_quality.md) and
 [How to optimise your confound correction strategy](../how_to/optimise_confound_correction.md).
@@ -54,9 +54,10 @@ Censoring with DVARS
 
 ## 2. Detrending
 
-`--detrending_order`
+`--detrending`
 
-Linear, or optionally quadratic, trends are removed from the timeseries.
+Detrending is applied at the inputted polynomial order (e.g. 0 only removes the intercept,
+1 for linear, 2 for quadratic, etc).
 Detrended timeseries $\hat{Y}$ are obtained by ordinary least squares (OLS)
 linear regression:
 
@@ -68,9 +69,8 @@ $$
 \hat{Y} = Y - X\beta
 $$
 
-where $Y$ is the timeseries and the predictors are
-$X = [intercept, time, time^2]$, with $time^2$ included only when removing
-quadratic trends.
+where $Y$ is the timeseries and the regressors are the polynomials expansions
+of the time axis, e.g. $X = [intercept, time, time^2]$ for `--detrending order=2`.
 
 ## 3. ICA-AROMA
 
@@ -90,11 +90,11 @@ that would otherwise produce ringing after filtering
 
 `--TR` / `--highpass` / `--lowpass` / `--edge_cutoff`
 
-Simulating censored timepoints
+Spectral interpolation of censored timepoints
 : Frequency filtering needs special handling after frame censoring, because
   conventional filters cannot handle missing data. RABIES implements the method
-  of {cite}`Power2014-yf`, which simulates data points while preserving the
-  frequency composition of the data. It relies on an adaptation of the
+  of {cite}`Power2014-yf`, which interpolates the data while preserving its
+  frequency composition. It relies on an adaptation of the
   Lomb-Scargle periodogram, which estimates the frequency composition of the
   timeseries despite missing data points; from that estimate, missing
   timepoints are simulated with the frequency profile preserved
@@ -105,24 +105,29 @@ Butterworth filter
   a 3rd-order Butterworth filter
   ([`scipy.signal.butter`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html)).
   After filtering, the temporal mask from censoring is re-applied to remove the
-  simulated timepoints.
+  interpolated timepoints.
 
   ```{tip}
-  When applying a highpass filter, remove 30 seconds at each end of the
-  timeseries with `--edge_cutoff` to account for edge artefacts
-  {cite}`Power2014-yf`.
+  Edge artefacts are introduced by standard frequency filters:
+  for a highpass at 0.01Hz, we recommend removing 30 seconds at each end of the
+  timeseries with `--edge_cutoff` {cite}`Power2014-yf`.
   ```
 
 (CR_target)=
 
-## 5. Confound regression
+## 5. Nuisance regression
 
 `--nuisance_regressors`
 
 For each voxel timeseries, a selected set of
 [nuisance regressors](regressor_target) is modelled using OLS linear regression
-and their modelled contribution to the signal is removed. Regressed timeseries
-$\hat{Y}$ are obtained with
+and their modelled contribution to the signal is removed. 
+Prior to carrying the linear regression, a critical implementation strategy in 
+RABIES is to apply the same censoring, detrending and frequency filtering carried 
+in steps 1,2,4 onto the regressors themselves to mitigate the re-introduction 
+of previously corrected confounds, as recommended in {cite}`Power2014-yf` and 
+{cite}`Lindquist2019-lq`.
+After doing so, the regressed timeseries $\hat{Y}$ are obtained with
 
 $$\beta = OLS(X,Y)$$
 
@@ -130,9 +135,9 @@ $$ Y_{CR} = X\beta $$
 
 $$ \hat{Y} = Y - Y_{CR} $$
 
-where $Y$ is the timeseries, $X$ is the set of nuisance timecourses, and
-$Y_{CR}$ is the confound timeseries predicted from the model at each voxel — a
-time-by-voxel 2D matrix.
+where $Y$ is the timeseries, $X$ is the set of nuisance timecourses (censored, detrended
+and filtered), and $Y_{CR}$ is the confound timeseries predicted from the model at each 
+voxel — a time-by-voxel 2D matrix.
 
 ## 6. Intensity scaling
 
@@ -142,20 +147,21 @@ Voxel intensity values should be scaled to improve comparability between scans
 and datasets. The available options:
 
 Grand mean
-: **Recommended.** Timeseries are divided by the mean intensity across the
+: **Default.** Timeseries are divided by the mean intensity across the
   brain, then multiplied by 100 to obtain percent BOLD deviations from the
   mean. The mean intensity of each voxel is derived from the $\beta$
   coefficient of the intercept computed during **Detrending**.
 
 Voxelwise mean
-: As grand mean, but each voxel is independently scaled by its own mean signal.
+: As grand mean, but each voxel is independently scaled by its own intercept from detrending.
 
 Global standard deviation
 : Timeseries are divided by the total standard deviation across all voxel
   timeseries.
 
 Voxelwise standardization
-: Each voxel is divided by its own standard deviation.
+: Each voxel is divided by its own standard deviation to derive z-scored timeseries 
+(i.e. 0-mean and unit standard deviation).
 
 Homogenize variance voxelwise
 : With `--scale_variance_voxelwise`, and only if no voxelwise scaling was

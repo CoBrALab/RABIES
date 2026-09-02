@@ -113,26 +113,31 @@ analysis (`DR`, `SBC` or `NPR`) you can set:
 : `true` to automatically remove scans with outlier network amplitude, which
   can indicate spurious connectivity {cite}`Nickerson2017-gq`.
 
-To pick sensible threshold values, consult the
-[distribution plots](dist_plot_target) and the accompanying CSV file, which
-gives the measures per scan ID.
+**Sensible thresholds values** should be selected by relating scans flagged in 
+step 1. (i.e. that present spurious/absent features in the [spatiotemporal diagnosis](diagnosis_target))
+to their associated `Dice`/`Conf` values listed in the [distribution plots](dist_plot_target) 
+and the accompanying CSV file, which gives the measures per scan ID.
+We do not recommend blindly applying a threshold value listed in a previous
+publication, as legitimate `Dice`/`Conf` values will differ depending
+on the image signal-to-noise ratio and/or preprocessing decision 
+(e.g. applying a lowpass filter will systematically increase `conf` values).
 
 ```{important}
 Scans excluded by `--scan_QC_thresholds` are excluded from the group
-statistical report, so the reports must be regenerated after you set the
-thresholds.
+statistical report, so it is best to regenerate these reports after 
+you set the thresholds.
 ```
 
 ### 3. Check the group level
 
 Consult the [group statistical report](group_stats_target) to identify the main
-driver of connectivity variability across scans, and whether it relates
-primarily to network activity or to confounds.
+driver of connectivity variability across scans, and whether it relates there
+are systematic group-level associations with confound metrics.
 
 ### 4. Revisit confound correction if needed
 
-If significant issues remain, redesign the confound correction stage —
-see [How to optimise your confound correction strategy](optimise_confound_correction.md).
+If significant issues remain, consider redesigning the confound correction 
+stage — see [How to optimise your confound correction strategy](optimise_confound_correction.md).
 
 ```{admonition} These guidelines are not prescriptive
 :class: caution
@@ -147,12 +152,14 @@ evolving.
 
 ## Report your quality control in a publication
 
-Every figure in the report is generated as PNG or SVG and can be shared
-alongside a publication.
+A central motivation for implementing these automatically-generated 
+quality reports is to encourage and improve scientific transparency and
+study comparison. Every figure in the report is generated as PNG or SVG 
+and can be shared alongside a publication.
 
-Share, at minimum:
+We specifically recommend sharing:
 
-- A spatiotemporal diagnosis for each scan used to derive connectivity results.
+- The spatiotemporal diagnosis report from each scan used to derive connectivity results.
 - A group statistical report and its affiliated distribution plot, for each
   group or dataset, if the analysis compares connectivity across subjects
   and/or groups.

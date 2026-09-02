@@ -13,12 +13,6 @@ Suggestions for improvements can be shared through the GitHub
 [issues system](https://github.com/CoBrALab/RABIES/issues) and
 [discussion board](https://github.com/CoBrALab/RABIES/discussions).
 
-```{tip}
-Discuss your proposed changes on the discussion board or in an issue before you
-open a pull request. It is much cheaper to redirect an approach before the code
-is written.
-```
-
 ## Set up a development environment
 
 Install RABIES locally rather than working through a container — testing and

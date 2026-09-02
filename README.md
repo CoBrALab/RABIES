@@ -13,28 +13,25 @@ The preprocessing workflow regroups essential fMRI preprocessing steps prior to 
 - head motion correction
 - susceptibility distortion correction
 - resampling to native or common space
-- brain parcellation
 - slice timing correction (optional)
 - despiking (optional)
 - visual assessment of registration for quality control
 
 ### Confound correction
-Following preprocessing, a range of strategies to correct fMRI confounds (e.g. motion) can then be conducted within RABIES:
-- linear detrending
+Following preprocessing, RABIES provides a highly-customizable confound correction pipeline regrouping several common strategies:
+- frame censoring (or scrubbing)
 - confound regression (with several options for nuisance regressors)
 - frequency filtering (highpass, lowpass, bandpass)
-- frame censoring (or scrubbing)
 - ICA-AROMA
 - spatial smoothing
 
 ### Analysis
-Simple resting-state connectivity analyses are made available after preprocessing and confound correction. RABIES also provides a 'data diagnosis' workflow, which generates several indices of data quality and potential confounds, and conversaly, aims to improve the correction of confounds and transparency with regards to data quality:
+Simple resting-state connectivity analyses are made available after preprocessing and confound correction: 
 - seed-based functional connectivity
 - whole-brain connectivity matrix
 - group-ICA
 - dual regression
-- data diagnosis
-
+Importantly, the analysis stage is also complemented by a data quality assessment report (executed with `--data_diagnosis`), which generates several indices of data quality and potential confounds, with the aim of improving preprocessing stategies, data interpretation and scientific transparency.
 
 ## Notes on software design
 
@@ -44,7 +41,7 @@ Simple resting-state connectivity analyses are made available after preprocessin
 - open source code <https://github.com/CoBrALab/RABIES>
 - standardized input data format with [BIDS](https://bids.neuroimaging.io/)
 - easily shared, automatically-generated visual outputs for quality control
-- containerized distribution of the software hosted on [Docker Hub](https://hub.docker.com/r/gabdesgreg/rabies) which can be downloaded via Docker and Apptainer platforms
+- containerized distribution of the software through Docker/Apptainer, and conveniently installed from our [Github](https://github.com/CoBrALab/RABIES/pkgs/container/rabies) or [Docker Hub](https://hub.docker.com/r/gabdesgreg/rabies) servers.
 
 ## Citation
 
@@ -61,7 +58,3 @@ This software was developped by the [CoBrALab](https://cobralab.ca/), located at
 
 ## Ask for help
 If you need support in using the software or experience issues that are not documented, we'll provide support on the [Github discussion](https://github.com/CoBrALab/RABIES/discussions).
-
-## Contributing to RABIES
-
-**Read our dedicated [documentation](https://rabies.readthedocs.io/en/latest/contributing.html)**

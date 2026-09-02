@@ -61,7 +61,7 @@ Many scans are misregistered, or brain edges are not well matched
   follow the guidance above if the correction or brain masking was poor. If
   good quality masks were obtained during inhomogeneity correction, bring them
   into the registration with `masking=true`. If registration errors persist,
-  particularly at the brain edges, `brain_extraction=true` further constrains
+  particularly at the brain edges, `brain_extraction=true` and `keep_mask_after_extract=true` further constrains
   edge matching by removing tissue outside the brain.
 
   ```{warning}
@@ -74,7 +74,7 @@ Scans have incomplete brain coverage, and surrounding tissue is stretched to fil
 : Non-linear registration assumes corresponding anatomy between the moving
   image and the target. When brain regions are missing — the cerebellum or
   olfactory bulbs are the usual cases — the surrounding tissue may be
-  improperly stretched to fill the missing area. `brain_extraction=true` can
+  improperly stretched to fill the missing area. `brain_extraction=true,keep_mask_after_extract=true` can
   largely mitigate this.
 
 ## When registration cannot be salvaged

@@ -11,9 +11,13 @@ network.
 ```
 
 Inspecting scan-level features is not sufficient to conclude that inter-scan
-*variability* in connectivity is itself unaffected — and that variability is
-what a group analysis is primarily interested in. This report examines
-connectivity variability at the group level, along two axes.
+*variability* in connectivity is itself unaffected — there can be subtle
+but systematic artefactual effects that impact that variability without
+being easily detected from the dataset average or individual maps.
+This variability is the primary driver of results in a conventional
+group statistical designs (e.g. comparing two different experimental groups),
+in which case it is important to also assess these additional aspects of
+data quality.
 
 ## Specificity of network variability
 
@@ -35,14 +39,8 @@ improve the contrast.
 
 ## Correlation with confounds
 
-Connectivity is correlated across subjects, at each voxel, with each of three
-confound measures:
-
-- the variance explained by confound correction at that voxel ($CR_{SD}$, from
-  the [predicted confound timeseries $Y_{CR}$](CR_target))
-- mean framewise displacement (FD)
-- temporal degrees of freedom (tDOF)
-
+Connectivity is correlated across subjects, at each voxel, with each of 
+confound measure listed in the [metric definitions](group_QC_metrics).
 This establishes how strongly connectivity is associated with potential
 confounds. What constitutes a *concerning* correlation depends on the study and
 on the effect size of interest: the question to ask is whether the effect size
@@ -56,10 +54,6 @@ assessment of both aspects. The overlap between the network variability map and
 the reference network map is measured using Dice overlap; for the confound
 measures, the mean correlation is measured within the area of the network. See
 the [group QC metric definitions](group_QC_metrics).
-
-These measures can be consulted for a quantitative summary, though visualisation
-is preferred — the Dice overlap for network variability may not perfectly
-distinguish network features from spurious ones.
 
 ```{important}
 The validity of this report depends on whether the

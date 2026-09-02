@@ -20,7 +20,7 @@ analysis
 
 ## Assessing data quality
 
-Confound correction cannot be designed blind. RABIES generates a set of reports
+RABIES generates a set of reports
 for characterising data quality and its impact on connectivity estimates.
 
 ```{toctree}
