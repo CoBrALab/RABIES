@@ -1,10 +1,9 @@
 # Your first RABIES run
 
 In this tutorial you will take two raw mouse fMRI scans and carry them all the
-way through RABIES: preprocessing, confound correction, and a whole-brain
-connectivity analysis. Along the way you will look at the quality control
-images RABIES produces, so that by the end you will have seen every part of the
-software in action.
+way through the three RABIES stages: `preprocess`, `confound_correction` and `analysis`.
+Along the way you will look at the quality control images RABIES produces, so 
+that by the end you will have seen every part of the software in action.
 
 You do not need to understand every option you type. The point is to build a
 feel for the shape of a RABIES run. Everything you use here is explained
@@ -12,8 +11,7 @@ elsewhere, and this page links to the relevant pages as it goes.
 
 ## What you will end up with
 
-Three output folders that mirror the three stages of the software, and a
-connectivity matrix computed from the two scans:
+Three output folders that mirror the three stages of the software:
 
 ```text
 rabies_tutorial/
@@ -109,10 +107,11 @@ apptainer run \
   -B $PWD/preprocess_outputs:/outputs \
   rabies.sif -p MultiProc \
   preprocess /inputs /outputs \
-  --commonspace_reg masking=true,fast_commonspace=true
+  --anatomical_resampling 0.15x0.15x0.15 \
+  --anat_inho_cor multiotsu=true
 ```
 
-Three things are happening in that command:
+Breakdown of the command:
 
 - `-B $PWD/bids_inputs:/inputs:ro` makes your input folder visible inside the
   container under the name `/inputs`, read-only. The container cannot see any
@@ -120,63 +119,114 @@ Three things are happening in that command:
   `/outputs` rather than the paths on your machine.
 - `-p MultiProc` runs the pipeline in parallel across the cores of your
   machine. Leave it out and everything runs one step at a time.
-- `--commonspace_reg masking=true,fast_commonspace=true` registers each scan
-  straight to the reference atlas. RABIES would otherwise first build a
-  study-specific template out of your scans, which is the better choice for a
-  real study but is not worth it for two subjects.
+- `--anatomical_resampling 0.15x0.15x0.15` commands to resample the images
+  to 0.15mm isotropic resolution for each registration operation. This 
+  resolution is a decent heuristic in practice for a mouse brain to 
+  derive 'good-enough' alignment for standard EPI images while speeding 
+  things up for high resolution structural images. We do not recommend registration 
+  in non-isotropic resolution.
+- `--anat_inho_cor multiotsu=true` activates the multiostu option for inhomogeneity 
+  correction of anatomical images, which carries a more aggressive correction
+  (for most datasets this is not necessary, you should not use this by default, 
+  here it's because this particular dataset has an especially sharp intensity gradient).
 
 You did not specify an atlas. The container comes with the DSURQE mouse atlas
-already installed, and RABIES uses it by default — which is what makes this
-command so short.
+already installed, and RABIES uses it by default (see [built-in template files](../reference/template_files.md)).
 
 Let it run. You will see a stream of Nipype log lines as each node in the
 workflow completes.
 
-## Step 4: Look at the quality control report
+## Step 4: Look at the registration quality control report
 
-This is the step people skip, and it is the one that catches problems. Open the
-report folder:
+This is a **crucial step** in practice — this is where you'll catch alginment issues that can 
+completely break later stages. Open the report folder:
 
 ```sh
 ls preprocess_outputs/preprocess_QC_report/
 ```
 
-Each subfolder holds PNG images for one registration step. Open
-`preprocess_QC_report/commonspace_reg_wf.Anat2Atlas/` first — this is where the
-alignment to the reference atlas landed, because you passed
-`fast_commonspace=true`:
+Each subfolder holds PNG images for one key preprocessing step that requires visual
+quality control (formally documented [here](../reference/qc_outputs.md)). 
+You will go through each subfolder in order, as later steps depend on the success
+of the first ones.
 
-```{figure} ../pics/atlas_registration.png
-:alt: Overlap of the study template on the reference atlas
+1. First open `preprocess_outputs/preprocess_QC_report/anat_inho_cor` which displays
+the inhomogeneity correction step for the structural scans.
 
-The alignment of your data (top) with the reference atlas (bottom). The
+```{figure} ../pics/sub-PHG001_ses-3_acq-RARE_T2w_inho_cor.png
+:alt: Four-column figure showing the stages of structural inhomogeneity correction
+Four panels of the inhomogeneity correction report, representing the initial and
+final iterations of inhomogeneity before/after brain masking.
+```
+Your outputs should ressemble the above example, where brain masking was successfully
+delineating the brain edges, and the prominent intensity gradient in the image is
+properly corrected for (partly thanks to the `multiotsu=true` option we selected
+above).
+
+The success of this inhomogeneity correction is crucial for the registration step
+below, as errors here can leave intensity biases that do not match across images, 
+or even cropped out brains from masking errors.
+
+
+2. Then, you can consult the alignment of each image to the dataset average (of only
+2 scans in this case) within `preprocess_QC_report/commonspace_reg_wf.Anat2Unbiased/`.
+
+```{figure} ../pics/sub-PHG001_ses-3_acq-RARE_T2w_RAS_inho_cor_registration.png
+:alt: Overlap to the study template
+
+The alignment of your data (top) with the study template (bottom). The
 outlines should follow the same anatomy.
 ```
+The alignment here determines whether an entire scanning session is properly aligned
+to common space. An error here will result in bad anatomical masks that impact EPI
+preprocessing steps below, and ultimately misaligned timeseries at the end of preprocessing.
 
-Then open `preprocess_QC_report/EPI2Anat/`, which shows each functional scan
+3. Next, you should validate the registration of the study template to the
+external commonspace template `preprocess_QC_report/commonspace_reg_wf.Unbiased2Atlas/`.
+
+```{figure} ../pics/test_dataset_atlas_registration.png
+:alt: Overlap of the study template on the reference atlas
+
+The alignment of your study template (top) with the external commonspace template (bottom). The
+outlines should follow the same anatomy.
+```
+The alignment to external atlas is the last step that can link up the set of brain masks that are
+then used for inhomogeneity correction/registration of the EPI below, and also regulates the 
+eventual resampling of timeseries to common space.
+
+4. We then move on to the EPI preprocessing steps. You can open the `preprocess_QC_report/bold_inho_cor/`
+folder, where you will validate the inhomogeneity correction of each EPI scan.
+
+```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_inho_cor.png
+:alt: Four-column figure showing the stages of functional inhomogeneity correction
+Same four panels of the inhomogeneity correction report as with the structural scan,
+but now for the EPI scan.
+```
+Again here you should find adequate brain masking and intensity correction. An error here
+would impact the EPI registration below.
+
+5. finally, open `preprocess_QC_report/EPI2Anat/`, which shows each functional scan
 aligned onto its own anatomical scan:
 
-```{figure} ../pics/sub-MFC068_ses-1_task-rest_acq-EPI_run-1_bold_registration.png
+```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_registration.png
 :alt: Overlap of a functional scan on its anatomical scan
 
 The functional image (top) matched to the anatomical image (bottom) from the
 same session. This registration is also what corrects susceptibility
 distortion.
 ```
+It is unlikely that this registration step will work if **any** of the previous
+step failed significantly for a given run/session.
 
-In both figures the brain edges should line up. On this example dataset they
-will. When they do not on your own data, that is a registration failure, and
-[How to troubleshoot registration](../how_to/troubleshoot_registration.md)
-tells you which parameters to change.
-
-Every folder in the report is described in
-[Preprocessing QC outputs](../reference/qc_outputs.md).
+On this example dataset, each preprocessing step should run without error. 
+When they do not on your own data, [How to troubleshoot registration](../how_to/troubleshoot_registration.md)
+tells will orient you with fixing it.
 
 ## Step 5: Correct confounds
 
-Preprocessed data is not yet ready to analyse: head motion and physiological
-noise produce correlations that look exactly like connectivity. The confound
-correction stage removes them.
+Preprocessed data is not yet ready to analyse: the next stage is critical for 
+removing head motion and physiological artefacts that produce correlations 
+that corrupt functional connectivity.
 
 ```sh
 mkdir -p confound_correction_outputs
@@ -187,7 +237,8 @@ apptainer run \
   -B $PWD/confound_correction_outputs:/cc_outputs \
   rabies.sif -p MultiProc \
   confound_correction /outputs /cc_outputs \
-  --nuisance_regressors mot_6 WM_signal CSF_signal \
+  --frame_censoring FD_censoring=true,FD_threshold=0.05 \
+  --nuisance_regressors mot_6 aCompCor_5 \
   --smoothing_filter 0.3
 ```
 
@@ -196,14 +247,17 @@ arguments. Each stage reads the file paths recorded by the previous one, so
 every path used in step 3 has to stay reachable, at the same location, for the
 rest of the pipeline.
 
-The two options you passed:
+The options you passed:
 
-- `--nuisance_regressors mot_6 WM_signal CSF_signal` models the signal using
-  the six head motion parameters plus the mean white-matter and CSF signals,
-  and subtracts what it modelled.
+- `--frame_censoring FD_censoring=true,FD_threshold=0.05` applies censoring
+  of high-motion frames using a 0.05 mm threshold on framewise displacement.
+- `--nuisance_regressors mot_6 aCompCor_5` models the signal using
+  the six head motion parameters plus the first 5 aCompCor principal
+  components derived from the combined WM-CSF masks, and substracts
+  the variance explained by those regressors.
 - `--smoothing_filter 0.3` applies 0.3 mm Gaussian spatial smoothing.
 
-That is a deliberately modest correction. Choosing a correction strategy for a
+That is a relatively modest correction. Choosing a correction strategy for a
 real dataset is its own task, covered in
 [How to optimise your confound correction strategy](../how_to/optimise_confound_correction.md).
 
@@ -212,8 +266,8 @@ The cleaned timeseries land in
 
 ## Step 6: Analyse
 
-Now compute a whole-brain connectivity matrix. RABIES will extract a timecourse
-from every region of the atlas parcellation and correlate every pair:
+Now compute seed-based connectivity using a pre-built seed, and generate data
+quality reports using `--data_diagnosis`:
 
 ```sh
 mkdir -p analysis_outputs
@@ -225,23 +279,44 @@ apptainer run \
   -B $PWD/analysis_outputs:/analysis_outputs \
   rabies.sif -p MultiProc \
   analysis /cc_outputs /analysis_outputs \
-  --FC_matrix --ROI_type parcellated
+  --data_diagnosis \
+  --seed_list SS_frontal_seed 
 ```
 
-Open the result:
+Breakdown of the command:
+- `--seed_list SS_frontal_seed` will use the pre-built seed in the frontal cortex
+  for deriving seed-based connectivity in each scan.
+- `--data_diagnosis` will generate a set of data quality reports associated to the
+  functional connectivity analysis results.
 
-```sh
-ls analysis_outputs/commonspace_analysis_datasink/matrix_fig/
+You have now carried basic functional connectivity analysis, and 
+generated the [scan-level spatiotemporal diagnosis report](../explanation/scan_diagnosis.md)
+for each scan, which you can now open from `analysis_outputs/data_diagnosis_datasink/figure_temporal_diagnosis/` 
+and `analysis_outputs/data_diagnosis_datasink/figure_spatial_diagnosis/` subfolders.
+This report is part of a larger [data quality assessment](../explanation/data_quality.md)
+framework developped for rodent fMRI along with RABIES. Some group-level reports
+were not generated here, as those require at minimum 3 scans.
+It takes time to learn how to read these reports, and some experience to
+interpret them accurately. For the sake of the tutorial, we will simply 
+validate whether we can observe a brain network from seed-based connectivity. Let's open the spatial
+diagnosis report under `analysis_outputs/data_diagnosis_datasink/figure_spatial_diagnosis/`:
+
+```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_spatial_diagnosis.png
+:alt: Tutorial spatial diagnosis report
+Spatial diagnosis report for the first subject.
 ```
+In this report, the resulting seed-based connectivity can be visualized in the 
+last row labelled 'SBC network 0'. We can see in those two example scan that 
+the seed revealed bilateral correlation structure that correspond to 
+the somatomotor network anatomy of the mouse brain. This confirms that
+this network was adequately mapped and measured (although more subtle
+confounding effects could still exist, but that is a question beyond
+the scope of the tutorial).
 
-There is one PNG per scan, showing the correlation between every pair of atlas
-regions. The bright block structure along the diagonal is what functional
-organisation looks like in this representation: regions near each other, and
-regions belonging to the same network, fluctuate together.
-
-The same values are in `commonspace_analysis_datasink/matrix_data_file/` as a `.pkl` file
-holding a 2D NumPy array, with rows and columns ordered by atlas label number,
-ready to take into your own statistics.
+These connectivity maps are saved and can be accessed as Nifti files 
+in the `analysis_outputs/commonspace_analysis_datasink/seed_correlation_maps`
+output folder, and could be fed into downstream statistical analyses in an
+actual experiment.
 
 ## What you have done
 
@@ -252,11 +327,9 @@ raw scans. Specifically, you:
 - preprocessed two subjects, registering them into a common atlas space
 - inspected the registration quality control images
 - removed motion and physiological confounds from the timeseries
-- computed a whole-brain connectivity matrix
-
-Run through it a second time on the same data. The commands will make more
-sense the second time, and the whole sequence will take you a few minutes of
-typing.
+- computed a seed-based connectivity on each scan
+- confirmed the mapping of the somatomotor network using the scan-level
+  diagnostic report
 
 ## Where to go next
 
@@ -272,4 +345,4 @@ make:
   and [How to assess data quality](../how_to/assess_data_quality.md).
 - To understand what the preprocessing actually did, read
   [The preprocessing workflow](../explanation/preprocessing.md).
-```
+
