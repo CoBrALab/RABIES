@@ -14,6 +14,7 @@ maxdepth: 1
 install
 run_with_containers
 select_scans
+change_template
 ```
 
 ## Getting good results out of it

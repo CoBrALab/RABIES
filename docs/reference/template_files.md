@@ -17,3 +17,9 @@ The EPI template then inherited all mask and label files from the DSURQE atlas t
 
 Providing an EPI template as target greatly improves the robustness of EPI registration, since image contrast and
 shape is much more similar. 
+
+
+```{seealso}
+[How to override the default common space template](../how_to/change_template.md) for
+customising the input template and associated files.
+```
