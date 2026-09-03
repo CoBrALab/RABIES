@@ -38,6 +38,47 @@ MAPPING_NAME = {
     }
 
 
+ATTRIBUTION = """RABIES rat commonspace template set
+===================================
+
+Derived from the SIGMA Wistar rat brain templates and atlases, version 2.0,
+distributed under the Creative Commons Attribution 4.0 International licence
+(CC-BY-4.0).
+
+  Source:  https://github.com/DavidBarriere/SIGMA-Rat-Brain-Templates-and-Atlases
+  Archive: https://zenodo.org/records/10635831
+
+Please cite:
+
+  Barriere, D.A. et al. The SIGMA rat brain templates and atlases for multimodal
+  MRI data analysis and visualization. Nature Communications 10, 5699 (2019).
+  https://doi.org/10.1038/s41467-019-13575-7
+
+The parcellation embedded in SIGMA is the Waxholm Space atlas of the rat brain,
+normalized into SIGMA space by the SIGMA authors. Please also cite:
+
+  Kleven, H. et al. Waxholm Space atlas of the rat brain: a 3D atlas supporting
+  data analysis and integration. Nature Methods 20, 1822-1829 (2023).
+  https://doi.org/10.1038/s41592-023-02034-3
+
+Modifications made for RABIES
+-----------------------------
+
+Produced with scripts/gen_SIGMA_masks.py from the RABIES repository:
+
+  * The probabilistic white matter and CSF maps were thresholded at {tissue_threshold} to give
+    the binary masks RABIES requires. The anatomical masks were then eroded by
+    {erosion_iterations} iteration(s); the functional ones were not, since that grid is too coarse
+    to erode without emptying the CSF mask.
+  * The distributed brain masks were re-binarized at {mask_threshold}.
+  * The ITK-SNAP label descriptions were converted to CSV.
+  * The templates and atlas label images are unmodified copies.
+
+Only the in-vivo anatomical and functional resources are included. The ex-vivo,
+diffusion and CT/PET resources of the SIGMA release are not redistributed here.
+"""
+
+
 def find_file(sigma_dir, name):
     # SIGMA releases nest the files in modality folders whose layout has changed
     # between versions, so the files are located by name
@@ -121,6 +162,13 @@ def main():
     opts = parser.parse_args()
 
     os.makedirs(opts.out_dir, exist_ok=True)
+
+    # CC-BY requires attribution to travel with the redistributed files
+    with open(os.path.join(opts.out_dir, 'ATTRIBUTION.txt'), 'w') as handle:
+        handle.write(ATTRIBUTION.format(
+            tissue_threshold=opts.tissue_threshold,
+            mask_threshold=opts.mask_threshold,
+            erosion_iterations=opts.erosion_iterations))
 
     for variant in VARIANTS:
         prefix = f'SIGMA_InVivo_{variant}_Brain'
