@@ -164,6 +164,9 @@ def resolve_options(opts, log):
     # The roles the user provided are recorded first, since the loop below overwrites
     # them with the resolved files.
     provided = [role for role in PREPROCESS_ROLES if getattr(opts, role) is not None]
+    # recorded for the analysis stage, which cannot use the set's atlas files when the
+    # data was registered to a template from elsewhere
+    opts.custom_anat_template = 'anat_template' in provided
 
     if 'anat_template' in provided and 'brain_mask' not in provided:
         raise ValueError("--anat_template was provided, but not --brain_mask "
