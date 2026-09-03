@@ -184,7 +184,7 @@ def confound_correction_boilerplate(opts):
             methods+=f"Using the DVARS measure[{references[power2012]}] of temporal fluctuations in global signal, timepoints presenting outlier DVARS values, characteristic of confounds, were removed. \
 This was conducted by iteratively removing frames which present outlier DVARS values above or below 2.5 standard deviations until no more outliers are detected. "
         if opts.match_number_timepoints:
-            methods+=f"Following censoring, only a total of {opts.frame_censoring['minimum_timepoint']} frames was retained in each scan through random selection among the remaining frames. This was done \
+            methods+=f"Following censoring, only a total of {opts.match_number_timepoints} frames was retained in each scan through random selection among the remaining frames. This was done \
 to enforce equal degrees of freedom across scans despite an inconsistent number of frames removed through censoring. "
 
         methods+="Next, "
