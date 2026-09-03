@@ -729,7 +729,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'DR network {i}', fontsize=30, color='white')
+            ax.set_title(f'DR network #{i+1}', fontsize=30, color='white')
 
     for i in range(len(SBC_maps)):
         axes = axes2[i+4+dr_maps.shape[0], :]
@@ -747,7 +747,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
             cbar.set_label("Pearson r", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'SBC network {i}', fontsize=30, color='white')
+            ax.set_title(f'SBC network #{i+1}', fontsize=30, color='white')
 
     for i in range(len(NPR_maps)):
         axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
@@ -765,6 +765,6 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
             cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
-            ax.set_title(f'NPR network {i}', fontsize=30, color='white')
+            ax.set_title(f'NPR network #{i+1}', fontsize=30, color='white')
 
     return fig2
