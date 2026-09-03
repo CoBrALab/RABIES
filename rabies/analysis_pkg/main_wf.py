@@ -114,7 +114,13 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     data_diagnosis_datasink = pe.Node(DataSink(base_directory=analysis_output,
                                          container="data_diagnosis_datasink"),
                                 name="data_diagnosis_datasink")
-    
+    data_diagnosis_datasink.inputs.regexp_substitutions = [
+        # flatten the per-scan subfolder nipype creates for these two figure outputs
+        (r'/(figure_spatial_diagnosis|figure_temporal_diagnosis)/_split_name_[^/]+/', r'/\1/'),
+        # collapse the dataset_diagnosis/<internal dir> wrapper so contents land flush
+        (r'/dataset_diagnosis/dataset_diagnosis_folder$', '/dataset_diagnosis'),
+    ]
+
     '''
     CORE WORKFLOW CONNECTIONS
     '''
@@ -323,7 +329,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (diagnosis_wf, data_diagnosis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
                 ("outputnode.figure_spatial_diagnosis", "figure_spatial_diagnosis"),
-                ("outputnode.analysis_QC", "analysis_QC"),
+                ("outputnode.dataset_diagnosis_folder", "dataset_diagnosis"),
                 ("outputnode.temporal_info_csv", "temporal_info_csv"),
                 ("outputnode.spatial_VE_nii", "spatial_VE_nii"),
                 ("outputnode.temporal_std_nii", "temporal_std_nii"),

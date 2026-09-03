@@ -150,8 +150,8 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
-    analysis_QC = traits.Str(
-        exists=True, desc="Output figure from the analysis QC.")
+    dataset_diagnosis_folder = traits.Str(
+        exists=True, desc="Output folder from the dataset diagnosis.")
 
 
 class DatasetDiagnosis(BaseInterface):
@@ -172,8 +172,13 @@ class DatasetDiagnosis(BaseInterface):
 
         figure_format = self.inputs.figure_format
 
-        out_dir_global = os.path.abspath('analysis_QC/')
+        out_dir_global = os.path.abspath('dataset_diagnosis_folder/')
         os.makedirs(out_dir_global, exist_ok=True)
+
+        # the output is always the content of this folder
+        setattr(self, 'dataset_diagnosis_folder',
+                out_dir_global)
+
         out_dir_parametric = out_dir_global+'/parametric_stats/'
         os.makedirs(out_dir_parametric, exist_ok=True)
         out_dir_non_parametric = out_dir_global+'/non_parametric_stats/'
@@ -187,8 +192,6 @@ class DatasetDiagnosis(BaseInterface):
             log = logging.getLogger('nipype.workflow')
             log.warning(
                 "Cannot run statistics on a sample size smaller than 3, so dataset diagnosis is not run.")
-            setattr(self, 'analysis_QC',
-                    out_dir_global)
             return runtime
 
         template_file = merged[0]['anat_ref_file']
@@ -248,7 +251,7 @@ class DatasetDiagnosis(BaseInterface):
                     DR_conf_corr_dict[key].append(corr_list)
  
         # save the list of the scan names that were included in the group statistics
-        pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/analysis_QC_scanlist.txt', index=None, header=False)
+        pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/data_diagnosis_scanlist.txt', index=None, header=False)
 
         from rabies.utils import recover_3D
         std_maps=np.array(std_maps)
@@ -451,12 +454,10 @@ class DatasetDiagnosis(BaseInterface):
 
                     analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
-        setattr(self, 'analysis_QC',
-                out_dir_global)
         return runtime
 
     def _list_outputs(self):
         return {
-            'analysis_QC': getattr(self, 'analysis_QC'),
+            'dataset_diagnosis_folder': getattr(self, 'dataset_diagnosis_folder'),
             }
 
