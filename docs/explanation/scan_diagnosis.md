@@ -88,12 +88,14 @@ The features are detailed below. For the exact computation behind each one, see
 **Mean amplitude of network vs confound timecourses**
 : The averaged timecourses for network analyses and for confound sources are
   compared, to assess whether network amplitude is spurious — that is,
-  correlated with the confound timecourse. Confound timecourses are modelled by
-  running dual regression with a complete set of ICA components representing a
-  mixture of networks and confounds of various origins, and compiling the
-  timecourses from the confound components. RABIES uses
+  correlated with the confound timecourse. This panel is only available when
+  `--DR_ICA` is enabled: confound timecourses are modelled by running dual
+  regression with a complete set of ICA components representing a mixture of
+  networks and confounds of various origins, and compiling the timecourses
+  from the confound components. RABIES uses
   [this set](https://zenodo.org/records/19069284/files/melodic_IC.nii.gz) of
-  ICA components for mice by default.
+  ICA components for mice by default, when the default `--anat_template` is
+  used at preprocessing.
 
 ### Spatial features, top to bottom
 
