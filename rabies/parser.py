@@ -70,6 +70,26 @@ def get_parser():
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
 
+    install = subparsers.add_parser("install",
+        help=
+            "\n"
+            "Download and install a set of commonspace template files. The mouse set is \n"
+            "installed automatically the first time it is needed, but the rat set is not, \n"
+            "and must be installed with this command. Use it to populate the template cache \n"
+            "ahead of time when the machine running the pipeline has no network access.\n"
+            "\n",
+        formatter_class=argparse.RawTextHelpFormatter)
+    install.add_argument(
+        'template_set', action='store', type=str,
+        choices=templates.TEMPLATE_SET_NAMES+['all'],
+        help=
+            "The template set to install, or 'all' to install every set.\n"
+            + templates.describe_sets() +
+            "Files are installed under $XDG_DATA_HOME/rabies, or ~/.local/share/rabies \n"
+            "when XDG_DATA_HOME is unset. Sets that are already complete are left alone.\n"
+            "\n"
+        )
+
     ####Execution
     g_execution = parser.add_argument_group(
         title='Execution Options', 
