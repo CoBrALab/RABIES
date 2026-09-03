@@ -197,6 +197,72 @@ def resolve_template_files(opts, log):
         log.info(f"    --{role}: {opt_file if opt_file is not None else 'not available'}")
 
 
+# an input more than this many times larger or smaller than the template it is
+# registered to is not the species the template describes; a rat brain is about
+# twice a mouse brain along each axis
+SCALE_CHECK_UPPER = 1.75
+SCALE_CHECK_LOWER = 0.55
+
+
+def image_extent(file):
+    # largest physical dimension of an image, in mm
+    img = sitk.ReadImage(file)
+    return max([spacing*size for spacing,size
+                in zip(img.GetSpacing()[:3], img.GetSize()[:3])])
+
+
+def find_reference_scan(bids_dir, bold_only):
+    # first input image found, used to compare the size of the data against the template
+    modality = 'func' if bold_only else 'anat'
+    scans = sorted(pathlib.Path(bids_dir).glob(f'sub-*/**/{modality}/*.nii*'))
+    if len(scans)==0: # datasets without sessions, or without the expected modality folder
+        scans = sorted(pathlib.Path(bids_dir).glob('sub-*/**/*.nii*'))
+    return str(scans[0]) if len(scans)>0 else None
+
+
+def check_template_scale(opts, log):
+    # registering data to the template of another species does not fail, it produces
+    # meaningless outputs, so the size mismatch is caught before the workflow is built
+    if opts.skip_scale_check:
+        return
+
+    scan = find_reference_scan(opts.bids_dir, opts.bold_only)
+    if scan is None:
+        log.warning("No input image was found to compare against the template size; "
+                    "skipping the size check.")
+        return
+
+    ratio = image_extent(scan)/image_extent(opts.anat_template)
+    if ratio > SCALE_CHECK_UPPER or ratio < SCALE_CHECK_LOWER:
+        other_sets = [name for name in templates.TEMPLATE_SET_NAMES if not name==opts.template_set]
+        raise ValueError(
+            f"The input image {scan} is {ratio:.1f} times the size of the commonspace "
+            f"template selected with --template_set {opts.template_set}. This usually means "
+            f"the data comes from another species; the other available sets are {other_sets}. "
+            "If the data and the template do match, re-run with --skip_scale_check.")
+
+
+def check_inherited_template_set(opts):
+    # --inherit_unbiased_template overrides the template files with those of a previous
+    # run, so an explicitly selected set that disagrees with that run would be silently
+    # discarded and the data registered to the wrong space
+    cli_file = f'{opts.inherit_unbiased_template}/rabies_preprocess.pkl'
+    if not os.path.isfile(cli_file):
+        raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} "
+                         "does not contain a rabies_preprocess.pkl file.")
+    with open(cli_file, 'rb') as handle:
+        inherited_opts = pickle.load(handle)
+    inherited_set = get_template_set(inherited_opts)
+
+    if opts.explicit_template_set and not opts.template_set==inherited_set:
+        raise ValueError(
+            f"--template_set {opts.template_set} was selected, but "
+            f"--inherit_unbiased_template inherits the template files of a run that used "
+            f"the {inherited_set} set, and those files take precedence. Run with "
+            f"--template_set {inherited_set}, or without --inherit_unbiased_template.")
+    opts.template_set = inherited_set
+
+
 def preprocess(opts, log):
 
     if not os.path.isdir(opts.bids_dir):
@@ -205,8 +271,16 @@ def preprocess(opts, log):
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(str(opts.bids_dir)))
     
+    if not opts.inherit_unbiased_template=='none':
+        opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
+        if not os.path.isdir(opts.inherit_unbiased_template):
+            raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exist.")
+        # resolved before the template files, since the inherited run fixes which set is used
+        check_inherited_template_set(opts)
+
     require_template_set(opts.template_set, log)
     resolve_template_files(opts, log)
+    check_template_scale(opts, log)
 
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
@@ -222,11 +296,6 @@ def preprocess(opts, log):
                 check_binary_masks(opt_file)
             check_template_overlap(opts.anat_template, opt_file)
             setattr(opts, opt_key, opt_file)
-
-    if not opts.inherit_unbiased_template=='none':
-        opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
-        if not os.path.isdir(opts.inherit_unbiased_template):
-            raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exist.")
 
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
