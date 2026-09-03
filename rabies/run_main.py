@@ -8,34 +8,6 @@ from .parser import get_parser,read_parser
 from .preprocess_pkg.utils import convert_to_RAS
 from . import templates
 
-# setting all default template files
-if 'XDG_DATA_HOME' in os.environ.keys():
-    rabies_path = os.environ['XDG_DATA_HOME']+'/rabies'
-else:
-    rabies_path = os.environ['HOME']+'/.local/share/rabies'
-
-DSURQE_ANAT=f"{rabies_path}/DSURQE_40micron_average.nii.gz"
-DSURQE_MASK=f"{rabies_path}/DSURQE_40micron_mask.nii.gz"
-DSURQE_WM=f"{rabies_path}/DSURQE_40micron_eroded_WM_mask.nii.gz"
-DSURQE_CSF=f"{rabies_path}/DSURQE_40micron_eroded_CSF_mask.nii.gz"
-DSURQE_VASC=f"{rabies_path}/vascular_mask.nii.gz"
-DSURQE_LABELS=f"{rabies_path}/DSURQE_40micron_labels.nii.gz"
-DSURQE_MAPPINGS=f"{rabies_path}/DSURQE_40micron_R_mapping.csv"
-DSURQE_ICA=f"{rabies_path}/melodic_IC.nii.gz"
-
-EPICOMMON_ANAT=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_template.nii.gz"
-EPICOMMON_MASK=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_brain_mask.nii.gz"
-EPICOMMON_WM=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_WM_mask.nii.gz"
-EPICOMMON_CSF=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_CSF_mask.nii.gz"
-EPICOMMON_VASC=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_vascular_mask.nii.gz"
-EPICOMMON_LABELS=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/EPICOMMON_labels.nii.gz"
-EPICOMMON_ICA=f"{rabies_path}/EPICOMMON/EPICOMMON_atlas/melodic_IC_resampled.nii.gz"
-
-RABIES_SEED_NAMES = [
-        'ACA_seed', 'ECT_AI_seed', 'HY_seed', 'ORB_limbic_seed', 'SS_frontal_seed', 
-        'AMYG_seed', 'RSP_seed', 'THAL_seed', 'basal_ganglia_seed', 'HIP_seed', 
-        'MO_seed', 'SS_dorsal_seed', 'VIS_seed']
-
 def execute_workflow(args=None, return_workflow=False):
     # generates the parser CLI and execute the workflow based on specified parameters.
     parser = get_parser()
@@ -194,6 +166,35 @@ def prep_logging(opts, output_folder):
     return log
 
 
+def resolve_template_files(opts, log):
+    # Fill in the template files that the user did not provide from the selected
+    # --template_set. A file given explicitly overrides the one from the set; a role
+    # that neither provides is left as None, which blocks the downstream operations
+    # depending on it while still allowing preprocessing to run.
+    if opts.anat_template is not None and opts.brain_mask is None:
+        raise ValueError("--anat_template was provided, but not --brain_mask "
+                         "- it is necessary to provide a brain mask matching the template.")
+
+    for role in templates.PREPROCESS_ROLES:
+        opt_file = getattr(opts, role)
+        if opt_file is not None:
+            # make sure we have absolute paths
+            setattr(opts, role, os.path.abspath(opt_file))
+            log.info(f'--{role} overrides the file from --template_set {opts.template_set}.')
+            continue
+        if opts.anat_template is not None and not role=='anat_template':
+            # the set's masks do not match a user-provided template, so they are not used
+            setattr(opts, role, None)
+            continue
+        setattr(opts, role, templates.resolve(opts.template_set, role, bold_only=opts.bold_only))
+
+    log.info(f"COMMONSPACE TEMPLATE SET: {opts.template_set}"
+             + (" (--bold_only EPI variant)" if opts.bold_only else ""))
+    for role in templates.PREPROCESS_ROLES:
+        opt_file = getattr(opts, role)
+        log.info(f"    --{role}: {opt_file if opt_file is not None else 'not available'}")
+
+
 def preprocess(opts, log):
 
     if not os.path.isdir(opts.bids_dir):
@@ -202,39 +203,7 @@ def preprocess(opts, log):
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(str(opts.bids_dir)))
     
-    # if the default template is not used, then brain mask input is required, 
-    # and other optional files are set to None if no input was provided 
-    # to block downstream operations dependent on those inputs, but allow preprocessing nevertheless
-    if not str(opts.anat_template)==DSURQE_ANAT:
-        if str(opts.brain_mask)==DSURQE_MASK:
-            raise ValueError("The default anatomical template was changed, but not the brain mask "
-                             "- it is necessary to provide a new brain mask matching the template.")
-        # make sure we have absolute paths
-        opts.anat_template = os.path.abspath(opts.anat_template)
-        opts.brain_mask = os.path.abspath(opts.brain_mask)
-        
-        for opt_key,default_file in zip(['WM_mask','CSF_mask','vascular_mask'],
-                                         [DSURQE_WM,DSURQE_CSF,DSURQE_VASC]):
-            
-            opt_file = getattr(opts, opt_key)
-            if str(opt_file)==default_file:
-                opt_file=None
-            else:
-                opt_file = os.path.abspath(opt_file) # make sure we have absolute paths
-            setattr(opts, opt_key, opt_file)
-    else:
-        opts.anat_template = os.path.abspath(opts.anat_template)
-        opts.brain_mask = os.path.abspath(opts.brain_mask)
-
-    # if --bold_only, the default atlas files change to EPI versions
-    if opts.bold_only:
-        for opt_key,default_file,EPI_file in zip(['anat_template','brain_mask','WM_mask','CSF_mask','vascular_mask'],
-                                         [DSURQE_ANAT, DSURQE_MASK, DSURQE_WM,DSURQE_CSF,DSURQE_VASC],
-                                         [EPICOMMON_ANAT, EPICOMMON_MASK, EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC]):
-            opt_file = getattr(opts, opt_key)
-            if str(opt_file)==default_file:
-                setattr(opts, opt_key, EPI_file)
-                log.info(f'With --bold_only, default --{opt_key} changed to {EPI_file}')
+    resolve_template_files(opts, log)
 
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
@@ -314,6 +283,12 @@ def confound_correction(opts, log):
     return workflow
 
 
+def get_template_set(preprocess_opts):
+    # runs preprocessed before --template_set existed carry no such attribute, and
+    # were necessarily run with the mouse files that were the only ones available
+    return getattr(preprocess_opts, 'template_set', 'mouse')
+
+
 def analysis(opts, log):
 
     cli_file = f'{opts.confound_correction_out}/rabies_confound_correction.pkl'
@@ -325,15 +300,21 @@ def analysis(opts, log):
         preprocess_opts = pickle.load(handle)
 
     labels_file = opts.ROI_labels_file
-    if str(labels_file)==DSURQE_LABELS:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
-            pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
-            file=EPICOMMON_LABELS
-            opts.ROI_labels_file=EPICOMMON_LABELS
-            log.info('With --bold_only, default --ROI_labels_file changed to '+file)
-        else:
-            opts.ROI_labels_file = None # set to None so that no computation is attempted using the labels
+    # the template set is fixed at preprocessing; analysis files default to that same set
+    # so that they are guaranteed to live in the commonspace the data was registered to
+    template_set = get_template_set(preprocess_opts)
+    bold_only = preprocess_opts.bold_only
+
+    if labels_file is None:
+        # files distributed with a template set are already aligned with its template,
+        # so they are used as-is rather than converted and checked against it
+        opts.ROI_labels_file = templates.resolve(template_set, 'labels', bold_only=bold_only)
+        if opts.ROI_labels_file is None:
+            # left as None so that no computation is attempted using the labels
+            log.info(f"The {template_set} template set provides no labels file; "
+                     "operations depending on --ROI_labels_file are disabled.")
+        elif bold_only:
+            log.info('With --bold_only, default --ROI_labels_file changed to '+opts.ROI_labels_file)
     else:
         if not os.path.isfile(labels_file):
             raise ValueError(f"--ROI_labels_file file {labels_file} doesn't exist.")
@@ -343,29 +324,27 @@ def analysis(opts, log):
         check_template_overlap(preprocess_opts.anat_template, labels_file)
         opts.ROI_labels_file = labels_file
 
-    if not os.path.isfile(str(opts.prior_maps)):
-        raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exist.")
-
-    if str(opts.prior_maps)==DSURQE_ICA:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
-            pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
-            file=EPICOMMON_ICA
-            opts.prior_maps=file
-            log.info('With --bold_only, default --prior_maps changed to '+file)
-        else:
-            opts.prior_maps = None # a custom --anat_template was used, so the default prior maps (fit to the RABIES template) no longer apply
+    if opts.prior_maps is None:
+        # the default prior maps are those of the template set used during preprocessing;
+        # a set that provides none leaves them unset, and the analysis workflow raises if
+        # an analysis requiring them was selected
+        opts.prior_maps = templates.resolve(template_set, 'prior_maps', bold_only=bold_only)
+        if opts.prior_maps is None:
+            log.info(f"The {template_set} template set provides no ICA prior maps; "
+                     "operations depending on --prior_maps are disabled.")
+        elif bold_only:
+            log.info('With --bold_only, default --prior_maps changed to '+opts.prior_maps)
     else:
+        if not os.path.isfile(str(opts.prior_maps)):
+            raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exist.")
         opts.prior_maps = os.path.abspath(str(opts.prior_maps))
-        
+
     seed_file_list = []
     seed_name_list = []
+    prebuilt_seeds = templates.seed_names(template_set)
     for seed in opts.seed_list:
-        if seed in RABIES_SEED_NAMES:
-            if preprocess_opts.bold_only:
-                seed_file = f'{rabies_path}/DSURQE_seeds/EPICOMMON_resampled/{seed}_left_EPICOMMON_resampled.nii.gz'
-            else:
-                seed_file = f'{rabies_path}/DSURQE_seeds/{seed}_left.nii.gz'
+        if seed in prebuilt_seeds:
+            seed_file = templates.seed_file(template_set, seed, bold_only=bold_only)
             seed_name = seed
         else:
             seed_file = pathlib.Path(seed).resolve() # convert to absolute path

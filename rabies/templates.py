@@ -30,7 +30,7 @@ MOUSE_SEED_NAMES = [
 
 TEMPLATE_SETS = {
     'mouse': {
-        'description': "DSURQE mouse atlas (https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases)",
+        'description': "DSURQE mouse atlas (https://www.mouseimaging.ca/repo/DSURQE_40micron/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/)",
         # the mouse set is installed on demand at the start of every run
         'auto_install': True,
         'install_script': 'install_DSURQE.sh',
@@ -99,6 +99,12 @@ TEMPLATE_SETS = {
     }
 
 TEMPLATE_SET_NAMES = list(TEMPLATE_SETS.keys())
+
+
+def describe_sets():
+    """Return a help-text listing of the available template sets."""
+    return ''.join([f"* {name}: {TEMPLATE_SETS[name]['description']}\n"
+                    for name in TEMPLATE_SET_NAMES])
 
 
 def get_variant(template_set, bold_only=False):
