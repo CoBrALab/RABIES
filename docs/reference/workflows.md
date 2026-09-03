@@ -12,28 +12,6 @@ workflow is for and why it exists, see
 
 ## Preprocessing
 
-(wf_inho_correction)=
-
-### `rabies.preprocess_pkg.inho_correction.init_inho_correction_wf`
-
-[Source](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/inho_correction.py)
-
-```{literalinclude} ../../rabies/preprocess_pkg/inho_correction.py
-:start-after: inho_correction_head_start
-:end-before: inho_correction_head_end
-```
-
-(wf_commonspace_reg)=
-
-### `rabies.preprocess_pkg.commonspace_reg.init_commonspace_reg_wf`
-
-[Source](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/commonspace_reg.py)
-
-```{literalinclude} ../../rabies/preprocess_pkg/commonspace_reg.py
-:start-after: commonspace_wf_head_start
-:end-before: commonspace_wf_head_end
-```
-
 (wf_bold_ref)=
 
 ### `rabies.preprocess_pkg.bold_ref.init_bold_reference_wf`
@@ -65,6 +43,28 @@ workflow is for and why it exists, see
 ```{literalinclude} ../../rabies/preprocess_pkg/hmc.py
 :start-after: motion_param_head_start
 :end-before: motion_param_head_end
+```
+
+(wf_inho_correction)=
+
+### `rabies.preprocess_pkg.inho_correction.init_inho_correction_wf`
+
+[Source](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/inho_correction.py)
+
+```{literalinclude} ../../rabies/preprocess_pkg/inho_correction.py
+:start-after: inho_correction_head_start
+:end-before: inho_correction_head_end
+```
+
+(wf_commonspace_reg)=
+
+### `rabies.preprocess_pkg.commonspace_reg.init_commonspace_reg_wf`
+
+[Source](https://github.com/CoBrALab/RABIES/blob/master/rabies/preprocess_pkg/commonspace_reg.py)
+
+```{literalinclude} ../../rabies/preprocess_pkg/commonspace_reg.py
+:start-after: commonspace_wf_head_start
+:end-before: commonspace_wf_head_end
 ```
 
 (wf_cross_modal_reg)=

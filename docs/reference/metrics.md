@@ -68,7 +68,7 @@ Selected with `--nuisance_regressors` at the confound correction stage.
 : For each timepoint, this is the displacement between
   the current and the previous frame, averaged over all brain voxels. 
   For each brain voxel within the referential
-  space for head realignment (i.e. the [3D EPI](3D_EPI_target) provided as reference
+  space for head realignment (i.e. the [3D EPI](wf_bold_ref) provided as reference
   for realignment) and for each timepoint, the inverse transform of the head
   motion parameters from the corresponding timepoint is applied to obtain the
   voxel position pre-motion correction. Framewise displacement is then computed
