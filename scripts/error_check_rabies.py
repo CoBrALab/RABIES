@@ -41,6 +41,12 @@ def get_parser():
             "Test whether registration steps are functional. This is not part of the main series of tests, since this takes much longer."
         )
     parser.add_argument(
+        '--template_set', action='store', type=str, default='mouse',
+        help=
+            "Generate the token data from this template set, and run the pipeline against it.\n"
+            "The set must be installed; see `rabies install`.\n"
+        )
+    parser.add_argument(
         '--output_dir', action='store', type=str,
         help=
             "Provide an output directory instead of using a temporary directory.\n"
@@ -73,7 +79,7 @@ if opts.output_dir is None:
 else:
     tmppath = opts.output_dir
 
-generate_token_data(tmppath, number_scans=3)
+generate_token_data(tmppath, number_scans=3, template_set=opts.template_set)
 
 if not opts.custom is None:
     minimal_preproc = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
