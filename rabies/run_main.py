@@ -419,7 +419,7 @@ def check_binary_masks(mask):
 def check_template_overlap(template, mask):
     template_img = sitk.ReadImage(template)
     mask_img = sitk.ReadImage(mask)
-    if not template_img.GetOrigin() == mask_img.GetOrigin() and template_img.GetDirection() == mask_img.GetDirection():
+    if not (template_img.GetOrigin() == mask_img.GetOrigin() and template_img.GetDirection() == mask_img.GetDirection()):
         raise ValueError(
             f"The file {mask} does not appear to overlap with provided template {template}.")
 
