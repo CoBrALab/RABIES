@@ -212,7 +212,7 @@ class CleanImage(BaseInterface):
                 FD_threshold=cr_opts.frame_censoring['FD_threshold'], 
                 DVARS_censoring=cr_opts.frame_censoring['DVARS_censoring'], 
                 MSE_censoring=cr_opts.frame_censoring['MSE_censoring'], 
-                minimum_timepoint=cr_opts.frame_censoring['minimum_timepoint'],
+                censoring_percent_exclusion=cr_opts.frame_censoring['censoring_percent_exclusion'],
                 TR=cr_opts.TR,
                 detrending_order=cr_opts.detrending['order'], 
                 detrending_time_interval=cr_opts.detrending['time_interval'], 
@@ -308,7 +308,7 @@ class CleanImage(BaseInterface):
 def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
                 timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, 
-                DVARS_censoring=False, MSE_censoring=False, minimum_timepoint=3, TR='auto',
+                DVARS_censoring=False, MSE_censoring=False, censoring_percent_exclusion=0, TR='auto',
                 detrending_order=1, detrending_time_interval='0-end', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
                 match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
@@ -360,9 +360,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     MSE_censoring : bool, default=False
         Whether to apply MSE censoring.
 
-    minimum_timepoint : int, default=3
-        Minimum number of frames left post-cleaning, otherwise returns None.
-
+    censoring_percent_exclusion : int, default=0
+        Sets a minimum percentage of frames that must be left after censoring, otherwise returns None.
+        
     TR : str, default='auto'
         The repetition time in seconds. If 'auto', the TR is read from the Nifti header.
 
@@ -488,6 +488,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     from rabies.utils import recover_3D,recover_4D
     from . import utils as cr_utils
 
+    if censoring_percent_exclusion<0 or censoring_percent_exclusion>100:
+        raise ValueError(f"The input censoring_percent_exclusion={censoring_percent_exclusion} is not valid. It must be between 0 and 100.")
+
     '''
     The function can take as input either an adequately pre-loaded python object or a file path
     '''
@@ -556,12 +559,14 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     '''
 
+    min_nframes_postcensor = int(np.floor(timeseries.shape[0]*censoring_percent_exclusion))
+
     # compute the DVARS before denoising
     DVARS_trace = cr_utils.get_DVARS(timeseries)
 
     frame_mask = cr_utils.temporal_censoring(FD_trace, 
             FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
-            mse_trace, MSE_censoring, minimum_timepoint)
+            mse_trace, MSE_censoring, min_nframes_postcensor)
     if frame_mask is None:
         return None
 
@@ -670,9 +675,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         timeseries = timeseries[frame_mask]
         motion_regressors_array = motion_regressors_array[frame_mask]
     
-    if frame_mask.sum()<int(minimum_timepoint):
+    if frame_mask.sum()<int(min_nframes_postcensor):
         if nipype_log:
-            nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(min_nframes_postcensor)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
 
     '''

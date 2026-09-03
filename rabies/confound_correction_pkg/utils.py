@@ -168,7 +168,7 @@ def outlier_censoring(qc_trace, std_thresh=2.5):
 
 def temporal_censoring(FD_trace, 
         FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
-        mse_trace, MSE_censoring, minimum_timepoint):
+        mse_trace, MSE_censoring, min_nframes_postcensor):
 
     num_frames = len(FD_trace) # FD_trace length must correspond with the timeseries length
     frame_mask = np.ones(num_frames).astype(bool)
@@ -186,10 +186,10 @@ def temporal_censoring(FD_trace,
     if MSE_censoring:
         mse_mask = outlier_censoring(mse_trace, std_thresh=2.5)
         frame_mask*=mse_mask
-    if frame_mask.sum()<int(minimum_timepoint):
+    if frame_mask.sum()<int(min_nframes_postcensor):
         from nipype import logging
         log = logging.getLogger('nipype.workflow')
-        log.warning(f"CENSORING LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+        log.warning(f"CENSORING LEFT LESS THAN {str(min_nframes_postcensor)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
 
     return frame_mask

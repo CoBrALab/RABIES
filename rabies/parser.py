@@ -743,7 +743,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,MSE_censoring=false,minimum_timepoint=3',
+        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,MSE_censoring=false,censoring_percent_exclusion=0',
         help=
             "Censor frames that are highly corrupted (i.e. 'scrubbing'). \n"
             "* FD_censoring: Apply frame censoring based on a framewise displacement threshold. The frames \n"
@@ -765,9 +765,9 @@ def get_parser():
             " --hmc_qc_report, or in other words, MSE captures residual motion or intensity spikes.\n"
             " MSE can be a effective complement to FD to measure motion that was not well capture by registration. \n"
             "*** Specify 'true' or 'false'. \n"
-            "* minimum_timepoint: Can set a minimum number of timepoints remaining after frame censoring. \n" 
-            " If the threshold is not met, an empty file is generated and the scan is not considered in \n" 
-            " further steps. \n"
+            "* censoring_percent_exclusion: Sets the minimum percentage of timepoints left after censoring. \n"
+            " If the threshold is exceeded, an empty file is generated and the scan is excluded from \n"
+            " further RABIES steps. This allows excluding scans with excessive motion artifacts. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1284,8 +1284,8 @@ def read_parser(parser, args):
     elif opts.rabies_stage == 'confound_correction':
         opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
             key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
-                'MSE_censoring':['true', 'false'], 'minimum_timepoint':int},
-            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'MSE_censoring':False,'minimum_timepoint':3},
+                'MSE_censoring':['true', 'false'], 'censoring_percent_exclusion':float},
+            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'MSE_censoring':False,'censoring_percent_exclusion':0},
             name='frame_censoring')
         
         opts.detrending = parse_argument(opt=opts.detrending, 
