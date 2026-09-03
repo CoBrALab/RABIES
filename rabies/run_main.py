@@ -17,6 +17,10 @@ def execute_workflow(args=None, return_workflow=False):
         parser.print_help()
         return
 
+    if opts.rabies_stage == 'install': # installs template files, no workflow is executed
+        install_template_sets(opts.template_set)
+        return
+
     # convert all input paths to absolute paths
     for arg in vars(opts):
         attr = getattr(opts, arg)
@@ -29,8 +33,6 @@ def execute_workflow(args=None, return_workflow=False):
 
     log = prep_logging(opts, opts.output_dir)
 
-    # verify default template installation
-    install_template_set('mouse', log)
 
     from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
@@ -203,6 +205,7 @@ def preprocess(opts, log):
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(str(opts.bids_dir)))
     
+    require_template_set(opts.template_set, log)
     resolve_template_files(opts, log)
 
     # final check of template file formats
@@ -304,6 +307,7 @@ def analysis(opts, log):
     # so that they are guaranteed to live in the commonspace the data was registered to
     template_set = get_template_set(preprocess_opts)
     bold_only = preprocess_opts.bold_only
+    require_template_set(template_set, log)
 
     if labels_file is None:
         # files distributed with a template set are already aligned with its template,
@@ -365,17 +369,53 @@ def analysis(opts, log):
 
     return workflow
 
-def install_template_set(template_set, log):
-    # verifies whether the files of a template set are installed and installs them otherwise
+def install_template_set(template_set):
+    # downloads the files of a template set, unless they are already installed
     if len(templates.missing_files(template_set))==0:
-        return
+        return False
 
     from rabies.utils import run_command
     script = templates.TEMPLATE_SETS[template_set]['install_script']
-    log.info(
-        f"SOME FILES FROM THE {template_set} TEMPLATE SET ARE MISSING. "
-        "THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
     rc,c_out = run_command(f'{script} {templates.rabies_path}', verbose=True)
+    return True
+
+
+def install_template_sets(template_set):
+    # handles the `rabies install` stage, which runs without an output folder or workflow
+    set_list = templates.TEMPLATE_SET_NAMES if template_set=='all' else [template_set]
+    for name in set_list:
+        print(f"Checking the {name} template set.")
+        if install_template_set(name):
+            print(f"Installed the {name} template set under {templates.rabies_path}.")
+        else:
+            print(f"The {name} template set is already installed.")
+        missing = templates.missing_files(name)
+        if len(missing)>0:
+            raise ValueError(
+                f"The {name} template set is still incomplete after installation. "
+                f"Missing files: {missing}")
+
+
+def require_template_set(template_set, log):
+    # verifies that a template set is available, installing it if it is meant to be
+    # installed on demand, and failing before the workflow is built otherwise
+    missing = templates.missing_files(template_set)
+    if len(missing)==0:
+        return
+
+    if templates.TEMPLATE_SETS[template_set]['auto_install']:
+        log.info(
+            f"SOME FILES FROM THE {template_set} TEMPLATE SET ARE MISSING. "
+            "THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
+        install_template_set(template_set)
+        missing = templates.missing_files(template_set)
+        if len(missing)==0:
+            return
+
+    raise ValueError(
+        f"The {template_set} template set is not installed. Run `rabies install {template_set}` "
+        "to download it, which must be done from a machine with network access before "
+        f"running the pipeline. Missing files: {missing}")
 
 
 def check_binary_masks(mask):
