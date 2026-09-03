@@ -154,3 +154,35 @@ def required_files(template_set):
 def missing_files(template_set):
     """Return the files of a template set that are not installed."""
     return [f for f in required_files(template_set) if not os.path.isfile(f)]
+
+
+def resolve_options(opts, log):
+    # Fill in the template files that the user did not provide from the selected
+    # --template_set. A file given explicitly overrides the one from the set; a role
+    # that neither provides is left as None, which blocks the downstream operations
+    # depending on it while still allowing preprocessing to run.
+    # The roles the user provided are recorded first, since the loop below overwrites
+    # them with the resolved files.
+    provided = [role for role in PREPROCESS_ROLES if getattr(opts, role) is not None]
+
+    if 'anat_template' in provided and 'brain_mask' not in provided:
+        raise ValueError("--anat_template was provided, but not --brain_mask "
+                         "- it is necessary to provide a brain mask matching the template.")
+
+    for role in PREPROCESS_ROLES:
+        if role in provided:
+            # make sure we have absolute paths
+            setattr(opts, role, os.path.abspath(getattr(opts, role)))
+            log.info(f'--{role} overrides the file from --template_set {opts.template_set}.')
+            continue
+        if 'anat_template' in provided:
+            # the set's masks do not match a user-provided template, so they are not used
+            setattr(opts, role, None)
+            continue
+        setattr(opts, role, resolve(opts.template_set, role, bold_only=opts.bold_only))
+
+    log.info(f"COMMONSPACE TEMPLATE SET: {opts.template_set}"
+             + (" (--bold_only EPI variant)" if opts.bold_only else ""))
+    for role in PREPROCESS_ROLES:
+        opt_file = getattr(opts, role)
+        log.info(f"    --{role}: {opt_file if opt_file is not None else 'not available'}")
