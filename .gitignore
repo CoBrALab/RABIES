@@ -3,5 +3,7 @@
 build/
 dist/
 rabies.egg-info/
-docs/_build/
 __pycache__/
+.venv/
+docs/_build/
+.DS_Store
