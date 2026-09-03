@@ -48,9 +48,9 @@ Censoring with DVARS
 `--match_number_timepoints`
 : Constrains every scan to retain the same final number of frames, to avoid
   downstream effects of unequal temporal degrees of freedom (tDOF) on analysis.
-  A pre-set final number of frames is defined with `minimum_timepoint`, and the
-  surplus frames remaining after censoring — accounting for the edge removal in
-  step 4 — are selected at random and removed.
+  A pre-set final number of frames is defined with `--match_number_timepoints`,
+  and the surplus frames remaining after censoring — accounting for the edge
+  removal in step 4 — are selected at random and removed.
 
 ## 2. Detrending
 

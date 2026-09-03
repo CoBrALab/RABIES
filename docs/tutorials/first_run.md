@@ -309,7 +309,7 @@ diagnosis report under `analysis_outputs/data_diagnosis_datasink/figure_spatial_
 Spatial diagnosis report for the first subject.
 ```
 In this report, the resulting seed-based connectivity can be visualised in the 
-last row labelled 'SBC network 0'. We can see in those two example scans that 
+last row labelled 'SBC network'. We can see in those two example scans that 
 the seed revealed a bilateral correlation structure that corresponds to 
 the somatomotor network anatomy of the mouse brain. This confirms that
 this network was adequately mapped and measured (although more subtle

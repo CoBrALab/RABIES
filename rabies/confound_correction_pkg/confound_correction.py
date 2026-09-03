@@ -11,7 +11,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     This workflow applies the RABIES confound correction pipeline to preprocessed EPI timeseries. The correction steps are 
     orchestrated in line with recommendations from human litterature:   
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-    #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+    #2 - If --match_number_timepoints is set, each scan is matched to the defined number of frames.
     #4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
     #4 - Apply ICA-AROMA.
     #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
@@ -140,7 +140,7 @@ class CleanImage(BaseInterface):
     human litterature. 
     
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
-    #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+    #2 - If --match_number_timepoints is set, each scan is matched to the defined number of frames.
     #4 - Linear/Quadratic detrending of fMRI timeseries and nuisance regressors
     #4 - Apply ICA-AROMA.
     #5 - If frequency filtering and frame censoring are applied, simulate data in censored timepoints using the Lomb-Scargle periodogram, 
@@ -212,7 +212,7 @@ class CleanImage(BaseInterface):
                 FD_threshold=cr_opts.frame_censoring['FD_threshold'], 
                 DVARS_censoring=cr_opts.frame_censoring['DVARS_censoring'], 
                 MSE_censoring=cr_opts.frame_censoring['MSE_censoring'], 
-                minimum_timepoint=cr_opts.frame_censoring['minimum_timepoint'],
+                censoring_percent_exclusion=cr_opts.frame_censoring['censoring_percent_exclusion'],
                 TR=cr_opts.TR,
                 detrending_order=cr_opts.detrending['order'], 
                 detrending_time_interval=cr_opts.detrending['time_interval'], 
@@ -308,10 +308,10 @@ class CleanImage(BaseInterface):
 def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary input files
                 WM_mask=None, CSF_mask=None, vascular_mask=None,
                 timeseries_interval='0-end', FD_censoring=False, FD_threshold=0.05, 
-                DVARS_censoring=False, MSE_censoring=False, minimum_timepoint=3, TR='auto',
+                DVARS_censoring=False, MSE_censoring=False, censoring_percent_exclusion=0, TR='auto',
                 detrending_order=1, detrending_time_interval='0-end', 
                 apply_ica_aroma=False, ica_aroma_dim=0, ica_aroma_random_seed=1,
-                match_number_timepoints=False, highpass=None, lowpass=None, edge_cutoff=0,
+                match_number_timepoints=0, highpass=None, lowpass=None, edge_cutoff=0,
                 nuisance_regressors = [], generate_CR_null=False,
                 scale_variance_voxelwise=False,image_scaling='grand_mean_scaling',
                 keep_EPI_average=False,
@@ -360,9 +360,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     MSE_censoring : bool, default=False
         Whether to apply MSE censoring.
 
-    minimum_timepoint : int, default=3
-        Minimum number of frames left post-cleaning, otherwise returns None.
-
+    censoring_percent_exclusion : int, default=0
+        Sets a minimum percentage of frames that must be left after censoring, otherwise returns None.
+        
     TR : str, default='auto'
         The repetition time in seconds. If 'auto', the TR is read from the Nifti header.
 
@@ -384,9 +384,13 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     ica_aroma_random_seed : int, default=1
         Sets a random seed for AROMA to ensure deterministic behavior.
 
-    match_number_timepoints : bool, default=False
-        Whether to enfore a consistent final number of frames across all images that
-        corresponds to minimum_timepoint, where extra frames are randomly removed.
+    match_number_timepoints : int, default=0
+        Sets a fixed final number of frames for the output image. To reach
+        this fixed number of frames, a random set of frames are additionally 
+        censored until the desired time length is reached. This can avoid 
+        inconsistent temporal degrees of freedom (tDOF) across scans as a consequence 
+        of censoring. 
+        If 0, no correction is performed.
 
     highpass : float, default=None
         Frequency cutoff for highpass filter.
@@ -488,6 +492,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     from rabies.utils import recover_3D,recover_4D
     from . import utils as cr_utils
 
+    if censoring_percent_exclusion<0 or censoring_percent_exclusion>100:
+        raise ValueError(f"The input censoring_percent_exclusion={censoring_percent_exclusion} is not valid. It must be between 0 and 100.")
+
     '''
     The function can take as input either an adequately pre-loaded python object or a file path
     '''
@@ -556,19 +563,21 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     '''
 
+    min_nframes_postcensor = int(np.floor(timeseries.shape[0]*censoring_percent_exclusion/100))
+
     # compute the DVARS before denoising
     DVARS_trace = cr_utils.get_DVARS(timeseries)
 
     frame_mask = cr_utils.temporal_censoring(FD_trace, 
             FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
-            mse_trace, MSE_censoring, minimum_timepoint)
+            mse_trace, MSE_censoring, min_nframes_postcensor)
     if frame_mask is None:
         return None
 
     '''
-    #2 - If --match_number_timepoints is selected, each scan is matched to the defined minimum_timepoint number of frames.
+    #2 - If --match_number_timepoints is selected, each scan is matched to the defined number of frames.
     '''
-    if match_number_timepoints:
+    if match_number_timepoints>0:
         if (highpass is not None) or (lowpass is not None):
             # if frequency filtering is applied, avoid selecting timepoints that would be removed with --edge_cutoff
             num_cut = int(edge_cutoff/TR)
@@ -576,17 +585,17 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
                 frame_mask[:num_cut]=0
                 frame_mask[-num_cut:]=0
 
-                if frame_mask.sum()<int(minimum_timepoint):
-                    if nipype_log:
-                        nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
-                    return None
+        if frame_mask.sum()<match_number_timepoints:
+            if nipype_log:
+                nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(match_number_timepoints)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            return None
 
-        # randomly shuffle indices that haven't been censored, then remove an extra subset above --minimum_timepoint
+        # randomly shuffle indices that haven't been censored, then remove an extra subset above --match_number_timepoints
         num_timepoints = len(frame_mask)
         time_idx=np.array(range(num_timepoints))
         perm = np.random.permutation(time_idx[frame_mask])
         # selecting the subset of extra timepoints, and censoring them
-        subset_idx = perm[minimum_timepoint:]
+        subset_idx = perm[match_number_timepoints:]
         frame_mask[subset_idx]=0
         # keep track of the original number of timepoints for tDOF estimation, to evaluate latter if the correction was succesful
         number_extra_timepoints = len(subset_idx)
@@ -670,9 +679,9 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         timeseries = timeseries[frame_mask]
         motion_regressors_array = motion_regressors_array[frame_mask]
     
-    if frame_mask.sum()<int(minimum_timepoint):
+    if frame_mask.sum()<int(min_nframes_postcensor):
         if nipype_log:
-            nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(minimum_timepoint)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
+            nipype_log.warning(f"CONFOUND CORRECTION LEFT LESS THAN {str(min_nframes_postcensor)} VOLUMES. THIS SCAN WILL BE REMOVED FROM FURTHER PROCESSING.")
         return None
 
     '''

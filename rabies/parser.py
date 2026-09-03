@@ -39,8 +39,8 @@ def get_parser():
             "from RABIES to derive cleaned timeseries. Various correction strategies, if selected, are\n"
             "applied in the following order, following best practices from human litterature:\n"
             "   #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)\n"
-            "   #2 - If --match_number_timepoints is selected, each scan is matched to the \n"
-            "       defined minimum_timepoint number of frames.\n"
+            "   #2 - If --match_number_timepoints is set, each scan is matched to the \n"
+            "       defined number of frames.\n"
             "   #3 - Detrending of fMRI timeseries and nuisance regressors\n"
             "   #4 - Apply ICA-AROMA.\n"
             "   #5 - If frequency filtering and frame censoring are applied, simulate data in censored\n" 
@@ -743,7 +743,7 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,MSE_censoring=false,minimum_timepoint=3',
+        '--frame_censoring', type=str, default='FD_censoring=false,FD_threshold=0.05,DVARS_censoring=false,MSE_censoring=false,censoring_percent_exclusion=0',
         help=
             "Censor frames that are highly corrupted (i.e. 'scrubbing'). \n"
             "* FD_censoring: Apply frame censoring based on a framewise displacement threshold. The frames \n"
@@ -765,9 +765,9 @@ def get_parser():
             " --hmc_qc_report, or in other words, MSE captures residual motion or intensity spikes.\n"
             " MSE can be a effective complement to FD to measure motion that was not well capture by registration. \n"
             "*** Specify 'true' or 'false'. \n"
-            "* minimum_timepoint: Can set a minimum number of timepoints remaining after frame censoring. \n" 
-            " If the threshold is not met, an empty file is generated and the scan is not considered in \n" 
-            " further steps. \n"
+            "* censoring_percent_exclusion: Sets the minimum percentage of timepoints left after censoring. \n"
+            " If the threshold is exceeded, an empty file is generated and the scan is excluded from \n"
+            " further RABIES steps. This allows excluding scans with excessive motion artifacts. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -812,13 +812,14 @@ def get_parser():
             "\n"
         )
     confound_correction.add_argument(
-        '--match_number_timepoints', dest='match_number_timepoints', action='store_true', default=False,
+        '--match_number_timepoints', type=int, default=0,
         help=
-            "With this option, only a subset of the timepoints are kept post-censoring to match the \n"
-            "--minimum_timepoint number for all scans. This can be conducted to avoid inconsistent \n" 
-            "temporal degrees of freedom (tDOF) between scans during downstream analysis. We recommend \n" 
-            "selecting this option if a significant confounding effect of tDOF is detected during --data_diagnosis.\n" 
-            "The extra timepoints removed are randomly selected among the set available post-censoring.\n" 
+            "This sets a fixed final number of timepoints left for each cleaned timeseries. To reach \n"
+            "this fixed number of frame for each image, a random set of frames are additionally \n" 
+            "censored until the desired time length is reached. This can avoid inconsistent temporal \n"
+            "degrees of freedom (tDOF) across scans as a consequence of censoring, which is especially \n"
+            "useful if tDOF is flagged as a confouding effect using --data_diagnosis. \n" 
+            "The parameter is set to 0 by default, in which case no correction is applied. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1284,8 +1285,8 @@ def read_parser(parser, args):
     elif opts.rabies_stage == 'confound_correction':
         opts.frame_censoring = parse_argument(opt=opts.frame_censoring, 
             key_value_pairs = {'FD_censoring':['true', 'false'], 'FD_threshold':float, 'DVARS_censoring':['true', 'false'],
-                'MSE_censoring':['true', 'false'], 'minimum_timepoint':int},
-            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'MSE_censoring':False,'minimum_timepoint':3},
+                'MSE_censoring':['true', 'false'], 'censoring_percent_exclusion':float},
+            defaults = {'FD_censoring':False,'FD_threshold':0.05,'DVARS_censoring':False,'MSE_censoring':False,'censoring_percent_exclusion':0},
             name='frame_censoring')
         
         opts.detrending = parse_argument(opt=opts.detrending, 
