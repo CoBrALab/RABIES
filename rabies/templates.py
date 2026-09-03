@@ -10,6 +10,7 @@ depending on a missing role are disabled rather than falling back to another
 set, since mixing files across sets silently registers data to the wrong space.
 """
 
+import math
 import os
 
 # setting all default template files
@@ -85,8 +86,9 @@ TEMPLATE_SETS = {
         'epi': {
             'anat_template': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_epi.nii.gz",
             'brain_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_mask.nii.gz",
-            'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_eroded_wm_mask.nii.gz",
-            'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_eroded_csf_mask.nii.gz",
+            # not eroded: the EPI grid is too coarse, as for the mouse EPI masks
+            'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_wm_mask.nii.gz",
+            'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_csf_mask.nii.gz",
             'vascular_mask': None,
             # the 59-ROI SIGMA functional parcellation, the only atlas in this space
             'labels': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_Atlas.nii.gz",
@@ -154,6 +156,35 @@ def required_files(template_set):
 def missing_files(template_set):
     """Return the files of a template set that are not installed."""
     return [f for f in required_files(template_set) if not os.path.isfile(f)]
+
+
+# how much better another template set has to fit the data before the selected one is
+# rejected; the comparison is relative, since the field of view of a scan is not the
+# size of the brain in it, and templates are brain-only
+SCALE_CHECK_MARGIN = 1.3
+# a set is never rejected while the selected one fits this closely
+SCALE_CHECK_TOLERANCE = 1.25
+
+
+def scale_verdict(extent, template_extents, selected):
+    """Return the set that fits an image better than the selected one, or None.
+
+    `template_extents` maps a set name to the size of its template; sets that are not
+    installed are simply left out. Fit is compared between sets rather than against a
+    fixed size, because a field of view is not the size of the brain inside it.
+    """
+    misfit = {name: abs(math.log(extent/template_extent))
+              for name, template_extent in template_extents.items()}
+    if selected not in misfit:
+        return None
+    if misfit[selected] < math.log(SCALE_CHECK_TOLERANCE):
+        return None # fits closely enough that nothing can beat it meaningfully
+    best = min(misfit.keys(), key=lambda name: misfit[name])
+    if best == selected:
+        return None
+    if not misfit[selected]-misfit[best] > math.log(SCALE_CHECK_MARGIN):
+        return None # no other set fits clearly better
+    return best
 
 
 def resolve_options(opts, log):

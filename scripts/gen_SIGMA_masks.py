@@ -24,6 +24,9 @@ from scipy.ndimage import binary_erosion
 VARIANTS = ['Anatomical', 'Functional']
 # the anatomical template is named _template, the functional one _epi
 TEMPLATE_SUFFIX = {'Anatomical': 'template', 'Functional': 'epi'}
+# the EPI grid is too coarse to erode: one iteration empties the CSF mask, so only
+# the anatomical masks are eroded, as in the mouse set
+ERODED = {'Anatomical': True, 'Functional': False}
 # the functional atlas label description does not follow the image naming
 LABEL_DESCRIPTION = {
     'Anatomical': 'SIGMA_InVivo_Anatomical_Brain_Atlas.txt',
@@ -51,12 +54,15 @@ def binarize(in_file, out_file, threshold, erosion_iterations=0):
     if array.max() > 1:
         array = array/array.max()
     mask = array >= threshold
-    if erosion_iterations > 0:
-        # eroding keeps partial volume voxels at tissue boundaries out of the
-        # nuisance timecourses, which matters most for the large voxels of rat EPI
-        mask = binary_erosion(mask, iterations=erosion_iterations)
     if mask.sum() == 0:
         raise ValueError(f"Thresholding {in_file} at {threshold} left an empty mask.")
+    if erosion_iterations > 0:
+        # eroding keeps partial volume voxels at tissue boundaries out of the
+        # nuisance timecourses
+        mask = binary_erosion(mask, iterations=erosion_iterations)
+        if mask.sum() == 0:
+            raise ValueError(f"Eroding {in_file} by {erosion_iterations} iterations left "
+                             "an empty mask; the grid is too coarse to erode.")
     out_img = sitk.GetImageFromArray(mask.astype('int16'), isVector=False)
     out_img.CopyInformation(img)
     sitk.WriteImage(out_img, out_file)
@@ -109,7 +115,8 @@ def main():
                         help="probability above which a voxel belongs to the brain "
                              "(default: %(default)s)")
     parser.add_argument('--erosion_iterations', type=int, default=1,
-                        help="erosion applied to the WM and CSF masks "
+                        help="erosion applied to the WM and CSF masks of the anatomical "
+                             "template; the EPI grid is too coarse to erode "
                              "(default: %(default)s)")
     opts = parser.parse_args()
 
@@ -128,11 +135,14 @@ def main():
                             opts.mask_threshold)
 
         outputs = [out_mask]
+        erosion = opts.erosion_iterations if ERODED[variant] else 0
+        name = 'eroded_{tissue}_mask' if ERODED[variant] else '{tissue}_mask'
         for tissue in ['wm', 'csf']:
             outputs.append(binarize(
                 find_file(opts.sigma_dir, f'{prefix}_{tissue}.nii.gz'),
-                os.path.join(opts.out_dir, f'{prefix}_eroded_{tissue}_mask.nii.gz'),
-                opts.tissue_threshold, erosion_iterations=opts.erosion_iterations))
+                os.path.join(opts.out_dir,
+                             f'{prefix}_' + name.format(tissue=tissue) + '.nii.gz'),
+                opts.tissue_threshold, erosion_iterations=erosion))
 
         atlas = f'{prefix}_Atlas.nii.gz'
         out_atlas = os.path.join(opts.out_dir, atlas)
