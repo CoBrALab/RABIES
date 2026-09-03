@@ -651,16 +651,35 @@ def fill_node_dict(d, key_l, e):
 #DEBUGGING
 ######################
 
-def generate_token_data(tmppath, number_scans):
+def token_prior_maps(labels_img, number_maps=20):
+    # builds a 4D file of spatial priors by taking one parcel each, for template sets
+    # that ship no group ICA priors; these stand in for real networks in testing only
+    labels_array = sitk.GetArrayFromImage(labels_img)
+    present = [label for label in np.unique(labels_array) if not label==0]
+    if len(present)==0:
+        raise ValueError("The labels file of this template set is empty.")
+    maps = []
+    for i in range(number_maps):
+        # cycle through the parcels when the atlas holds fewer than number_maps
+        array = (labels_array==present[i % len(present)]).astype('float32')
+        img = sitk.GetImageFromArray(array, isVector=False)
+        img.CopyInformation(labels_img)
+        maps.append(img)
+    return sitk.JoinSeries(maps)
+
+
+def generate_token_data(tmppath, number_scans, template_set='mouse'):
     # this function generates fake scans at low resolution for quick testing and debugging
+    # the template set the scans are derived from sets their size, so that each set can be
+    # tested with data of the size it expects
 
     os.makedirs(tmppath+'/inputs', exist_ok=True)
 
     from . import templates
-    template = templates.resolve('mouse', 'anat_template')
-    mask = templates.resolve('mouse', 'brain_mask')
-    labels_file = templates.resolve('mouse', 'labels')
-    melodic_file = templates.resolve('mouse', 'prior_maps')
+    template = templates.resolve(template_set, 'anat_template')
+    mask = templates.resolve(template_set, 'brain_mask')
+    labels_file = templates.resolve(template_set, 'labels')
+    melodic_file = templates.resolve(template_set, 'prior_maps')
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
@@ -683,7 +702,12 @@ def generate_token_data(tmppath, number_scans):
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
     
-    melodic_img = sitk.ReadImage(melodic_file)
+    if melodic_file is None:
+        # the template set ships no prior maps, so token ones are built from the labels
+        # to keep the analysis stage testable
+        melodic_img = token_prior_maps(resampled_labels)
+    else:
+        melodic_img = sitk.ReadImage(melodic_file)
     # create a new melodic with just 2 networks for low-dimensional dual regression
     melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,5],melodic_img[:,:,:,19]]) 
     sitk.WriteImage(melodic_networks, tmppath+'/inputs/melodic_networks.nii.gz')
