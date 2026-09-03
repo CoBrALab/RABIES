@@ -604,13 +604,24 @@ def get_parser():
         )
     g_commonspace.add_argument(
         '--template_set', action='store', type=str,
-        default='mouse', choices=templates.TEMPLATE_SET_NAMES,
+        default=None, choices=templates.TEMPLATE_SET_NAMES,
         help=
             "Select the set of commonspace template files to use. Each set provides the\n"
             "anatomical template together with the masks and atlas files aligned with it.\n"
             + templates.describe_sets() +
             "The rat set is not installed together with RABIES; run 'rabies install rat' \n"
             "before using it, in particular on compute nodes without network access. \n"
+            "(default: mouse)\n"
+            "\n"
+        )
+    g_commonspace.add_argument(
+        "--skip_scale_check", dest='skip_scale_check', action='store_true',
+        help=
+            "Skip the comparison between the size of the input images and the size of the \n"
+            "commonspace template. That comparison catches data being registered to the \n"
+            "template of another species, which does not fail during preprocessing but \n"
+            "produces meaningless outputs. Skip it if the check rejects a dataset it \n"
+            "should accept, for instance images with an unusually large field of view. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1258,6 +1269,12 @@ def read_parser(parser, args):
         opts = parser.parse_args(args)
 
     if opts.rabies_stage == 'preprocess':
+        # record whether the set was selected explicitly, which conflicts with inheriting
+        # the template files of a previous run, before filling in the default
+        opts.explicit_template_set = opts.template_set is not None
+        if opts.template_set is None:
+            opts.template_set = 'mouse'
+
         if not type(opts.bids_filter) is dict:
             # read as a json file
             import json
