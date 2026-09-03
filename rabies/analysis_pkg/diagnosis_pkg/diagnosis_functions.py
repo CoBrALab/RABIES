@@ -49,18 +49,27 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         temporal_info['SBC_time'] = None
 
     ### DR analysis
-    DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
-    DR_array = sitk.GetArrayFromImage(
-        sitk.ReadImage(analysis_dict['dual_regression_nii']))
-    if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
-        DR_array = DR_array[np.newaxis,:,:,:]
-    DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
-    for i in range(DR_array.shape[0]):
-        DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
+    if not analysis_dict['dual_regression_nii'] is None:
+        DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
+        DR_array = sitk.GetArrayFromImage(
+            sitk.ReadImage(analysis_dict['dual_regression_nii']))
+        if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
+            DR_array = DR_array[np.newaxis,:,:,:]
+        DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
+        for i in range(DR_array.shape[0]):
+            DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
 
-    temporal_info['DR_all'] = DR_W
-    temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
-    temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
+        temporal_info['DR_all'] = DR_W
+        temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
+        temporal_info['DR_confound'] = DR_W[:, prior_confound_idx]
+        spatial_info['DR_bold'] = DR_C[prior_bold_idx]
+        spatial_info['DR_all'] = DR_C
+    else:
+        temporal_info['DR_all'] = None
+        temporal_info['DR_bold'] = None
+        temporal_info['DR_confound'] = None
+        spatial_info['DR_bold'] = None
+        spatial_info['DR_all'] = None
 
     '''Temporal Features'''
     global_signal = timeseries.mean(axis=1)
@@ -125,10 +134,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     else:
         VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
 
-
     spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
-    spatial_info['DR_BOLD'] = DR_C[prior_bold_idx]
-    spatial_info['DR_all'] = DR_C
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']
@@ -316,8 +322,12 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info):
     SBC_time=temporal_info['SBC_time']
     if SBC_time is not None: # might be None
         SBC_time=SBC_time[plot_time_subset_censored]
-    DR_bold_time=temporal_info['DR_bold'][plot_time_subset_censored]
-    DR_confound_time=temporal_info['DR_confound'][plot_time_subset_censored]
+
+    DR_bold_time=temporal_info['DR_bold']
+    DR_confound_time=temporal_info['DR_confound']
+    if DR_bold_time is not None:
+        DR_bold_time=DR_bold_time[plot_time_subset_censored]
+        DR_confound_time=DR_confound_time[plot_time_subset_censored]
     NPR_time=temporal_info['NPR_time']
     if NPR_time is not None: # might be None
         NPR_time=NPR_time[plot_time_subset_censored]
@@ -619,7 +629,7 @@ def temporal_diagnosis_plot(
 
 def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_threshold=10):
     template_file = maps_data_dict['anat_ref_file']
-    dr_maps = spatial_info['DR_BOLD']
+    dr_maps = spatial_info['DR_bold']
     SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
     mask_file = maps_data_dict['mask_file']
@@ -629,6 +639,8 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
         SBC_maps=[]
     if NPR_maps is None:
         NPR_maps=[]
+    if dr_maps is None:
+        dr_maps = np.zeros([0, 0])
 
     nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
 

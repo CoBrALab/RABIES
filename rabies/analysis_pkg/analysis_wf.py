@@ -97,7 +97,7 @@ def init_analysis_wf(opts, name="analysis_wf"):
 
 
 
-    if opts.DR_ICA or opts.data_diagnosis:
+    if opts.DR_ICA:
 
         DR_ICA = pe.Node(Function(input_names=['CR_dict_file', 'maps_dict_file', 'network_weighting'],
                                   output_names=['DR_maps_filename', 'dual_regression_timecourse_csv'],

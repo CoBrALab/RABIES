@@ -234,7 +234,8 @@ class DatasetDiagnosis(BaseInterface):
             tdof_list.append(scan_data['tDOF'])
             mean_FD_list.append(scan_data['FD_trace'].to_numpy().mean())
 
-            FC_maps_dict['DR'].append(scan_data['DR_BOLD'])
+            if scan_data['DR_bold'] is not None:
+                FC_maps_dict['DR'].append(scan_data['DR_bold'])
             if scan_data['NPR_maps'] is not None:
                 FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
             if scan_data['seed_map_list'] is not None:
@@ -242,13 +243,14 @@ class DatasetDiagnosis(BaseInterface):
 
             # computing the temporal correlation between network and confound timecourses
             DR_confound_time = scan_data['DR_confound_time']
-            for network_time,key in zip(
-                [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
-                ['DR','NPR','SBC']):
-                if network_time is not None:
-                    # for each network, compute its confound correlation as mean across all DR confound components
-                    corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
-                    DR_conf_corr_dict[key].append(corr_list)
+            if DR_confound_time is not None:
+                for network_time,key in zip(
+                    [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
+                    ['DR','NPR','SBC']):
+                    if network_time is not None:
+                        # for each network, compute its confound correlation as mean across all DR confound components
+                        corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
+                        DR_conf_corr_dict[key].append(corr_list)
  
         # save the list of the scan names that were included in the group statistics
         pd.DataFrame(scan_name_list).to_csv(f'{out_dir_global}/data_diagnosis_scanlist.txt', index=None, header=False)
@@ -361,33 +363,35 @@ class DatasetDiagnosis(BaseInterface):
         scan_QC_thresholds = self.inputs.scan_QC_thresholds
 
 
-        DR_maps_list=np.array(FC_maps_dict['DR'])
+        if len(FC_maps_dict['DR'])>0:
+            DR_maps_list=np.array(FC_maps_dict['DR'])
 
-        if self.inputs.group_avg_prior:
-            num_priors = DR_maps_list.shape[1]
-            prior_maps = np.median(DR_maps_list,axis=0)[:,non_zero_voxels]
-        else:
-            prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
-            num_priors = prior_maps.shape[0]
-
-        for i in range(num_priors):
-            if self.inputs.network_weighting=='relative':
-                network_var=None
+            if self.inputs.group_avg_prior:
+                num_priors = DR_maps_list.shape[1]
+                prior_maps = np.median(DR_maps_list,axis=0)[:,non_zero_voxels]
             else:
-                # network amplitude as L2-norm of a connectivity map
-                network_var = np.sqrt((DR_maps_list[:,i,:] ** 2).sum(axis=1))
-            DR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='DR', network_i=i, num_priors=num_priors)
+                prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+                num_priors = prior_maps.shape[0]
 
-            FC_maps = DR_maps_list[:,i,non_zero_voxels]
-            QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['DR'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
+            for i in range(num_priors):
+                if self.inputs.network_weighting=='relative':
+                    network_var=None
+                else:
+                    # network amplitude as L2-norm of a connectivity map
+                    network_var = np.sqrt((DR_maps_list[:,i,:] ** 2).sum(axis=1))
+                DR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='DR', network_i=i, num_priors=num_priors)
 
-            # compute group stats only if there is at least 3 scans
-            if QC_inclusion.sum()>2:
-                # apply QC inclusion
-                FC_maps_ = FC_maps[QC_inclusion,:]
-                corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
+                FC_maps = DR_maps_list[:,i,non_zero_voxels]
+                DR_conf_corr = np.array(DR_conf_corr_dict['DR'])[:,i] if len(DR_conf_corr_dict['DR'])>0 else None
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,DR_conf_corr,FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=DR_i_scan_QC_thresholds, analysis_prefix='DR')
 
-                generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
+                # compute group stats only if there is at least 3 scans
+                if QC_inclusion.sum()>2:
+                    # apply QC inclusion
+                    FC_maps_ = FC_maps[QC_inclusion,:]
+                    corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
+
+                    generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
         if len(FC_maps_dict['NPR'])>0:
             NPR_maps_list=np.array(FC_maps_dict['NPR'])
@@ -408,7 +412,8 @@ class DatasetDiagnosis(BaseInterface):
                 NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
 
                 FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['NPR'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
+                DR_conf_corr = np.array(DR_conf_corr_dict['NPR'])[:,i] if len(DR_conf_corr_dict['NPR'])>0 else None
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,DR_conf_corr,FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:
@@ -444,7 +449,8 @@ class DatasetDiagnosis(BaseInterface):
                 SBC_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='SBC', network_i=i, num_priors=num_priors)
 
                 FC_maps = seed_maps_list[:,i,non_zero_voxels]
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,np.array(DR_conf_corr_dict['SBC'])[:,i],FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
+                DR_conf_corr = np.array(DR_conf_corr_dict['SBC'])[:,i] if len(DR_conf_corr_dict['SBC'])>0 else None
+                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,DR_conf_corr,FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=SBC_i_scan_QC_thresholds, analysis_prefix='seed_FC')
 
                 # compute group stats only if there is at least 3 scans
                 if QC_inclusion.sum()>2:

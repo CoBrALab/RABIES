@@ -320,9 +320,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             (load_maps_dict_common_node, diagnosis_wf, [
                 ("maps_dict_file", "inputnode.common_maps_dict_file"),
                 ]),
-            (analysis_wf, prep_analysis_dict_node, [
-                ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-                ]),
             (prep_analysis_dict_node, diagnosis_wf, [
                 ("analysis_dict", "inputnode.analysis_dict"),
                 ]),
@@ -342,9 +339,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 (load_maps_dict_native_node, diagnosis_wf, [
                     ("maps_dict_file", "inputnode.sub_maps_dict_file"),
                     ]),
-                (analysis_wf, prep_analysis_dict_node, [
-                    ("outputnode.DR_nii_file_resampled", "dual_regression_nii"),
-                    ]),
                 (conf_outputnode, diagnosis_wf, [
                     ("native_to_commonspace_transform_list", "inputnode.native_to_commonspace_transform_list"),
                     ("native_to_commonspace_inverse_list", "inputnode.native_to_commonspace_inverse_list"),
@@ -355,10 +349,30 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                 (load_maps_dict_common_node, diagnosis_wf, [
                     ("maps_dict_file", "inputnode.sub_maps_dict_file"),
                     ]),
+                ])
+
+        if analysis_opts.DR_ICA:
+            workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
-                    ("outputnode.DR_nii_file", "dual_regression_nii"),
+                    ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
                     ]),
                 ])
+            if cr_opts.nativespace_analysis:
+                workflow.connect([
+                    (analysis_wf, prep_analysis_dict_node, [
+                        ("outputnode.DR_nii_file_resampled", "dual_regression_nii"),
+                        ]),
+                    ])
+            else:
+                workflow.connect([
+                    (analysis_wf, prep_analysis_dict_node, [
+                        ("outputnode.DR_nii_file", "dual_regression_nii"),
+                        ]),
+                    ])
+        else:
+            prep_analysis_dict_node.inputs.dual_regression_nii = None
+            prep_analysis_dict_node.inputs.dual_regression_timecourse_csv = None
+
 
         if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
             workflow.connect([

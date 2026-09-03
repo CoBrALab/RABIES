@@ -414,6 +414,8 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, FD_DVARS_corr, 
         QC_inclusion *= (scan_QC_thresholds['Dice']<network_dice)
         plot_QC_thresholds['Network specificity (Dice)']=scan_QC_thresholds['Dice']
     if not scan_QC_thresholds['Conf'] is None:
+        if DR_conf_corr is None:
+            raise ValueError("DR confound correlation is None, but a threshold was set for it. You must run --DR_ICA and provide indices to --conf_list to apply this exclusion criterion.")
         QC_inclusion *= (scan_QC_thresholds['Conf']>DR_conf_corr)
         plot_QC_thresholds['DR confound corr.\n(mean |pearson r|)']=scan_QC_thresholds['Conf']
     if scan_QC_thresholds['Amp']:
@@ -448,7 +450,8 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, FD_DVARS_corr, 
             qc_metric_dict[qc_name] = np.array(qc_arr)
 
     x_bounds_dict = {'Network specificity (Dice)':[0,1.0]}
-    y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
+    if DR_conf_corr is not None:
+        y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
     if FD_DVARS_corr is not None:
         y_bounds_dict['FD-DVARS corr.'] = [min(0,np.array(FD_DVARS_corr).min()),1.0] # its possible that there are negative values
 
