@@ -1,10 +1,17 @@
-sphinx==5.0
+# Docs toolchain. Upper bounds only where a real incompatibility exists, so
+# routine upgrades do not need a change here.
+#
+# The Python version is capped at 3.12 in .readthedocs.yml because this file
+# installs rabies (for sphinxcontrib-programoutput, which runs `rabies --help`
+# at build time) and rabies requires Python <3.13.
+sphinx
 myst-parser
-sphinx-rtd-dark-mode
 sphinx-rtd-theme
+sphinx-rtd-dark-mode
+sphinx-design
+sphinx-copybutton
 sphinxcontrib-bibtex
 sphinxcontrib-programoutput
-jinja2==3.1.6
-pillow==12.3.0
+jinja2
+pillow
 rabies==0.6.1
-traits<7.0

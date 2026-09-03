@@ -5,15 +5,13 @@
 # Required
 version: 2
 
-# Set the version of Python and other tools you might need
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
-    python: "3.10"
-    # You can also specify other tool versions:
-    # nodejs: "16"
-    # rust: "1.55"
-    # golang: "1.17"
+    # Capped at 3.12: docs/requirements.txt installs rabies so that
+    # sphinxcontrib-programoutput can run `rabies --help` at build time, and
+    # rabies requires Python <3.13.
+    python: "3.12"
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:

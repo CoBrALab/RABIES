@@ -1,0 +1,92 @@
+/* ---------------------------------------------------------------------------
+   Fully expanded sidebar navigation
+
+   `collapse_navigation: False` makes Sphinx emit the complete toctree into
+   every page, but the RTD theme still hides most of it in CSS, so the nav
+   only opens along the branch you are currently on. See
+   https://github.com/readthedocs/sphinx_rtd_theme/issues/455
+
+   Three theme rules do the hiding:
+     .wy-menu-vertical li ul                            { display: none }
+     .wy-menu-vertical .toctree-lN.current .toctree-lM>ul { display: none }
+     .wy-menu-vertical li.current ul                    { display: block }
+
+   The second is 4 classes deep, so !important is the honest way to beat it
+   without duplicating that whole selector chain.
+   --------------------------------------------------------------------------- */
+.wy-menu-vertical li ul {
+    display: block !important;
+}
+
+/* With nothing left to expand, the disclosure arrows are misleading: clicking
+   one would appear to do nothing. */
+.wy-menu-vertical li button.toctree-expand {
+    display: none !important;
+}
+
+/* The theme paints nested entries #404040 (near-black). That only works
+   because it shows them exclusively on the current branch, where the
+   background is light. Now that every branch is open, off-branch entries sit
+   on the dark sidebar and that colour is illegible — so give them the same
+   light-on-dark treatment the top-level entries get.
+
+   `.wy-menu-vertical li.current a` ties with this selector on specificity
+   (both 2 classes + 2 elements), and custom.css loads later, so this would
+   otherwise also repaint the current branch — where the background *is*
+   light. The rule below puts the dark text back there. */
+.wy-menu-vertical li.toctree-l2 a,
+.wy-menu-vertical li.toctree-l3 a,
+.wy-menu-vertical li.toctree-l4 a {
+    color: #d9d9d9;
+}
+
+.wy-menu-vertical li.current li.toctree-l2 a,
+.wy-menu-vertical li.current li.toctree-l3 a,
+.wy-menu-vertical li.current li.toctree-l4 a {
+    color: #404040;
+}
+
+/* Indent each level and taper the size, so the hierarchy still reads at a
+   glance without the disclosure arrows to mark it. */
+.wy-menu-vertical li.toctree-l2 a {
+    padding-left: 2.427em;
+}
+
+.wy-menu-vertical li.toctree-l3 a {
+    padding-left: 3.5em;
+    font-size: 0.85em;
+}
+
+.wy-menu-vertical li.toctree-l4 a {
+    padding-left: 4.5em;
+    font-size: 0.8em;
+}
+
+/* The RTD theme caps content width at 800px, which is cramped for the
+   parcellation tables, --help output and the wider figures. */
+.wy-nav-content {
+    max-width: 1000px;
+}
+
+/* Keep wide content (help output, tables, diagrams) inside its own scroll
+   region rather than forcing the page to scroll horizontally. */
+.rst-content div[class^='highlight'] pre,
+.rst-content table.docutils {
+    overflow-x: auto;
+}
+
+/* sphinx-design cards inherit an RTD margin that double-spaces the grids. */
+.rst-content .sd-card {
+    margin-bottom: 0;
+}
+
+.rst-content .sd-card .sd-card-title {
+    font-weight: 600;
+}
+
+/* Definition lists are used heavily for parameter descriptions; give the term
+   enough weight to scan against the body text. */
+.rst-content dl:not(.docutils) > dt,
+.rst-content dl.simple > dt {
+    font-weight: 600;
+}
