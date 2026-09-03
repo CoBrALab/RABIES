@@ -6,6 +6,7 @@ import pathlib
 from .boilerplate import *
 from .parser import get_parser,read_parser
 from .preprocess_pkg.utils import convert_to_RAS
+from . import templates
 
 # setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -57,7 +58,7 @@ def execute_workflow(args=None, return_workflow=False):
     log = prep_logging(opts, opts.output_dir)
 
     # verify default template installation
-    install_DSURQE(log)
+    install_template_set('mouse', log)
 
     from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
@@ -385,27 +386,17 @@ def analysis(opts, log):
 
     return workflow
 
-def install_DSURQE(log):
+def install_template_set(template_set, log):
+    # verifies whether the files of a template set are installed and installs them otherwise
+    if len(templates.missing_files(template_set))==0:
+        return
 
-    install = False
-    # verifies whether default template files are installed and installs them otherwise
-    for f in [DSURQE_ANAT,DSURQE_MASK,DSURQE_WM,DSURQE_CSF,DSURQE_VASC,DSURQE_LABELS,DSURQE_MAPPINGS,DSURQE_ICA,
-              EPICOMMON_ANAT,EPICOMMON_MASK,EPICOMMON_WM,EPICOMMON_CSF,EPICOMMON_VASC,EPICOMMON_LABELS,EPICOMMON_ICA]:
-        if not os.path.isfile(f):
-            install = True
-    for seed in RABIES_SEED_NAMES:
-        seed_file = f'{rabies_path}/DSURQE_seeds/EPICOMMON_resampled/{seed}_left_EPICOMMON_resampled.nii.gz'
-        if not os.path.isfile(seed_file):
-            install = True
-        seed_file = f'{rabies_path}/DSURQE_seeds/{seed}_left.nii.gz'
-        if not os.path.isfile(seed_file):
-            install = True
-
-    if install:
-        from rabies.utils import run_command
-        log.info(
-            "SOME FILES FROM THE DEFAULT TEMPLATE ARE MISSING. THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
-        rc,c_out = run_command(f'install_DSURQE.sh {rabies_path}', verbose=True)
+    from rabies.utils import run_command
+    script = templates.TEMPLATE_SETS[template_set]['install_script']
+    log.info(
+        f"SOME FILES FROM THE {template_set} TEMPLATE SET ARE MISSING. "
+        "THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")
+    rc,c_out = run_command(f'{script} {templates.rabies_path}', verbose=True)
 
 
 def check_binary_masks(mask):
