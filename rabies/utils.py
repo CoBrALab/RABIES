@@ -656,11 +656,11 @@ def generate_token_data(tmppath, number_scans):
 
     os.makedirs(tmppath+'/inputs', exist_ok=True)
 
-    from . import run_main
-    template = run_main.DSURQE_ANAT
-    mask = run_main.DSURQE_MASK
-    labels_file = run_main.DSURQE_LABELS
-    melodic_file = run_main.DSURQE_ICA
+    from . import templates
+    template = templates.resolve('mouse', 'anat_template')
+    mask = templates.resolve('mouse', 'brain_mask')
+    labels_file = templates.resolve('mouse', 'labels')
+    melodic_file = templates.resolve('mouse', 'prior_maps')
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
