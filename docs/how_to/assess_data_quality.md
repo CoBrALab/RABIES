@@ -13,42 +13,52 @@ your group statistics.
 
 ## Generate the reports
 
-Pass `--data_diagnosis` at the analysis stage. It needs a set of ICA components
-via `--prior_maps`, with the components corresponding to confounds identified
-through `--prior_confound_idx`:
+Pass `--data_diagnosis` at the analysis stage. The scan-level
+[spatiotemporal diagnosis](diagnosis_target) is generated regardless; enable
+dual regression, seed-based connectivity, or both, to populate the
+corresponding sections of that report and of the group-level statistics:
 
 ```sh
 rabies -p MultiProc analysis confound_correction_outputs/ analysis_outputs/ \
   --data_diagnosis \
+  --DR_ICA \
   --prior_maps melodic_IC.nii.gz \
   --prior_bold_idx 5 12 19 \
-  --prior_confound_idx 0 1 2 6 7 8 \
-  --DR_ICA
+  --prior_confound_idx 0 1 2 6 7 8
 ```
 
 The reports appear in
 [`data_diagnosis_datasink/`](../reference/outputs.md#analysis-outputs).
 
-Connectivity can be evaluated for either analysis, or both:
-
 For [dual regression](DR_target)
-: Dual regression is always run using the full set of components from
-  `--prior_maps`, because several report features are derived from the confound
-  components named in `--prior_confound_idx`. Connectivity itself is evaluated for
-  each network listed in `--prior_bold_idx`.
+: Pass `--DR_ICA` to run it, together with a set of ICA components via
+  `--prior_maps`, with the components corresponding to confounds identified
+  through `--prior_confound_idx`, because several report features are derived
+  from the confound components. Connectivity itself is evaluated for each
+  network listed in `--prior_bold_idx`.
 
 For [seed-based connectivity](SBC_target)
 : A report is generated for each seed given to `--seed_list`. Each seed must be
   accompanied by a reference network map — a 3D NIfTI file per seed, passed
   through `--seed_prior_list` — representing the connectivity expected for the
-  canonical network that seed belongs to.
+  canonical network that seed belongs to. This analysis does not need
+  `--prior_maps`, so `--data_diagnosis --seed_list ... --seed_prior_list ...`
+  is enough on its own, without `--DR_ICA`.
+
+```{note}
+`--prior_maps` defaults to a pre-computed set of ICA components for mice, but
+only when preprocessing used the default `--anat_template`. With a custom
+template, `--prior_maps` is left empty and must be supplied explicitly
+for dual regression to run.
+```
 
 ### Classify your group ICA components
 
 Ideally the components come from the dataset you are analysing, derived with
 [group ICA](ICA_target). A
 [pre-computed set](https://zenodo.org/records/19069284/files/melodic_IC.nii.gz)
-for mice is used by default.
+for mice is used by default, when the default `--anat_template` is used at
+preprocessing.
 
 Newly generated components must be inspected visually to identify which
 correspond to confound sources. Visualise `group_melodic.ica/melodic_IC.nii.gz`,

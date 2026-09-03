@@ -226,7 +226,7 @@ The average network used for those computations can be visualised in the
 
 ## Group statistical QC report
 
-These quantities are stored inside the `analysis_QC/*_stats/*_QC_stats.csv` output files.
+These quantities are stored inside the `dataset_diagnosis/*_stats/*_QC_stats.csv` output files.
 
 **Specificity of network variability**
 : As with network specificity in the distribution plot, the network variability

@@ -162,7 +162,7 @@ these.
 - `temporal_std_nii/`: the standard deviation at each voxel after confound correction
 - `GS_cov_nii/`: the covariance of each voxel with the global signal
 
-`analysis_QC/` holds the group-level features of data quality:
+`dataset_diagnosis/` holds the group-level features of data quality:
 
 - `sample_distributions/`: the [distribution plots](dist_plot_target)
     - `{analysis}_sample_distribution.png`: the distribution plot for a given network analysis

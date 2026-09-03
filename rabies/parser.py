@@ -936,7 +936,10 @@ def get_parser():
             "Dual regression, Dual ICA and --data_diagnosis. The RABIES default corresponds to a MELODIC \n"
             "run on a combined group of anesthetized-ventilated and awake mice. Confound correction \n"
             "consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and \n"
-            "mot_6,WM_signal,CSF_signal as regressors.\n"
+            "mot_6,WM_signal,CSF_signal as regressors. This default is only applied when the RABIES \n"
+            "default --anat_template (or its --bold_only counterpart) was used for preprocessing; \n"
+            "if a custom --anat_template was provided instead, --prior_maps is left empty, since the \n"
+            "default prior maps no longer match the template.\n"
             "(default: %(default)s)\n"
             "\n"
         )

@@ -7,13 +7,13 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, DatasetD
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
-    outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis', 
-                                                       'analysis_QC', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
+        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_files_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
+    outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis',
+                                                       'dataset_diagnosis_folder', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
 
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
@@ -44,7 +44,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             ("CR_dict_file", "CR_dict_file"),
             ("common_maps_dict_file", "common_maps_dict_file"),
             ("sub_maps_dict_file", "sub_maps_dict_file"),
-            ("analysis_dict", "analysis_dict"),
+            ("analysis_files_dict", "analysis_files_dict"),
             ("native_to_commonspace_transform_list", "native_to_common_transforms"),
             ("native_to_commonspace_inverse_list", "native_to_common_inverses"),
             ]),
@@ -86,7 +86,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
             scan_data={}
 
             dict_keys = ['temporal_std', 'VE_spatial', 'predicted_std', 'GS_corr', 'GS_cov',
-                            'DR_BOLD', 'NPR_maps', 'prior_maps', 'seed_map_list']
+                            'DR_bold', 'NPR_maps', 'prior_maps', 'seed_map_list']
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 
@@ -152,7 +152,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, spli
                 ("scan_data_list", "scan_data_list"),
                 ]),
             (DatasetDiagnosis_node, outputnode, [
-                ("analysis_QC", "analysis_QC"),
+                ("dataset_diagnosis_folder", "dataset_diagnosis_folder"),
                 ]),
             ])
     else:

@@ -196,7 +196,7 @@ def prep_logging(opts, output_folder):
 def preprocess(opts, log):
 
     if not os.path.isdir(opts.bids_dir):
-        raise ValueError("The provided BIDS data path doesn't exists.")
+        raise ValueError("The provided BIDS data path doesn't exist.")
     else:
         # print the input data directory tree
         log.info("INPUT BIDS DATASET:  \n" + list_files(str(opts.bids_dir)))
@@ -241,7 +241,7 @@ def preprocess(opts, log):
         opt_file = getattr(opts, opt_key)
         if opt_file is not None: # some masks might be set to None
             if not os.path.isfile(opt_file):
-                raise ValueError(f"--{opt_key} file {opt_file} doesn't exists.")
+                raise ValueError(f"--{opt_key} file {opt_file} doesn't exist.")
             opt_file = convert_to_RAS(
                 str(opt_file), opts.output_dir+'/template_files')
 
@@ -253,7 +253,7 @@ def preprocess(opts, log):
     if not opts.inherit_unbiased_template=='none':
         opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
         if not os.path.isdir(opts.inherit_unbiased_template):
-            raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exists.")
+            raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exist.")
 
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
@@ -335,17 +335,27 @@ def analysis(opts, log):
             opts.ROI_labels_file = None # set to None so that no computation is attempted using the labels
     else:
         if not os.path.isfile(labels_file):
-            raise ValueError(f"--ROI_labels_file file {labels_file} doesn't exists.")
+            raise ValueError(f"--ROI_labels_file file {labels_file} doesn't exist.")
         # need to convert to RAS first, since the template file was also converted
         labels_file = convert_to_RAS(
             str(labels_file), preprocess_opts.output_dir+'/template_files')
         check_template_overlap(preprocess_opts.anat_template, labels_file)
         opts.ROI_labels_file = labels_file
 
-    if preprocess_opts.bold_only and str(opts.prior_maps)==DSURQE_ICA:
-        file=EPICOMMON_ICA
-        opts.prior_maps=file
-        log.info('With --bold_only, default --prior_maps changed to '+file)
+    if not os.path.isfile(str(opts.prior_maps)):
+        raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exist.")
+
+    if str(opts.prior_maps)==DSURQE_ICA:
+        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+            pass
+        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+            file=EPICOMMON_ICA
+            opts.prior_maps=file
+            log.info('With --bold_only, default --prior_maps changed to '+file)
+        else:
+            opts.prior_maps = None # a custom --anat_template was used, so the default prior maps (fit to the RABIES template) no longer apply
+    else:
+        opts.prior_maps = os.path.abspath(str(opts.prior_maps))
         
     seed_file_list = []
     seed_name_list = []
@@ -361,7 +371,7 @@ def analysis(opts, log):
             seed_name = seed_file.name.rsplit(".nii")[0]
         if not os.path.isfile(seed_file):
             raise ValueError(
-                f"Provide seed file path {seed_file} doesn't exists.")
+                f"Provide seed file path {seed_file} doesn't exist.")
 
         check_template_overlap(preprocess_opts.anat_template, seed_file)
 
@@ -371,7 +381,7 @@ def analysis(opts, log):
     opts.seed_name_list = seed_name_list # store for developing iterables later
 
     from rabies.analysis_pkg.main_wf import init_main_analysis_wf
-    workflow = init_main_analysis_wf(preprocess_opts, confound_correction_opts, opts)
+    workflow = init_main_analysis_wf(confound_correction_opts, opts)
 
     return workflow
 
