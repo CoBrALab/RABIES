@@ -20,6 +20,10 @@ existing commands keep behaving the same way.
 | `mouse` | DSURQE, 40 micron | [Mouse Imaging Centre](https://wiki.mouseimaging.ca/display/MICePub/Mouse+Brain+Atlases) |
 | `rat` | SIGMA in-vivo Wistar, 0.15 mm | [SIGMA v2.0](https://github.com/DavidBarriere/SIGMA-Rat-Brain-Templates-and-Atlases) {cite}`Barriere2019-sigma` |
 
+The two sets define different common spaces, and so do the structural and EPI templates
+within a set; each is its own reference space, and outputs are reported in whichever one
+the run selected.
+
 With `--bold_only`, the pipeline registers functional images directly, and each set
 switches to an EPI reference template, which is a more robust registration target
 than a structural template: `EPICOMMON` for mouse, and the SIGMA in-vivo functional
@@ -35,6 +39,7 @@ species. Instead the operations depending on it are disabled, or refuse to run.
 | --- | --- | --- |
 | Anatomical template and brain mask | yes | yes |
 | White matter and CSF masks | yes | yes, derived by thresholding the SIGMA probabilistic tissue maps |
+| Number of parcels | 356 | 222 structural, 59 functional |
 | Vascular mask | yes | **no** |
 | Anatomical parcellation (`--ROI_labels_file`) | yes, 356 ROIs | yes, the Waxholm parcellation normalized to SIGMA, 222 ROIs {cite}`Kleven2023-whs` |
 | Group ICA priors (`--prior_maps`) | yes | **no** |
@@ -90,17 +95,27 @@ do not provide yourself.
 
 Registering rat data to a mouse template does not fail. It runs to completion and
 produces meaningless results, which is why the mismatch is caught up front: RABIES
-compares the size of an input image against the selected template and refuses to run
-when they differ by more than the difference between species.
+measures the size of an input image and compares how well it fits each installed
+template set, refusing to run when a set other than the selected one fits clearly
+better.
+
+The comparison is relative rather than against a fixed size, because the field of view
+of a scan is not the size of the brain inside it, while the templates are brain-only.
+A whole-head acquisition is larger than its own template in every set, so only the
+relative fit carries information.
 
 If your data and template do match and the check rejects them anyway, which can happen
-with an unusually large field of view, re-run with `--skip_scale_check`.
+with an unusually large field of view, re-run with `--skip_scale_check`. The check is
+also inert when only one set is installed, since there is nothing to compare against.
 
 ## Building the rat set from SIGMA
 
 The distributed rat set is derived from the SIGMA release with
-`scripts/gen_SIGMA_masks.py`, which binarizes and erodes the probabilistic white
-matter and CSF maps and converts the ITK-SNAP label descriptions to CSV. It is run
+`scripts/gen_SIGMA_masks.py`, which binarizes the probabilistic white matter and CSF
+maps and converts the ITK-SNAP label descriptions to CSV. The structural masks are
+also eroded, to keep partial volume voxels at tissue boundaries out of the nuisance
+timecourses; the EPI masks are not, because that grid is too coarse to erode without
+emptying the CSF mask, which matches how the mouse EPI masks are built. It is run
 once when the bundle is built, so that every installation gets identical files, and
 is included in the repository so they can be reproduced.
 

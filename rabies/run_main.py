@@ -168,13 +168,6 @@ def prep_logging(opts, output_folder):
     return log
 
 
-# an input more than this many times larger or smaller than the template it is
-# registered to is not the species the template describes; a rat brain is about
-# twice a mouse brain along each axis
-SCALE_CHECK_UPPER = 1.75
-SCALE_CHECK_LOWER = 0.55
-
-
 def image_extent(file):
     # largest physical dimension of an image, in mm
     img = sitk.ReadImage(file)
@@ -193,7 +186,7 @@ def find_reference_scan(bids_dir, bold_only):
 
 def check_template_scale(opts, log):
     # registering data to the template of another species does not fail, it produces
-    # meaningless outputs, so the size mismatch is caught before the workflow is built
+    # meaningless outputs, so the mismatch is caught before the workflow is built
     if opts.skip_scale_check:
         return
 
@@ -203,14 +196,25 @@ def check_template_scale(opts, log):
                     "skipping the size check.")
         return
 
-    ratio = image_extent(scan)/image_extent(opts.anat_template)
-    if ratio > SCALE_CHECK_UPPER or ratio < SCALE_CHECK_LOWER:
-        other_sets = [name for name in templates.TEMPLATE_SET_NAMES if not name==opts.template_set]
-        raise ValueError(
-            f"The input image {scan} is {ratio:.1f} times the size of the commonspace "
-            f"template selected with --template_set {opts.template_set}. This usually means "
-            f"the data comes from another species; the other available sets are {other_sets}. "
-            "If the data and the template do match, re-run with --skip_scale_check.")
+    extent = image_extent(scan)
+    template_extents = {}
+    for name in templates.TEMPLATE_SET_NAMES:
+        template = templates.resolve(name, 'anat_template', bold_only=opts.bold_only)
+        if os.path.isfile(template): # a set that is not installed cannot be compared
+            template_extents[name] = image_extent(template)
+
+    better = templates.scale_verdict(extent, template_extents, opts.template_set)
+    if better is None:
+        return
+
+    raise ValueError(
+        f"The input image {scan} is "
+        f"{extent/template_extents[opts.template_set]:.1f} times the size of the "
+        f"commonspace template of --template_set {opts.template_set}, but "
+        f"{extent/template_extents[better]:.1f} times the size of the {better} one. "
+        "This usually means the data comes from another species; consider "
+        f"--template_set {better}. If the data and the selected template do match, "
+        "re-run with --skip_scale_check.")
 
 
 def check_inherited_template_set(opts):
