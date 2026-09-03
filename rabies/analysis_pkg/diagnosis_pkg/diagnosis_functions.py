@@ -6,7 +6,7 @@ from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
 from .dataset_QC import masked_plot, threshold_top_percent
 
-def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
+def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_files_dict, 
                                     prior_bold_idx, prior_confound_idx,
                                     nativespace_analysis=False,resampling_specs=None,
                                     ):
@@ -34,14 +34,14 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
 
 
     ### SBC analysis
-    if len(analysis_dict['seed_map_files'])>0:
+    if len(analysis_files_dict['seed_map_files'])>0:
         seed_list=[]
-        for seed_map in analysis_dict['seed_map_files']:
+        for seed_map in analysis_files_dict['seed_map_files']:
             seed_list.append(np.asarray(
                 sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
         spatial_info['seed_map_list'] = seed_list
         time_list=[]
-        for time_csv in analysis_dict['seed_timecourse_csv']:
+        for time_csv in analysis_files_dict['seed_timecourse_csv']:
             time_list.append(np.array(pd.read_csv(time_csv, header=None)).flatten())
         temporal_info['SBC_time'] = np.array(time_list).T # convert to time by network matrix
     else:
@@ -49,10 +49,10 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         temporal_info['SBC_time'] = None
 
     ### DR analysis
-    if not analysis_dict['dual_regression_nii'] is None:
-        DR_W = np.array(pd.read_csv(analysis_dict['dual_regression_timecourse_csv'], header=None))
+    if not analysis_files_dict['dual_regression_nii'] is None:
+        DR_W = np.array(pd.read_csv(analysis_files_dict['dual_regression_timecourse_csv'], header=None))
         DR_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_dict['dual_regression_nii']))
+            sitk.ReadImage(analysis_files_dict['dual_regression_nii']))
         if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
             DR_array = DR_array[np.newaxis,:,:,:]
         DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
@@ -100,10 +100,10 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': None, 'W': None}
-    if not analysis_dict['NPR_prior_filename'] is None:
-        prior_fit_out['W'] = np.array(pd.read_csv(analysis_dict['NPR_prior_timecourse_csv'], header=None))
+    if not analysis_files_dict['NPR_prior_filename'] is None:
+        prior_fit_out['W'] = np.array(pd.read_csv(analysis_files_dict['NPR_prior_timecourse_csv'], header=None))
         C_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_dict['NPR_prior_filename']))
+            sitk.ReadImage(analysis_files_dict['NPR_prior_filename']))
         if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
             C_array = C_array[np.newaxis,:,:,:]
 

@@ -313,16 +313,18 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
             ])
 
     if analysis_opts.data_diagnosis:
-
-        def prep_analysis_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
+        '''
+        Here is created a shortcut dictionary to pass relevant outputs from analysis to the diagnosis workflow, without having to pass all output files individually.
+        '''
+        def prep_analysis_files_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
             return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
                     'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
                     'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
-        prep_analysis_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
+        prep_analysis_files_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
                                             output_names=[
-                                                'analysis_dict'],
-                                        function=prep_analysis_dict),
-                                name='analysis_prep_analysis_dict')
+                                                'analysis_files_dict'],
+                                        function=prep_analysis_files_dict),
+                                name='analysis_prep_analysis_files_dict')
 
         diagnosis_wf = init_diagnosis_wf(analysis_opts, cr_opts.nativespace_analysis, split_name_list, name="diagnosis_wf")
 
@@ -333,8 +335,8 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
             (load_maps_dict_common_node, diagnosis_wf, [
                 ("maps_dict_file", "inputnode.common_maps_dict_file"),
                 ]),
-            (prep_analysis_dict_node, diagnosis_wf, [
-                ("analysis_dict", "inputnode.analysis_dict"),
+            (prep_analysis_files_dict_node, diagnosis_wf, [
+                ("analysis_files_dict", "inputnode.analysis_files_dict"),
                 ]),
             (diagnosis_wf, data_diagnosis_datasink, [
                 ("outputnode.figure_temporal_diagnosis", "figure_temporal_diagnosis"),
@@ -366,30 +368,30 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
 
         if analysis_opts.DR_ICA:
             workflow.connect([
-                (analysis_wf, prep_analysis_dict_node, [
+                (analysis_wf, prep_analysis_files_dict_node, [
                     ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
                     ]),
                 ])
             if cr_opts.nativespace_analysis:
                 workflow.connect([
-                    (analysis_wf, prep_analysis_dict_node, [
+                    (analysis_wf, prep_analysis_files_dict_node, [
                         ("outputnode.DR_nii_file_resampled", "dual_regression_nii"),
                         ]),
                     ])
             else:
                 workflow.connect([
-                    (analysis_wf, prep_analysis_dict_node, [
+                    (analysis_wf, prep_analysis_files_dict_node, [
                         ("outputnode.DR_nii_file", "dual_regression_nii"),
                         ]),
                     ])
         else:
-            prep_analysis_dict_node.inputs.dual_regression_nii = None
-            prep_analysis_dict_node.inputs.dual_regression_timecourse_csv = None
+            prep_analysis_files_dict_node.inputs.dual_regression_nii = None
+            prep_analysis_files_dict_node.inputs.dual_regression_timecourse_csv = None
 
 
         if apply_NPR:
             workflow.connect([
-                (analysis_wf, prep_analysis_dict_node, [
+                (analysis_wf, prep_analysis_files_dict_node, [
                     ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
                     ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
                     ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
@@ -397,21 +399,21 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
                     ]),
                 ])
         else:
-            prep_analysis_dict_node.inputs.NPR_prior_timecourse_csv = None
-            prep_analysis_dict_node.inputs.NPR_extra_timecourse_csv = None
-            prep_analysis_dict_node.inputs.NPR_prior_filename = None
-            prep_analysis_dict_node.inputs.NPR_extra_filename = None
+            prep_analysis_files_dict_node.inputs.NPR_prior_timecourse_csv = None
+            prep_analysis_files_dict_node.inputs.NPR_extra_timecourse_csv = None
+            prep_analysis_files_dict_node.inputs.NPR_prior_filename = None
+            prep_analysis_files_dict_node.inputs.NPR_extra_filename = None
 
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([
-                (analysis_wf, prep_analysis_dict_node, [
+                (analysis_wf, prep_analysis_files_dict_node, [
                     ("outputnode.joined_corr_map_file", "seed_map_files"),
                     ("outputnode.joined_seed_timecourse_csv", "seed_timecourse_csv"),
                     ]),
                 ])
         else:
-            prep_analysis_dict_node.inputs.seed_map_files = []
-            prep_analysis_dict_node.inputs.seed_timecourse_csv = None
+            prep_analysis_files_dict_node.inputs.seed_map_files = []
+            prep_analysis_files_dict_node.inputs.seed_timecourse_csv = None
 
     return workflow
 

@@ -13,8 +13,8 @@ class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
     CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
     common_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the commonspace")
     sub_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the subject' space, either native or common.")
-    analysis_dict = traits.Dict(
-        desc="A dictionary regrouping relevant outputs from analysis.")
+    analysis_files_dict = traits.Dict(
+        desc="A dictionary regrouping relevant output files from analysis.")
     prior_bold_idx = traits.List(
         desc="The index for the ICA components that correspond to bold sources.")
     prior_confound_idx = traits.List(
@@ -86,7 +86,7 @@ class ScanDiagnosis(BaseInterface):
             resampling_specs = {}
 
         temporal_info, spatial_info = diagnosis_functions.compute_spatiotemporal_features(
-            CR_data_dict, sub_maps_data_dict, common_maps_data_dict, self.inputs.analysis_dict, 
+            CR_data_dict, sub_maps_data_dict, common_maps_data_dict, self.inputs.analysis_files_dict, 
             prior_bold_idx, prior_confound_idx,
             nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
 

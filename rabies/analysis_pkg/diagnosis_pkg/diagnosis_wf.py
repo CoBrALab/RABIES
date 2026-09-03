@@ -11,7 +11,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
+        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_files_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis',
                                                        'dataset_diagnosis_folder', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
@@ -44,7 +44,7 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
             ("CR_dict_file", "CR_dict_file"),
             ("common_maps_dict_file", "common_maps_dict_file"),
             ("sub_maps_dict_file", "sub_maps_dict_file"),
-            ("analysis_dict", "analysis_dict"),
+            ("analysis_files_dict", "analysis_files_dict"),
             ("native_to_commonspace_transform_list", "native_to_common_transforms"),
             ("native_to_commonspace_inverse_list", "native_to_common_inverses"),
             ]),
