@@ -145,12 +145,12 @@ Five key diagnostic features enable identifying four categories of scan quality.
 ```
 
 A subset of the features above are the most decisive in determining scan
-quality in relation to connectivity analysis. We examplify here how these 
+quality in relation to connectivity analysis. We exemplify here how these 
 can distinguish between 4 main categories of scan quality.
 
 **BOLD variability**
 : Presents a homogeneous contrast in uncorrupted scans, and otherwise reveals
-  the anatomical signature of a confound — this can allow recognizing the type of
+  the anatomical signature of a confound — this can allow recognising the type of
   confound present.
 
 **Global signal covariance**
@@ -160,7 +160,7 @@ can distinguish between 4 main categories of scan quality.
   most likely contributors to downstream connectivity measures.
 
 **Network map**
-: By visualizing the network maps, we can directly intuit whether they 
+: By visualising the network maps, we can directly intuit whether they 
   reproduce expected anatomical features of the network of interest.
   This is what establishes that the network
   is not absent (the *absent* category), and that its shape is not distorted by

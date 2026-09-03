@@ -113,14 +113,14 @@ analysis (`DR`, `SBC` or `NPR`) you can set:
 : `true` to automatically remove scans with outlier network amplitude, which
   can indicate spurious connectivity {cite}`Nickerson2017-gq`.
 
-**Sensible thresholds values** should be selected by relating scans flagged in 
-step 1. (i.e. that present spurious/absent features in the [spatiotemporal diagnosis](diagnosis_target))
+**Sensible threshold values** should be selected by relating scans flagged in 
+step 1 (i.e. those that present spurious/absent features in the [spatiotemporal diagnosis](diagnosis_target))
 to their associated `Dice`/`Conf` values listed in the [distribution plots](dist_plot_target) 
 and the accompanying CSV file, which gives the measures per scan ID.
 We do not recommend blindly applying a threshold value listed in a previous
 publication, as legitimate `Dice`/`Conf` values will differ depending
 on the image signal-to-noise ratio and/or preprocessing decision 
-(e.g. applying a lowpass filter will systematically increase `conf` values).
+(e.g. applying a lowpass filter will systematically increase `Conf` values).
 
 ```{important}
 Scans excluded by `--scan_QC_thresholds` are excluded from the group
@@ -131,7 +131,7 @@ you set the thresholds.
 ### 3. Check the group level
 
 Consult the [group statistical report](group_stats_target) to identify the main
-driver of connectivity variability across scans, and whether it relates there
+driver of connectivity variability across scans, and whether there
 are systematic group-level associations with confound metrics.
 
 ### 4. Revisit confound correction if needed

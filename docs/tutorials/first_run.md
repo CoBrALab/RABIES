@@ -125,7 +125,7 @@ Breakdown of the command:
   derive 'good-enough' alignment for standard EPI images while speeding 
   things up for high resolution structural images. We do not recommend registration 
   in non-isotropic resolution.
-- `--anat_inho_cor multiotsu=true` activates the multiostu option for inhomogeneity 
+- `--anat_inho_cor multiotsu=true` activates the multiotsu option for inhomogeneity 
   correction of anatomical images, which carries a more aggressive correction
   (for most datasets this is not necessary, you should not use this by default, 
   here it's because this particular dataset has an especially sharp intensity gradient).
@@ -138,7 +138,7 @@ workflow completes.
 
 ## Step 4: Look at the registration quality control report
 
-This is a **crucial step** in practice — this is where you'll catch alginment issues that can 
+This is a **crucial step** in practice — this is where you'll catch alignment issues that can 
 completely break later stages. Open the report folder:
 
 ```sh
@@ -155,10 +155,11 @@ the inhomogeneity correction step for the structural scans.
 
 ```{figure} ../pics/sub-PHG001_ses-3_acq-RARE_T2w_inho_cor.png
 :alt: Four-column figure showing the stages of structural inhomogeneity correction
+
 Four panels of the inhomogeneity correction report, representing the initial and
 final iterations of inhomogeneity before/after brain masking.
 ```
-Your outputs should ressemble the above example, where brain masking was successfully
+Your outputs should resemble the above example, where brain masking was successfully
 delineating the brain edges, and the prominent intensity gradient in the image is
 properly corrected for (partly thanks to the `multiotsu=true` option we selected
 above).
@@ -182,7 +183,7 @@ to common space. An error here will result in bad anatomical masks that impact E
 preprocessing steps below, and ultimately misaligned timeseries at the end of preprocessing.
 
 3. Next, you should validate the registration of the study template to the
-external commonspace template `preprocess_QC_report/commonspace_reg_wf.Unbiased2Atlas/`.
+external commonspace template in `preprocess_QC_report/commonspace_reg_wf.Unbiased2Atlas/`.
 
 ```{figure} ../pics/test_dataset_atlas_registration.png
 :alt: Overlap of the study template on the reference atlas
@@ -190,7 +191,7 @@ external commonspace template `preprocess_QC_report/commonspace_reg_wf.Unbiased2
 The alignment of your study template (top) with the external commonspace template (bottom). The
 outlines should follow the same anatomy.
 ```
-The alignment to external atlas is the last step that can link up the set of brain masks that are
+The alignment to the external atlas is the last step that can link up the set of brain masks that are
 then used for inhomogeneity correction/registration of the EPI below, and also regulates the 
 eventual resampling of timeseries to common space.
 
@@ -199,13 +200,14 @@ folder, where you will validate the inhomogeneity correction of each EPI scan.
 
 ```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_inho_cor.png
 :alt: Four-column figure showing the stages of functional inhomogeneity correction
+
 Same four panels of the inhomogeneity correction report as with the structural scan,
 but now for the EPI scan.
 ```
 Again here you should find adequate brain masking and intensity correction. An error here
 would impact the EPI registration below.
 
-5. finally, open `preprocess_QC_report/EPI2Anat/`, which shows each functional scan
+5. Finally, open `preprocess_QC_report/EPI2Anat/`, which shows each functional scan
 aligned onto its own anatomical scan:
 
 ```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_registration.png
@@ -216,11 +218,11 @@ same session. This registration is also what corrects susceptibility
 distortion.
 ```
 It is unlikely that this registration step will work if **any** of the previous
-step failed significantly for a given run/session.
+steps failed significantly for a given run/session.
 
 On this example dataset, each preprocessing step should run without error. 
 When they do not on your own data, [How to troubleshoot registration](../how_to/troubleshoot_registration.md)
-tells will orient you with fixing it.
+will help you fix it.
 
 ## Step 5: Correct confounds
 
@@ -253,7 +255,7 @@ The options you passed:
   of high-motion frames using a 0.05 mm threshold on framewise displacement.
 - `--nuisance_regressors mot_6 aCompCor_5` models the signal using
   the six head motion parameters plus the first 5 aCompCor principal
-  components derived from the combined WM-CSF masks, and substracts
+  components derived from the combined WM-CSF masks, and subtracts
   the variance explained by those regressors.
 - `--smoothing_filter 0.3` applies 0.3 mm Gaussian spatial smoothing.
 
@@ -289,12 +291,12 @@ Breakdown of the command:
 - `--data_diagnosis` will generate a set of data quality reports associated to the
   functional connectivity analysis results.
 
-You have now carried basic functional connectivity analysis, and 
+You have now carried out a basic functional connectivity analysis, and 
 generated the [scan-level spatiotemporal diagnosis report](../explanation/scan_diagnosis.md)
 for each scan, which you can now open from `analysis_outputs/data_diagnosis_datasink/figure_temporal_diagnosis/` 
 and `analysis_outputs/data_diagnosis_datasink/figure_spatial_diagnosis/` subfolders.
 This report is part of a larger [data quality assessment](../explanation/data_quality.md)
-framework developped for rodent fMRI along with RABIES. Some group-level reports
+framework developed for rodent fMRI along with RABIES. Some group-level reports
 were not generated here, as those require at minimum 3 scans.
 It takes time to learn how to read these reports, and some experience to
 interpret them accurately. For the sake of the tutorial, we will simply 
@@ -303,17 +305,18 @@ diagnosis report under `analysis_outputs/data_diagnosis_datasink/figure_spatial_
 
 ```{figure} ../pics/sub-PHG001_ses-3_task-rest_acq-EPI_run-1_bold_spatial_diagnosis.png
 :alt: Tutorial spatial diagnosis report
+
 Spatial diagnosis report for the first subject.
 ```
-In this report, the resulting seed-based connectivity can be visualized in the 
-last row labelled 'SBC network 0'. We can see in those two example scan that 
-the seed revealed bilateral correlation structure that correspond to 
+In this report, the resulting seed-based connectivity can be visualised in the 
+last row labelled 'SBC network 0'. We can see in those two example scans that 
+the seed revealed a bilateral correlation structure that corresponds to 
 the somatomotor network anatomy of the mouse brain. This confirms that
 this network was adequately mapped and measured (although more subtle
 confounding effects could still exist, but that is a question beyond
 the scope of the tutorial).
 
-These connectivity maps are saved and can be accessed as Nifti files 
+These connectivity maps are saved and can be accessed as NIfTI files 
 in the `analysis_outputs/commonspace_analysis_datasink/seed_correlation_maps`
 output folder, and could be fed into downstream statistical analyses in an
 actual experiment.

@@ -31,7 +31,8 @@ Simple resting-state connectivity analyses are made available after preprocessin
 - whole-brain connectivity matrix
 - group-ICA
 - dual regression
-Importantly, the analysis stage is also complemented by a data quality assessment report (executed with `--data_diagnosis`), which generates several indices of data quality and potential confounds, with the aim of improving preprocessing stategies, data interpretation and scientific transparency.
+
+Importantly, the analysis stage is also complemented by a data quality assessment report (executed with `--data_diagnosis`), which generates several indices of data quality and potential confounds, with the aim of improving preprocessing strategies, data interpretation and scientific transparency.
 
 ## Notes on software design
 
@@ -53,7 +54,7 @@ Importantly, the analysis stage is also complemented by a data quality assessmen
 The [RABIES license](https://github.com/CoBrALab/RABIES/blob/master/LICENSE) allows for uses in academic and educational environments only. Commercial use requires a commercial license from CoBrALab <contact@cobralab.ca>, <http://cobralab.ca>
 
 ## Acknowledgements
-This software was developped by the [CoBrALab](https://cobralab.ca/), located at the Cerebral Imaging Center of the Douglas Mental Health University Institute, Montreal, Canada, in affiliation with McGill University, Montreal, Canada. This work was supported by funding from Healthy Brains, Healthy Lives (HBHL), the Fonds de recherche du Québec - Santé (FRQS) and - Nature et technologies (FRQNT), and the Natural Sciences and Engineering Research Council (NSERC) of Canada. [fMRIPrep](https://fmriprep.org/en/stable/) was an important inspirational source for this project, in particular with regards to best practices for software reproducibility and code design using Nipype. We also thank the organizers of [BrainHack School Montreal](https://school.brainhackmtl.org/), which guided the initial steps of this project in 2018.
+This software was developed by the [CoBrALab](https://cobralab.ca/), located at the Cerebral Imaging Center of the Douglas Mental Health University Institute, Montreal, Canada, in affiliation with McGill University, Montreal, Canada. This work was supported by funding from Healthy Brains, Healthy Lives (HBHL), the Fonds de recherche du Québec - Santé (FRQS) and - Nature et technologies (FRQNT), and the Natural Sciences and Engineering Research Council (NSERC) of Canada. [fMRIPrep](https://fmriprep.org/en/stable/) was an important inspirational source for this project, in particular with regards to best practices for software reproducibility and code design using Nipype. We also thank the organizers of [BrainHack School Montreal](https://school.brainhackmtl.org/), which guided the initial steps of this project in 2018.
 
 
 ## Ask for help

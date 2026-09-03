@@ -14,7 +14,7 @@ Inspecting scan-level features is not sufficient to conclude that inter-scan
 *variability* in connectivity is itself unaffected — there can be subtle
 but systematic artefactual effects that impact that variability without
 being easily detected from the dataset average or individual maps.
-This variability is the primary driver of results in a conventional
+This variability is the primary driver of results in conventional
 group statistical designs (e.g. comparing two different experimental groups),
 in which case it is important to also assess these additional aspects of
 data quality.
@@ -39,8 +39,8 @@ improve the contrast.
 
 ## Correlation with confounds
 
-Connectivity is correlated across subjects, at each voxel, with each of 
-confound measure listed in the [metric definitions](group_QC_metrics).
+Connectivity is correlated across subjects, at each voxel, with each of the
+confound measures listed in the [metric definitions](group_QC_metrics).
 This establishes how strongly connectivity is associated with potential
 confounds. What constitutes a *concerning* correlation depends on the study and
 on the effect size of interest: the question to ask is whether the effect size

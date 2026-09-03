@@ -10,7 +10,7 @@ amplitude — are contrasted with measures of confounds across the sample.
 ```
 
 The QC-FC distribution plot visualises the joint distributions of network and 
-confound data quality measures across the dataset, expending the per-scan qualitative
+confound data quality measures across the dataset, extending the per-scan qualitative
 judgements from the [spatiotemporal diagnosis](diagnosis_target) into a quantitative
 comparison between subjects.
 
@@ -45,7 +45,7 @@ This is the top right subplot, discussed below.
 ```
 
 
-## Inclusion criteria examplified
+## Inclusion criteria exemplified
 
 ```{figure} ../pics/scan_QC_thresholds.png
 :alt: Scan quality categories separated along network specificity and confound correlation axes

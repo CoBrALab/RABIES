@@ -28,11 +28,11 @@ already generate and read the data quality reports — if not, start with
      --smoothing_filter 0.3
    ```
 
-```{Advice}
-Starting minimal is ideal, as excessive
-correction removes network activity along with the confounds, and
-over-correction is harder to detect after the fact than under-correction.
-```
+   ```{tip}
+   Starting minimal is ideal, as excessive
+   correction removes network activity along with the confounds, and
+   over-correction is harder to detect after the fact than under-correction.
+   ```
 
 2. **Evaluate the reports**, following
    [How to assess data quality](assess_data_quality.md).

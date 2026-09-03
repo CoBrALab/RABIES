@@ -63,7 +63,7 @@ available on [Docker Hub](https://hub.docker.com/r/gabdesgreg/rabies).
 ```
 
 For the execution syntax once the image is built, see
-[How to run RABIES in a container](run_with_containers.md).
+[How to handle container syntax](run_with_containers.md).
 
 ## Install from PyPI
 

@@ -42,6 +42,8 @@ fail. The cost is computation time, which is why `fast_commonspace=true`
 exists to skip it.
 ```
 
+(3D_EPI_target)=
+
 ## EPI motion and distortion corrections
 
 A volumetric EPI image is first derived using a trimmed mean across the EPI

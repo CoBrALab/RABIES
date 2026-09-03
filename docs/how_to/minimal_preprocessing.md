@@ -4,9 +4,9 @@ If your functional data was preprocessed with your own pipeline and you only
 want RABIES for confound correction and analysis, you cannot skip the
 preprocessing stage — but you can run it with almost everything turned off.
 
-Because running `rabies confound_correction --read_datasinks` expects the full range of files
+Because running `rabies confound_correction --read_datasink` expects the full range of files
 produced by the `preprocess` stage, it is most convenient to produce the required
-intermediary outputs by running a *SHAM* preprocessing run, that minimally modifies
+intermediary outputs by running a *SHAM* preprocessing run that minimally modifies
 the input data. 
 
 ## Run a SHAM preprocessing
@@ -72,7 +72,7 @@ Two further operations are applied unconditionally and cannot be turned off:
 : This happens when the preprocessed timeseries are written out. If your data
   legitimately contains negative values — because it was already demeaned or
   detrended by your own pipeline — those voxels will be set to zero. Bring in
-  data on a positive scale, and leave centring to `--detrending_order` at the
+  data on a positive scale, and leave centring to `--detrending` at the
   confound correction stage.
 
 **The output is cast** to the type given by `--data_type`

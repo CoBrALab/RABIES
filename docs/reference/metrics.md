@@ -48,7 +48,7 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   loadings across time. The first components explaining 50% of the variance are
   kept, and their loadings $W_{aCompCor}$ provide the aCompCor nuisance
   regressors. The PCA is conducted on partially cleaned timeseries after
-  step 4 of the confound correction pipeline (see [Confound Correction Workflow](../explanation/confound_correction.md)).
+  step 4 of the confound correction pipeline (see [The confound correction workflow](../explanation/confound_correction.md)).
 
 **aCompCor_5**
 : As **aCompCor_percent**, but the first 5 components are kept instead of a set
@@ -181,11 +181,11 @@ Selected with `--nuisance_regressors` at the confound correction stage.
   the overlap of the thresholded area is computed using Dice overlap.
 
 ```{important}
-If the reference network map was generate from the dataset average, it is
-important to validate that the average can indeed provide a adequate
+If the reference network map was generated from the dataset average, it is
+important to validate that the average can indeed provide an adequate
 representation of the expected network connectivity. If the reference does
 not represent a network, then the network specificity metric is meaningless.
-The average network used for those computations can be visualized in the 
+The average network used for those computations can be visualised in the 
 [group statistical report](group_stats_target).
 ```
 

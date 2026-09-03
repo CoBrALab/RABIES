@@ -61,7 +61,7 @@ Many scans are misregistered, or brain edges are not well matched
   follow the guidance above if the correction or brain masking was poor. If
   good quality masks were obtained during inhomogeneity correction, bring them
   into the registration with `masking=true`. If registration errors persist,
-  particularly at the brain edges, `brain_extraction=true` and `keep_mask_after_extract=true` further constrains
+  particularly at the brain edges, `brain_extraction=true` and `keep_mask_after_extract=true` further constrain
   edge matching by removing tissue outside the brain.
 
   ```{warning}

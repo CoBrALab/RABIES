@@ -17,9 +17,9 @@ Every operation is optional (at minimum the temporal mean is removed), and a set
 selected to design a customised workflow.
 
 ```{important}
-There is no universally optimal correction strategy. We provide guidlines for
+There is no universally optimal correction strategy. We provide guidelines for
 tuning the pipeline to address quality issues you can
-actually identified in your data — see
+actually identify in your data — see
 [Data quality assessment](data_quality.md) and
 [How to optimise your confound correction strategy](../how_to/optimise_confound_correction.md).
 ```
@@ -57,7 +57,7 @@ Censoring with DVARS
 `--detrending`
 
 Detrending is applied at the inputted polynomial order (e.g. 0 only removes the intercept,
-1 for linear, 2 for quadratic, etc).
+1 for linear, 2 for quadratic, etc.).
 Detrended timeseries $\hat{Y}$ are obtained by ordinary least squares (OLS)
 linear regression:
 
@@ -69,7 +69,7 @@ $$
 \hat{Y} = Y - X\beta
 $$
 
-where $Y$ is the timeseries and the regressors are the polynomials expansions
+where $Y$ is the timeseries and the regressors are the polynomial expansions
 of the time axis, e.g. $X = [intercept, time, time^2]$ for `--detrending order=2`.
 
 ## 3. ICA-AROMA
@@ -122,9 +122,9 @@ Butterworth filter
 For each voxel timeseries, a selected set of
 [nuisance regressors](regressor_target) is modelled using OLS linear regression
 and their modelled contribution to the signal is removed. 
-Prior to carrying the linear regression, a critical implementation strategy in 
+Prior to carrying out the linear regression, a critical implementation strategy in 
 RABIES is to apply the same censoring, detrending and frequency filtering carried 
-in steps 1,2,4 onto the regressors themselves to mitigate the re-introduction 
+in steps 1, 2 and 4 onto the regressors themselves to mitigate the re-introduction 
 of previously corrected confounds, as recommended in {cite}`Power2014-yf` and 
 {cite}`Lindquist2019-lq`.
 After doing so, the regressed timeseries $\hat{Y}$ are obtained with
