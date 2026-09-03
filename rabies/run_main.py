@@ -350,12 +350,16 @@ def analysis(opts, log):
     require_template_set(template_set, log)
 
     if labels_file is None:
-        # files distributed with a template set are already aligned with its template,
-        # so they are used as-is rather than converted and checked against it
-        opts.ROI_labels_file = templates.resolve(template_set, 'labels', bold_only=bold_only)
+        if getattr(preprocess_opts, 'custom_anat_template', False):
+            # the set's atlas is not aligned with a template provided by the user
+            opts.ROI_labels_file = None
+        else:
+            # files distributed with a template set are already aligned with its template,
+            # so they are used as-is rather than converted and checked against it
+            opts.ROI_labels_file = templates.resolve(template_set, 'labels', bold_only=bold_only)
         if opts.ROI_labels_file is None:
             # left as None so that no computation is attempted using the labels
-            log.info(f"The {template_set} template set provides no labels file; "
+            log.info("No labels file is available for the template used during preprocessing; "
                      "operations depending on --ROI_labels_file are disabled.")
         elif bold_only:
             log.info('With --bold_only, default --ROI_labels_file changed to '+opts.ROI_labels_file)

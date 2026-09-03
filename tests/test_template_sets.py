@@ -133,6 +133,17 @@ class TestResolveOptions(unittest.TestCase):
         with self.assertRaises(ValueError):
             templates.resolve_options(opts, StubLog())
 
+    def test_a_user_template_is_recorded_for_the_analysis_stage(self):
+        # the analysis stage cannot use a set's atlas when the data was registered
+        # to a template from elsewhere, and has no other way to tell
+        opts = preprocess_options(anat_template='t.nii.gz', brain_mask='m.nii.gz')
+        templates.resolve_options(opts, StubLog())
+        self.assertTrue(opts.custom_anat_template)
+
+        opts = preprocess_options(brain_mask='m.nii.gz')
+        templates.resolve_options(opts, StubLog())
+        self.assertFalse(opts.custom_anat_template)
+
     def test_the_resolved_set_is_logged(self):
         log = StubLog()
         opts = preprocess_options(template_set='rat')
