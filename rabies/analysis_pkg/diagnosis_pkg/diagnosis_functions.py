@@ -134,7 +134,10 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     else:
         VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
 
-    spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
+    if common_maps_data_dict['prior_map_vectors'] is not None:
+        spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
+    else:
+        spatial_info['prior_maps'] = None
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']

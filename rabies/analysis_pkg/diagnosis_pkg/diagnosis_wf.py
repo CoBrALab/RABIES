@@ -7,7 +7,7 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, DatasetD
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(

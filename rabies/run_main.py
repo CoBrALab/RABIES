@@ -342,10 +342,20 @@ def analysis(opts, log):
         check_template_overlap(preprocess_opts.anat_template, labels_file)
         opts.ROI_labels_file = labels_file
 
-    if preprocess_opts.bold_only and str(opts.prior_maps)==DSURQE_ICA:
-        file=EPICOMMON_ICA
-        opts.prior_maps=file
-        log.info('With --bold_only, default --prior_maps changed to '+file)
+    if not os.path.isfile(str(opts.prior_maps)):
+        raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exists.")
+
+    if str(opts.prior_maps)==DSURQE_ICA:
+        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+            pass
+        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+            file=EPICOMMON_ICA
+            opts.prior_maps=file
+            log.info('With --bold_only, default --prior_maps changed to '+file)
+        else:
+            opts.prior_maps = None # a custom --anat_template was used, so the default prior maps (fit to the RABIES template) no longer apply
+    else:
+        opts.prior_maps = os.path.abspath(str(opts.prior_maps))
         
     seed_file_list = []
     seed_name_list = []
@@ -371,7 +381,7 @@ def analysis(opts, log):
     opts.seed_name_list = seed_name_list # store for developing iterables later
 
     from rabies.analysis_pkg.main_wf import init_main_analysis_wf
-    workflow = init_main_analysis_wf(preprocess_opts, confound_correction_opts, opts)
+    workflow = init_main_analysis_wf(confound_correction_opts, opts)
 
     return workflow
 

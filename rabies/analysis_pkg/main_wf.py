@@ -9,11 +9,27 @@ from rabies.analysis_pkg.analysis_wf import init_analysis_wf
 from rabies.utils import fill_split_dict, get_workflow_dict
 
 
-def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
+def init_main_analysis_wf(cr_opts, analysis_opts):
 
     if analysis_opts.ROI_labels_file is None and analysis_opts.FC_matrix and analysis_opts.ROI_type=='parcellated':
         raise ValueError(
             'No --ROI_labels_file were provided to match the template --anat_template from preprocessing.')
+
+    if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
+        apply_NPR = True
+    else:
+        apply_NPR = False
+
+    '''
+    Check that --prior_maps parameters fit
+    '''
+    if analysis_opts.prior_maps is not None:
+        if not os.path.isfile(analysis_opts.prior_maps):
+            raise ValueError("The --prior_maps file doesn't exist.")
+    else:
+        if analysis_opts.DR_ICA or apply_NPR:
+            raise ValueError(
+                "No --prior_maps were provided for conducting the requested analyses.")
 
     workflow = pe.Workflow(name='analysis_main_wf')
 
@@ -70,9 +86,6 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
     seed_dict = {}
     for seed_file,seed_name in zip(analysis_opts.seed_list, analysis_opts.seed_name_list):
         seed_dict[seed_name] = seed_file
-
-    if not os.path.isfile(str(analysis_opts.prior_maps)):
-        raise ValueError("--prior_maps doesn't exists.")
 
     load_CR_dict_node = pe.Node(Function(input_names=['maps_dict_file', 'cleaned_bold_file', 'CR_data_dict', 'VE_file', 'STD_file', 'CR_STD_file', 'name_source', 'remove_intercept'],
                                            output_names=[
@@ -172,7 +185,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                 name='load_maps_dict_common_node')
         load_maps_dict_common_node.inputs.atlas_file = analysis_opts.ROI_labels_file
         load_maps_dict_common_node.inputs.seed_dict = seed_dict
-        load_maps_dict_common_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_common_node.inputs.prior_maps = analysis_opts.prior_maps
         load_maps_dict_common_node.inputs.interpolation = analysis_opts.interpolation_sitk
         load_maps_dict_common_node.inputs.rabies_data_type = analysis_opts.data_type
 
@@ -219,7 +232,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                 name='load_maps_dict_native_node')
         load_maps_dict_native_node.inputs.atlas_file = analysis_opts.ROI_labels_file
         load_maps_dict_native_node.inputs.seed_dict = seed_dict
-        load_maps_dict_native_node.inputs.prior_maps = os.path.abspath(analysis_opts.prior_maps)
+        load_maps_dict_native_node.inputs.prior_maps = analysis_opts.prior_maps
         load_maps_dict_native_node.inputs.interpolation = analysis_opts.interpolation_sitk
         load_maps_dict_native_node.inputs.rabies_data_type = analysis_opts.data_type
 
@@ -311,7 +324,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
                                         function=prep_analysis_dict),
                                 name='analysis_prep_analysis_dict')
 
-        diagnosis_wf = init_diagnosis_wf(analysis_opts, cr_opts.nativespace_analysis, preprocess_opts, split_name_list, name="diagnosis_wf")
+        diagnosis_wf = init_diagnosis_wf(analysis_opts, cr_opts.nativespace_analysis, split_name_list, name="diagnosis_wf")
 
         workflow.connect([
             (load_CR_dict_node, diagnosis_wf, [
@@ -374,7 +387,7 @@ def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
             prep_analysis_dict_node.inputs.dual_regression_timecourse_csv = None
 
 
-        if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
+        if apply_NPR:
             workflow.connect([
                 (analysis_wf, prep_analysis_dict_node, [
                     ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
@@ -432,10 +445,12 @@ def load_maps_dict(mask_file, WM_mask_file, CSF_mask_file, atlas_file, anat_ref_
 
     edge_idx = compute_edge_mask(mask_array, num_edge_voxels=1)[volume_indices]
 
-    resampled_4D_img = resample_volumes(in_img=prior_maps, in_ref=anat_ref_file, transforms_3d_files=transform_list, inverses_3d=inverse_list, 
-                                          motcorr_params_file=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
-    resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
-    prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
+    prior_map_vectors = None
+    if prior_maps is not None:
+        resampled_4D_img = resample_volumes(in_img=prior_maps, in_ref=anat_ref_file, transforms_3d_files=transform_list, inverses_3d=inverse_list, 
+                                            motcorr_params_file=None, interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
+        resampled_maps = sitk.GetArrayFromImage(resampled_4D_img)
+        prior_map_vectors = resampled_maps[:,volume_indices] # we return the 2D format of map number by voxels
 
     # resample each seed into the right space and then load the seed as an array
     seed_arr_dict = {}
