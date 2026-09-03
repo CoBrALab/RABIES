@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from rabies.utils import recover_3D
 from rabies.analysis_pkg import analysis_functions
 import SimpleITK as sitk
-from .analysis_QC import masked_plot, threshold_top_percent
+from .dataset_QC import masked_plot, threshold_top_percent
 
 def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_dict, 
                                     prior_bold_idx, prior_confound_idx,

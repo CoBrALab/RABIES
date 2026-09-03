@@ -7,7 +7,7 @@ from rabies.utils import recover_3D
 from rabies.confound_correction_pkg.utils import smooth_image
 
 
-def analysis_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False, top_percent=10, smoothing=False):
+def generate_dataset_QC(FC_maps, consensus_network, mask_file, corr_variable, variable_name, template_file, non_parametric=False, top_percent=10, smoothing=False):
 
     scaled = otsu_scaling(template_file)
         

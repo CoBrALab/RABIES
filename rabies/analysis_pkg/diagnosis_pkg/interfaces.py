@@ -168,7 +168,7 @@ class DatasetDiagnosis(BaseInterface):
         import pathlib
         import matplotlib.pyplot as plt
         from rabies.utils import flatten_list
-        from .analysis_QC import analysis_QC,QC_distributions
+        from .dataset_QC import generate_dataset_QC,QC_distributions
 
         figure_format = self.inputs.figure_format
 
@@ -304,11 +304,11 @@ class DatasetDiagnosis(BaseInterface):
             return df
                         
 
-        def analysis_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
+        def generate_dataset_QC_network_i(i,FC_maps,prior_map,non_zero_mask, corr_variable, variable_name, template_file, out_dir_parametric, out_dir_non_parametric,analysis_prefix):
 
             for non_parametric,out_dir in zip([False, True], [out_dir_parametric, out_dir_non_parametric]):
                 with np.errstate(invalid='ignore', divide='ignore'):
-                    dataset_stats,fig,fig_unthresholded = analysis_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold, smoothing=self.inputs.add_smoothing)
+                    dataset_stats,fig,fig_unthresholded = generate_dataset_QC(FC_maps, prior_map, non_zero_mask, corr_variable, variable_name, template_file, non_parametric=non_parametric, top_percent=self.inputs.brainmap_percent_threshold, smoothing=self.inputs.add_smoothing)
                 df = pd.DataFrame(dataset_stats, index=[1])
                 df = change_columns(df)
                 df.to_csv(f'{out_dir}/{analysis_prefix}{i}_QC_stats.csv', index=None)
@@ -387,7 +387,7 @@ class DatasetDiagnosis(BaseInterface):
                 FC_maps_ = FC_maps[QC_inclusion,:]
                 corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
+                generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
 
         if len(FC_maps_dict['NPR'])>0:
             NPR_maps_list=np.array(FC_maps_dict['NPR'])
@@ -416,7 +416,7 @@ class DatasetDiagnosis(BaseInterface):
                     FC_maps_ = FC_maps[QC_inclusion,:]
                     corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
+                    generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
         if len(FC_maps_dict['SBC'])>0:
             seed_maps_list=np.array(FC_maps_dict['SBC'])
@@ -452,7 +452,7 @@ class DatasetDiagnosis(BaseInterface):
                     FC_maps_ = FC_maps[QC_inclusion,:]
                     corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
-                    analysis_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
+                    generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='seed_FC')
 
         return runtime
 
