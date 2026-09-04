@@ -97,8 +97,7 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
 
     # prepare analysis workflow
     analysis_output = os.path.abspath(str(analysis_opts.output_dir))
-    analysis_wf = init_analysis_wf(
-        opts=analysis_opts)
+    analysis_wf = init_analysis_wf(analysis_opts, cr_opts)
 
     '''
     PREPARE DATASINKS
@@ -150,14 +149,16 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
             ("CR_STD_file_path", "CR_STD_file"),
             ("input_bold", "name_source"),
             ]),
-        (load_CR_dict_node, analysis_wf, [
-            ("CR_dict_file", "subject_inputnode.CR_dict_file"),
+        (conf_outputnode, analysis_wf, [
+            ("cleaned_path", "subject_inputnode.cleaned_bold_file"),
+            ("input_bold", "subject_inputnode.name_source"),
+            ("data_dict", "subject_inputnode.CR_data_dict"),
             ]),
         (analysis_wf, main_analysis_datasink, [
             ("outputnode.matrix_data_file", "matrix_data_file"),
             ("outputnode.matrix_fig", "matrix_fig"),
-            ("outputnode.corr_map_file", "seed_correlation_maps"),
-            ("outputnode.seed_timecourse_csv", "seed_timecourse_csv"),
+            ("outputnode.corr_map_file_list", "seed_correlation_maps"),
+            ("outputnode.seed_timecourse_csv_list", "seed_timecourse_csv"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
             ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
@@ -214,13 +215,17 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
         # only if inputs are in commonspace then analysis computations are also in commonspace
         if not cr_opts.nativespace_analysis:
             workflow.connect([
-                (load_maps_dict_common_node, analysis_wf, [
-                    ("maps_dict_file", "subject_inputnode.maps_dict_file"),
-                    ]),
                 (load_maps_dict_common_node, load_CR_dict_node, [
                     ("maps_dict_file", "maps_dict_file"),
                     ]),
                 ])
+
+            # the commonspace mask/template are the same for every scan, and no transform
+            # is needed since seeds/prior_maps/atlas are already in commonspace
+            analysis_wf.inputs.subject_inputnode.mask_file = split_dict[split_name]["commonspace_mask"]
+            analysis_wf.inputs.subject_inputnode.anat_ref_file = split_dict[split_name]["commonspace_resampled_template"]
+            analysis_wf.inputs.subject_inputnode.to_analysis_space_transform_list = []
+            analysis_wf.inputs.subject_inputnode.to_analysis_space_inverse_list = []
 
     # if inputs are in native space, then subject specific maps are loaded
     if cr_opts.nativespace_analysis:
@@ -246,13 +251,14 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
                 ("commonspace_to_native_inverse_list", "inverse_list"),
                 ("input_bold", "name_source"),
                 ]),
-            (load_maps_dict_native_node, analysis_wf, [
-                ("maps_dict_file", "subject_inputnode.maps_dict_file"),
-                ]),
             (load_maps_dict_native_node, load_CR_dict_node, [
                 ("maps_dict_file", "maps_dict_file"),
                 ]),
             (conf_outputnode, analysis_wf, [
+                ("native_brain_mask", "subject_inputnode.mask_file"),
+                ("native_bold_ref", "subject_inputnode.anat_ref_file"),
+                ("commonspace_to_native_transform_list", "subject_inputnode.to_analysis_space_transform_list"),
+                ("commonspace_to_native_inverse_list", "subject_inputnode.to_analysis_space_inverse_list"),
                 ("native_to_commonspace_transform_list", "subject_inputnode.native_to_commonspace_transform_list"),
                 ("native_to_commonspace_inverse_list", "subject_inputnode.native_to_commonspace_inverse_list"),
                 ]),
@@ -407,8 +413,8 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([
                 (analysis_wf, prep_analysis_files_dict_node, [
-                    ("outputnode.joined_corr_map_file", "seed_map_files"),
-                    ("outputnode.joined_seed_timecourse_csv", "seed_timecourse_csv"),
+                    ("outputnode.corr_map_file_list", "seed_map_files"),
+                    ("outputnode.seed_timecourse_csv_list", "seed_timecourse_csv"),
                     ]),
                 ])
         else:
