@@ -458,15 +458,22 @@ def fc_analysis(
     """
     from .analysis_math import dual_regression
     from .analysis_functions import compute_seed_FC, parcellated_FC_matrix, compute_NPR
+    from .utils import load_resample_analysis_maps
 
     filename_split = pathlib.Path(name_source).name.rsplit(".nii")[0]
 
-    timeseries, seed_arr_dict, prior_map_vectors, atlas_idx, roi_list = load_analysis_inputs(
-        cleaned_bold_file, mask_file, anat_ref_file,
-        to_analysis_space_transform_list, to_analysis_space_inverse_list, seed_dict, prior_maps, atlas_file, 
-        remove_EPI_avg, CR_data_dict,
-        interpolation, rabies_data_type, output_prefix=filename_split,
+    loaded = load_resample_analysis_maps(
+        mask_file, anat_ref_file,
+        transform_list=to_analysis_space_transform_list, inverse_list=to_analysis_space_inverse_list,
+        seed_dict=seed_dict, prior_maps=prior_maps, atlas_file=atlas_file,
+        cleaned_bold_file=cleaned_bold_file, CR_data_dict=CR_data_dict, remove_EPI_avg=remove_EPI_avg,
+        interpolation=interpolation, rabies_data_type=rabies_data_type, output_prefix=filename_split,
         )
+    timeseries = loaded['timeseries']
+    seed_arr_dict = loaded['seed_arr_dict']
+    prior_map_vectors = loaded['prior_map_vectors']
+    atlas_idx = loaded['atlas_idx']
+    roi_list = loaded['roi_list']
 
     '''
     FC computations
@@ -513,52 +520,4 @@ def fc_analysis(
     else:
         NPR_out = None
     return SBC_out, DR_out, FC_matrix_df, NPR_out
-
-
-def load_analysis_inputs(cleaned_bold_file, mask_file, anat_ref_file,
-                         transform_list=[], inverse_list=[], seed_dict={}, prior_maps=None, atlas_file=None, 
-                         remove_EPI_avg=False, CR_data_dict={},
-                         interpolation=sitk.sitkLinear, rabies_data_type=sitk.sitkFloat32, output_prefix=''):
-    '''
-    Load all the NIfTI inputs into vectorized, masked array format
-    in overlapping space with the timeseries.
-    '''
-    from rabies.utils import resample_volumes, antsApplyTransforms
-
-    mask_array = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
-    volume_indices = mask_array.astype(bool)
-    timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_bold_file))[:, volume_indices]
-    if remove_EPI_avg:
-        timeseries = timeseries - CR_data_dict['voxelwise_mean']
-
-
-    seed_arr_dict = {}
-    for seed_name, seed_file in seed_dict.items():
-        resampled_seed_file = os.path.abspath(f'{output_prefix}_{seed_name}_resampled.nii.gz')
-        antsApplyTransforms(transforms=transform_list, inverses=inverse_list,
-            input_image=seed_file, ref_image=anat_ref_file, output_filename=resampled_seed_file,
-            interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
-        seed_arr_dict[seed_name] = sitk.GetArrayFromImage(sitk.ReadImage(resampled_seed_file))[volume_indices]
-
-    prior_map_vectors = None
-    if prior_maps is not None:
-        resampled_4D_img = resample_volumes(in_img=prior_maps, in_ref=anat_ref_file,
-            transforms_3d_files=transform_list, inverses_3d=inverse_list, motcorr_params_file=None,
-            interpolation=interpolation, rabies_data_type=rabies_data_type, clip_negative=False)
-        prior_map_vectors = sitk.GetArrayFromImage(resampled_4D_img)[:, volume_indices]
-
-    atlas_idx = None
-    roi_list = None
-    if atlas_file is not None:
-        resampled_atlas_file = os.path.abspath(f'{output_prefix}_atlas_resampled.nii.gz')
-        antsApplyTransforms(transforms=transform_list, inverses=inverse_list,
-            input_image=atlas_file, ref_image=anat_ref_file, output_filename=resampled_atlas_file,
-            interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
-        atlas_idx = sitk.GetArrayFromImage(sitk.ReadImage(resampled_atlas_file))[volume_indices]
-
-        # original (unresampled) atlas defines which ROI integers are present
-        atlas_data = sitk.GetArrayFromImage(sitk.ReadImage(str(atlas_file))).astype(int)
-        roi_list = [i for i in range(1, atlas_data.max() + 1) if np.max(i == atlas_data)]
-
-    return timeseries, seed_arr_dict, prior_map_vectors, atlas_idx, roi_list
 
