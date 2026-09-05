@@ -2,35 +2,35 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from rabies.utils import recover_3D
-from rabies.analysis_pkg import analysis_functions
+from rabies.analysis_pkg.analysis_math import vcorrcoef
 import SimpleITK as sitk
 from .dataset_QC import masked_plot, threshold_top_percent
 
-def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_maps_data_dict, analysis_files_dict, 
-                                    prior_bold_idx, prior_confound_idx,
-                                    nativespace_analysis=False,resampling_specs=None,
+def compute_spatiotemporal_features(name_source, CR_data_dict, VE_spatial, temporal_std, predicted_std,
+                                    sub_mask_file, sub_space_maps_loaded, common_mask_file, common_anat_ref_file,
+                                    analysis_files_dict, prior_bold_idx, prior_confound_idx,
+                                    nativespace_analysis=False, resampling_specs=None,
                                     ):
     if resampling_specs is None:
         resampling_specs={}
-    # sub_maps_data_dict is the maps_data_dict that overlaps with the subject, either in native or common space depending on confound correction
-    # common_maps_data_dict contains files in commonspace
+    # sub_space_maps_loaded is load_resample_analysis_maps()'s output that overlaps with the subject, either in native or common space depending on confound correction
+    # commonspace_maps_loaded contains the same, but always in commonspace
     temporal_info = {}
     spatial_info = {}
-    temporal_info['name_source'] = CR_data_dict['name_source']
-    spatial_info['name_source'] = CR_data_dict['name_source']
+    temporal_info['name_source'] = name_source
+    spatial_info['name_source'] = name_source
+
+    # this timeseries can be in nativespace or commonspace depending on confound correction stage
+    timeseries = sub_space_maps_loaded['timeseries']
+
     # spatial maps will always be in commonspace for display
-    spatial_info['mask_file'] = common_maps_data_dict['mask_file']
+    spatial_info['mask_file'] = common_mask_file
+    commonspace_volume_indices = sitk.GetArrayFromImage(sitk.ReadImage(common_mask_file)).astype(bool)
 
-    # these timeseries can be in nativespace or commonspace depending on confound correction stage
-    timeseries = CR_data_dict['timeseries']
-    volume_indices = common_maps_data_dict['volume_indices']
-
-    CR_CR_data_dict = CR_data_dict['CR_data_dict']
-
-    temporal_info['FD_trace'] = CR_CR_data_dict['FD_trace']
-    temporal_info['DVARS_pre_correction'] = CR_CR_data_dict['DVARS_pre_correction']
-    temporal_info['mse_trace'] = CR_CR_data_dict['mse_trace']
-    temporal_info['VE_temporal'] = CR_CR_data_dict['VE_temporal']
+    temporal_info['FD_trace'] = CR_data_dict['FD_trace']
+    temporal_info['DVARS_pre_correction'] = CR_data_dict['DVARS_pre_correction']
+    temporal_info['mse_trace'] = CR_data_dict['mse_trace']
+    temporal_info['VE_temporal'] = CR_data_dict['VE_temporal']
 
 
     ### SBC analysis
@@ -38,7 +38,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         seed_list=[]
         for seed_map in analysis_files_dict['seed_map_files']:
             seed_list.append(np.asarray(
-                sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[volume_indices])
+                sitk.GetArrayFromImage(sitk.ReadImage(seed_map)))[commonspace_volume_indices])
         spatial_info['seed_map_list'] = seed_list
         time_list=[]
         for time_csv in analysis_files_dict['seed_timecourse_csv']:
@@ -55,9 +55,9 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
             sitk.ReadImage(analysis_files_dict['dual_regression_nii']))
         if len(DR_array.shape)==3: # if there was only one component, need to convert to 4D array
             DR_array = DR_array[np.newaxis,:,:,:]
-        DR_C = np.zeros([DR_array.shape[0], volume_indices.sum()])
+        DR_C = np.zeros([DR_array.shape[0], commonspace_volume_indices.sum()])
         for i in range(DR_array.shape[0]):
-            DR_C[i, :] = (DR_array[i, :, :, :])[volume_indices]
+            DR_C[i, :] = (DR_array[i, :, :, :])[commonspace_volume_indices]
 
         temporal_info['DR_all'] = DR_W
         temporal_info['DR_bold'] = DR_W[:, prior_bold_idx]
@@ -74,22 +74,20 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
     '''Temporal Features'''
     global_signal = timeseries.mean(axis=1)
     temporal_info['global_signal'] = global_signal
-    temporal_info['predicted_time'] = CR_CR_data_dict['predicted_time']
+    temporal_info['predicted_time'] = CR_data_dict['predicted_time']
     # take regional timecourse by taking the RMS each 3D volume
-    edge_idx = sub_maps_data_dict['edge_idx']
+    edge_idx = sub_space_maps_loaded['edge_idx']
     #edge_trace = np.sqrt((timeseries.T[edge_idx]**2).mean(axis=0))
     edge_trace = timeseries[:,edge_idx].mean(axis=1)
     temporal_info['edge_trace'] = edge_trace
-    if sub_maps_data_dict['WM_idx'] is not None:
-        WM_idx = sub_maps_data_dict['WM_idx']
-        #WM_trace = np.sqrt((timeseries.T[WM_idx]**2).mean(axis=0))
+    if sub_space_maps_loaded['WM_idx'] is not None:
+        WM_idx = sub_space_maps_loaded['WM_idx']
         WM_trace = timeseries[:,WM_idx].mean(axis=1)
         temporal_info['WM_trace'] = WM_trace
     else:
         temporal_info['WM_trace'] = None
-    if sub_maps_data_dict['CSF_idx'] is not None:
-        CSF_idx = sub_maps_data_dict['CSF_idx']
-        #CSF_trace = np.sqrt((timeseries.T[CSF_idx]**2).mean(axis=0))
+    if sub_space_maps_loaded['CSF_idx'] is not None:
+        CSF_idx = sub_space_maps_loaded['CSF_idx']
         CSF_trace = timeseries[:,CSF_idx].mean(axis=1)
         temporal_info['CSF_trace'] = CSF_trace
     else:
@@ -97,7 +95,7 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
 
     '''Spatial Features'''
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
-    GS_corr = analysis_functions.vcorrcoef(timeseries.T, global_signal)
+    GS_corr = vcorrcoef(timeseries.T, global_signal)
 
     prior_fit_out = {'C': None, 'W': None}
     if not analysis_files_dict['NPR_prior_filename'] is None:
@@ -107,9 +105,9 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
             C_array = C_array[np.newaxis,:,:,:]
 
-        C = np.zeros([C_array.shape[0], volume_indices.sum()])
+        C = np.zeros([C_array.shape[0], commonspace_volume_indices.sum()])
         for i in range(C_array.shape[0]):
-            C[i, :] = (C_array[i, :, :, :])[volume_indices]
+            C[i, :] = (C_array[i, :, :, :])[commonspace_volume_indices]
         prior_fit_out['C'] = C
 
     if nativespace_analysis: # certain spatial maps were computed in nativespace and need resampling
@@ -117,27 +115,19 @@ def compute_spatiotemporal_features(CR_data_dict, sub_maps_data_dict, common_map
         import tempfile
         tmppath = tempfile.mkdtemp()
         def resample_brain_map(brain_map):
-            image_3d = recover_3D(sub_maps_data_dict['mask_file'], brain_map)
-            resampled_img = resample_volumes(image_3d, common_maps_data_dict['anat_ref_file'], 
-                                             transforms_3d_files=resampling_specs['transforms'], inverses_3d=resampling_specs['inverses'], 
-                                             motcorr_params_file = None, interpolation=resampling_specs['interpolation'], 
+            image_3d = recover_3D(sub_mask_file, brain_map)
+            resampled_img = resample_volumes(image_3d, common_anat_ref_file,
+                                             transforms_3d_files=resampling_specs['transforms'], inverses_3d=resampling_specs['inverses'],
+                                             motcorr_params_file = None, interpolation=resampling_specs['interpolation'],
                                              rabies_data_type=resampling_specs['rabies_data_type'], clip_negative=False)
-            resampled_brain_map = sitk.GetArrayFromImage(resampled_img)[common_maps_data_dict['volume_indices']]
+            resampled_brain_map = sitk.GetArrayFromImage(resampled_img)[commonspace_volume_indices]
             return resampled_brain_map
-            
+
         [GS_cov, GS_corr, VE_spatial, temporal_std, predicted_std] = [
-            resample_brain_map(brain_map) for brain_map in [GS_cov, GS_corr, CR_data_dict['VE_spatial'], 
-                                                            CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
+            resample_brain_map(brain_map) for brain_map in [GS_cov, GS_corr, VE_spatial, temporal_std, predicted_std]
             ]
         import shutil
         shutil.rmtree(tmppath, ignore_errors=True)
-    else:
-        VE_spatial, temporal_std, predicted_std = [CR_data_dict['VE_spatial'], CR_data_dict['temporal_std'],CR_data_dict['predicted_std']]
-
-    if common_maps_data_dict['prior_map_vectors'] is not None:
-        spatial_info['prior_maps'] = common_maps_data_dict['prior_map_vectors'][prior_bold_idx]
-    else:
-        spatial_info['prior_maps'] = None
 
     spatial_info['NPR_maps'] = prior_fit_out['C']
     temporal_info['NPR_time'] = prior_fit_out['W']
@@ -258,10 +248,10 @@ def plot_freqs(ax,timeseries, TR, frame_mask):
     return freqs, psds, y_max
 
 
-def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, plot_seed_frequencies={}, brainmap_percent_threshold=10, display_censoring=True):
-    TR = CR_data_dict['CR_data_dict']['TR']
+def scan_diagnosis(CR_data_dict, timeseries, common_anat_ref_file, common_mask_file, temporal_info, spatial_info, plot_seed_frequencies={}, brainmap_percent_threshold=10, display_censoring=True):
+    TR = CR_data_dict['TR']
 
-    total_time_length = len(CR_data_dict['CR_data_dict']['frame_mask'])
+    total_time_length = len(CR_data_dict['frame_mask'])
     n_frames_per_fig = 1000 # max 1000 frames per figure
     num_figs = int(np.ceil(total_time_length/n_frames_per_fig))
     start_time = 0
@@ -271,16 +261,16 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         start_time+=n_frames_per_fig
 
         [
-            timeseries, frame_mask, motion_params_df,
+            timeseries_subset, frame_mask, motion_params_df,
             FD_trace, DVARS, mse_trace,
             CR_VE_temporal, CR_var_temporal,
             global_signal, WM_trace, CSF_trace, edge_trace,
             DR_bold_time, DR_confound_time, SBC_time, NPR_time,
-            ] = prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info)
+            ] = prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, temporal_info)
 
         time0 = plot_time_subset.start
         fig,axes = temporal_diagnosis_plot(
-            time0, timeseries, frame_mask, TR, motion_params_df,
+            time0, timeseries_subset, frame_mask, TR, motion_params_df,
             FD_trace, DVARS, mse_trace,
             CR_VE_temporal, CR_var_temporal,
             global_signal, WM_trace, CSF_trace, edge_trace,
@@ -289,31 +279,29 @@ def scan_diagnosis(CR_data_dict, maps_data_dict, temporal_info, spatial_info, pl
         temporal_fig_list.append(fig)
         plt.close(fig)
 
-    fig2 = spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_threshold=brainmap_percent_threshold)
+    fig2 = spatial_diagnosis_plot(common_anat_ref_file, common_mask_file, spatial_info, brainmap_percent_threshold=brainmap_percent_threshold)
     plt.close(fig2)
     return temporal_fig_list, fig2
 
 
-def prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info):
-    CR_CR_data_dict = CR_data_dict['CR_data_dict']
-
-    frame_mask = CR_CR_data_dict['frame_mask'][plot_time_subset]
+def prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, temporal_info):
+    frame_mask = CR_data_dict['frame_mask'][plot_time_subset]
     # the motion parameters are the entire original length, so both the time_range from confound_correction and plot_time_subset must be applied
-    time_range = CR_CR_data_dict['time_range']
-    motion_params_df = CR_CR_data_dict['motion_params_df'][time_range.start:time_range.stop][plot_time_subset.start:plot_time_subset.stop]
+    time_range = CR_data_dict['time_range']
+    motion_params_df = CR_data_dict['motion_params_df'][time_range.start:time_range.stop][plot_time_subset.start:plot_time_subset.stop]
 
     # the remaining timeseries were censored with frame_mask, and plot_time_subset is not aligned with the censored time axis
     first = plot_time_subset.start
     last = plot_time_subset.stop # .stop actually returns the max value for range(), which is excluded as an index
     # the idx range must be shifted by the number of censored frames before the first index to match the censored timeseries array
-    frame_mask_full = CR_CR_data_dict['frame_mask']
+    frame_mask_full = CR_data_dict['frame_mask']
     if first>0:
         first -= (frame_mask_full[:first]==False).sum()
     # similarly for the last index
     last -= (frame_mask_full[:last]==False).sum()
     plot_time_subset_censored = range(first,last) # we re-generated a corrected range
 
-    timeseries = CR_data_dict['timeseries'][plot_time_subset_censored]
+    timeseries_subset = timeseries[plot_time_subset_censored]
 
     FD_trace=temporal_info['FD_trace'].to_numpy()[plot_time_subset_censored]
     DVARS=temporal_info['DVARS_pre_correction'][plot_time_subset_censored]
@@ -340,7 +328,7 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, temporal_info):
     WM_trace=temporal_info['WM_trace'][plot_time_subset_censored]
     CSF_trace=temporal_info['CSF_trace'][plot_time_subset_censored]
     return [
-        timeseries, frame_mask, motion_params_df,
+        timeseries_subset, frame_mask, motion_params_df,
         FD_trace, DVARS, mse_trace,
         CR_VE_temporal, CR_var_temporal,
         global_signal, WM_trace, CSF_trace, edge_trace,
@@ -630,12 +618,11 @@ def temporal_diagnosis_plot(
     return fig,axes
 
 
-def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_threshold=10):
-    template_file = maps_data_dict['anat_ref_file']
+def spatial_diagnosis_plot(common_anat_ref_file, common_mask_file, spatial_info, brainmap_percent_threshold=10):
+    template_file = common_anat_ref_file
     dr_maps = spatial_info['DR_bold']
     SBC_maps = spatial_info['seed_map_list']
     NPR_maps = spatial_info['NPR_maps']
-    mask_file = maps_data_dict['mask_file']
 
     # convert to empty list to read len() of 0
     if SBC_maps is None:
@@ -658,7 +645,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     temporal_std = spatial_info['temporal_std']
     sitk_img = recover_3D(
-        mask_file, temporal_std)
+        common_mask_file, temporal_std)
 
     # select vmax at 95th percentile value
     vector = temporal_std.flatten()
@@ -680,7 +667,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     predicted_std = spatial_info['predicted_std']
     sitk_img = recover_3D(
-        mask_file, predicted_std)
+        common_mask_file, predicted_std)
 
     # select vmax at 95th percentile value
     vector = predicted_std.flatten()
@@ -700,7 +687,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     sitk_img = recover_3D(
-        mask_file, spatial_info['VE_spatial'])
+        common_mask_file, spatial_info['VE_spatial'])
     cbar_list = plot_3d(axes, sitk_img, fig2, vmin=0, vmax=1, cmap='inferno',
             alpha=1, cbar=True, threshold=0.1, num_slices=6)
     for cbar in cbar_list:
@@ -714,7 +701,7 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
     plot_3d(axes, scaled, fig2, vmin=0, vmax=1,
             cmap='gray', alpha=1, cbar=False, num_slices=6)
     sitk_img = recover_3D(
-        mask_file, spatial_info['GS_cov'])
+        common_mask_file, spatial_info['GS_cov'])
     # select vmax at 95th percentile value
     vector = spatial_info['GS_cov'].flatten()
     vector.sort()
@@ -734,9 +721,9 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
         map = dr_maps[i, :]
         threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
-        mask_img = recover_3D(mask_file,mask)        
+        mask_img = recover_3D(common_mask_file,mask)        
         sitk_img = recover_3D(
-            mask_file, map)
+            common_mask_file, map)
         cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
 
         for cbar in cbar_list:
@@ -752,9 +739,9 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
         map = SBC_maps[i]
         threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
-        mask_img = recover_3D(mask_file,mask)        
+        mask_img = recover_3D(common_mask_file,mask)        
         sitk_img = recover_3D(
-            mask_file, map)
+            common_mask_file, map)
         cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
 
         for cbar in cbar_list:
@@ -770,9 +757,9 @@ def spatial_diagnosis_plot(maps_data_dict, spatial_info, brainmap_percent_thresh
         map = NPR_maps[i, :]
         threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
         mask=np.abs(map)>=threshold # taking absolute values to include negative weights
-        mask_img = recover_3D(mask_file,mask)        
+        mask_img = recover_3D(common_mask_file,mask)        
         sitk_img = recover_3D(
-            mask_file, map)
+            common_mask_file, map)
         cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
 
         for cbar in cbar_list:

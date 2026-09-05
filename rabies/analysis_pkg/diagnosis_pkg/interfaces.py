@@ -10,9 +10,27 @@ from nipype.interfaces.base import (
 
 
 class ScanDiagnosisInputSpec(BaseInterfaceInputSpec):
-    CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
-    common_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the commonspace")
-    sub_maps_dict_file = File(exists=True, mandatory=True, desc="Brain maps and masks in the subject' space, either native or common.")
+    cleaned_bold_file = File(exists=True, mandatory=True,
+        desc="Cleaned/confound-corrected 4D EPI timeseries for this scan, in the analysis space (native or commonspace).")
+    name_source = File(exists=True, mandatory=True,
+        desc="The original raw EPI file, used only to name outputs consistently with the rest of RABIES.")
+    CR_data_dict = traits.Dict(
+        desc="Confound correction QC dict for this scan (FD_trace, tDOF, frame_mask, TR, ...); 'voxelwise_mean' is also read from it if remove_EPI_avg is True.")
+    remove_EPI_avg = traits.Bool(False, usedefault=True,
+        desc="Whether the average was kept in the cleaned timeseries and must be removed prior to analysis.")
+    VE_file = File(exists=True, mandatory=True, desc="Variance explained (R^2) map from confound regression.")
+    STD_file = File(exists=True, mandatory=True, desc="Temporal standard deviation map on the cleaned timeseries.")
+    CR_STD_file = File(exists=True, mandatory=True, desc="Temporal standard deviation map on the predicted confound timeseries.")
+
+    # subject-space definition (native or commonspace, wherever confound correction ran)
+    sub_mask_file = File(exists=True, mandatory=True, desc="Brain mask in the subject's analysis space.")
+    sub_WM_mask_file = traits.Either(File(exists=True), None, desc="WM mask in the subject's analysis space.")
+    sub_CSF_mask_file = traits.Either(File(exists=True), None, desc="CSF mask in the subject's analysis space.")
+
+    # commonspace definition (always commonspace, used for display and group comparison)
+    common_mask_file = File(exists=True, mandatory=True, desc="Brain mask in commonspace.")
+    common_anat_ref_file = File(exists=True, mandatory=True, desc="Anatomical template in commonspace.")
+
     analysis_files_dict = traits.Dict(
         desc="A dictionary regrouping relevant output files from analysis.")
     prior_bold_idx = traits.List(
@@ -62,21 +80,32 @@ class ScanDiagnosis(BaseInterface):
     output_spec = ScanDiagnosisOutputSpec
 
     def _run_interface(self, runtime):
-        import pickle
-        with open(self.inputs.CR_dict_file, 'rb') as handle:
-            CR_data_dict = pickle.load(handle)
-        with open(self.inputs.common_maps_dict_file, 'rb') as handle:
-            common_maps_data_dict = pickle.load(handle)
-        with open(self.inputs.sub_maps_dict_file, 'rb') as handle:
-            sub_maps_data_dict = pickle.load(handle)
+        import pathlib
+        from rabies.analysis_pkg.utils import load_resample_analysis_maps
 
         figure_format = self.inputs.figure_format
+        CR_data_dict = self.inputs.CR_data_dict
+        nativespace_analysis = self.inputs.nativespace_analysis
+        filename_split = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")[0]
+
+        # subject-space data (matches wherever confound correction ran): timeseries + WM/CSF/edge indices.
+        # no resampling is needed here -- native_WM_mask/native_brain_mask etc. are already in this space --
+        # so anat_ref_file is passed as sub_mask_file itself, purely as a placeholder.
+        sub_space_maps_loaded = load_resample_analysis_maps(
+            self.inputs.sub_mask_file, self.inputs.sub_mask_file,
+            cleaned_bold_file=self.inputs.cleaned_bold_file, CR_data_dict=CR_data_dict, remove_EPI_avg=self.inputs.remove_EPI_avg,
+            WM_mask_file=self.inputs.sub_WM_mask_file, CSF_mask_file=self.inputs.sub_CSF_mask_file, compute_edge_idx=True,
+            output_prefix=filename_split)
+
+        VE_spatial = sitk.GetArrayFromImage(sitk.ReadImage(self.inputs.VE_file))[sub_space_maps_loaded['volume_indices']]
+        temporal_std = sitk.GetArrayFromImage(sitk.ReadImage(self.inputs.STD_file))[sub_space_maps_loaded['volume_indices']]
+        predicted_std = sitk.GetArrayFromImage(sitk.ReadImage(self.inputs.CR_STD_file))[sub_space_maps_loaded['volume_indices']]
 
         # convert to an integer list
         prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
         prior_confound_idx = [int(i) for i in self.inputs.prior_confound_idx]
 
-        if self.inputs.nativespace_analysis:
+        if nativespace_analysis:
             resampling_specs = {'transforms':self.inputs.native_to_common_transforms,
                                 'inverses':self.inputs.native_to_common_inverses,
                                 'interpolation':self.inputs.interpolation,
@@ -86,17 +115,17 @@ class ScanDiagnosis(BaseInterface):
             resampling_specs = {}
 
         temporal_info, spatial_info = diagnosis_functions.compute_spatiotemporal_features(
-            CR_data_dict, sub_maps_data_dict, common_maps_data_dict, self.inputs.analysis_files_dict, 
-            prior_bold_idx, prior_confound_idx,
-            nativespace_analysis=self.inputs.nativespace_analysis,resampling_specs=resampling_specs)
+            self.inputs.name_source, CR_data_dict, VE_spatial, temporal_std, predicted_std,
+            self.inputs.sub_mask_file, sub_space_maps_loaded, self.inputs.common_mask_file, self.inputs.common_anat_ref_file,
+            self.inputs.analysis_files_dict, prior_bold_idx, prior_confound_idx,
+            nativespace_analysis=nativespace_analysis, resampling_specs=resampling_specs)
 
-        temporal_fig_list, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, common_maps_data_dict, temporal_info,
-                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies, 
+        temporal_fig_list, fig2 = diagnosis_functions.scan_diagnosis(CR_data_dict, sub_space_maps_loaded['timeseries'],
+                                   self.inputs.common_anat_ref_file, self.inputs.common_mask_file, temporal_info,
+                                   spatial_info, plot_seed_frequencies=self.inputs.plot_seed_frequencies,
                                    brainmap_percent_threshold=self.inputs.brainmap_percent_threshold)
 
-        import pathlib
-        filename_template = pathlib.Path(CR_data_dict['name_source']).name.rsplit(".nii")[0]
-        figure_path = os.path.abspath(filename_template)
+        figure_path = os.path.abspath(filename_split)
         spatial_fig_file = figure_path+f'_spatial_diagnosis.{figure_format}'
         fig2.savefig(spatial_fig_file, bbox_inches='tight')
 
@@ -147,6 +176,12 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
         desc="Input percentage value for thresholding images.")
     add_smoothing = traits.Bool(
         desc="When to smooth all brain maps prior to QC metric computation with 0.3mm kernel.")
+    interpolation = traits.Int(
+        desc="Provide an SITK interpolator, used to resample prior_maps into commonspace.")
+    rabies_data_type = traits.Int(
+        desc="Integer specifying SimpleITK data type.")
+    prior_bold_idx = traits.List(
+        desc="The index for the ICA components that correspond to bold sources, matching the DR/NPR network ordering.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -169,6 +204,7 @@ class DatasetDiagnosis(BaseInterface):
         import matplotlib.pyplot as plt
         from rabies.utils import flatten_list
         from .dataset_QC import generate_dataset_QC,QC_distributions
+        from ..utils import load_resample_analysis_maps
 
         figure_format = self.inputs.figure_format
 
@@ -196,8 +232,19 @@ class DatasetDiagnosis(BaseInterface):
 
         template_file = merged[0]['anat_ref_file']
         mask_file = merged[0]['mask_file']
-        brain_mask = sitk.GetArrayFromImage(sitk.ReadImage(mask_file))
-        volume_indices = brain_mask.astype(bool)
+        prior_maps_file = merged[0]['prior_maps_file']
+
+        commonspace_maps_loaded = load_resample_analysis_maps(
+            mask_file, template_file,
+            prior_maps=prior_maps_file,
+            interpolation=self.inputs.interpolation, rabies_data_type=self.inputs.rabies_data_type,
+            output_prefix=f'dataset_diagnosis_common')
+        volume_indices = commonspace_maps_loaded['volume_indices']
+        prior_map_vectors = commonspace_maps_loaded['prior_map_vectors']
+        if prior_map_vectors is not None:
+            prior_bold_idx = [int(i) for i in self.inputs.prior_bold_idx]
+            prior_map_vectors = prior_map_vectors[prior_bold_idx]
+
 
         scan_name_list=[]
         mean_maps=[]
@@ -370,7 +417,7 @@ class DatasetDiagnosis(BaseInterface):
                 num_priors = DR_maps_list.shape[1]
                 prior_maps = np.median(DR_maps_list,axis=0)[:,non_zero_voxels]
             else:
-                prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+                prior_maps = prior_map_vectors[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
 
             for i in range(num_priors):
@@ -399,7 +446,7 @@ class DatasetDiagnosis(BaseInterface):
                 num_priors = NPR_maps_list.shape[1]
                 prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
             else:
-                prior_maps = scan_data['prior_maps'][:,non_zero_voxels]
+                prior_maps = prior_map_vectors[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
 
             for i in range(num_priors):

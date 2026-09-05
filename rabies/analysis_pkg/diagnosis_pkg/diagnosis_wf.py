@@ -7,11 +7,15 @@ from rabies.analysis_pkg.diagnosis_pkg.interfaces import ScanDiagnosis, DatasetD
 from rabies.analysis_pkg.diagnosis_pkg.diagnosis_functions import temporal_external_formating, spatial_external_formating
 
 
-def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name="diagnosis_wf"):
+def init_diagnosis_wf(analysis_opts, cr_opts, split_name_list, name="diagnosis_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(
-        fields=['CR_dict_file', 'common_maps_dict_file', 'sub_maps_dict_file', 'analysis_files_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
+        fields=['cleaned_bold_file', 'name_source', 'CR_data_dict',
+                'VE_file', 'STD_file', 'CR_STD_file',
+                'sub_mask_file', 'sub_WM_mask_file', 'sub_CSF_mask_file',
+                'common_mask_file', 'common_anat_ref_file',
+                'analysis_files_dict', 'native_to_commonspace_transform_list', 'native_to_commonspace_inverse_list']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['figure_temporal_diagnosis', 'figure_spatial_diagnosis',
                                                        'dataset_diagnosis_folder', 'temporal_info_csv', 'spatial_VE_nii', 'temporal_std_nii', 'GS_corr_nii', 'GS_cov_nii',
                                                        'CR_prediction_std_nii']), name='outputnode')
@@ -19,11 +23,12 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
     ScanDiagnosis_node = pe.Node(ScanDiagnosis(prior_bold_idx=analysis_opts.prior_bold_idx,
         prior_confound_idx=analysis_opts.prior_confound_idx,
             plot_seed_frequencies=analysis_opts.plot_seed_frequencies,
-            figure_format=analysis_opts.figure_format, 
-            nativespace_analysis=nativespace_analysis, 
+            figure_format=analysis_opts.figure_format,
+            nativespace_analysis=cr_opts.nativespace_analysis,
             interpolation=analysis_opts.interpolation_sitk,
             brainmap_percent_threshold=analysis_opts.brainmap_percent_threshold,
             rabies_data_type=analysis_opts.data_type,
+            remove_EPI_avg=cr_opts.keep_EPI_average,
             ),
         name='ScanDiagnosis')
 
@@ -35,15 +40,23 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
 
     spatial_external_formating_node = pe.Node(Function(input_names=['spatial_info'],
                                             output_names=[
-                                                'VE_filename', 'std_filename', 'predicted_std_filename', 
+                                                'VE_filename', 'std_filename', 'predicted_std_filename',
                                                 'GS_corr_filename', 'GS_cov_filename'],
                                         function=spatial_external_formating),
                                 name='spatial_external_formating')
     workflow.connect([
         (inputnode, ScanDiagnosis_node, [
-            ("CR_dict_file", "CR_dict_file"),
-            ("common_maps_dict_file", "common_maps_dict_file"),
-            ("sub_maps_dict_file", "sub_maps_dict_file"),
+            ("cleaned_bold_file", "cleaned_bold_file"),
+            ("name_source", "name_source"),
+            ("CR_data_dict", "CR_data_dict"),
+            ("VE_file", "VE_file"),
+            ("STD_file", "STD_file"),
+            ("CR_STD_file", "CR_STD_file"),
+            ("sub_mask_file", "sub_mask_file"),
+            ("sub_WM_mask_file", "sub_WM_mask_file"),
+            ("sub_CSF_mask_file", "sub_CSF_mask_file"),
+            ("common_mask_file", "common_mask_file"),
+            ("common_anat_ref_file", "common_anat_ref_file"),
             ("analysis_files_dict", "analysis_files_dict"),
             ("native_to_commonspace_transform_list", "native_to_common_transforms"),
             ("native_to_commonspace_inverse_list", "native_to_common_inverses"),
@@ -76,17 +89,11 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
     if not len(split_name_list)<3:
 
         # this function prepares a dictionary with necessary scan-level inputs for group diagnosis
-        def prep_scan_data(CR_dict_file, maps_dict_file, spatial_info, temporal_info):
-            import pickle
-            with open(CR_dict_file, 'rb') as handle:
-                CR_data_dict = pickle.load(handle)
-            with open(maps_dict_file, 'rb') as handle:
-                maps_data_dict = pickle.load(handle)
-
+        def prep_scan_data(CR_data_dict, common_anat_ref_file, common_mask_file, prior_maps_file, spatial_info, temporal_info):
             scan_data={}
 
             dict_keys = ['temporal_std', 'VE_spatial', 'predicted_std', 'GS_corr', 'GS_cov',
-                            'DR_bold', 'NPR_maps', 'prior_maps', 'seed_map_list']
+                            'DR_bold', 'NPR_maps', 'seed_map_list']
             for key in dict_keys:
                 scan_data[key] = spatial_info[key]
 
@@ -96,22 +103,24 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
             scan_data['NPR_network_time'] = temporal_info['NPR_time']
             scan_data['SBC_network_time'] = temporal_info['SBC_time']
 
-            scan_data['FD_trace'] = CR_data_dict['CR_data_dict']['FD_trace']
-            scan_data['FD_DVARS_corr'] = CR_data_dict['CR_data_dict']['FD_DVARS_corr']
-            scan_data['tDOF'] = CR_data_dict['CR_data_dict']['tDOF']
-            scan_data['CR_global_std'] = CR_data_dict['CR_data_dict']['CR_global_std']
-            scan_data['VE_total_ratio'] = CR_data_dict['CR_data_dict']['VE_total_ratio']
-            scan_data['voxelwise_mean'] = CR_data_dict['CR_data_dict']['voxelwise_mean']
+            scan_data['FD_trace'] = CR_data_dict['FD_trace']
+            scan_data['FD_DVARS_corr'] = CR_data_dict['FD_DVARS_corr']
+            scan_data['tDOF'] = CR_data_dict['tDOF']
+            scan_data['CR_global_std'] = CR_data_dict['CR_global_std']
+            scan_data['VE_total_ratio'] = CR_data_dict['VE_total_ratio']
+            scan_data['voxelwise_mean'] = CR_data_dict['voxelwise_mean']
 
-            scan_data['name_source'] = CR_data_dict['name_source']
-            scan_data['anat_ref_file'] = maps_data_dict['anat_ref_file']
-            scan_data['mask_file'] = maps_data_dict['mask_file']
+            scan_data['name_source'] = temporal_info['name_source']
+            scan_data['anat_ref_file'] = common_anat_ref_file
+            scan_data['mask_file'] = common_mask_file
+            scan_data['prior_maps_file'] = prior_maps_file
             return scan_data
 
-        prep_scan_data_node = pe.Node(Function(input_names=['CR_dict_file', 'maps_dict_file', 'spatial_info', 'temporal_info'],
+        prep_scan_data_node = pe.Node(Function(input_names=['CR_data_dict', 'common_anat_ref_file', 'common_mask_file', 'prior_maps_file', 'spatial_info', 'temporal_info'],
                                             output_names=['scan_data'],
                                         function=prep_scan_data),
                                 name='prep_scan_data_node')
+        prep_scan_data_node.inputs.prior_maps_file = analysis_opts.prior_maps
 
         # calculate the number of scans combined in diagnosis
         num_scan = len(split_name_list)
@@ -135,11 +144,15 @@ def init_diagnosis_wf(analysis_opts, nativespace_analysis, split_name_list, name
         DatasetDiagnosis_node.inputs.group_avg_prior = analysis_opts.group_avg_prior
         DatasetDiagnosis_node.inputs.brainmap_percent_threshold = analysis_opts.brainmap_percent_threshold
         DatasetDiagnosis_node.inputs.add_smoothing = analysis_opts.qc_smooth_maps
+        DatasetDiagnosis_node.inputs.interpolation = analysis_opts.interpolation_sitk
+        DatasetDiagnosis_node.inputs.rabies_data_type = analysis_opts.data_type
+        DatasetDiagnosis_node.inputs.prior_bold_idx = analysis_opts.prior_bold_idx
 
         workflow.connect([
             (inputnode, prep_scan_data_node, [
-                ("CR_dict_file", "CR_dict_file"),
-                ("common_maps_dict_file", "maps_dict_file"),
+                ("CR_data_dict", "CR_data_dict"),
+                ("common_anat_ref_file", "common_anat_ref_file"),
+                ("common_mask_file", "common_mask_file"),
                 ]),
             (ScanDiagnosis_node, prep_scan_data_node, [
                 ("spatial_info", "spatial_info"),
