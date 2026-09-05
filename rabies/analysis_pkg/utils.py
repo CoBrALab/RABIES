@@ -53,7 +53,7 @@ def load_resample_analysis_maps(mask_file, anat_ref_file,
     if cleaned_bold_file is not None:
         timeseries = sitk.GetArrayFromImage(sitk.ReadImage(cleaned_bold_file))[:, volume_indices]
         if remove_EPI_avg:
-            timeseries = timeseries - CR_data_dict['voxelwise_mean']
+            timeseries -= CR_data_dict['voxelwise_mean']
 
     seed_arr_dict = {}
     for seed_name, seed_file in seed_dict.items():
