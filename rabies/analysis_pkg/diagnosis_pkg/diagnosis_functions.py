@@ -325,8 +325,14 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, tempo
 
     global_signal=temporal_info['global_signal'][plot_time_subset_censored]
     edge_trace=temporal_info['edge_trace'][plot_time_subset_censored]
-    WM_trace=temporal_info['WM_trace'][plot_time_subset_censored]
-    CSF_trace=temporal_info['CSF_trace'][plot_time_subset_censored]
+    if temporal_info['WM_trace'] is not None:
+        WM_trace=temporal_info['WM_trace'][plot_time_subset_censored]
+    else:
+        WM_trace=None
+    if temporal_info['WM_trace'] is not None:
+        CSF_trace=temporal_info['CSF_trace'][plot_time_subset_censored]
+    else:
+        CSF_trace=None
     return [
         timeseries_subset, frame_mask, motion_params_df,
         FD_trace, DVARS, mse_trace,
