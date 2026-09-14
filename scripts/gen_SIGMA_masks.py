@@ -105,7 +105,7 @@ Produced with scripts/gen_SIGMA_masks.py from the RABIES repository:
 {wm_structures}
     No white matter mask is provided for the functional template, whose atlas has no
     white matter structures.
-  * The probabilistic CSF maps were thresholded at {tissue_threshold} to give the binary
+  * The probabilistic CSF maps were thresholded at {csf_threshold} to give the binary
     masks RABIES requires. The anatomical CSF mask was then eroded by
     {erosion_iterations} iteration(s); the functional one was not, since that grid is too
     coarse to erode without emptying it.
@@ -213,7 +213,7 @@ def main():
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('sigma_dir', help="path to an unpacked SIGMA release")
     parser.add_argument('out_dir', help="directory the derived files are written to")
-    parser.add_argument('--tissue_threshold', type=float, default=0.9,
+    parser.add_argument('--csf_threshold', type=float, default=0.9,
                         help="probability above which a voxel belongs to CSF "
                              "(default: %(default)s)")
     parser.add_argument('--mask_threshold', type=float, default=0.5,
@@ -231,7 +231,7 @@ def main():
     with open(os.path.join(opts.out_dir, 'ATTRIBUTION.txt'), 'w') as handle:
         handle.write(ATTRIBUTION.format(
             wm_structures='\n'.join(f'      - {structure}' for structure in WM_STRUCTURES['Anatomical']),
-            tissue_threshold=opts.tissue_threshold,
+            csf_threshold=opts.csf_threshold,
             mask_threshold=opts.mask_threshold,
             erosion_iterations=opts.erosion_iterations))
 
@@ -253,7 +253,7 @@ def main():
         outputs.append(binarize(
             find_file(opts.sigma_dir, f'{prefix}_csf.nii.gz'),
             os.path.join(opts.out_dir, f'{prefix}_{name}.nii.gz'),
-            opts.tissue_threshold, erosion_iterations=erosion))
+            opts.csf_threshold, erosion_iterations=erosion))
 
         atlas = f'{prefix}_Atlas.nii.gz'
         out_atlas = os.path.join(opts.out_dir, atlas)
@@ -272,7 +272,8 @@ def main():
         for file in outputs:
             check_overlap(out_template, file)
 
-        print(f"{variant}: wrote {len(outputs)+1} files and {n_labels} labels "
+        # the template and the label mapping are written alongside the checked outputs
+        print(f"{variant}: wrote {len(outputs)+2} files and {n_labels} labels "
               f"to {opts.out_dir}")
 
 
