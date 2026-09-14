@@ -94,6 +94,19 @@ class TestRegistry(unittest.TestCase):
     def test_a_run_from_before_template_sets_used_the_mouse_files(self):
         self.assertEqual(templates.get_template_set(Namespace()), 'mouse')
 
+    def test_required_files_include_the_label_mapping(self):
+        for name in templates.TEMPLATE_SET_NAMES:
+            self.assertIn(templates.resolve(name, 'mapping'), templates.required_files(name))
+
+    def test_only_the_mouse_set_installs_itself(self):
+        # compute nodes often have no network, so the rat set is installed explicitly
+        self.assertTrue(templates.auto_install('mouse'))
+        self.assertFalse(templates.auto_install('rat'))
+
+    def test_each_set_names_its_install_script(self):
+        self.assertEqual(templates.install_script('mouse'), 'install_DSURQE.sh')
+        self.assertEqual(templates.install_script('rat'), 'install_SIGMA.sh')
+
     def test_unknown_set_and_role_are_rejected(self):
         with self.assertRaises(ValueError):
             templates.resolve('hamster', 'anat_template')
