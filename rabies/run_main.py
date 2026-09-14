@@ -298,8 +298,8 @@ def analysis(opts, log):
     require_template_set(template_set, log)
 
     if labels_file is None:
-        if getattr(preprocess_opts, 'custom_anat_template', False):
-            # the set's atlas is not aligned with a template provided by the user
+        if not templates.registered_to_set_template(preprocess_opts):
+            # the set's atlas is not aligned with a template from elsewhere
             opts.ROI_labels_file = None
         else:
             # files distributed with a template set are already aligned with its template,
@@ -321,18 +321,20 @@ def analysis(opts, log):
         opts.ROI_labels_file = labels_file
 
     if opts.prior_maps is None:
-        # the default prior maps are those of the template set used during preprocessing;
-        # a set that provides none leaves them unset, which is only an error for the
-        # analyses that require them
-        opts.prior_maps = templates.resolve(template_set, 'prior_maps', bold_only=bold_only)
+        # the default prior maps are those of the template set used during preprocessing, and
+        # like its atlas they are only aligned with that set's template; a set that provides
+        # none, or data registered to a template from elsewhere, leaves them unset, which is
+        # only an error for the analyses that require them
+        if templates.registered_to_set_template(preprocess_opts):
+            opts.prior_maps = templates.resolve(template_set, 'prior_maps', bold_only=bold_only)
         if opts.prior_maps is None:
             if templates.prior_maps_required(opts):
                 raise ValueError(
-                    f"The {template_set} template set provides no ICA prior maps, which dual "
-                    "regression and neural prior recovery require. Provide a 4D prior map file "
-                    "aligned with the template using --prior_maps.")
+                    "No ICA prior maps are available for the template used during preprocessing, "
+                    "and dual regression and neural prior recovery require them. Provide a 4D "
+                    "prior map file aligned with the template using --prior_maps.")
             # left as None, since none of the selected analyses require the prior maps
-            log.info(f"The {template_set} template set provides no ICA prior maps; "
+            log.info("No prior maps are available for the template used during preprocessing; "
                      "operations depending on --prior_maps are disabled.")
         elif bold_only:
             log.info('With --bold_only, default --prior_maps changed to '+opts.prior_maps)

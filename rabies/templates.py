@@ -134,6 +134,19 @@ def resolve(template_set, role, bold_only=False):
     return variant[role]
 
 
+def registered_to_set_template(preprocess_opts):
+    """Return whether a preprocessing run registered its data to its set's own template.
+
+    The set's atlas files are only aligned with that template. The template file of
+    the run is compared rather than recorded when the options are resolved, since
+    --inherit_unbiased_template replaces it afterwards with the template of an earlier
+    run, and runs preprocessed before template sets existed record nothing.
+    """
+    set_template = resolve(get_template_set(preprocess_opts), 'anat_template',
+                           bold_only=preprocess_opts.bold_only)
+    return str(preprocess_opts.anat_template) == set_template
+
+
 def seed_names(template_set):
     """Return the pre-built seed names available for a template set."""
     return TEMPLATE_SETS[template_set]['seed_names']
@@ -185,9 +198,6 @@ def resolve_options(opts, log):
     # The roles the user provided are recorded first, since the loop below overwrites
     # them with the resolved files.
     provided = [role for role in PREPROCESS_ROLES if getattr(opts, role) is not None]
-    # recorded for the analysis stage, which cannot use the set's atlas files when the
-    # data was registered to a template from elsewhere
-    opts.custom_anat_template = 'anat_template' in provided
 
     if 'anat_template' in provided and 'brain_mask' not in provided:
         raise ValueError("--anat_template was provided, but not --brain_mask "

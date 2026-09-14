@@ -165,22 +165,43 @@ class TestResolveOptions(unittest.TestCase):
         with self.assertRaises(ValueError):
             templates.resolve_options(opts, StubLog())
 
-    def test_a_user_template_is_recorded_for_the_analysis_stage(self):
-        # the analysis stage cannot use a set's atlas when the data was registered
-        # to a template from elsewhere, and has no other way to tell
-        opts = preprocess_options(anat_template='t.nii.gz', brain_mask='m.nii.gz')
-        templates.resolve_options(opts, StubLog())
-        self.assertTrue(opts.custom_anat_template)
-
-        opts = preprocess_options(brain_mask='m.nii.gz')
-        templates.resolve_options(opts, StubLog())
-        self.assertFalse(opts.custom_anat_template)
-
     def test_the_resolved_set_is_logged(self):
         log = StubLog()
         opts = preprocess_options(template_set='rat')
         templates.resolve_options(opts, log)
         self.assertTrue(any('rat' in message for message in log.messages))
+
+
+class TestRegisteredToSetTemplate(unittest.TestCase):
+    # the analysis stage applies a set's atlas only to data registered to that set's
+    # template, since the atlas is not aligned with any other
+
+    def test_a_run_on_the_set_template_is_registered_to_it(self):
+        for name in templates.TEMPLATE_SET_NAMES:
+            for bold_only in [False, True]:
+                opts = preprocess_options(template_set=name, bold_only=bold_only)
+                templates.resolve_options(opts, StubLog())
+                self.assertTrue(templates.registered_to_set_template(opts),
+                                f"{name} bold_only={bold_only}")
+
+    def test_a_run_on_a_user_template_is_not(self):
+        opts = preprocess_options(anat_template='t.nii.gz', brain_mask='m.nii.gz')
+        templates.resolve_options(opts, StubLog())
+        self.assertFalse(templates.registered_to_set_template(opts))
+
+    def test_a_run_inheriting_a_user_template_is_not(self):
+        # --inherit_unbiased_template replaces the template after the options are resolved
+        opts = preprocess_options()
+        templates.resolve_options(opts, StubLog())
+        opts.anat_template = os.path.abspath('inherited_template.nii.gz')
+        self.assertFalse(templates.registered_to_set_template(opts))
+
+    def test_a_run_from_before_template_sets_is_checked_against_the_mouse_set(self):
+        opts = Namespace(bold_only=False,
+                         anat_template=templates.resolve('mouse', 'anat_template'))
+        self.assertTrue(templates.registered_to_set_template(opts))
+        opts.anat_template = os.path.abspath('t.nii.gz')
+        self.assertFalse(templates.registered_to_set_template(opts))
 
 
 class TestPriorMapsRequired(unittest.TestCase):
