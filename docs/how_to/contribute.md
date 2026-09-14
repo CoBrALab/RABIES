@@ -82,7 +82,10 @@ Compile these into a `.sh` script and run it in place of `$COMMAND` above.
 
    ```{important}
    Before committing, confirm that `error_check_rabies.py --complete` finishes
-   with no errors.
+   with no errors, and that the unit tests pass by running
+   `python -m unittest discover tests` from the root of the repository. The unit
+   tests cover the selection of template files and do not require RABIES or its
+   dependencies to be installed.
    ```
 5. **Commit, push and open a pull request** from your fork to the original
    repository.
