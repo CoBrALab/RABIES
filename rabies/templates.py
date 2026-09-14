@@ -10,7 +10,6 @@ depending on a missing role are disabled rather than falling back to another
 set, since mixing files across sets silently registers data to the wrong space.
 """
 
-import math
 import os
 
 # setting all default template files
@@ -156,35 +155,6 @@ def required_files(template_set):
 def missing_files(template_set):
     """Return the files of a template set that are not installed."""
     return [f for f in required_files(template_set) if not os.path.isfile(f)]
-
-
-# how much better another template set has to fit the data before the selected one is
-# rejected; the comparison is relative, since the field of view of a scan is not the
-# size of the brain in it, and templates are brain-only
-SCALE_CHECK_MARGIN = 1.3
-# a set is never rejected while the selected one fits this closely
-SCALE_CHECK_TOLERANCE = 1.25
-
-
-def scale_verdict(extent, template_extents, selected):
-    """Return the set that fits an image better than the selected one, or None.
-
-    `template_extents` maps a set name to the size of its template; sets that are not
-    installed are simply left out. Fit is compared between sets rather than against a
-    fixed size, because a field of view is not the size of the brain inside it.
-    """
-    misfit = {name: abs(math.log(extent/template_extent))
-              for name, template_extent in template_extents.items()}
-    if selected not in misfit:
-        return None
-    if misfit[selected] < math.log(SCALE_CHECK_TOLERANCE):
-        return None # fits closely enough that nothing can beat it meaningfully
-    best = min(misfit.keys(), key=lambda name: misfit[name])
-    if best == selected:
-        return None
-    if not misfit[selected]-misfit[best] > math.log(SCALE_CHECK_MARGIN):
-        return None # no other set fits clearly better
-    return best
 
 
 def resolve_options(opts, log):

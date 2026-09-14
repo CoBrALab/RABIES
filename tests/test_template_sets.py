@@ -151,40 +151,5 @@ class TestResolveOptions(unittest.TestCase):
         self.assertTrue(any('rat' in message for message in log.messages))
 
 
-class TestScaleVerdict(unittest.TestCase):
-    """The measured max field of view of the distributed templates, in mm."""
-
-    EXTENTS = {'mouse': 19.1, 'rat': 32.7}
-
-    def verdict(self, extent, selected):
-        return templates.scale_verdict(extent, self.EXTENTS, selected)
-
-    def test_rat_sized_data_against_the_mouse_template_is_rejected(self):
-        # the case reported by users: rat data run with the mouse default
-        for extent in [32.7, 35.0, 40.0, 45.0]:
-            self.assertEqual(self.verdict(extent, 'mouse'), 'rat',
-                             f"{extent}mm should have been rejected")
-
-    def test_mouse_data_against_the_mouse_template_is_accepted(self):
-        # a field of view is larger than the brain-only template, and must not be
-        # mistaken for another species
-        for extent in [19.1, 22.0, 25.0, 28.0]:
-            self.assertIsNone(self.verdict(extent, 'mouse'), f"{extent}mm was rejected")
-
-    def test_rat_data_against_the_rat_template_is_accepted(self):
-        for extent in [32.7, 36.0, 40.0]:
-            self.assertIsNone(self.verdict(extent, 'rat'), f"{extent}mm was rejected")
-
-    def test_mouse_sized_data_against_the_rat_template_is_rejected(self):
-        self.assertEqual(self.verdict(19.1, 'rat'), 'mouse')
-
-    def test_a_set_that_is_not_installed_is_not_suggested(self):
-        # only installed sets are compared, and a lone set can never be rejected
-        self.assertIsNone(templates.scale_verdict(40.0, {'mouse': 19.1}, 'mouse'))
-
-    def test_an_uninstalled_selected_set_yields_no_verdict(self):
-        self.assertIsNone(templates.scale_verdict(40.0, {'rat': 32.7}, 'mouse'))
-
-
 if __name__ == '__main__':
     unittest.main()
