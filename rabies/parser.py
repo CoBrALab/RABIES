@@ -615,19 +615,6 @@ def get_parser():
             "\n"
         )
     g_commonspace.add_argument(
-        "--skip_scale_check", dest='skip_scale_check', action='store_true',
-        help=
-            "Skip the comparison between the size of the input images and the size of the \n"
-            "commonspace templates. That comparison catches data being registered to the \n"
-            "template of another species, which does not fail during preprocessing but \n"
-            "produces meaningless outputs; it rejects a run when a template set other \n"
-            "than the selected one fits the data clearly better. Skip it if the check \n"
-            "rejects a dataset it should accept, for instance images with an unusually \n"
-            "large field of view. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_commonspace.add_argument(
         '--anat_template', action='store', type=Path,
         default=None,
         help=

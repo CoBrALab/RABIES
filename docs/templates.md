@@ -91,23 +91,6 @@ set's template and cannot be assumed to match a template from elsewhere. Passing
 own template therefore requires `--brain_mask` alongside it, and drops every mask you
 do not provide yourself.
 
-## The size check
-
-Registering rat data to a mouse template does not fail. It runs to completion and
-produces meaningless results, which is why the mismatch is caught up front: RABIES
-measures the size of an input image and compares how well it fits each installed
-template set, refusing to run when a set other than the selected one fits clearly
-better.
-
-The comparison is relative rather than against a fixed size, because the field of view
-of a scan is not the size of the brain inside it, while the templates are brain-only.
-A whole-head acquisition is larger than its own template in every set, so only the
-relative fit carries information.
-
-If your data and template do match and the check rejects them anyway, which can happen
-with an unusually large field of view, re-run with `--skip_scale_check`. The check is
-also inert when only one set is installed, since there is nothing to compare against.
-
 ## Building the rat set from SIGMA
 
 The distributed rat set is derived from the SIGMA release with
