@@ -190,3 +190,16 @@ def resolve_options(opts, log):
     for role in PREPROCESS_ROLES:
         opt_file = getattr(opts, role)
         log.info(f"    --{role}: {opt_file if opt_file is not None else 'not available'}")
+
+
+def prior_maps_required(opts):
+    """Return whether the analyses selected in `opts` require --prior_maps.
+
+    Dual regression and neural prior recovery fit the prior maps to the data.
+    --data_diagnosis uses them when available but runs without them, and seed-based
+    connectivity, FC matrices and group ICA do not use them, so a set that provides no
+    priors does not block those.
+    """
+    return bool(opts.DR_ICA
+                or opts.NPR_temporal_comp > -1 or opts.NPR_spatial_comp > -1
+                or opts.optimize_NPR['apply'])

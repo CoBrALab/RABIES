@@ -49,10 +49,10 @@ For the rat set this means:
 
 - Nuisance regression cannot use `vascular_signal`. The other regressors, including
   `WM_signal` and `CSF_signal`, are available.
-- The analysis stage requires `--prior_maps` to be given explicitly. Dual regression,
-  `--data_diagnosis` and the other prior-based analyses cannot run without it. If
-  group ICA priors exist for your data, pass them; otherwise run group ICA on your
-  own dataset first.
+- Dual regression (`--DR_ICA`) and neural prior recovery require `--prior_maps` to be
+  given explicitly. If group ICA priors exist for your data, pass them; otherwise run
+  group ICA on your own dataset first. Seed-based connectivity, `--FC_matrix`, group ICA
+  and `--data_diagnosis` run without them.
 - `--seed_list` only accepts paths to your own seed images, not the pre-drawn names.
 
 ## Installing the files
