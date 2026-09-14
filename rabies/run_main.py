@@ -373,7 +373,7 @@ def install_template_set(template_set):
         return False
 
     from rabies.utils import run_command
-    script = templates.TEMPLATE_SETS[template_set]['install_script']
+    script = templates.install_script(template_set)
     rc,c_out = run_command(f'{script} {templates.rabies_path}', verbose=True)
     return True
 
@@ -401,7 +401,7 @@ def require_template_set(template_set, log):
     if len(missing)==0:
         return
 
-    if templates.TEMPLATE_SETS[template_set]['auto_install']:
+    if templates.auto_install(template_set):
         log.info(
             f"SOME FILES FROM THE {template_set} TEMPLATE SET ARE MISSING. "
             "THEY WILL BE INSTALLED BEFORE FURTHER PROCESSING.")

@@ -139,6 +139,16 @@ def seed_names(template_set):
     return TEMPLATE_SETS[template_set]['seed_names']
 
 
+def install_script(template_set):
+    """Return the name of the script that downloads the files of a template set."""
+    return TEMPLATE_SETS[template_set]['install_script']
+
+
+def auto_install(template_set):
+    """Return whether a template set is installed on demand when a run needs it."""
+    return TEMPLATE_SETS[template_set]['auto_install']
+
+
 def seed_file(template_set, seed, bold_only=False):
     """Return the path of a pre-built seed, or None if the set ships no seeds."""
     variant = get_variant(template_set, bold_only=bold_only)
@@ -152,7 +162,7 @@ def required_files(template_set):
     files = []
     for variant_name in ['anat', 'epi']:
         variant = TEMPLATE_SETS[template_set][variant_name]
-        for role in PREPROCESS_ROLES+ANALYSIS_ROLES+['mapping']:
+        for role in PREPROCESS_ROLES+ANALYSIS_ROLES:
             f = variant.get(role)
             if f is not None and f not in files:
                 files.append(f)
