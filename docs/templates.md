@@ -38,7 +38,8 @@ species. Instead the operations depending on it are disabled, or refuse to run.
 | File | `mouse` | `rat` |
 | --- | --- | --- |
 | Anatomical template and brain mask | yes | yes |
-| White matter and CSF masks | yes | yes, derived by thresholding the SIGMA probabilistic tissue maps |
+| White matter mask | yes | anatomical template only, built from the white matter structures of the atlas |
+| CSF mask | yes | yes, derived by thresholding the SIGMA probabilistic CSF map |
 | Number of parcels | 356 | 222 structural, 59 functional |
 | Vascular mask | yes | **no** |
 | Anatomical parcellation (`--ROI_labels_file`) | yes, 356 ROIs | yes, the Waxholm parcellation normalized to SIGMA, 222 ROIs {cite}`Kleven2023-whs` |
@@ -47,8 +48,9 @@ species. Instead the operations depending on it are disabled, or refuse to run.
 
 For the rat set this means:
 
-- Nuisance regression cannot use `vascular_signal`. The other regressors, including
-  `WM_signal` and `CSF_signal`, are available.
+- Nuisance regression cannot use `vascular_signal`. With `--bold_only` it also cannot use
+  `WM_signal` or the aCompCor regressors, since the functional template has no white
+  matter mask. `CSF_signal` is always available.
 - Dual regression (`--DR_ICA`) and neural prior recovery require `--prior_maps` to be
   given explicitly. If group ICA priors exist for your data, pass them; otherwise run
   group ICA on your own dataset first. Seed-based connectivity, `--FC_matrix`, group ICA
@@ -94,13 +96,22 @@ do not provide yourself.
 ## Building the rat set from SIGMA
 
 The distributed rat set is derived from the SIGMA release with
-`scripts/gen_SIGMA_masks.py`, which binarizes the probabilistic white matter and CSF
-maps and converts the ITK-SNAP label descriptions to CSV. The structural masks are
-also eroded, to keep partial volume voxels at tissue boundaries out of the nuisance
-timecourses; the EPI masks are not, because that grid is too coarse to erode without
-emptying the CSF mask, which matches how the mouse EPI masks are built. It is run
-once when the bundle is built, so that every installation gets identical files, and
-is included in the repository so they can be reproduced.
+`scripts/gen_SIGMA_masks.py`, run with `uv run`. It converts the ITK-SNAP label
+descriptions to CSV and builds the masks:
+
+- The anatomical white matter mask is the union of the white matter structures of the
+  anatomical atlas, such as the corpus callosum, fimbria and anterior commissure. It is
+  not built by thresholding the probabilistic white matter map, which pulls in
+  thalamus, and it is not eroded, since rat tracts are only a few voxels thick on that
+  grid. The functional atlas has no white matter structures, so the functional template
+  has no white matter mask.
+- The CSF masks are thresholded from the probabilistic CSF maps. The anatomical one is
+  eroded, to keep partial volume voxels out of the nuisance timecourses; the EPI one is
+  not, because that grid is too coarse to erode without emptying it, which matches how
+  the mouse EPI masks are built.
+
+The script is run once when the bundle is built, so that every installation gets
+identical files, and is included in the repository so they can be reproduced.
 
 The SIGMA resources are distributed under CC-BY-4.0. Work using the rat template set
 should cite {cite}`Barriere2019-sigma` for SIGMA and {cite}`Kleven2023-whs` for the

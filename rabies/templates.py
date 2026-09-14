@@ -69,8 +69,9 @@ TEMPLATE_SETS = {
         'anat': {
             'anat_template': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_template.nii.gz",
             'brain_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_mask.nii.gz",
-            # derived by thresholding and eroding the SIGMA probabilistic tissue maps
-            'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_eroded_wm_mask.nii.gz",
+            # union of the white matter structures of the SIGMA anatomical atlas
+            'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_wm_mask.nii.gz",
+            # derived by thresholding and eroding the SIGMA probabilistic CSF map
             'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_eroded_csf_mask.nii.gz",
             # SIGMA provides no vessel segmentation
             'vascular_mask': None,
@@ -85,8 +86,10 @@ TEMPLATE_SETS = {
         'epi': {
             'anat_template': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_epi.nii.gz",
             'brain_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_mask.nii.gz",
+            # the functional atlas has no white matter structures to build a mask from, and
+            # thresholding the probabilistic white matter map pulls in thalamus
+            'WM_mask': None,
             # not eroded: the EPI grid is too coarse, as for the mouse EPI masks
-            'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_wm_mask.nii.gz",
             'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_csf_mask.nii.gz",
             'vascular_mask': None,
             # the 59-ROI SIGMA functional parcellation, the only atlas in this space

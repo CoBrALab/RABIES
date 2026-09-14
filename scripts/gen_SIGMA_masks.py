@@ -1,4 +1,12 @@
 #! /usr/bin/env python
+# /// script
+# requires-python = "==3.9.*"
+# dependencies = [
+#     "numpy==1.26.4",
+#     "scipy==1.13.1",
+#     "simpleitk==2.5.0",
+# ]
+# ///
 """Derive the RABIES rat template set from a SIGMA release.
 
 SIGMA distributes probabilistic tissue maps, while RABIES requires binary masks,
@@ -7,7 +15,9 @@ CSV. This script produces the files of the rat template set from an unpacked
 SIGMA release, and is run once when building the distributed bundle rather than
 on a user's machine, so that every installation gets identical files.
 
-Usage: gen_SIGMA_masks.py <unpacked SIGMA directory> <output directory>
+Usage: uv run scripts/gen_SIGMA_masks.py <unpacked SIGMA directory> <output directory>
+
+The versions pinned above match rabies_environment.yml.
 """
 
 import argparse
@@ -25,7 +35,7 @@ VARIANTS = ['Anatomical', 'Functional']
 # the anatomical template is named _template, the functional one _epi
 TEMPLATE_SUFFIX = {'Anatomical': 'template', 'Functional': 'epi'}
 # the EPI grid is too coarse to erode: one iteration empties the CSF mask, so only
-# the anatomical masks are eroded, as in the mouse set
+# the anatomical CSF mask is eroded, as in the mouse set
 ERODED = {'Anatomical': True, 'Functional': False}
 # the functional atlas label description does not follow the image naming
 LABEL_DESCRIPTION = {
@@ -35,6 +45,29 @@ LABEL_DESCRIPTION = {
 MAPPING_NAME = {
     'Anatomical': 'SIGMA_InVivo_Anatomical_Brain_Atlas_mapping.csv',
     'Functional': 'SIGMA_Functional_Brain_Atlas_mapping.csv',
+    }
+# the white matter mask is built from atlas structures rather than by thresholding the
+# probabilistic white matter map, which pulls in thalamus; regressing thalamic signal
+# removes signal of interest. It is not eroded: rat tracts are a few voxels thick on
+# the anatomical grid, and one iteration removes 70% of the mask. The functional atlas
+# has no white matter structures, so that variant gets no white matter mask.
+WM_STRUCTURES = {
+    'Anatomical': [
+        'corpus callosum and associated subcortical white matter',
+        'corticofugal tract and corona radiata',
+        'anterior commissure, anterior limb',
+        'anterior commissure, posterior limb',
+        'anterior commissure, intrabulbar part',
+        'fimbria of the hippocampus',
+        'alveus of the hippocampus',
+        'fornix',
+        'ventral hippocampal commissure',
+        'optic tract and optic chiasm',
+        'posterior commissure',
+        'inferior cerebellar peduncle',
+        'middle cerebellar peduncle',
+        'superior cerebellar peduncle and prerubral field',
+        ],
     }
 
 
@@ -66,10 +99,16 @@ Modifications made for RABIES
 
 Produced with scripts/gen_SIGMA_masks.py from the RABIES repository:
 
-  * The probabilistic white matter and CSF maps were thresholded at {tissue_threshold} to give
-    the binary masks RABIES requires. The anatomical masks were then eroded by
-    {erosion_iterations} iteration(s); the functional ones were not, since that grid is too coarse
-    to erode without emptying the CSF mask.
+  * The anatomical white matter mask is the union of the following structures of the
+    anatomical atlas. It is not eroded, since rat white matter tracts are only a few
+    voxels thick on that grid:
+{wm_structures}
+    No white matter mask is provided for the functional template, whose atlas has no
+    white matter structures.
+  * The probabilistic CSF maps were thresholded at {tissue_threshold} to give the binary
+    masks RABIES requires. The anatomical CSF mask was then eroded by
+    {erosion_iterations} iteration(s); the functional one was not, since that grid is too
+    coarse to erode without emptying it.
   * The distributed brain masks were re-binarized at {mask_threshold}.
   * The ITK-SNAP label descriptions were converted to CSV.
   * The templates and atlas label images are unmodified copies.
@@ -110,7 +149,7 @@ def binarize(in_file, out_file, threshold, erosion_iterations=0):
     return out_file
 
 
-def convert_label_description(in_file, out_file):
+def read_label_description(in_file):
     # ITK-SNAP label descriptions list, per line:
     # IDX R G B A VIS MSH "LABEL"
     rows = []
@@ -128,6 +167,31 @@ def convert_label_description(in_file, out_file):
             rows.append([structure, label])
     if len(rows) == 0:
         raise ValueError(f"No labels could be read from {in_file}.")
+    return rows
+
+
+def roi_mask(atlas_file, label_description, structures, out_file):
+    # names are matched exactly, so that a structure renamed or renumbered in a later
+    # SIGMA release fails here instead of silently dropping out of the mask
+    labels = {}
+    for structure, label in read_label_description(label_description):
+        labels.setdefault(structure, []).append(label)
+    missing = [structure for structure in structures if structure not in labels]
+    if len(missing) > 0:
+        raise ValueError(f"{label_description} has no structure named {missing}.")
+    img = sitk.ReadImage(atlas_file)
+    array = sitk.GetArrayFromImage(img)
+    mask = np.isin(array, [label for structure in structures for label in labels[structure]])
+    if mask.sum() == 0:
+        raise ValueError(f"The structures {structures} are empty in {atlas_file}.")
+    out_img = sitk.GetImageFromArray(mask.astype('int16'), isVector=False)
+    out_img.CopyInformation(img)
+    sitk.WriteImage(out_img, out_file)
+    return out_file
+
+
+def convert_label_description(in_file, out_file):
+    rows = read_label_description(in_file)
     with open(out_file, 'w', newline='') as handle:
         writer = csv.writer(handle)
         writer.writerow(['Structure', 'label'])
@@ -150,13 +214,13 @@ def main():
     parser.add_argument('sigma_dir', help="path to an unpacked SIGMA release")
     parser.add_argument('out_dir', help="directory the derived files are written to")
     parser.add_argument('--tissue_threshold', type=float, default=0.9,
-                        help="probability above which a voxel belongs to a tissue "
+                        help="probability above which a voxel belongs to CSF "
                              "(default: %(default)s)")
     parser.add_argument('--mask_threshold', type=float, default=0.5,
                         help="probability above which a voxel belongs to the brain "
                              "(default: %(default)s)")
     parser.add_argument('--erosion_iterations', type=int, default=1,
-                        help="erosion applied to the WM and CSF masks of the anatomical "
+                        help="erosion applied to the CSF mask of the anatomical "
                              "template; the EPI grid is too coarse to erode "
                              "(default: %(default)s)")
     opts = parser.parse_args()
@@ -166,6 +230,7 @@ def main():
     # CC-BY requires attribution to travel with the redistributed files
     with open(os.path.join(opts.out_dir, 'ATTRIBUTION.txt'), 'w') as handle:
         handle.write(ATTRIBUTION.format(
+            wm_structures='\n'.join(f'      - {structure}' for structure in WM_STRUCTURES['Anatomical']),
             tissue_threshold=opts.tissue_threshold,
             mask_threshold=opts.mask_threshold,
             erosion_iterations=opts.erosion_iterations))
@@ -184,18 +249,21 @@ def main():
 
         outputs = [out_mask]
         erosion = opts.erosion_iterations if ERODED[variant] else 0
-        name = 'eroded_{tissue}_mask' if ERODED[variant] else '{tissue}_mask'
-        for tissue in ['wm', 'csf']:
-            outputs.append(binarize(
-                find_file(opts.sigma_dir, f'{prefix}_{tissue}.nii.gz'),
-                os.path.join(opts.out_dir,
-                             f'{prefix}_' + name.format(tissue=tissue) + '.nii.gz'),
-                opts.tissue_threshold, erosion_iterations=erosion))
+        name = 'eroded_csf_mask' if ERODED[variant] else 'csf_mask'
+        outputs.append(binarize(
+            find_file(opts.sigma_dir, f'{prefix}_csf.nii.gz'),
+            os.path.join(opts.out_dir, f'{prefix}_{name}.nii.gz'),
+            opts.tissue_threshold, erosion_iterations=erosion))
 
         atlas = f'{prefix}_Atlas.nii.gz'
         out_atlas = os.path.join(opts.out_dir, atlas)
         shutil.copyfile(find_file(opts.sigma_dir, atlas), out_atlas)
         outputs.append(out_atlas)
+
+        if variant in WM_STRUCTURES:
+            outputs.append(roi_mask(
+                out_atlas, find_file(opts.sigma_dir, LABEL_DESCRIPTION[variant]),
+                WM_STRUCTURES[variant], os.path.join(opts.out_dir, f'{prefix}_wm_mask.nii.gz')))
 
         n_labels = convert_label_description(
             find_file(opts.sigma_dir, LABEL_DESCRIPTION[variant]),

@@ -75,6 +75,11 @@ class TestRegistry(unittest.TestCase):
         self.assertEqual(templates.seed_names('rat'), [])
         self.assertIsNone(templates.seed_file('rat', 'HIP_seed'))
 
+    def test_rat_provides_a_white_matter_mask_only_for_the_anat_variant(self):
+        # the functional atlas has no white matter structures to build the mask from
+        self.assertIsNotNone(templates.resolve('rat', 'WM_mask'))
+        self.assertIsNone(templates.resolve('rat', 'WM_mask', bold_only=True))
+
     def test_mouse_seeds_differ_between_variants(self):
         anat_seed = templates.seed_file('mouse', 'HIP_seed')
         epi_seed = templates.seed_file('mouse', 'HIP_seed', bold_only=True)
