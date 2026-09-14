@@ -64,8 +64,7 @@ when `XDG_DATA_HOME` is unset.
 
 The two sets are not installed the same way:
 
-- The **mouse** set is installed automatically the first time a run needs it, and is
-  baked into the container image.
+- The **mouse** set is installed automatically the first time a run needs it.
 - The **rat** set is **not**. It has to be installed explicitly:
 
 ```sh
@@ -78,6 +77,9 @@ set fails immediately, naming the command above, rather than partway through
 processing.
 
 `rabies install all` installs every set. A set that is already complete is left alone.
+
+The container image ships with both sets installed, so none of this applies when running
+RABIES through Docker or Apptainer.
 
 ## Using your own template
 
