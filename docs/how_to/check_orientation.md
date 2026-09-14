@@ -46,6 +46,30 @@ conversion; the CoBrALab maintains
 [notes on the conversion](https://github.com/CoBrALab/documentation/wiki/bruker2nifti-conversion).
 ```
 
+## If RABIES reports that a file does not overlap with the template
+
+RABIES stops with `The file ... does not appear to overlap with provided template` when
+a mask, labels file or seed does not share the origin and orientation of the template.
+When mixing your own files with a template set, every file has to be aligned with the
+template actually in use, not with the one it was originally drawn on.
+
+The check compares only the image origin and the orientation of its axes. It does not
+compare voxel size, image dimensions or field of view, so a file can pass and still not
+line up with the template. Open the file over the template in ITK-SNAP to confirm it
+sits where it should, as described in [Check with ITK-SNAP](#check-with-itk-snap).
+
+Masks and labels files are converted to the RAS orientation before the check, so a file
+whose axes are only flipped relative to the template passes. Seeds given to
+`--seed_list` are not converted. The usual causes of this error are:
+
+- a file drawn on a different template, which usually has a different origin;
+- a file cropped or padded by another tool, which moves its origin;
+- an oblique image, whose axes are rotated rather than flipped;
+- a seed saved in a different orientation than the template.
+
+Earlier versions of RABIES did not catch orientation mismatches in this check, so files
+that used to be accepted may now stop a run.
+
 ## If orientation is correct and registration still fails
 
 Move on to [How to troubleshoot registration](troubleshoot_registration.md),
