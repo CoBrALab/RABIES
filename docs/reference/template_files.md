@@ -1,5 +1,10 @@
 # Built-in commonspace template and atlas
 
+RABIES ships two sets of commonspace template files, selected at the `preprocess` stage
+with `--template_set`: `mouse`, the default, and `rat`. Each set groups a structural
+template, an EPI template used with `--bold_only`, and the masks and atlas files aligned
+with them, so that every file used by a run lies in the same common space.
+
 ## The DSURQE mouse atlas
 
 By default, RABIES uses the DSURQE mouse atlas {cite}`Dorr2008-cc` - a high-resolution *ex vivo* structural MRI average of the mouse brain
@@ -19,7 +24,64 @@ Providing an EPI template as target greatly improves the robustness of EPI regis
 shape are much more similar. 
 
 
+## The SIGMA rat atlas
+
+With `--template_set rat`, RABIES uses the *in vivo* templates of the SIGMA Wistar rat
+brain templates and atlases, version 2.0 {cite}`Barriere2019-sigma`, distributed under
+the CC-BY-4.0 licence. The structural template has an isotropic resolution of 0.15 mm.
+With `--bold_only`, the SIGMA *in vivo* functional template is used instead.
+
+The structural parcellation is the Waxholm Space atlas of the rat brain
+{cite}`Kleven2023-whs`, with 222 regions. The Waxholm atlas was built from Sprague Dawley
+rats, and the SIGMA authors registered it into SIGMA space. The functional template comes
+with the SIGMA functional parcellation of 59 regions.
+
+The rat set does not provide every file of the mouse set:
+
+| File | Mouse | Rat |
+| --- | --- | --- |
+| Brain mask | yes | yes |
+| White matter mask | yes | structural template only |
+| CSF mask | yes | yes |
+| Vascular mask | yes | no |
+| Parcellation for `--ROI_labels_file` | 356 regions | 222 structural, 59 functional |
+| ICA priors for `--prior_maps` | yes | no |
+| Pre-drawn seeds for `--seed_list` | 13 seeds | no |
+
+A file that a set does not provide is never taken from another set, since it would not
+lie in the same space. The operations that depend on it are disabled instead, or stop
+with an error:
+
+- Confound correction cannot use `vascular_signal`. With `--bold_only`, it also cannot use
+  `WM_signal` or the aCompCor regressors. `CSF_signal` is always available.
+- Dual regression and neural prior recovery require `--prior_maps`. Seed-based
+  connectivity, `--FC_matrix`, group ICA and `--data_diagnosis` run without it.
+- `--seed_list` only accepts paths to your own seed images.
+
+### How the rat files are derived
+
+The distributed rat files are built from the SIGMA release with
+`scripts/gen_SIGMA_masks.py`. The script is run once when the bundle is built, so that
+every installation gets identical files:
+
+- The white matter mask is the union of 14 white matter structures of the structural
+  parcellation, such as the corpus callosum, fimbria and anterior commissure. It is not
+  taken from the SIGMA probabilistic white matter map, whose high-probability voxels
+  include thalamus. It is not eroded, since rat white matter tracts are only a few voxels
+  thick at 0.15 mm. The functional parcellation has no white matter structures, so the
+  functional template has no white matter mask.
+- The CSF masks are the SIGMA probabilistic CSF maps thresholded at 0.9. The structural
+  one is eroded by one voxel. The functional one is not, since that grid is too coarse to
+  erode without emptying it.
+- The brain masks are rebinarized at 0.5, and the label descriptions are converted to
+  CSV. The templates and parcellations are unmodified copies.
+
+Work using the rat set should cite both SIGMA {cite}`Barriere2019-sigma` and the Waxholm
+atlas {cite}`Kleven2023-whs`.
+
 ```{seealso}
 [How to override the default common space template](../how_to/change_template.md) for
-customising the input template and associated files.
+customising the input template and associated files, and
+[How to install RABIES](../how_to/install.md#install-the-template-files) for installing
+the rat files.
 ```
