@@ -178,7 +178,7 @@ def check_inherited_template_set(opts):
                          "does not contain a rabies_preprocess.pkl file.")
     with open(cli_file, 'rb') as handle:
         inherited_opts = pickle.load(handle)
-    inherited_set = get_template_set(inherited_opts)
+    inherited_set = templates.get_template_set(inherited_opts)
 
     if opts.explicit_template_set and not opts.template_set==inherited_set:
         raise ValueError(
@@ -280,12 +280,6 @@ def confound_correction(opts, log):
     return workflow
 
 
-def get_template_set(preprocess_opts):
-    # runs preprocessed before --template_set existed carry no such attribute, and
-    # were necessarily run with the mouse files that were the only ones available
-    return getattr(preprocess_opts, 'template_set', 'mouse')
-
-
 def analysis(opts, log):
 
     cli_file = f'{opts.confound_correction_out}/rabies_confound_correction.pkl'
@@ -299,7 +293,7 @@ def analysis(opts, log):
     labels_file = opts.ROI_labels_file
     # the template set is fixed at preprocessing; analysis files default to that same set
     # so that they are guaranteed to live in the commonspace the data was registered to
-    template_set = get_template_set(preprocess_opts)
+    template_set = templates.get_template_set(preprocess_opts)
     bold_only = preprocess_opts.bold_only
     require_template_set(template_set, log)
 

@@ -88,6 +88,12 @@ class TestRegistry(unittest.TestCase):
     def test_required_files_excludes_roles_a_set_does_not_provide(self):
         self.assertNotIn(None, templates.required_files('rat'))
 
+    def test_the_set_of_a_preprocessing_run_is_read_back(self):
+        self.assertEqual(templates.get_template_set(Namespace(template_set='rat')), 'rat')
+
+    def test_a_run_from_before_template_sets_used_the_mouse_files(self):
+        self.assertEqual(templates.get_template_set(Namespace()), 'mouse')
+
     def test_unknown_set_and_role_are_rejected(self):
         with self.assertRaises(ValueError):
             templates.resolve('hamster', 'anat_template')

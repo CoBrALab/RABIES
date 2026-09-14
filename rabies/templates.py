@@ -111,6 +111,13 @@ def describe_sets():
                     for name in TEMPLATE_SET_NAMES])
 
 
+def get_template_set(preprocess_opts):
+    """Return the template set a preprocessing run was registered to."""
+    # runs preprocessed before --template_set existed carry no such attribute, and
+    # were necessarily run with the mouse files that were the only ones available
+    return getattr(preprocess_opts, 'template_set', 'mouse')
+
+
 def get_variant(template_set, bold_only=False):
     """Return the dictionary of files for a template set, given the pipeline variant."""
     if template_set not in TEMPLATE_SETS.keys():
