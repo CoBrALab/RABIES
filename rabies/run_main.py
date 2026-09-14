@@ -168,55 +168,6 @@ def prep_logging(opts, output_folder):
     return log
 
 
-def image_extent(file):
-    # largest physical dimension of an image, in mm
-    img = sitk.ReadImage(file)
-    return max([spacing*size for spacing,size
-                in zip(img.GetSpacing()[:3], img.GetSize()[:3])])
-
-
-def find_reference_scan(bids_dir, bold_only):
-    # first input image found, used to compare the size of the data against the template
-    modality = 'func' if bold_only else 'anat'
-    scans = sorted(pathlib.Path(bids_dir).glob(f'sub-*/**/{modality}/*.nii*'))
-    if len(scans)==0: # datasets without sessions, or without the expected modality folder
-        scans = sorted(pathlib.Path(bids_dir).glob('sub-*/**/*.nii*'))
-    return str(scans[0]) if len(scans)>0 else None
-
-
-def check_template_scale(opts, log):
-    # registering data to the template of another species does not fail, it produces
-    # meaningless outputs, so the mismatch is caught before the workflow is built
-    if opts.skip_scale_check:
-        return
-
-    scan = find_reference_scan(opts.bids_dir, opts.bold_only)
-    if scan is None:
-        log.warning("No input image was found to compare against the template size; "
-                    "skipping the size check.")
-        return
-
-    extent = image_extent(scan)
-    template_extents = {}
-    for name in templates.TEMPLATE_SET_NAMES:
-        template = templates.resolve(name, 'anat_template', bold_only=opts.bold_only)
-        if os.path.isfile(template): # a set that is not installed cannot be compared
-            template_extents[name] = image_extent(template)
-
-    better = templates.scale_verdict(extent, template_extents, opts.template_set)
-    if better is None:
-        return
-
-    raise ValueError(
-        f"The input image {scan} is "
-        f"{extent/template_extents[opts.template_set]:.1f} times the size of the "
-        f"commonspace template of --template_set {opts.template_set}, but "
-        f"{extent/template_extents[better]:.1f} times the size of the {better} one. "
-        "This usually means the data comes from another species; consider "
-        f"--template_set {better}. If the data and the selected template do match, "
-        "re-run with --skip_scale_check.")
-
-
 def check_inherited_template_set(opts):
     # --inherit_unbiased_template overrides the template files with those of a previous
     # run, so an explicitly selected set that disagrees with that run would be silently
@@ -255,7 +206,6 @@ def preprocess(opts, log):
 
     require_template_set(opts.template_set, log)
     templates.resolve_options(opts, log)
-    check_template_scale(opts, log)
 
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
