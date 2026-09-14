@@ -328,10 +328,16 @@ def analysis(opts, log):
 
     if opts.prior_maps is None:
         # the default prior maps are those of the template set used during preprocessing;
-        # a set that provides none leaves them unset, and the analysis workflow raises if
-        # an analysis requiring them was selected
+        # a set that provides none leaves them unset, which is only an error for the
+        # analyses that require them
         opts.prior_maps = templates.resolve(template_set, 'prior_maps', bold_only=bold_only)
         if opts.prior_maps is None:
+            if templates.prior_maps_required(opts):
+                raise ValueError(
+                    f"The {template_set} template set provides no ICA prior maps, which dual "
+                    "regression and neural prior recovery require. Provide a 4D prior map file "
+                    "aligned with the template using --prior_maps.")
+            # left as None, since none of the selected analyses require the prior maps
             log.info(f"The {template_set} template set provides no ICA prior maps; "
                      "operations depending on --prior_maps are disabled.")
         elif bold_only:

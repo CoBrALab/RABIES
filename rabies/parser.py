@@ -972,7 +972,8 @@ def get_parser():
             "run on a combined group of anesthetized-ventilated and awake mice. Confound correction \n"
             "consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and \n"
             "mot_6,WM_signal,CSF_signal as regressors. No prior maps are available for the rat \n"
-            "template set, and this option must then be provided explicitly.\n"
+            "template set, and this option must then be provided explicitly for Dual regression, \n"
+            "Dual ICA and neural prior recovery.\n"
             "(default: the prior maps of the --template_set used during preprocessing)\n"
             "\n"
         )

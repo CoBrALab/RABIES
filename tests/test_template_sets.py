@@ -34,6 +34,14 @@ def preprocess_options(**overrides):
     return opts
 
 
+def analysis_options(**overrides):
+    opts = Namespace(DR_ICA=False, data_diagnosis=False, NPR_temporal_comp=-1,
+                     NPR_spatial_comp=-1, optimize_NPR={'apply': False})
+    for key, value in overrides.items():
+        setattr(opts, key, value)
+    return opts
+
+
 class TestRegistry(unittest.TestCase):
 
     def test_every_set_defines_every_role(self):
@@ -149,6 +157,22 @@ class TestResolveOptions(unittest.TestCase):
         opts = preprocess_options(template_set='rat')
         templates.resolve_options(opts, log)
         self.assertTrue(any('rat' in message for message in log.messages))
+
+
+class TestPriorMapsRequired(unittest.TestCase):
+
+    def test_analyses_that_do_not_fit_priors_do_not_require_them(self):
+        # seed-based connectivity, FC matrices and --data_diagnosis must run on a set that
+        # ships no priors
+        self.assertFalse(templates.prior_maps_required(analysis_options()))
+        self.assertFalse(templates.prior_maps_required(analysis_options(data_diagnosis=True)))
+
+    def test_each_prior_based_analysis_requires_them(self):
+        for overrides in [{'DR_ICA': True},
+                          {'NPR_temporal_comp': 0}, {'NPR_spatial_comp': 0},
+                          {'optimize_NPR': {'apply': True}}]:
+            self.assertTrue(templates.prior_maps_required(analysis_options(**overrides)),
+                            f"{overrides} should require prior maps")
 
 
 if __name__ == '__main__':
