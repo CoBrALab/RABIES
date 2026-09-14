@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Installs the rat template set, derived from the SIGMA Wistar rat brain templates
 # and atlases (Barriere et al. 2019, CC-BY-4.0) with scripts/gen_SIGMA_masks.py.
-# Unlike the mouse set, this one is not installed automatically and is not baked
-# into the container; `rabies install rat` runs this script.
+# Unlike the mouse set, this one is not installed automatically when a run needs it;
+# `rabies install rat` runs this script. The container image runs it at build time.
 
 out_dir=$1
 mkdir -p "$out_dir"
