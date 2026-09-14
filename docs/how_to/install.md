@@ -88,3 +88,28 @@ on the [Neurodesk platform](https://neurodesk.github.io/), a browser-based
 neuroimaging computing environment with community-maintained prebuilt tools.
 Nothing is installed on your own machine. See the
 [Neurodesk documentation](https://neurodesk.github.io/docs/) to get started.
+
+## Install the template files
+
+RABIES stores its template files in `$XDG_DATA_HOME/rabies`, or in
+`~/.local/share/rabies` when `XDG_DATA_HOME` is unset. The container image ships with
+both the mouse and rat files, so this section only applies to other installations.
+
+The mouse files are downloaded automatically the first time a run needs them. The rat
+files are not, and must be installed with:
+
+```sh
+rabies install rat
+```
+
+Run this from a machine with network access before submitting jobs, since compute nodes
+on a cluster often have none. A run that needs a set that is not installed stops before
+processing with `The <set> template set is not installed`, naming the command to run.
+`rabies install all` installs every set, and leaves sets that are already complete
+alone.
+
+```{note}
+If that error appears inside the container, check that `XDG_DATA_HOME` is not passed in
+from the host, which Apptainer does by default. The image installs the template files
+under its own data folder.
+```
