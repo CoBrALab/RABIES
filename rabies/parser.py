@@ -76,7 +76,8 @@ def get_parser():
             "Download and install a set of commonspace template files. The mouse set is \n"
             "installed automatically the first time it is needed, but the rat set is not, \n"
             "and must be installed with this command. Use it to populate the template cache \n"
-            "ahead of time when the machine running the pipeline has no network access.\n"
+            "ahead of time when the machine running the pipeline has no network access. \n"
+            "The container image already includes both sets.\n"
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
     install.add_argument(
@@ -609,8 +610,9 @@ def get_parser():
             "Select the set of commonspace template files to use. Each set provides the\n"
             "anatomical template together with the masks and atlas files aligned with it.\n"
             + templates.describe_sets() +
-            "The rat set is not installed together with RABIES; run 'rabies install rat' \n"
-            "before using it, in particular on compute nodes without network access. \n"
+            "Outside the container image, the rat set is not installed together with RABIES; \n"
+            "run 'rabies install rat' before using it, in particular on compute nodes without \n"
+            "network access. \n"
             "(default: mouse)\n"
             "\n"
         )
