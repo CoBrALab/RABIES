@@ -14,6 +14,9 @@ rabies --inclusion_ids /full_path/bids_inputs/.../selected_scan1.nii.gz /full_pa
 preprocess bids_inputs/ preprocess_outputs_selected_scans_only/ \
 --inherit_unbiased_template /path_to_my_old_RABIES_preprocess_output
 ```
-Note that by selecting this option, the following preprocessing parameters will be overriden to enforce consistency with 
+Importantly, you will note that you must provide some new output directory for this independent RABIES run, and it is considered independent
+for downstream RABIES stages, as there is currently no way to fully merge together two different RABIES runs.
+
+Also note that by selecting this option, the following preprocessing parameters will be overriden to enforce consistency with 
 the previous run: `--anatomical_resampling`, `--commonspace_reg`, `--anat_template`, `--brain_mask`, `--WM_mask`, `--CSF_mask`, `--vascular_mask`. 
 
