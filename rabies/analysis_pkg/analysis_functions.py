@@ -1,96 +1,23 @@
 import numpy as np
-import SimpleITK as sitk
-from .analysis_math import vcorrcoef,closed_form
-
 
 '''
-seed-based FC
+SBC
 '''
 
-def seed_based_FC(CR_dict_file, maps_dict_file, seed_name):
-    import os
-    import numpy as np
-    import SimpleITK as sitk
-    import pathlib
-    from rabies.utils import recover_3D
-    from rabies.analysis_pkg.analysis_math import vcorrcoef
-
-    import pickle
-    with open(CR_dict_file, 'rb') as handle:
-        CR_data_dict = pickle.load(handle)
-    with open(maps_dict_file, 'rb') as handle:
-        maps_data_dict = pickle.load(handle)
-    bold_file = CR_data_dict['bold_file']
-    mask_file = maps_data_dict['mask_file']
-    timeseries = CR_data_dict['timeseries']
-    seed_arr_dict = maps_data_dict['seed_arr_dict']
-    roi_mask = seed_arr_dict[seed_name].astype(bool)
-
-    # extract the voxel timeseries within the mask, and take the mean ROI timeseries
-    seed_timeseries = timeseries[:,roi_mask].mean(axis=1)
-
-    corrs = vcorrcoef(timeseries.T, seed_timeseries)
-    corrs[np.isnan(corrs)] = 0
-
-    corr_map_img = recover_3D(mask_file, corrs)
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")[0]
-    corr_map_file = os.path.abspath(
-        filename_split+'_'+seed_name+'_corr_map.nii.gz')
-    
-    sitk.WriteImage(corr_map_img, corr_map_file)
-
-    # also save the seed timecourse
-    import pandas as pd
-    seed_timecourse_csv = os.path.abspath(
-        filename_split+'_'+seed_name+'_timecourse.csv')
-    pd.DataFrame(seed_timeseries).to_csv(seed_timecourse_csv, header=False, index=False)
-
-    return corr_map_file,seed_timecourse_csv
-
+def compute_seed_FC(timeseries, seed_arr_dict):
+    from .analysis_math import vcorrcoef
+    SBC_dict = {}
+    for seed_name, roi_mask_vec in seed_arr_dict.items():
+        roi_mask = roi_mask_vec.astype(bool)
+        seed_timeseries = timeseries[:, roi_mask].mean(axis=1)
+        corrs = vcorrcoef(timeseries.T, seed_timeseries)
+        corrs[np.isnan(corrs)] = 0
+        SBC_dict[seed_name] = (corrs, seed_timeseries)
+    return SBC_dict
 
 '''
 FC matrix
 '''
-
-
-def run_FC_matrix(CR_dict_file,maps_dict_file, figure_format, roi_type='parcellated'):
-    import os
-    import pandas as pd
-    import SimpleITK as sitk
-    import numpy as np
-    import pathlib  # Better path manipulation
-    from rabies.analysis_pkg.analysis_functions import parcellated_FC_matrix, plot_matrix
-
-    import pickle
-    with open(CR_dict_file, 'rb') as handle:
-        CR_data_dict = pickle.load(handle)
-    with open(maps_dict_file, 'rb') as handle:
-        maps_data_dict = pickle.load(handle)
-
-
-    bold_file = CR_data_dict['bold_file']
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-    figname = os.path.abspath(filename_split[0]+f'_FC_matrix.{figure_format}')
-    
-    timeseries = CR_data_dict['timeseries']
-    atlas_idx = maps_data_dict['atlas_idx']
-    roi_list = maps_data_dict['roi_list']
-
-    if roi_type == 'parcellated':
-        corr_matrix,roi_labels = parcellated_FC_matrix(timeseries, atlas_idx, roi_list)
-        matrix_df = pd.DataFrame(corr_matrix, index=roi_labels, columns=roi_labels)
-    elif roi_type == 'voxelwise':
-        corr_matrix = np.corrcoef(timeseries.T)
-        matrix_df = pd.DataFrame(corr_matrix)
-    else:
-        raise ValueError(
-            f"Invalid --ROI_type provided: {roi_type}. Must be either 'parcellated' or 'voxelwise.'")
-    plot_matrix(figname, corr_matrix)
-
-    data_file = os.path.abspath(filename_split[0]+'_FC_matrix.csv')
-    matrix_df.to_csv(data_file, sep=',')
-    return data_file, figname
-
 
 def parcellated_FC_matrix(sub_timeseries, atlas_idx, roi_list):
     
@@ -123,7 +50,6 @@ def plot_matrix(filename, corr_matrix):
 ICA
 '''
 
-
 def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image, disableMigp=False):
     import os
     import pandas as pd
@@ -145,177 +71,50 @@ def run_group_ICA(bold_file_list, mask_file, dim, random_seed, background_image,
     return out_dir, IC_file
 
 
-def run_DR_ICA(CR_dict_file, maps_dict_file,network_weighting):
+'''
+NPR
+'''
+def compute_NPR(timeseries, prior_map_vectors, prior_bold_idx, optimize_NPR_dict,
+                NPR_temporal_comp, NPR_spatial_comp,
+                network_weighting, filename_split, figure_format):
     import os
-    import pandas as pd
-    import pathlib  # Better path manipulation
-    import SimpleITK as sitk
-    from rabies.utils import recover_4D
-    from rabies.analysis_pkg.analysis_math import dual_regression
+    from .analysis_math import spatiotemporal_prior_fit
 
-    import pickle
-    with open(CR_dict_file, 'rb') as handle:
-        CR_data_dict = pickle.load(handle)
-    with open(maps_dict_file, 'rb') as handle:
-        maps_data_dict = pickle.load(handle)
-    bold_file = CR_data_dict['bold_file']
-    mask_file = maps_data_dict['mask_file']
-    timeseries = CR_data_dict['timeseries']
-    prior_map_vectors = maps_data_dict['prior_map_vectors']
+    C_prior = prior_map_vectors[prior_bold_idx,:].T
 
-    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+    if optimize_NPR_dict['apply']:
+        modeling,_,_,_,optimize_report_fig = spatiotemporal_fit_converge(timeseries,C_prior,
+                                    window_size=optimize_NPR_dict['window_size'],
+                                    min_prior_corr=optimize_NPR_dict['min_prior_corr'],
+                                    diff_thresh=optimize_NPR_dict['diff_thresh'],
+                                    max_iter=optimize_NPR_dict['max_iter'], 
+                                    compute_max=optimize_NPR_dict['compute_max'], 
+                                    gen_report=True)
+        optimize_report_file = os.path.abspath(f'{filename_split}_NPR_optimize.{figure_format}')
+        optimize_report_fig.savefig(optimize_report_file, bbox_inches='tight')
+    else:
+        if NPR_temporal_comp<1: # make sure there is no negative number
+            NPR_temporal_comp=0
+        if NPR_spatial_comp<1: # make sure there is no negative number
+            NPR_spatial_comp=0
+        modeling = spatiotemporal_prior_fit(timeseries, C_prior, num_W=NPR_temporal_comp, num_C=NPR_spatial_comp)
+        optimize_report_file=None
 
-    DR = dual_regression(prior_map_vectors, timeseries)
+    # put together the spatial and temporal extra components
+    W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
 
     if network_weighting=='absolute':
-        DR_C = DR['C']*DR['S']
+        C_extra = np.concatenate((modeling['C_spatial']*modeling['S_spatial'],
+            modeling['C_temporal']*modeling['S_temporal']), axis=1)
+        C_fit = modeling['C_fitted_prior']*modeling['S_fitted_prior']
     elif network_weighting=='relative':
-        DR_C = DR['C']
+        C_extra = np.concatenate((modeling['C_spatial'],
+            modeling['C_temporal']), axis=1)
+        C_fit = modeling['C_fitted_prior']
     else:
         raise 
-
-    dual_regression_timecourse_csv = os.path.abspath(filename_split[0]+'_dual_regression_timecourse.csv')
-    pd.DataFrame(DR['W']).to_csv(dual_regression_timecourse_csv, header=False, index=False)
-
-    # save the subjects' IC maps as .nii file
-    DR_maps_filename = os.path.abspath(filename_split[0]+'_DR_maps.nii.gz')
-    sitk.WriteImage(recover_4D(mask_file, DR_C.T, bold_file), DR_maps_filename)
-    return DR_maps_filename, dual_regression_timecourse_csv
-
-
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec,
-    File, BaseInterface
-)
-
-class NeuralPriorRecoveryInputSpec(BaseInterfaceInputSpec):
-    CR_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices from confound correction.")
-    maps_dict_file = File(exists=True, mandatory=True, desc="Dictionary with prepared input matrices with brain maps and masks.")
-    prior_bold_idx = traits.List(desc="The index for the ICA components that correspond to bold sources.")
-    NPR_temporal_comp = traits.Int(
-        desc="number of data-driven temporal components to compute.")
-    NPR_spatial_comp = traits.Int(
-        desc="number of data-driven spatial components to compute.")
-    optimize_NPR_dict = traits.Dict(
-        desc="Dictionary with options for optimizing NPR convergence.")
-    network_weighting = traits.Str(
-        desc="Whether to derive absolute or relative (variance-normalized) network maps.")
-    figure_format = traits.Str(
-        desc="Select file format for figures.")
-
-class NeuralPriorRecoveryOutputSpec(TraitedSpec):
-    NPR_prior_timecourse_csv = File(
-        exists=True, desc=".csv with timecourses from the fitted prior sources.")
-    NPR_extra_timecourse_csv = File(
-        exists=True, desc=".csv with timecourses from the scan-specific extra sources.")
-    NPR_prior_filename = File(
-        exists=True, desc=".nii file with spatial components from the fitted prior sources.")
-    NPR_extra_filename = File(
-        exists=True, desc=".nii file with spatial components from the scan-specific extra sources.")
-    optimize_report = traits.Any(
-        exists=False, desc="The NPR optimization report.")
-
-
-class NeuralPriorRecovery(BaseInterface):
-    """
-
-    """
-
-    input_spec = NeuralPriorRecoveryInputSpec
-    output_spec = NeuralPriorRecoveryOutputSpec
-
-    def _run_interface(self, runtime):
-        import os
-        import numpy as np
-        import pandas as pd
-        import pathlib  # Better path manipulation
-        from rabies.utils import recover_4D
-        from rabies.analysis_pkg.analysis_math import spatiotemporal_prior_fit
-
-        import pickle
-        with open(self.inputs.CR_dict_file, 'rb') as handle:
-            CR_data_dict = pickle.load(handle)
-        with open(self.inputs.maps_dict_file, 'rb') as handle:
-            maps_data_dict = pickle.load(handle)
-        bold_file = CR_data_dict['bold_file']
-        mask_file = maps_data_dict['mask_file']
-        timeseries = CR_data_dict['timeseries']
-        prior_map_vectors = maps_data_dict['prior_map_vectors']
-        network_weighting=self.inputs.network_weighting
-
-        filename_split = pathlib.Path(
-            bold_file).name.rsplit(".nii")
-
-        C_prior = prior_map_vectors[self.inputs.prior_bold_idx,:].T
-
-        optimize_NPR_dict = self.inputs.optimize_NPR_dict
-        if optimize_NPR_dict['apply']:
-            modeling,_,_,_,optimize_report_fig = spatiotemporal_fit_converge(timeseries,C_prior,
-                                        window_size=optimize_NPR_dict['window_size'],
-                                        min_prior_corr=optimize_NPR_dict['min_prior_corr'],
-                                        diff_thresh=optimize_NPR_dict['diff_thresh'],
-                                        max_iter=optimize_NPR_dict['max_iter'], 
-                                        compute_max=optimize_NPR_dict['compute_max'], 
-                                        gen_report=True)
-            optimize_report_file = os.path.abspath(f'{filename_split[0]}_NPR_optimize.{self.inputs.figure_format}')
-            optimize_report_fig.savefig(optimize_report_file, bbox_inches='tight')
-        else:
-            NPR_temporal_comp = self.inputs.NPR_temporal_comp
-            NPR_spatial_comp = self.inputs.NPR_spatial_comp
-            if NPR_temporal_comp<1: # make sure there is no negative number
-                NPR_temporal_comp=0
-            if NPR_spatial_comp<1: # make sure there is no negative number
-                NPR_spatial_comp=0
-            modeling = spatiotemporal_prior_fit(timeseries, C_prior, num_W=NPR_temporal_comp, num_C=NPR_spatial_comp)
-            optimize_report_file=None
-
-        # put together the spatial and temporal extra components
-        W_extra = np.concatenate((modeling['W_spatial'],modeling['W_temporal']), axis=1)
-
-        if network_weighting=='absolute':
-            C_extra = np.concatenate((modeling['C_spatial']*modeling['S_spatial'],
-                modeling['C_temporal']*modeling['S_temporal']), axis=1)
-            C_fit = modeling['C_fitted_prior']*modeling['S_fitted_prior']
-        elif network_weighting=='relative':
-            C_extra = np.concatenate((modeling['C_spatial'],
-                modeling['C_temporal']), axis=1)
-            C_fit = modeling['C_fitted_prior']
-        else:
-            raise 
-
-        NPR_prior_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_prior_timecourse.csv')
-        pd.DataFrame(modeling['W_fitted_prior']).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
-
-        NPR_extra_timecourse_csv = os.path.abspath(filename_split[0]+'_NPR_extra_timecourse.csv')
-        pd.DataFrame(W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
-
-        NPR_prior_filename = os.path.abspath(filename_split[0]+'_NPR_prior.nii.gz')
-        sitk.WriteImage(recover_4D(mask_file,C_fit.T, bold_file), NPR_prior_filename)
-
-        if (self.inputs.NPR_temporal_comp+self.inputs.NPR_spatial_comp)>0:
-            NPR_extra_filename = os.path.abspath(filename_split[0]+'_NPR_extra.nii.gz')
-            sitk.WriteImage(recover_4D(mask_file,C_extra.T, bold_file), NPR_extra_filename)
-        else:
-            empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-            empty_file = os.path.abspath('empty.nii.gz')
-            sitk.WriteImage(empty_img, empty_file)
-            NPR_extra_filename = empty_file
-
-        setattr(self, 'NPR_prior_timecourse_csv', NPR_prior_timecourse_csv)
-        setattr(self, 'NPR_extra_timecourse_csv', NPR_extra_timecourse_csv)
-        setattr(self, 'NPR_prior_filename', NPR_prior_filename)
-        setattr(self, 'NPR_extra_filename', NPR_extra_filename)
-        setattr(self, 'optimize_report', optimize_report_file)
-
-        return runtime
-
-    def _list_outputs(self):
-        return {'NPR_prior_timecourse_csv': getattr(self, 'NPR_prior_timecourse_csv'),
-                'NPR_extra_timecourse_csv': getattr(self, 'NPR_extra_timecourse_csv'),
-                'NPR_prior_filename': getattr(self, 'NPR_prior_filename'),
-                'NPR_extra_filename': getattr(self, 'NPR_extra_filename'),
-                'optimize_report': getattr(self, 'optimize_report'),
-                }
+    W_fit = modeling['W_fitted_prior']
+    return C_fit, W_fit, C_extra, W_extra, optimize_report_file
 
 
 def eval_convergence(prior_corr_list,fit_diff_list,window_size=5,min_prior_corr=0.5,diff_thresh=0.04):
