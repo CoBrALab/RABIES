@@ -903,6 +903,61 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_comad = confound_correction.add_argument_group(
+        title='CoMaD parameters', 
+        description=
+            "Parameters that regulate the application of Complementary Matrix Decomposition (CoMaD)\n"
+            "denoising. Note that --comad_params, --comad_prior_maps and --comad_prior_idx must all \n"
+            "be filled to run without error. \n"
+        )
+    g_comad.add_argument(
+        '--comad_params', type=str, default='N_comad=0,gen_report=false,optimize_N=false,min_prior_sim=0,Dc_W_thresh=0,Dc_C_thresh=0',
+        help=
+            "This controls the application and dimensionality of the CoMaD decomposition. \n"
+            "\n"
+            "* N_comad: Number of CoMaD components to derive. If N_comad=0, CoMaD is not applied.\n"
+            "*** Must provide an integer. \n"
+            "* gen_report: Whether to generate the CoMaD fitting report. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "* optimize_N: Whether to carry an automated dimensionality estimation for CoMaD, up to \n"
+            "               a maximal dimensionality defined by N_comad. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "* min_prior_sim: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold between 0 and 1.0 for the similarity between \n"
+            "               the priors and the associated network maps derived from the CoMaD model.  \n"
+            "               No threshold is applied if the value is below 0. \n"
+            "*** Must provide a float. \n"
+            "* Dc_C_thresh: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold for the cosine distance of the resulting network timecourses \n"
+            "               after consecutive increments in CoMaD dimensionality. \n"
+            "*** Must provide a float. \n"
+            "* Dc_W_thresh: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold for the cosine distance of the resulting network maps \n"
+            "               after consecutive increments in CoMaD dimensionality. \n"
+            "*** Must provide a float. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_comad.add_argument(
+        '--comad_prior_maps', action='store', type=Path,
+        default=run_main.DSURQE_ICA,
+        help=
+            "A 4D nifti image that includes the network maps defining signal of interest to preserve \n"
+            "during CoMaD denoising (usually a group-ICA decomposition).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_comad.add_argument(
+        '--comad_prior_idx', type=int,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[5, 12, 19],
+        help=
+            "Provide the indices that select the right set of network priors from the \n"
+            "--comad_prior_maps file (starting from 0 for the first index). \n"
+            "SYNTAX: '--comad_prior_maps 5 12 19', and not '--comad_prior_maps [5, 12, 19]'. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis
@@ -1301,6 +1356,13 @@ def read_parser(parser, args):
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int},
             defaults = {'apply':False,'dim':0,'random_seed':1},
             name='ica_aroma')
+
+        opts.comad_params = parse_argument(opt=opts.comad_params, 
+            key_value_pairs = {'N_comad':int, 'gen_report':['true', 'false'], 'optimize_N':['true', 'false'],
+                               'min_prior_sim':float, 'Dc_W_thresh':float, 'Dc_C_thresh':float},
+            defaults = {'N_comad':0, 'gen_report':False, 'optimize_N':False,
+                               'min_prior_sim':0, 'Dc_W_thresh':0, 'Dc_C_thresh':0},
+            name='comad_params')
 
     elif opts.rabies_stage == 'analysis':
         opts.group_ica = parse_argument(opt=opts.group_ica, 

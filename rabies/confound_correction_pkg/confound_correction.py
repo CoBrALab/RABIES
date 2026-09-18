@@ -60,7 +60,8 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(niu.IdentityInterface(fields=[
-                        'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'motion_params_csv', 'FD_file', 'raw_input_file']), name='inputnode')
+                        'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'motion_params_csv', 'FD_file', 
+                        'raw_input_file', 'comad_prior_maps']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
                          'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
                          'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
@@ -77,6 +78,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("raw_input_file", "raw_input_file"),
             ("motion_params_csv", "motion_params_csv"),
             ("FD_file", "FD_file"),
+            ("comad_prior_maps", "comad_prior_maps"),
             ]),
         (clean_image_node, outputnode, [
             ("cleaned_path", "cleaned_path"),
@@ -88,6 +90,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             ("frame_mask_file", "frame_mask_file"),
             ("data_dict", "CR_data_dict"),
             ("aroma_out", "aroma_out"),
+            ("comad_fig_list", "comad_fig_list"),
             ]),
         ])
 
@@ -111,6 +114,9 @@ class CleanImageInputSpec(BaseInterfaceInputSpec):
                       desc="CSV with framewise displacement.")
     motion_params_csv = File(exists=True, mandatory=True,
                       desc="CSV with motion parameters.")
+    comad_prior_maps = File(mandatory=True,
+                      desc="The 4D Nifti with the set of prior network maps for CoMaD." \
+                      "The file must be in the same space as the timeseries image.")
     cr_opts = traits.Any(
         exists=True, mandatory=True, desc="Processing specs.")
 
@@ -133,6 +139,8 @@ class CleanImageOutputSpec(TraitedSpec):
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
+    comad_fig_list = traits.List(
+        desc="Figures from the CoMaD report.")
 
 class CleanImage(BaseInterface):
     '''
@@ -191,6 +199,7 @@ class CleanImage(BaseInterface):
         setattr(self, 'frame_mask_file', empty_file)
         setattr(self, 'data_dict', empty_file)
         setattr(self, 'aroma_out', empty_file)
+        setattr(self, 'comad_fig_list', None)
         ###
 
         cr_opts = self.inputs.cr_opts
@@ -229,6 +238,9 @@ class CleanImage(BaseInterface):
                 image_scaling=cr_opts.image_scaling,
                 keep_EPI_average=cr_opts.keep_EPI_average,
                 smoothing_filter=cr_opts.smoothing_filter,
+                comad_params=cr_opts.comad_params, 
+                comad_prior_maps=self.inputs.comad_prior_maps,
+                comad_prior_idx=cr_opts.comad_prior_idx,
                 slicewise_correction_direction=cr_opts.slicewise_correction_direction,
                 nipype_log=nipype_log,
                 )
@@ -242,7 +254,8 @@ class CleanImage(BaseInterface):
             STD_spatial_map, 
             CR_STD_spatial_map, 
             random_CR_STD_spatial_map, 
-            corrected_CR_STD_spatial_map] = cleaning_out
+            corrected_CR_STD_spatial_map,
+            comad_fig_list] = cleaning_out
 
         '''
         Generate all the output files
@@ -289,6 +302,8 @@ class CleanImage(BaseInterface):
         setattr(self, 'data_dict', CR_data_dict)
         if CR_data_dict['aroma_out'] is not None:
             setattr(self, 'aroma_out', CR_data_dict['aroma_out'])
+        if comad_fig_list is not None:
+            setattr(self, 'comad_fig_list', comad_fig_list)
 
         return runtime
 
@@ -302,6 +317,7 @@ class CleanImage(BaseInterface):
                 'frame_mask_file': getattr(self, 'frame_mask_file'),
                 'data_dict': getattr(self, 'data_dict'),
                 'aroma_out': getattr(self, 'aroma_out'),
+                'comad_fig_list': getattr(self, 'comad_fig_list'),
                 }
     
 
@@ -316,6 +332,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
                 scale_variance_voxelwise=False,image_scaling='grand_mean_scaling',
                 keep_EPI_average=False,
                 smoothing_filter=None,
+                comad_params={"N_comad":0}, comad_prior_maps=None, comad_prior_idx=[],
                 slicewise_correction_direction = 'Off',
                 nipype_log=None,
                 ):
@@ -437,6 +454,39 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     smoothing_filter : float, default=None
         Gaussian smoothing filter to apply.
 
+    comad_params : dict, default={"N_comad":0}
+        Dictionary controlling the application and dimensionality of Complementary Matrix
+        Decomposition (CoMaD) denoising, set through --comad_params. Recognized keys:
+            * N_comad : int, default=0
+                Number of CoMaD components to derive. If N_comad=0, CoMaD is not applied.
+            * gen_report : bool, default=False
+                Whether to generate the CoMaD fitting report.
+            * optimize_N : bool, default=False
+                Whether to carry an automated dimensionality estimation for CoMaD, up to
+                a maximal dimensionality defined by N_comad.
+            * min_prior_sim : float, default=0
+                Parameter for automated dimensionality estimation (when optimize_N=True).
+                Convergence threshold between 0 and 1.0 for the similarity between the
+                priors and the associated network maps derived from the CoMaD model. No
+                threshold is applied if the value is below 0.
+            * Dc_W_thresh : float, default=0
+                Parameter for automated dimensionality estimation (when optimize_N=True).
+                Convergence threshold for the cosine distance of the resulting network
+                timecourses after consecutive increments in CoMaD dimensionality.
+            * Dc_C_thresh : float, default=0
+                Parameter for automated dimensionality estimation (when optimize_N=True).
+                Convergence threshold for the cosine distance of the resulting network
+                maps after consecutive increments in CoMaD dimensionality.
+
+    comad_prior_maps : filepath or sitk.Image, default=None
+        A 4D Nifti with the set of prior network maps for CoMaD (usually a group-ICA
+        decomposition), in the same space as input_bold. Required (cannot be None) if
+        comad_params['N_comad']>0.
+
+    comad_prior_idx : list of int, default=[]
+        Indices selecting the subset of network priors to use from comad_prior_maps,
+        starting from 0 for the first index. Only used if comad_params['N_comad']>0.
+
     slicewise_correction_direction : str, default='Off'
         By inputing a slice direction with this parameters, the computation of nuisance 
         signals, nuisance regression, and smoothing, are all conducted on each 2D slice 
@@ -477,9 +527,13 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         generate_CR_null=True.
 
     corrected_CR_STD_spatial_map : sitk.Image
-        Voxelwise standard deviation of fitted nuisance timeseries, after correction 
+        Voxelwise standard deviation of fitted nuisance timeseries, after correction
         by the randomized regressors with generate_CR_null=True.
-    
+
+    comad_fig_list : list or None
+        List of figures from the CoMaD fitting report, generated if
+        comad_params['gen_report']=True and comad_params['N_comad']>0. None otherwise.
+
     Returns if internal error.
     -------
     None : if an error is detected in the workflow, the function only returns None.
@@ -491,6 +545,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     import SimpleITK as sitk
     from rabies.utils import recover_3D,recover_4D
     from . import utils as cr_utils
+    from comad.decomposition import CoMaD
 
     if censoring_percent_exclusion<0 or censoring_percent_exclusion>100:
         raise ValueError(f"The input censoring_percent_exclusion={censoring_percent_exclusion} is not valid. It must be between 0 and 100.")
@@ -697,7 +752,29 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     timeseries, predicted, predicted_random, num_regressors, VE_temporal, VE_spatial, VE_total_ratio, cleaned_slice_l = regress_out
 
     '''
-    #11 - Scaling of timeseries.
+    #11 - CoMaD cleaning.
+    '''
+    comad_fig_list = None
+    if comad_params['N_comad']>0:
+        if comad_prior_maps is None:
+            raise ValueError("comad_prior_maps input is None - cannot run CoMaD.")
+        comad_prior_maps_img = read_input(comad_prior_maps)
+        C_prior = sitk.GetArrayFromImage(comad_prior_maps_img)[:,volume_idx][comad_prior_idx].T
+        del comad_prior_maps_img
+        comad = CoMaD(
+            C_prior=C_prior, N_comad=comad_params['N_comad'],
+            aggressive=True, sequential_decomposition=False, compute_residuals=True, 
+            gen_report=comad_params['gen_report'], optimize_N=comad_params['optimize_N'], 
+            min_prior_sim=comad_params['min_prior_sim'], Dc_W_thresh=comad_params['Dc_W_thresh'], 
+            Dc_C_thresh=comad_params['Dc_C_thresh'],
+            c_init=None, tol=1e-10, verbose=1)
+        timeseries = comad.comad_modeling(timeseries).clean(include_residuals=True)
+        if comad_params['gen_report']:
+            comad_fig_list = comad.fig_list
+        del comad
+
+    '''
+    #12 - Timeseries standardization.
     '''
     if scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
         if image_scaling=='voxelwise_standardization' or image_scaling=='voxelwise_mean':
@@ -787,7 +864,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     if smoothing_filter is not None:
         '''
-        #12 - Apply Gaussian spatial smoothing.
+        #13 - Apply Gaussian spatial smoothing.
         '''
         if not slicewise_correction_direction=='Off':
             # smooth 1 slice at a time
@@ -834,4 +911,4 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         'motion_params_df':motion_params_df, 'predicted_time':predicted_time, 'tDOF':tDOF, 'CR_global_std':predicted_global_std, 
         'VE_total_ratio':VE_total_ratio, 'voxelwise_mean':voxelwise_intercept, 'aroma_out':aroma_out,
         }
-    return timeseries_img, CR_data_dict, VE_spatial_map, STD_spatial_map, CR_STD_spatial_map, random_CR_STD_spatial_map, corrected_CR_STD_spatial_map
+    return timeseries_img, CR_data_dict, VE_spatial_map, STD_spatial_map, CR_STD_spatial_map, random_CR_STD_spatial_map, corrected_CR_STD_spatial_map, comad_fig_list
