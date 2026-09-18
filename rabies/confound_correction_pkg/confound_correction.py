@@ -22,15 +22,16 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
     #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
          simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
     #9 - Apply confound regression using the selected nuisance regressors.
-    #10 - Scaling of timeseries variance.
-    #11 - Apply Gaussian spatial smoothing.
-    
+    #10 - Apply CoMaD denoising.
+    #11 - Scaling of timeseries variance.
+    #12 - Apply Gaussian spatial smoothing.
+
     References:
-        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic 
+        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). Spurious but systematic
             correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
-        Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, 
+        Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect,
             characterize, and remove motion artifact in resting state fMRI. Neuroimage, 84, 320-341.
-        Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce 
+        Lindquist, M. A., Geuter, S., Wager, T. D., & Caffo, B. S. (2019). Modular preprocessing pipelines can reintroduce
             artifacts into fMRI data. Human brain mapping, 40(8), 2358-2376.
 
     Workflow:
@@ -43,6 +44,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
             csf_mask: CSF mask overlapping with EPI timeseries
             motion_params_csv: CSV file with motion regressors
             FD_file: CSV file with the framewise displacement
+            comad_prior_maps: 4D Nifti with the set of prior network maps for CoMaD denoising
 
         outputs
             cleaned_path: the cleaned EPI timeseries
@@ -55,6 +57,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                 regressors.
             frame_mask_file: CSV file which records which frame were censored
             CR_data_dict: dictionary object storing extra data computed during confound correction
+            comad_fig_list: figures from the CoMaD fitting report, if generated
     """
     # confound_wf_head_end
 
@@ -63,8 +66,9 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                         'bold_file', 'brain_mask', 'WM_mask', 'CSF_mask', 'vascular_mask', 'motion_params_csv', 'FD_file', 
                         'raw_input_file', 'comad_prior_maps']), name='inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=[
-                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file', 
-                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict']), name='outputnode')
+                         'cleaned_path', 'aroma_out', 'VE_file', 'STD_file', 'CR_STD_file',
+                         'random_CR_STD_file_path', 'corrected_CR_STD_file_path', 'frame_mask_file', 'CR_data_dict',
+                         'comad_fig_list']), name='outputnode')
     clean_image_node = pe.Node(CleanImage(cr_opts=cr_opts),
                            name='clean_image', mem_gb=3*cr_opts.scale_min_memory) # 3X memory as the timeseries is expanded into many arrays
 
@@ -114,7 +118,7 @@ class CleanImageInputSpec(BaseInterfaceInputSpec):
                       desc="CSV with framewise displacement.")
     motion_params_csv = File(exists=True, mandatory=True,
                       desc="CSV with motion parameters.")
-    comad_prior_maps = File(mandatory=True,
+    comad_prior_maps = traits.Any(mandatory=True,
                       desc="The 4D Nifti with the set of prior network maps for CoMaD." \
                       "The file must be in the same space as the timeseries image.")
     cr_opts = traits.Any(
@@ -139,7 +143,7 @@ class CleanImageOutputSpec(TraitedSpec):
         desc="A dictionary with key outputs.")
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
-    comad_fig_list = traits.List(
+    comad_fig_list = traits.Any(
         desc="Figures from the CoMaD report.")
 
 class CleanImage(BaseInterface):
@@ -158,15 +162,14 @@ class CleanImage(BaseInterface):
     #7 - Apply highpass and/or lowpass filtering on the fMRI timeseries (with simulated timepoints).
     #8 - Re-apply the frame censoring mask onto filtered fMRI timeseries and nuisance regressors, taking out the
          simulated timepoints. Edge artefacts from frequency filtering can also be removed as recommended in Power et al. (2014, Neuroimage).
-    #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
-         minimize re-introduction of previously corrected signal fluctuations.
-    #10 - Apply confound regression using the selected nuisance regressors.
+    #9 - Apply confound regression using the selected nuisance regressors.
+    #10 - Apply CoMaD denoising.
     #11 - Scaling of timeseries.
     #12 - Apply Gaussian spatial smoothing.
-    
+
     References:
-        
-        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012). 
+
+        Power, J. D., Barnes, K. A., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2012).
         Spurious but systematic correlations in functional connectivity MRI networks arise from subject motion. Neuroimage, 59(3), 2142-2154.
         
         Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). 
@@ -740,9 +743,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         return None
 
     '''
-    #9 - If selected, compute the WM/CSF/vascular signal or aCompCorr and add to list of regressors. This is computed post-AROMA and filtering to 
-        minimize re-introduction of previously corrected signal fluctuations.
-    #10 - Apply confound regression using the selected nuisance regressors.
+    #9 - Apply confound regression using the selected nuisance regressors.
     '''
     regress_out = cr_utils.nuisance_regression(
         timeseries, motion_regressors_array, TR, frame_mask, orig_4d_size, brain_mask, WM_mask, CSF_mask, vascular_mask, nuisance_regressors=nuisance_regressors, 
@@ -752,7 +753,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     timeseries, predicted, predicted_random, num_regressors, VE_temporal, VE_spatial, VE_total_ratio, cleaned_slice_l = regress_out
 
     '''
-    #11 - CoMaD cleaning.
+    #10 - CoMaD cleaning.
     '''
     comad_fig_list = None
     if comad_params['N_comad']>0:
@@ -774,7 +775,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         del comad
 
     '''
-    #12 - Timeseries standardization.
+    #11 - Timeseries standardization.
     '''
     if scale_variance_voxelwise: # homogenize the variability distribution while preserving the same total variance
         if image_scaling=='voxelwise_standardization' or image_scaling=='voxelwise_mean':
@@ -864,7 +865,7 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
 
     if smoothing_filter is not None:
         '''
-        #13 - Apply Gaussian spatial smoothing.
+        #12 - Apply Gaussian spatial smoothing.
         '''
         if not slicewise_correction_direction=='Off':
             # smooth 1 slice at a time

@@ -220,11 +220,11 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
         if cr_opts.comad_params['gen_report']:
             workflow.connect([
                 (confound_correction_wf, confound_correction_datasink, [
-                    ("outputnoda.comad_fig_list", "comad_report"),
+                    ("outputnode.comad_fig_list", "comad_report"),
                     ]),
                 ])
     else:
-        confound_correction_wf.inputnode.comad_prior_maps = None
+        confound_correction_wf.get_node('inputnode').inputs.comad_prior_maps = None
 
 
     return workflow

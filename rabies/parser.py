@@ -907,8 +907,8 @@ def get_parser():
         title='CoMaD parameters', 
         description=
             "Parameters that regulate the application of Complementary Matrix Decomposition (CoMaD)\n"
-            "denoising. Note that --comad_params, --comad_prior_maps and --comad_prior_idx must all \n"
-            "be filled to run without error. \n"
+            "denoising. CoMaD is disabled by default (N_comad=0 in --comad_params). If it is enabled, \n"
+            "--comad_prior_maps and --comad_prior_idx must be set to a compatible set of network priors. \n"
         )
     g_comad.add_argument(
         '--comad_params', type=str, default='N_comad=0,gen_report=false,optimize_N=false,min_prior_sim=0,Dc_W_thresh=0,Dc_C_thresh=0',
@@ -954,7 +954,7 @@ def get_parser():
         help=
             "Provide the indices that select the right set of network priors from the \n"
             "--comad_prior_maps file (starting from 0 for the first index). \n"
-            "SYNTAX: '--comad_prior_maps 5 12 19', and not '--comad_prior_maps [5, 12, 19]'. \n"
+            "SYNTAX: '--comad_prior_idx 5 12 19', and not '--comad_prior_idx [5, 12, 19]'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
