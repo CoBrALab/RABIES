@@ -462,6 +462,13 @@ def fc_analysis(
 
     filename_split = pathlib.Path(name_source).name.rsplit(".nii")[0]
 
+    # prior_maps and atlas_file are replaced by None to skip the resampling step inside 
+    # load_resample_analysis_maps() if they are not used by their respective analysis functions
+    run_NPR = (NPR_temporal_comp > -1) or (NPR_spatial_comp > -1) \
+          or optimize_NPR_dict['apply']
+    prior_maps = prior_maps if DR_ICA or run_NPR else None
+    atlas_file = atlas_file if FC_matrix else None
+
     loaded = load_resample_analysis_maps(
         mask_file, anat_ref_file,
         transform_list=to_analysis_space_transform_list, inverse_list=to_analysis_space_inverse_list,
@@ -502,6 +509,8 @@ def fc_analysis(
         FC_matrix_df = None
     else:
         if ROI_type == 'parcellated':
+            if atlas_idx is None or roi_list is None:
+                raise ValueError("ROI_type='parcellated' requires atlas_file to be provided.")
             corr_matrix, roi_labels = parcellated_FC_matrix(timeseries, atlas_idx, roi_list)
             FC_matrix_df = pd.DataFrame(corr_matrix, index=roi_labels, columns=roi_labels)
         elif ROI_type == 'voxelwise':
