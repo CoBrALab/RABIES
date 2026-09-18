@@ -484,6 +484,8 @@ def fc_analysis(
         SBC_out = None
 
     if DR_ICA:
+        if prior_map_vectors is None:
+            raise ValueError("DR_ICA=True requires prior_maps to be provided.")
         DR = dual_regression(prior_map_vectors, timeseries)
         if network_weighting == 'absolute':
             DR_C = DR['C'] * DR['S']
