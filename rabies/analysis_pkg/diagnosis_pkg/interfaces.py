@@ -416,6 +416,8 @@ class DatasetDiagnosis(BaseInterface):
             if self.inputs.group_avg_prior:
                 num_priors = DR_maps_list.shape[1]
                 prior_maps = np.median(DR_maps_list,axis=0)[:,non_zero_voxels]
+            elif prior_map_vectors is None:
+                raise ValueError(f"prior_map_vectors is empty with group_avg_prior=False.")
             else:
                 prior_maps = prior_map_vectors[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
@@ -445,6 +447,8 @@ class DatasetDiagnosis(BaseInterface):
             if self.inputs.group_avg_prior:
                 num_priors = NPR_maps_list.shape[1]
                 prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
+            elif prior_map_vectors is None:
+                raise ValueError(f"prior_map_vectors is empty with group_avg_prior=False.")
             else:
                 prior_maps = prior_map_vectors[:,non_zero_voxels]
                 num_priors = prior_maps.shape[0]
