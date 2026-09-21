@@ -57,7 +57,7 @@ def init_confound_correction_wf(cr_opts, name="confound_correction_wf"):
                 regressors.
             frame_mask_file: CSV file which records which frame were censored
             CR_data_dict: dictionary object storing extra data computed during confound correction
-            comad_fig_list: figures from the CoMaD fitting report, if generated
+            comad_fig_list: file paths to the figures from the CoMaD fitting report, if generated
     """
     # confound_wf_head_end
 
@@ -144,7 +144,7 @@ class CleanImageOutputSpec(TraitedSpec):
     aroma_out = traits.Any(
         desc="Output directory from ICA-AROMA.")
     comad_fig_list = traits.Any(
-        desc="Figures from the CoMaD report.")
+        desc="List of file paths to the figures from the CoMaD report.")
 
 class CleanImage(BaseInterface):
     '''
@@ -306,7 +306,12 @@ class CleanImage(BaseInterface):
         if CR_data_dict['aroma_out'] is not None:
             setattr(self, 'aroma_out', CR_data_dict['aroma_out'])
         if comad_fig_list is not None:
-            setattr(self, 'comad_fig_list', comad_fig_list)
+            comad_fig_filelist = []
+            for fig_idx, fig in enumerate(comad_fig_list):
+                comad_fig_path = cr_out+'/'+filename_split[0]+f'_comad_report{fig_idx}.{cr_opts.figure_format}'
+                fig.savefig(comad_fig_path, bbox_inches='tight')
+                comad_fig_filelist.append(comad_fig_path)
+            setattr(self, 'comad_fig_list', comad_fig_filelist)
 
         return runtime
 
@@ -762,9 +767,13 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
         comad_prior_maps_img = read_input(comad_prior_maps)
         C_prior = sitk.GetArrayFromImage(comad_prior_maps_img)[:,volume_idx][comad_prior_idx].T
         del comad_prior_maps_img
+        if comad_params['gen_report'] or comad_params['optimize_N']:
+            sequential_decomposition=True
+        else:
+            sequential_decomposition=False
         comad = CoMaD(
             C_prior=C_prior, N_comad=comad_params['N_comad'],
-            aggressive=True, sequential_decomposition=False, compute_residuals=True, 
+            aggressive=True, sequential_decomposition=sequential_decomposition, compute_residuals=True, 
             gen_report=comad_params['gen_report'], optimize_N=comad_params['optimize_N'], 
             min_prior_sim=comad_params['min_prior_sim'], Dc_W_thresh=comad_params['Dc_W_thresh'], 
             Dc_C_thresh=comad_params['Dc_C_thresh'],
