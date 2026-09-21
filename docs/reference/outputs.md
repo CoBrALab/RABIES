@@ -109,6 +109,7 @@ Files derived from motion estimation.
 - `frame_censoring_mask/`: CSV files recording, as a boolean vector, which timepoints were censored, if frame censoring was applied
 - `aroma_out/`: outputs from running ICA-AROMA if `--ica_aroma` is applied, including the MELODIC ICA outputs and the component classification results
 - `plot_CR_overfit/`: figures illustrating the variance explained by random regressors during confound correction, and the variance explained by the real regressors after subtracting the variance from random regressors
+- `comad_report/`: figures from the CoMaD fitting report, if `gen_report=true` within `--comad_params`. One figure is generated per network selected with `--comad_prior_idx` (`*_comad_report0`, `*_comad_report1`, ...), showing as a function of the number of CoMaD components: the network amplitude, the similarity between the fitted network map and its prior, the change in the network map and timecourse between consecutive numbers of components, and the redundancy between the CoMaD components and the network. The optimal dimensionality selected by the thresholds in `--comad_params` is marked with a star.
 
 ## Analysis outputs
 
