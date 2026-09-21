@@ -626,7 +626,8 @@ def clean_image(input_bold, brain_mask, FD_csv, motion_params_csv, # necessary i
     #1 - Compute and apply frame censoring mask (from FD and/or DVARS thresholds)
     '''
 
-    min_nframes_postcensor = int(np.floor(timeseries.shape[0]*censoring_percent_exclusion/100))
+    # scans are always excluded if fewer than MIN_FRAMES_POSTCENSOR frames are left, independently of censoring_percent_exclusion
+    min_nframes_postcensor = max(cr_utils.MIN_FRAMES_POSTCENSOR, int(np.floor(timeseries.shape[0]*censoring_percent_exclusion/100)))
 
     # compute the DVARS before denoising
     DVARS_trace = cr_utils.get_DVARS(timeseries)

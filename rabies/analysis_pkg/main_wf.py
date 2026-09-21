@@ -36,8 +36,8 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
     if number_functional_scans==0:
         raise ValueError(f"""
             No outputs were founds from the confound correction stage. 
-            All scans may have been removed for not meeting the censoring_percent_exclusion threshold
-            when applying --frame_censoring. Outputs will be named empty.nii.gz if this is
+            All scans may have been removed for not having enough frames left after censoring
+            (see --frame_censoring). Outputs will be named empty.nii.gz if this is
             the case.
             """)
 
@@ -479,7 +479,7 @@ def read_confound_workflow(conf_output, cr_opts):
             scan_list_str += f'\n        - {name}'
         log.warning(f"""
         The following scans were not included for analysis as the file was empty: {scan_list_str}
-        This is likely due to not meeting the censoring_percent_exclusion threshold from --frame_censoring.
+        This is likely due to not having enough frames left after censoring (see --frame_censoring).
                     """)
 
     return split_dict, split_name, target_list

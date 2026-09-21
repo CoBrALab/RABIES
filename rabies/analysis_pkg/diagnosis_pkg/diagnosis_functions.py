@@ -310,7 +310,7 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, tempo
         WM_trace=temporal_info['WM_trace'][plot_time_subset_censored]
     else:
         WM_trace=None
-    if temporal_info['WM_trace'] is not None:
+    if temporal_info['CSF_trace'] is not None:
         CSF_trace=temporal_info['CSF_trace'][plot_time_subset_censored]
     else:
         CSF_trace=None
