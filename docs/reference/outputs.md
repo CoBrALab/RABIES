@@ -139,10 +139,6 @@ commonspace alignment.
 - `seed_correlation_maps/`: NIfTI files for [seed-based connectivity](SBC_target), one voxelwise correlation map per seed provided in `--seed_list`
 - `dual_regression_nii/`: the spatial maps from [dual regression](DR_target), corresponding to the linear coefficients from the second regression. The 3D spatial maps are concatenated into a 4D NIfTI, with component order consistent with the priors provided in `--prior_maps`
 - `dual_regression_timecourse_csv/`: a CSV storing the outputs from the first linear regression during dual regression — one timecourse per prior component from `--prior_maps`
-- `NPR_prior_filename/`: spatial components fitted during NPR
-- `NPR_prior_timecourse_csv/`: timecourses associated with each component in `NPR_prior_filename/`
-- `NPR_extra_filename/`: the extra spatial components fitted during NPR which were not part of the priors
-- `NPR_extra_timecourse_csv/`: timecourses associated with each component in `NPR_extra_filename/`
 
 (diagnosis_datasink_target)=
 

@@ -232,7 +232,7 @@ if opts.complete:
 
     ####ANALYSIS####
     command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 \
-        --network_weighting relative --optimize_NPR apply=true,window_size=2,min_prior_corr=0.5,diff_thresh=0.03,max_iter=5,compute_max=false \
+        --DR_ICA --network_weighting relative \
         --FC_matrix --ROI_type parcellated --ROI_labels_file {tmppath}/inputs/token_labels.nii.gz"
     process = subprocess.run(
         command,
@@ -259,7 +259,7 @@ if opts.complete:
         )
 
     # testing group level --data_diagnosis
-    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --NPR_temporal_comp 1 \
+    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 \
         --data_diagnosis --group_avg_prior --extended_QC --DR_ICA --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
     process = subprocess.run(
         command,
