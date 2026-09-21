@@ -166,6 +166,11 @@ def outlier_censoring(qc_trace, std_thresh=2.5):
     return mask2
 
 
+# scans with fewer frames left after censoring are always excluded, independently of the
+# --frame_censoring parameters, since statistics are not stable with so few frames
+MIN_FRAMES_POSTCENSOR = 3
+
+
 def temporal_censoring(FD_trace, 
         FD_censoring, FD_threshold, DVARS_trace, DVARS_censoring, 
         mse_trace, MSE_censoring, min_nframes_postcensor):

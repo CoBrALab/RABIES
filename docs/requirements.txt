@@ -14,4 +14,4 @@ sphinxcontrib-bibtex
 sphinxcontrib-programoutput
 jinja2
 pillow
-rabies==0.6.1
+rabies==0.6.2
