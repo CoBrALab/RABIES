@@ -450,8 +450,9 @@ def QC_distributions(prior_map,FC_maps,network_var,DR_conf_corr, FD_DVARS_corr, 
             qc_metric_dict[qc_name] = np.array(qc_arr)
 
     x_bounds_dict = {'Network specificity (Dice)':[0,1.0]}
+    y_bounds_dict = {}
     if DR_conf_corr is not None:
-        y_bounds_dict = {'DR confound corr.\n(mean |pearson r|)':[0,1.0]}
+        y_bounds_dict['DR confound corr.\n(mean |pearson r|)'] = [0,1.0]
     if FD_DVARS_corr is not None:
         y_bounds_dict['FD-DVARS corr.'] = [min(0,np.array(FD_DVARS_corr).min()),1.0] # its possible that there are negative values
 
