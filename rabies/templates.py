@@ -71,8 +71,8 @@ TEMPLATE_SETS = {
             'brain_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_mask.nii.gz",
             # union of the white matter structures of the SIGMA anatomical atlas
             'WM_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_wm_mask.nii.gz",
-            # derived by thresholding and eroding the SIGMA probabilistic CSF map
-            'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_eroded_csf_mask.nii.gz",
+            # union of the ventricles of the SIGMA anatomical atlas, not eroded
+            'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_csf_mask.nii.gz",
             # SIGMA provides no vessel segmentation
             'vascular_mask': None,
             'labels': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_Atlas.nii.gz",
@@ -89,7 +89,8 @@ TEMPLATE_SETS = {
             # the functional atlas has no white matter structures to build a mask from, and
             # thresholding the probabilistic white matter map pulls in thalamus
             'WM_mask': None,
-            # not eroded: the EPI grid is too coarse, as for the mouse EPI masks
+            # the anatomical CSF mask resampled onto this grid, since the functional atlas
+            # has no ventricles
             'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_csf_mask.nii.gz",
             'vascular_mask': None,
             # the 59-ROI SIGMA functional parcellation, the only atlas in this space

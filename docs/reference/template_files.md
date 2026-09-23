@@ -70,9 +70,14 @@ every installation gets identical files:
   include thalamus. It is not eroded, since rat white matter tracts are only a few voxels
   thick at 0.15 mm. The functional parcellation has no white matter structures, so the
   functional template has no white matter mask.
-- The CSF masks are the SIGMA probabilistic CSF maps thresholded at 0.9. The structural
-  one is eroded by one voxel. The functional one is not, since that grid is too coarse to
-  erode without emptying it.
+- The CSF mask is the ventricular system of the structural parcellation (the ventricles,
+  the 4th ventricle and the central canal), as the mouse CSF mask is that of the DSURQE
+  atlas. It is not taken from the SIGMA probabilistic CSF map, whose high-probability
+  voxels cover the surface of the brainstem and cerebellum rather than the ventricles. It
+  is not eroded, since rat ventricles are only one or two voxels thick at 0.15 mm, and
+  eroding removes nearly all of the lateral ventricles. The functional parcellation has
+  no ventricles, so the functional CSF mask is the structural one resampled onto the
+  functional template.
 - The brain masks are rebinarized at 0.5, and the label descriptions are converted to
   CSV. The templates and parcellations are unmodified copies.
 

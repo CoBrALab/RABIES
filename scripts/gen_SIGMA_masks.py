@@ -3,17 +3,17 @@
 # requires-python = "==3.9.*"
 # dependencies = [
 #     "numpy==1.26.4",
-#     "scipy==1.13.1",
 #     "simpleitk==2.5.0",
 # ]
 # ///
 """Derive the RABIES rat template set from a SIGMA release.
 
-SIGMA distributes probabilistic tissue maps, while RABIES requires binary masks,
-and distributes its label descriptions in the ITK-SNAP format rather than as a
-CSV. This script produces the files of the rat template set from an unpacked
-SIGMA release, and is run once when building the distributed bundle rather than
-on a user's machine, so that every installation gets identical files.
+RABIES requires binary white matter and CSF masks, which SIGMA distributes only as
+probabilistic maps, and label descriptions as a CSV rather than in the ITK-SNAP
+format. This script produces the files of the rat template set from an unpacked
+SIGMA release, building the masks from structures of the anatomical atlas, and is
+run once when building the distributed bundle rather than on a user's machine, so
+that every installation gets identical files.
 
 Usage: uv run scripts/gen_SIGMA_masks.py <unpacked SIGMA directory> <output directory>
 
@@ -27,16 +27,13 @@ import re
 import shutil
 import numpy as np
 import SimpleITK as sitk
-from scipy.ndimage import binary_erosion
 
 # the two SIGMA spaces used by RABIES: the anatomical template for the standard
-# pipeline, and the functional template for --bold_only
+# pipeline, and the functional template for --bold_only. The anatomical variant comes
+# first, since the functional CSF mask is derived from the anatomical one.
 VARIANTS = ['Anatomical', 'Functional']
 # the anatomical template is named _template, the functional one _epi
 TEMPLATE_SUFFIX = {'Anatomical': 'template', 'Functional': 'epi'}
-# the EPI grid is too coarse to erode: one iteration empties the CSF mask, so only
-# the anatomical CSF mask is eroded, as in the mouse set
-ERODED = {'Anatomical': True, 'Functional': False}
 # the functional atlas label description does not follow the image naming
 LABEL_DESCRIPTION = {
     'Anatomical': 'SIGMA_InVivo_Anatomical_Brain_Atlas.txt',
@@ -67,6 +64,20 @@ WM_STRUCTURES = {
         'inferior cerebellar peduncle',
         'middle cerebellar peduncle',
         'superior cerebellar peduncle and prerubral field',
+        ],
+    }
+# the CSF mask is the ventricular system of the atlas, as the mouse CSF mask is that of
+# the DSURQE atlas. The probabilistic CSF map is not used: thresholded, it covers the
+# surface of the brainstem and cerebellum rather than the ventricles, and overlaps the
+# white matter mask. It is not eroded: rat ventricles are one or two voxels thick on
+# the anatomical grid, and one iteration removes 81% of the mask, including nearly all
+# of the lateral ventricles. The functional atlas has no ventricles, so that variant
+# gets the anatomical mask resampled onto its grid.
+CSF_STRUCTURES = {
+    'Anatomical': [
+        'Ventricular system, unspecified',
+        '4th ventricle',
+        'Central canal',
         ],
     }
 
@@ -105,10 +116,13 @@ Produced with scripts/gen_SIGMA_masks.py from the RABIES repository:
 {wm_structures}
     No white matter mask is provided for the functional template, whose atlas has no
     white matter structures.
-  * The probabilistic CSF maps were thresholded at {csf_threshold} to give the binary
-    masks RABIES requires. The anatomical CSF mask was then eroded by
-    {erosion_iterations} iteration(s); the functional one was not, since that grid is too
-    coarse to erode without emptying it.
+  * The anatomical CSF mask is the union of the following structures of the anatomical
+    atlas. It is not eroded, since rat ventricles are only one or two voxels thick on
+    that grid:
+{csf_structures}
+    The functional CSF mask is the anatomical one resampled onto the functional
+    template grid with linear interpolation and thresholded at 0.5, since the
+    functional atlas has no ventricles.
   * The distributed brain masks were re-binarized at {mask_threshold}.
   * The ITK-SNAP label descriptions were converted to CSV.
   * The templates and atlas label images are unmodified copies.
@@ -127,7 +141,7 @@ def find_file(sigma_dir, name):
     raise ValueError(f"{name} was not found under {sigma_dir}.")
 
 
-def binarize(in_file, out_file, threshold, erosion_iterations=0):
+def binarize(in_file, out_file, threshold):
     img = sitk.ReadImage(in_file)
     array = sitk.GetArrayFromImage(img)
     # SIGMA probabilistic maps are scaled to [0,1], but a few are stored as percentages
@@ -136,15 +150,25 @@ def binarize(in_file, out_file, threshold, erosion_iterations=0):
     mask = array >= threshold
     if mask.sum() == 0:
         raise ValueError(f"Thresholding {in_file} at {threshold} left an empty mask.")
-    if erosion_iterations > 0:
-        # eroding keeps partial volume voxels at tissue boundaries out of the
-        # nuisance timecourses
-        mask = binary_erosion(mask, iterations=erosion_iterations)
-        if mask.sum() == 0:
-            raise ValueError(f"Eroding {in_file} by {erosion_iterations} iterations left "
-                             "an empty mask; the grid is too coarse to erode.")
     out_img = sitk.GetImageFromArray(mask.astype('int16'), isVector=False)
     out_img.CopyInformation(img)
+    sitk.WriteImage(out_img, out_file)
+    return out_file
+
+
+def resample_mask(mask_file, reference_file, out_file):
+    # the SIGMA templates share one world space, so a mask is carried onto the grid of
+    # another template without registration; the interpolated mask is thresholded at
+    # one half
+    reference = sitk.ReadImage(reference_file)
+    fraction = sitk.Resample(sitk.Cast(sitk.ReadImage(mask_file), sitk.sitkFloat32),
+                             reference, sitk.Transform(), sitk.sitkLinear, 0.0,
+                             sitk.sitkFloat32)
+    mask = sitk.GetArrayFromImage(fraction) >= 0.5
+    if mask.sum() == 0:
+        raise ValueError(f"Resampling {mask_file} onto {reference_file} left an empty mask.")
+    out_img = sitk.GetImageFromArray(mask.astype('int16'), isVector=False)
+    out_img.CopyInformation(reference)
     sitk.WriteImage(out_img, out_file)
     return out_file
 
@@ -213,15 +237,8 @@ def main():
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('sigma_dir', help="path to an unpacked SIGMA release")
     parser.add_argument('out_dir', help="directory the derived files are written to")
-    parser.add_argument('--csf_threshold', type=float, default=0.9,
-                        help="probability above which a voxel belongs to CSF "
-                             "(default: %(default)s)")
     parser.add_argument('--mask_threshold', type=float, default=0.5,
                         help="probability above which a voxel belongs to the brain "
-                             "(default: %(default)s)")
-    parser.add_argument('--erosion_iterations', type=int, default=1,
-                        help="erosion applied to the CSF mask of the anatomical "
-                             "template; the EPI grid is too coarse to erode "
                              "(default: %(default)s)")
     opts = parser.parse_args()
 
@@ -231,9 +248,8 @@ def main():
     with open(os.path.join(opts.out_dir, 'ATTRIBUTION.txt'), 'w') as handle:
         handle.write(ATTRIBUTION.format(
             wm_structures='\n'.join(f'      - {structure}' for structure in WM_STRUCTURES['Anatomical']),
-            csf_threshold=opts.csf_threshold,
-            mask_threshold=opts.mask_threshold,
-            erosion_iterations=opts.erosion_iterations))
+            csf_structures='\n'.join(f'      - {structure}' for structure in CSF_STRUCTURES['Anatomical']),
+            mask_threshold=opts.mask_threshold))
 
     for variant in VARIANTS:
         prefix = f'SIGMA_InVivo_{variant}_Brain'
@@ -248,12 +264,6 @@ def main():
                             opts.mask_threshold)
 
         outputs = [out_mask]
-        erosion = opts.erosion_iterations if ERODED[variant] else 0
-        name = 'eroded_csf_mask' if ERODED[variant] else 'csf_mask'
-        outputs.append(binarize(
-            find_file(opts.sigma_dir, f'{prefix}_csf.nii.gz'),
-            os.path.join(opts.out_dir, f'{prefix}_{name}.nii.gz'),
-            opts.csf_threshold, erosion_iterations=erosion))
 
         atlas = f'{prefix}_Atlas.nii.gz'
         out_atlas = os.path.join(opts.out_dir, atlas)
@@ -264,6 +274,15 @@ def main():
             outputs.append(roi_mask(
                 out_atlas, find_file(opts.sigma_dir, LABEL_DESCRIPTION[variant]),
                 WM_STRUCTURES[variant], os.path.join(opts.out_dir, f'{prefix}_wm_mask.nii.gz')))
+
+        out_csf = os.path.join(opts.out_dir, f'{prefix}_csf_mask.nii.gz')
+        if variant in CSF_STRUCTURES:
+            anatomical_csf = roi_mask(
+                out_atlas, find_file(opts.sigma_dir, LABEL_DESCRIPTION[variant]),
+                CSF_STRUCTURES[variant], out_csf)
+            outputs.append(anatomical_csf)
+        else:
+            outputs.append(resample_mask(anatomical_csf, out_template, out_csf))
 
         n_labels = convert_label_description(
             find_file(opts.sigma_dir, LABEL_DESCRIPTION[variant]),
