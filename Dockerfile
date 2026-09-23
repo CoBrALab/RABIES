@@ -93,5 +93,7 @@ RUN micromamba run -n base install_SIGMA.sh $XDG_DATA_HOME/rabies
 
 # Run a basic test
 RUN micromamba run -n base error_check_rabies.py --complete
+# and the main tests again on token data drawn from the rat template set
+RUN micromamba run -n base error_check_rabies.py --template_set rat
 
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "rabies"]

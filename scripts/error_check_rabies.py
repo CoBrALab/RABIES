@@ -5,6 +5,7 @@ import tempfile
 import shutil
 import subprocess
 from rabies.utils import generate_token_data
+from rabies import templates
 import sys
 import argparse
 
@@ -41,7 +42,8 @@ def get_parser():
             "Test whether registration steps are functional. This is not part of the main series of tests, since this takes much longer."
         )
     parser.add_argument(
-        '--template_set', action='store', type=str, default='mouse',
+        '--template_set', action='store', type=str,
+        default=templates.DEFAULT_TEMPLATE_SET, choices=templates.TEMPLATE_SET_NAMES,
         help=
             "Generate the token data from this template set, and run the pipeline against it.\n"
             "The set must be installed; see `rabies install`.\n"
@@ -62,6 +64,7 @@ def get_parser():
             "If the preprocessing stage is run, the following arguments are automatically \n"
             "provided to ensure compatibility with token data:\n"
             "   --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \ \n"
+            "   --template_set {template_set} \\ \n"
             "   --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz  \ \n"
             "   --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz  \ \n"
             "   --vascular_mask {tmppath}/inputs/token_mask.nii.gz \ \n"
@@ -83,14 +86,14 @@ generate_token_data(tmppath, number_scans=3, template_set=opts.template_set)
 
 if not opts.custom is None:
     minimal_preproc = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+        --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
         --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995"
     minimal_cc = f"rabies --verbose 1 --data_type int16 confound_correction {tmppath}/outputs {tmppath}/outputs"
 
     command = opts.custom
     if 'preprocess' in command:
         command += f" --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-    --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+    --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995"
         command += f" {tmppath}/inputs {tmppath}/outputs"
 
@@ -126,7 +129,7 @@ if opts.test_registration:
 
     # testing all registration/modelbuild steps on 2 scans
     command = f"rabies -p MultiProc --exclusion_ids {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+        --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
         --commonspace_reg stages=rigid,fast_commonspace=false,template_registration=Rigid --bold2anat_coreg registration=Rigid --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 0.4x0.4x0.4 \
         --anat_robust_inho_cor apply=true,stages=rigid,template_registration=Rigid --bold_robust_inho_cor apply=true,stages=rigid,template_registration=Rigid"
     process = subprocess.run(
@@ -137,7 +140,7 @@ if opts.test_registration:
 
     # testing only inhomogeneity correction
     command = f"rabies -p MultiProc --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false --bold_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false \
-        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+        --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
         --commonspace_reg fast_commonspace=true,template_registration=Rigid --bold2anat_coreg registration=no_reg --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 0.4x0.4x0.4"
     process = subprocess.run(
         command,
@@ -168,7 +171,7 @@ def repeat_attempts(command, number_attempts=3):
             
 
 command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-    --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+    --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=true,brain_extraction=true,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
     --HMC_level 2 --no_HMC --apply_despiking --anat_autobox --bold_autobox --oblique2card affine --resampling_space both --hmc_qc_report apply=true,fps=5"
 process = subprocess.run(
@@ -184,7 +187,9 @@ process = subprocess.run(
     shell=True,
     )
 
-command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --seed_list ACA_seed {tmppath}/inputs/token_mask_half.nii.gz --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
+# a pre-built seed of the set is tested along with a seed file, if the set ships any
+prebuilt_seeds = ' '.join(templates.seed_names(opts.template_set)[:1])
+command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs {tmppath}/outputs --data_diagnosis --seed_list {prebuilt_seeds} {tmppath}/inputs/token_mask_half.nii.gz --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 --group_ica apply=true,dim=0,random_seed=1"
 process = subprocess.run(
     command,
     check=True,
@@ -193,7 +198,7 @@ process = subprocess.run(
 
 if opts.complete:
     command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
+        --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
         --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy \
         --apply_STC --args_3dTshift='-linear -tpattern alt-z' --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 1x1x1 --oblique2card 3dWarp --resampling_space both --bold_nativespace"
     process = subprocess.run(
@@ -248,7 +253,7 @@ if opts.complete:
 
     ####GROUP LEVEL, RUNNING ALL 3 SCANS####
     command = f"rabies --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
-        --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz \
+        --template_set {opts.template_set} --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask_half.nii.gz --CSF_mask {tmppath}/inputs/token_mask_half.nii.gz --vascular_mask {tmppath}/inputs/token_mask_half.nii.gz \
         --bold2anat_coreg registration=no_reg,masking=false,brain_extraction=false,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=false,brain_extraction=false,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
         --HMC_level 1 --resampling_space common_only"
     process = subprocess.run(
