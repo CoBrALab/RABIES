@@ -18,7 +18,7 @@ def execute_workflow(args=None, return_workflow=False):
         return
 
     if opts.rabies_stage == 'install': # installs template files, no workflow is executed
-        install_template_sets(opts.template_set)
+        install(opts)
         return
 
     # convert all input paths to absolute paths
@@ -375,9 +375,9 @@ def install_template_set(template_set):
     return True
 
 
-def install_template_sets(template_set):
+def install(opts):
     # handles the `rabies install` stage, which runs without an output folder or workflow
-    set_list = templates.TEMPLATE_SET_NAMES if template_set=='all' else [template_set]
+    set_list = templates.TEMPLATE_SET_NAMES if opts.template_set=='all' else [opts.template_set]
     for name in set_list:
         print(f"Checking the {name} template set.")
         if install_template_set(name):
