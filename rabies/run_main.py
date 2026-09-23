@@ -298,13 +298,9 @@ def analysis(opts, log):
     require_template_set(template_set, log)
 
     if labels_file is None:
-        if not templates.registered_to_set_template(preprocess_opts):
-            # the set's atlas is not aligned with a template from elsewhere
-            opts.ROI_labels_file = None
-        else:
-            # files distributed with a template set are already aligned with its template,
-            # so they are used as-is rather than converted and checked against it
-            opts.ROI_labels_file = templates.resolve(template_set, 'labels', bold_only=bold_only)
+        # files distributed with a template set are already aligned with its template,
+        # so they are used as-is rather than converted and checked against it
+        opts.ROI_labels_file = templates.analysis_default(preprocess_opts, 'labels')
         if opts.ROI_labels_file is None:
             # left as None so that no computation is attempted using the labels
             log.info("No labels file is available for the template used during preprocessing; "
@@ -325,8 +321,7 @@ def analysis(opts, log):
         # like its atlas they are only aligned with that set's template; a set that provides
         # none, or data registered to a template from elsewhere, leaves them unset, which is
         # only an error for the analyses that require them
-        if templates.registered_to_set_template(preprocess_opts):
-            opts.prior_maps = templates.resolve(template_set, 'prior_maps', bold_only=bold_only)
+        opts.prior_maps = templates.analysis_default(preprocess_opts, 'prior_maps')
         if opts.prior_maps is None:
             if templates.prior_maps_required(opts):
                 raise ValueError(
