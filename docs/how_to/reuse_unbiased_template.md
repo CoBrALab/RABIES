@@ -1,4 +1,4 @@
-# How to re-run registration only on a few failed subjects, or add new subjects to an old RABIES run
+# How to re-run a few failed subjects/add new subjects to an old RABIES run
 
 The `--inherit_unbiased_template` preprocessing parameter was designed for cases where a subset of scans failed registration, 
 or new scans need to be added to a study, without re-running the pipeline for all previously well-registered scans.
