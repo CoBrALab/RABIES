@@ -651,7 +651,7 @@ def fill_node_dict(d, key_l, e):
 #DEBUGGING
 ######################
 
-def token_prior_maps(labels_img, number_maps=20):
+def token_prior_maps(labels_img, number_maps):
     # builds a 4D file of spatial priors by taking one parcel each, for template sets
     # that ship no group ICA priors; these stand in for real networks in testing only
     labels_array = sitk.GetArrayFromImage(labels_img)
@@ -704,14 +704,15 @@ def generate_token_data(tmppath, number_scans, template_set=None):
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
     
+    network_idx = [5, 19]
     if melodic_file is None:
         # the template set ships no prior maps, so token ones are built from the labels
-        # to keep the analysis stage testable
-        melodic_img = token_prior_maps(resampled_labels)
+        # to keep the analysis stage testable, as many as the networks kept below need
+        melodic_img = token_prior_maps(resampled_labels, number_maps=max(network_idx)+1)
     else:
         melodic_img = sitk.ReadImage(melodic_file)
     # create a new melodic with just 2 networks for low-dimensional dual regression
-    melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,5],melodic_img[:,:,:,19]]) 
+    melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,i] for i in network_idx])
     sitk.WriteImage(melodic_networks, tmppath+'/inputs/melodic_networks.nii.gz')
     
     dim = melodic_img.GetSize()[-1]
