@@ -76,8 +76,8 @@ every installation gets identical files:
   voxels cover the surface of the brainstem and cerebellum rather than the ventricles. It
   is not eroded, since rat ventricles are only one or two voxels thick at 0.15 mm, and
   eroding removes nearly all of the lateral ventricles. The functional parcellation has
-  no ventricles, so the functional CSF mask is the structural one resampled onto the
-  functional template.
+  no ventricles, so the functional CSF mask keeps the voxels of the functional template
+  that the structural CSF mask covers by at least half.
 - The brain masks are rebinarized at 0.5, and the label descriptions are converted to
   CSV. The templates and parcellations are unmodified copies.
 
