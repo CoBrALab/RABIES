@@ -230,6 +230,27 @@ class TestRegisteredToSetTemplate(unittest.TestCase):
         self.assertFalse(templates.registered_to_set_template(opts))
 
 
+class TestAnalysisDefault(unittest.TestCase):
+
+    def test_a_run_on_the_set_template_gets_the_file_of_its_variant(self):
+        for bold_only in [False, True]:
+            opts = preprocess_options(bold_only=bold_only)
+            templates.resolve_options(opts, StubLog())
+            self.assertEqual(templates.analysis_default(opts, 'labels'),
+                             templates.resolve('mouse', 'labels', bold_only=bold_only))
+
+    def test_a_run_on_a_user_template_gets_none(self):
+        # the set's atlas is not aligned with a template from elsewhere
+        opts = preprocess_options(anat_template='t.nii.gz', brain_mask='m.nii.gz')
+        templates.resolve_options(opts, StubLog())
+        self.assertIsNone(templates.analysis_default(opts, 'labels'))
+
+    def test_a_role_the_set_does_not_provide_gets_none(self):
+        opts = preprocess_options(template_set='rat')
+        templates.resolve_options(opts, StubLog())
+        self.assertIsNone(templates.analysis_default(opts, 'prior_maps'))
+
+
 class TestPriorMapsRequired(unittest.TestCase):
 
     def test_analyses_that_do_not_fit_priors_do_not_require_them(self):

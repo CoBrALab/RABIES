@@ -152,6 +152,19 @@ def registered_to_set_template(preprocess_opts):
     return str(preprocess_opts.anat_template) == set_template
 
 
+def analysis_default(preprocess_opts, role):
+    """Return the default file for an analysis role, given the preprocessing run.
+
+    The file comes from the set the run was registered to. None is returned when the
+    set does not provide the role, or when the run registered its data to a template
+    from elsewhere, which the set's files are not aligned with.
+    """
+    if not registered_to_set_template(preprocess_opts):
+        return None
+    return resolve(get_template_set(preprocess_opts), role,
+                   bold_only=preprocess_opts.bold_only)
+
+
 def seed_names(template_set):
     """Return the pre-built seed names available for a template set."""
     return TEMPLATE_SETS[template_set]['seed_names']
