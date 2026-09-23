@@ -89,8 +89,8 @@ TEMPLATE_SETS = {
             # the functional atlas has no white matter structures to build a mask from, and
             # thresholding the probabilistic white matter map pulls in thalamus
             'WM_mask': None,
-            # the anatomical CSF mask resampled onto this grid, since the functional atlas
-            # has no ventricles
+            # the voxels of this grid that the anatomical CSF mask covers by at least half,
+            # since the functional atlas has no ventricles
             'CSF_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Functional_Brain_csf_mask.nii.gz",
             'vascular_mask': None,
             # the 59-ROI SIGMA functional parcellation, the only atlas in this space

@@ -72,7 +72,7 @@ WM_STRUCTURES = {
 # white matter mask. It is not eroded: rat ventricles are one or two voxels thick on
 # the anatomical grid, and one iteration removes 81% of the mask, including nearly all
 # of the lateral ventricles. The functional atlas has no ventricles, so that variant
-# gets the anatomical mask resampled onto its grid.
+# keeps the voxels of its grid that the anatomical mask covers by at least half.
 CSF_STRUCTURES = {
     'Anatomical': [
         'Ventricular system, unspecified',
@@ -120,9 +120,9 @@ Produced with scripts/gen_SIGMA_masks.py from the RABIES repository:
     atlas. It is not eroded, since rat ventricles are only one or two voxels thick on
     that grid:
 {csf_structures}
-    The functional CSF mask is the anatomical one resampled onto the functional
-    template grid with linear interpolation and thresholded at 0.5, since the
-    functional atlas has no ventricles.
+    The functional CSF mask keeps the voxels of the functional template grid that the
+    anatomical CSF mask covers by at least half, since the functional atlas has no
+    ventricles.
   * The distributed brain masks were re-binarized at {mask_threshold}.
   * The ITK-SNAP label descriptions were converted to CSV.
   * The templates and atlas label images are unmodified copies.
@@ -156,18 +156,37 @@ def binarize(in_file, out_file, threshold):
     return out_file
 
 
+def voxel_centres(img):
+    # the physical position of the centre of every voxel, in the order of the image array
+    origin = np.array(img.GetOrigin())[:, None]
+    direction = np.array(img.GetDirection()).reshape(3, 3)
+    spacing = np.array(img.GetSpacing())[:, None]
+    index = np.indices(sitk.GetArrayViewFromImage(img).shape).reshape(3, -1)[::-1]
+    return origin + direction @ (spacing*index)
+
+
 def resample_mask(mask_file, reference_file, out_file):
     # the SIGMA templates share one world space, so a mask is carried onto the grid of
-    # another template without registration; the interpolated mask is thresholded at
-    # one half
+    # another template without registration. That grid is much coarser, so a voxel of it
+    # is kept when at least half of the mask voxels whose centres it contains are in the
+    # mask. Interpolating at its centre instead keeps voxels that a thin structure only
+    # crosses, and drops some that it mostly fills.
+    img = sitk.ReadImage(mask_file)
     reference = sitk.ReadImage(reference_file)
-    fraction = sitk.Resample(sitk.Cast(sitk.ReadImage(mask_file), sitk.sitkFloat32),
-                             reference, sitk.Transform(), sitk.sitkLinear, 0.0,
-                             sitk.sitkFloat32)
-    mask = sitk.GetArrayFromImage(fraction) >= 0.5
-    if mask.sum() == 0:
-        raise ValueError(f"Resampling {mask_file} onto {reference_file} left an empty mask.")
-    out_img = sitk.GetImageFromArray(mask.astype('int16'), isVector=False)
+    mask = sitk.GetArrayFromImage(img) > 0
+    origin = np.array(reference.GetOrigin())[:, None]
+    direction = np.array(reference.GetDirection()).reshape(3, 3)
+    spacing = np.array(reference.GetSpacing())[:, None]
+    index = np.rint(np.linalg.inv(direction) @ (voxel_centres(img) - origin)/spacing).astype(int)
+    shape = sitk.GetArrayViewFromImage(reference).shape
+    inside = np.all((index >= 0) & (index < np.array(shape[::-1])[:, None]), axis=0)
+    voxel = np.ravel_multi_index(tuple(index[::-1, inside]), shape)
+    contained = np.bincount(voxel, minlength=np.prod(shape))
+    covered = np.bincount(voxel, weights=mask.ravel()[inside], minlength=np.prod(shape))
+    kept = ((contained > 0) & (covered >= 0.5*contained)).reshape(shape)
+    if kept.sum() == 0:
+        raise ValueError(f"No voxel of {reference_file} is half covered by {mask_file}.")
+    out_img = sitk.GetImageFromArray(kept.astype('int16'), isVector=False)
     out_img.CopyInformation(reference)
     sitk.WriteImage(out_img, out_file)
     return out_file
