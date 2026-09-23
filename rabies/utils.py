@@ -668,7 +668,7 @@ def token_prior_maps(labels_img, number_maps=20):
     return sitk.JoinSeries(maps)
 
 
-def generate_token_data(tmppath, number_scans, template_set='mouse'):
+def generate_token_data(tmppath, number_scans, template_set=None):
     # this function generates fake scans at low resolution for quick testing and debugging
     # the template set the scans are derived from sets their size, so that each set can be
     # tested with data of the size it expects
@@ -676,6 +676,8 @@ def generate_token_data(tmppath, number_scans, template_set='mouse'):
     os.makedirs(tmppath+'/inputs', exist_ok=True)
 
     from . import templates
+    if template_set is None:
+        template_set = templates.DEFAULT_TEMPLATE_SET
     template = templates.resolve(template_set, 'anat_template')
     mask = templates.resolve(template_set, 'brain_mask')
     labels_file = templates.resolve(template_set, 'labels')
