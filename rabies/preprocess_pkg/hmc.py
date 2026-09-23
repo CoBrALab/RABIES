@@ -269,7 +269,7 @@ class HMC_QC(BaseInterface):
         del img_preHMC, img_postHMC
 
         # save some outputs to .csv
-        key_l = ['D_Sc_preHMC', 'D_Sc_postHMC', 'mse_preHMC', 'mse_postHMC']
+        key_l = ['DVARS_preHMC', 'DVARS_postHMC', 'mse_preHMC', 'mse_postHMC']
         pd.DataFrame(np.array([derivatives_dict[key].flatten() for key in key_l]).T, columns=key_l).to_csv(csv_path)
 
         print('Creating QC figure...')
@@ -293,6 +293,7 @@ class HMC_QC(BaseInterface):
 import numpy as np
 import SimpleITK as sitk
 from rabies.utils import copyInfo_3DImage
+from rabies.confound_correction_pkg.utils import get_DVARS
 
 def cosine_similarity(X,Y): 
     X_ = X.copy()
@@ -328,7 +329,7 @@ def get_motion_R2(timeseries_img, translations,rotations):
     return R2_img
 
 
-def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False):
+def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False, get_cosine=False):
     import pandas as pd
     from simpleitk_timeseries_motion_correction.apply_transforms import read_transforms_from_csv, framewise_resample_volume
 
@@ -368,11 +369,15 @@ def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False
     timeseries_preHMC = sitk.GetArrayFromImage(img_preHMC).reshape(num_volumes,-1).astype(float)
     timeseries_postHMC = sitk.GetArrayFromImage(img_postHMC).reshape(num_volumes,-1).astype(float)
     
-    D_Sc_preHMC = 1-cosine_similarity(timeseries_preHMC.T,ref_img_array)
-    D_Sc_postHMC = 1-cosine_similarity(timeseries_postHMC.T,ref_img_array)
+    D_Sc_preHMC = 1-cosine_similarity(timeseries_preHMC.T,ref_img_array) if get_cosine else None
+    D_Sc_postHMC = 1-cosine_similarity(timeseries_postHMC.T,ref_img_array) if get_cosine else None
 
     mse_preHMC = np.mean((timeseries_preHMC.T - ref_img_array)**2, axis=0) # taking mean square error
     mse_postHMC = np.mean((timeseries_postHMC.T - ref_img_array)**2, axis=0) # taking mean square error
+
+    DVARS_preHMC = get_DVARS(timeseries_preHMC)
+    DVARS_postHMC = get_DVARS(timeseries_postHMC)
+
     del ref_img_array, timeseries_preHMC, timeseries_postHMC
     
     img_preHMC_SD = get_SD(img_preHMC)
@@ -382,7 +387,7 @@ def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False
     img_postHMC_R2 = get_motion_R2(img_postHMC, translations,rotations) if get_R2 else None
 
     derivatives_dict = {'translations':translations, 'rotations':rotations, 
-            'D_Sc_preHMC':D_Sc_preHMC, 'D_Sc_postHMC':D_Sc_postHMC,'mse_preHMC':mse_preHMC, 'mse_postHMC':mse_postHMC, 
+            'D_Sc_preHMC':D_Sc_preHMC, 'D_Sc_postHMC':D_Sc_postHMC,'mse_preHMC':mse_preHMC, 'mse_postHMC':mse_postHMC, 'DVARS_preHMC':DVARS_preHMC, 'DVARS_postHMC':DVARS_postHMC, 
             'img_preHMC_SD':img_preHMC_SD, 'img_postHMC_SD':img_postHMC_SD, 'img_preHMC_R2':img_preHMC_R2, 'img_postHMC_R2':img_postHMC_R2}
 
     return img_preHMC, img_postHMC, derivatives_dict
@@ -415,10 +420,10 @@ def plot_motion_QC(derivatives_dict, ref_file, plot_R2=False):
     ax.tick_params(labelsize=15)
     
     ax=ax_fused_l[2]
-    ax.plot(derivatives_dict['D_Sc_preHMC'])
-    ax.plot(derivatives_dict['D_Sc_postHMC'])
-    ax.set_ylabel('Cosine distance', fontsize=15, color='white')
-    ax.set_title('Difference relative to reference volume', fontsize=20, color='white')
+    ax.plot(derivatives_dict['DVARS_preHMC'])
+    ax.plot(derivatives_dict['DVARS_postHMC'])
+    ax.set_ylabel('DVARS', fontsize=15, color='white')
+    ax.set_title('DVARS', fontsize=20, color='white')
     ax.legend(['Before correction','After correction'], loc="upper right", fontsize=12)
     ax.tick_params(labelsize=15)
     
