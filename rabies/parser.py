@@ -613,7 +613,7 @@ def get_parser():
             "Outside the container image, the rat set is not installed together with RABIES; \n"
             "run 'rabies install rat' before using it, in particular on compute nodes without \n"
             "network access. \n"
-            "(default: mouse)\n"
+            f"(default: {templates.DEFAULT_TEMPLATE_SET}; a warning is logged when no set is selected)\n"
             "\n"
         )
     g_commonspace.add_argument(
@@ -1268,7 +1268,7 @@ def read_parser(parser, args):
         # the template files of a previous run, before filling in the default
         opts.explicit_template_set = opts.template_set is not None
         if opts.template_set is None:
-            opts.template_set = 'mouse'
+            opts.template_set = templates.DEFAULT_TEMPLATE_SET
 
         if not type(opts.bids_filter) is dict:
             # read as a json file

@@ -17,16 +17,19 @@ from rabies import templates
 class StubLog:
     def __init__(self):
         self.messages = []
+        self.warnings = []
 
     def info(self, message):
         self.messages.append(message)
 
     def warning(self, message):
         self.messages.append(message)
+        self.warnings.append(message)
 
 
 def preprocess_options(**overrides):
-    opts = Namespace(template_set='mouse', bold_only=False)
+    opts = Namespace(template_set='mouse', bold_only=False, explicit_template_set=True,
+                     inherit_unbiased_template='none')
     for role in templates.PREPROCESS_ROLES:
         setattr(opts, role, None)
     for key, value in overrides.items():
@@ -170,6 +173,29 @@ class TestResolveOptions(unittest.TestCase):
         opts = preprocess_options(template_set='rat')
         templates.resolve_options(opts, log)
         self.assertTrue(any('rat' in message for message in log.messages))
+
+    def test_falling_back_to_the_default_set_is_warned_about(self):
+        # rat data run without --template_set is registered to the mouse template
+        log = StubLog()
+        opts = preprocess_options(template_set=templates.DEFAULT_TEMPLATE_SET,
+                                  explicit_template_set=False)
+        templates.resolve_options(opts, log)
+        self.assertEqual(len(log.warnings), 1)
+        self.assertIn('--template_set', log.warnings[0])
+
+    def test_a_selected_set_is_not_warned_about(self):
+        log = StubLog()
+        templates.resolve_options(preprocess_options(template_set='mouse'), log)
+        self.assertEqual(log.warnings, [])
+
+    def test_the_default_is_not_warned_about_when_its_files_are_not_used(self):
+        # an inherited run fixes the set, and a user template replaces the set's files
+        for overrides in [{'inherit_unbiased_template': '/previous/run'},
+                          {'anat_template': 't.nii.gz', 'brain_mask': 'm.nii.gz'}]:
+            log = StubLog()
+            opts = preprocess_options(explicit_template_set=False, **overrides)
+            templates.resolve_options(opts, log)
+            self.assertEqual(log.warnings, [], f"{overrides} should not warn")
 
 
 class TestRegisteredToSetTemplate(unittest.TestCase):
