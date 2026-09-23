@@ -182,7 +182,10 @@ def auto_install(template_set):
 
 def seed_file(template_set, seed, bold_only=False):
     """Return the path of a pre-built seed, or None if the set ships no seeds."""
-    variant = get_variant(template_set, bold_only=bold_only)
+    return _seed_path(get_variant(template_set, bold_only=bold_only), seed)
+
+
+def _seed_path(variant, seed):
     if variant['seed_dir'] is None:
         return None
     return f"{variant['seed_dir']}/{seed}{variant['seed_suffix']}"
@@ -198,8 +201,7 @@ def required_files(template_set):
             if f is not None and f not in files:
                 files.append(f)
         for seed in seed_names(template_set):
-            files.append(seed_file(template_set, seed,
-                                   bold_only=(variant_name == 'epi')))
+            files.append(_seed_path(variant, seed))
     return files
 
 
