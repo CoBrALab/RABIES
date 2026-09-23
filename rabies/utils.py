@@ -655,9 +655,11 @@ def token_prior_maps(labels_img, number_maps):
     # builds a 4D file of spatial priors by taking one parcel each, for template sets
     # that ship no group ICA priors; these stand in for real networks in testing only
     labels_array = sitk.GetArrayFromImage(labels_img)
-    present = [label for label in np.unique(labels_array) if not label==0]
+    present, counts = np.unique(labels_array[labels_array > 0], return_counts=True)
     if len(present)==0:
         raise ValueError("The labels file of this template set is empty.")
+    # the largest parcels come first, so that each map keeps voxels once it is masked
+    present = present[np.argsort(counts)[::-1]]
     maps = []
     for i in range(number_maps):
         # cycle through the parcels when the atlas holds fewer than number_maps
@@ -707,8 +709,12 @@ def generate_token_data(tmppath, number_scans, template_set=None):
     network_idx = [5, 19]
     if melodic_file is None:
         # the template set ships no prior maps, so token ones are built from the labels
-        # to keep the analysis stage testable, as many as the networks kept below need
-        melodic_img = token_prior_maps(resampled_labels, number_maps=max(network_idx)+1)
+        # to keep the analysis stage testable, as many as the networks kept below need.
+        # The labels are resampled with nearest neighbour rather than taken from
+        # token_labels, whose interpolated values each cover a voxel or two.
+        labels_img = sitk.Resample(sitk.ReadImage(labels_file), resampled_template,
+                                   sitk.Transform(), sitk.sitkNearestNeighbor)
+        melodic_img = token_prior_maps(labels_img, number_maps=max(network_idx)+1)
     else:
         melodic_img = sitk.ReadImage(melodic_file)
     # create a new melodic with just 2 networks for low-dimensional dual regression
