@@ -104,6 +104,10 @@ TEMPLATE_SETS = {
 
 TEMPLATE_SET_NAMES = list(TEMPLATE_SETS.keys())
 
+# the set used when --template_set is not given; RABIES does not detect the species of
+# the data, so falling back to it is logged as a warning
+DEFAULT_TEMPLATE_SET = 'mouse'
+
 
 def describe_sets():
     """Return a help-text listing of the available template sets."""
@@ -220,6 +224,19 @@ def resolve_options(opts, log):
     for role in PREPROCESS_ROLES:
         opt_file = getattr(opts, role)
         log.info(f"    --{role}: {opt_file if opt_file is not None else 'not available'}")
+
+    # the default only matters when the set's own files are used: an inherited run fixes
+    # the set, and a user-provided template replaces its files
+    if not opts.explicit_template_set and opts.inherit_unbiased_template == 'none' \
+            and 'anat_template' not in provided:
+        log.warning(
+            "\n############################################# WARNING\n"
+            f"No --template_set was selected, so the {opts.template_set} template set is used. "
+            "RABIES does not detect the species of the data: data registered to the template "
+            "of another species runs to completion, but produces meaningless outputs. Select "
+            f"the set matching the species with --template_set ({', '.join(TEMPLATE_SET_NAMES)}), "
+            "which also silences this warning."
+            "\n############################################# WARNING\n")
 
 
 def prior_maps_required(opts):
