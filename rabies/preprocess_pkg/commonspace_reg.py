@@ -812,8 +812,6 @@ def inherit_unbiased_files(RABIES_output_path, opts):
             --CSF_mask \n \
             --vascular_mask \n")
     
-    from rabies import templates
-    opts.template_set = templates.get_template_set(inherit_preprocess_opts)
     opts.anatomical_resampling = inherit_preprocess_opts.anatomical_resampling
     opts.commonspace_reg = inherit_preprocess_opts.commonspace_reg
     opts.anat_template = inherit_preprocess_opts.anat_template
