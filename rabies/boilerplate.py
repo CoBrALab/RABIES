@@ -156,6 +156,7 @@ def confound_correction_boilerplate(opts):
     power2014='Power, J. D., Mitra, A., Laumann, T. O., Snyder, A. Z., Schlaggar, B. L., & Petersen, S. E. (2014). Methods to detect, characterize, and remove motion artifact in resting state fMRI. NeuroImage, 84, 320–341.'
     friston24='Friston, K. J., Williams, S., Howard, R., Frackowiak, R. S., & Turner, R. (1996). Movement‐related effects in fMRI time‐series. Magnetic resonance in medicine, 35(3), 346-355.'
     aCompCor='Muschelli, J., Nebel, M. B., Caffo, B. S., Barber, A. D., Pekar, J. J., & Mostofsky, S. H. (2014). Reduction of motion-related artifacts in resting state fMRI using aCompCor. Neuroimage, 96, 22-35.'
+    comad_ref='Desrosiers-Gregoire, G., et al. CoMaD: Complementary Matrix Decomposition for spatiotemporal artefact correction. In preparation.'
 
     # Commonspace VS native space
     if opts.nativespace_analysis:
@@ -300,6 +301,35 @@ is removed at each edge of the timeseries to account for edge artefacts followin
 
         methods+=f"Selected nuisance regressors were then used for confound regression. More specifically, using ordinary least square regression, \
 {nuisance_regressors_str} were modelled at each voxel and regressed from the data. "
+
+    # CoMaD
+    if opts.comad_params['N_comad']>0:
+        references[comad_ref]=i
+        i+=1
+        N_comad=opts.comad_params['N_comad']
+        methods+=f"Next, spatiotemporal artefacts were corrected using Complementary Matrix Decomposition (CoMaD)[{references[comad_ref]}]. \
+Using {len(opts.comad_prior_idx)} network maps as priors defining signal of interest, CoMaD components complementary to this prior set were automatically derived \
+and removed from the timeseries. "
+
+        # the dimensionality is only estimated automatically if at least one convergence criterion is set
+        criteria=[]
+        if opts.comad_params['optimize_N']:
+            if opts.comad_params['min_prior_sim']>0:
+                criteria.append(f"a minimal similarity of {opts.comad_params['min_prior_sim']} between each network map and its prior")
+            if opts.comad_params['Dc_C_thresh']>0:
+                criteria.append(f"a convergence threshold of {opts.comad_params['Dc_C_thresh']} (cosine distance) on the network maps")
+            if opts.comad_params['Dc_W_thresh']>0:
+                criteria.append(f"a convergence threshold of {opts.comad_params['Dc_W_thresh']} (cosine distance) on the network timecourses")
+
+        if len(criteria)>0:
+            criteria_str=criteria[0]
+            for str_ in criteria[1:-1]:
+                criteria_str+=', '+str_
+            if len(criteria)>1:
+                criteria_str+=f' and {criteria[-1]}'
+            methods+=f"Up to {N_comad} CoMaD components were derived, and the number of components removed was estimated automatically using {criteria_str}. "
+        else:
+            methods+=f"A total of {N_comad} CoMaD components were derived and removed. "
 
     # variance standardization
     if opts.image_scaling=="grand_mean_scaling":

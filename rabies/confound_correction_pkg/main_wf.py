@@ -183,6 +183,50 @@ def init_main_confound_correction_wf(preprocess_opts, cr_opts):
                 ]),
             ])
 
+    if cr_opts.comad_params['N_comad']>0:
+        if cr_opts.comad_prior_maps is None:
+            raise ValueError("--comad_prior_maps input is empty, cannot apply CoMaD.")
+        
+        '''
+        Need to resample the CoMaD prior maps to the timeseries a priori
+        '''
+        from rabies.utils import ResampleVolumes
+        resample_comad_prior_node = pe.Node(ResampleVolumes(
+            resampling_dim='ref_file', interpolation=cr_opts.interpolation_sitk,
+            rabies_data_type=cr_opts.data_type, apply_motcorr=False, clip_negative=False), 
+            n_procs=num_ITK_threads,
+            name='resample_comad_prior')
+        resample_comad_prior_node.inputs.in_file = cr_opts.comad_prior_maps
+        resample_comad_prior_node.inputs.name_source = cr_opts.comad_prior_maps
+        workflow.connect([
+            (resample_comad_prior_node, confound_correction_wf, [
+                ("resampled_file", "inputnode.comad_prior_maps"),
+                ]),
+            ])
+        if cr_opts.nativespace_analysis:
+            workflow.connect([
+                (preproc_outputnode, resample_comad_prior_node, [
+                    ("commonspace_to_native_transform_list", "transforms_3d_files"),
+                    ("commonspace_to_native_inverse_list", "inverses_3d"),
+                    ("native_bold_ref", "ref_file"),
+                    ]),
+                ])
+        else:
+            workflow.connect([
+                (preproc_outputnode, resample_comad_prior_node, [
+                    ("commonspace_resampled_template", "ref_file"),
+                    ]),
+                ])
+        if cr_opts.comad_params['gen_report']:
+            workflow.connect([
+                (confound_correction_wf, confound_correction_datasink, [
+                    ("outputnode.comad_fig_list", "comad_report"),
+                    ]),
+                ])
+    else:
+        confound_correction_wf.get_node('inputnode').inputs.comad_prior_maps = None
+
+
     return workflow
 
 

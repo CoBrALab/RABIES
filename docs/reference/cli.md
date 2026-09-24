@@ -80,7 +80,7 @@ timing correction, and the reference atlas files.
 ## `rabies confound_correction --help`
 
 Frame censoring, detrending, ICA-AROMA, frequency filtering, confound
-regression, intensity scaling and smoothing.
+regression, CoMaD, intensity scaling and smoothing.
 
 :::{dropdown} rabies confound_correction --help
 :icon: terminal

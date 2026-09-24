@@ -97,19 +97,6 @@ def compute_spatiotemporal_features(name_source, CR_data_dict, VE_spatial, tempo
     GS_cov = (global_signal.reshape(-1,1)*timeseries).mean(axis=0) # calculate the covariance between global signal and each voxel
     GS_corr = vcorrcoef(timeseries.T, global_signal)
 
-    prior_fit_out = {'C': None, 'W': None}
-    if not analysis_files_dict['NPR_prior_filename'] is None:
-        prior_fit_out['W'] = np.array(pd.read_csv(analysis_files_dict['NPR_prior_timecourse_csv'], header=None))
-        C_array = sitk.GetArrayFromImage(
-            sitk.ReadImage(analysis_files_dict['NPR_prior_filename']))
-        if len(C_array.shape)==3: # if there was only one component, need to convert to 4D array
-            C_array = C_array[np.newaxis,:,:,:]
-
-        C = np.zeros([C_array.shape[0], commonspace_volume_indices.sum()])
-        for i in range(C_array.shape[0]):
-            C[i, :] = (C_array[i, :, :, :])[commonspace_volume_indices]
-        prior_fit_out['C'] = C
-
     if nativespace_analysis: # certain spatial maps were computed in nativespace and need resampling
         from rabies.utils import resample_volumes
         import tempfile
@@ -129,9 +116,6 @@ def compute_spatiotemporal_features(name_source, CR_data_dict, VE_spatial, tempo
         import shutil
         shutil.rmtree(tmppath, ignore_errors=True)
 
-    spatial_info['NPR_maps'] = prior_fit_out['C']
-    temporal_info['NPR_time'] = prior_fit_out['W']
-
     spatial_info['VE_spatial'] = VE_spatial
     spatial_info['temporal_std'] = temporal_std
     spatial_info['predicted_std'] = predicted_std
@@ -149,7 +133,7 @@ def temporal_external_formating(temporal_info):
     filename_split = pathlib.Path(
         temporal_info['name_source']).name.rsplit(".nii")
 
-    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['NPR_time'],temporal_info['SBC_time']
+    del temporal_info['DR_all'], temporal_info['DR_bold'],temporal_info['DR_confound'],temporal_info['SBC_time']
 
     temporal_info_csv = os.path.abspath(filename_split[0]+'_temporal_info.csv')
     pd.DataFrame(temporal_info).to_csv(temporal_info_csv)
@@ -265,7 +249,7 @@ def scan_diagnosis(CR_data_dict, timeseries, common_anat_ref_file, common_mask_f
             FD_trace, DVARS, mse_trace,
             CR_VE_temporal, CR_var_temporal,
             global_signal, WM_trace, CSF_trace, edge_trace,
-            DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+            DR_bold_time, DR_confound_time, SBC_time,
             ] = prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, temporal_info)
 
         time0 = plot_time_subset.start
@@ -274,7 +258,7 @@ def scan_diagnosis(CR_data_dict, timeseries, common_anat_ref_file, common_mask_f
             FD_trace, DVARS, mse_trace,
             CR_VE_temporal, CR_var_temporal,
             global_signal, WM_trace, CSF_trace, edge_trace,
-            DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+            DR_bold_time, DR_confound_time, SBC_time,
             plot_seed_frequencies=plot_seed_frequencies, display_censoring=display_censoring)
         temporal_fig_list.append(fig)
         plt.close(fig)
@@ -319,9 +303,6 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, tempo
     if DR_bold_time is not None:
         DR_bold_time=DR_bold_time[plot_time_subset_censored]
         DR_confound_time=DR_confound_time[plot_time_subset_censored]
-    NPR_time=temporal_info['NPR_time']
-    if NPR_time is not None: # might be None
-        NPR_time=NPR_time[plot_time_subset_censored]
 
     global_signal=temporal_info['global_signal'][plot_time_subset_censored]
     edge_trace=temporal_info['edge_trace'][plot_time_subset_censored]
@@ -338,7 +319,7 @@ def prep_temporal_subset_input(plot_time_subset, CR_data_dict, timeseries, tempo
         FD_trace, DVARS, mse_trace,
         CR_VE_temporal, CR_var_temporal,
         global_signal, WM_trace, CSF_trace, edge_trace,
-        DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+        DR_bold_time, DR_confound_time, SBC_time,
     ]
 
 
@@ -347,7 +328,7 @@ def temporal_diagnosis_plot(
         FD_trace, DVARS, mse_trace,
         CR_VE_temporal, CR_var_temporal,
         global_signal, WM_trace, CSF_trace, edge_trace,
-        DR_bold_time, DR_confound_time, SBC_time, NPR_time,
+        DR_bold_time, DR_confound_time, SBC_time,
         plot_seed_frequencies={}, display_censoring=True):
 
     if display_censoring:
@@ -585,15 +566,14 @@ def temporal_diagnosis_plot(
     ax = axes[a]
     # we take the mean of the timecourse amplitude (absolute values) to summarized across all components
     import matplotlib.cm as cm
-    Greens_colors = cm.Greens(np.linspace(0.5, 0.8, 2))
     Blues_colors = cm.Blues(np.linspace(0.5, 0.8, 2))
     Purples_colors = cm.Purples(np.linspace(0.5, 0.8, 3))
     YlOrRd_colors = cm.YlOrRd(np.linspace(0.3, 0.8, 4))
     legend=[]
     for network_time,name,color,scaler in zip(
-            [DR_confound_time, DR_bold_time,SBC_time,NPR_time],
-            ['DR confounds', 'DR networks','SBC networks','NPR networks'],
-            [YlOrRd_colors[2], Blues_colors[1],Purples_colors[1],Greens_colors[1]],
+            [DR_confound_time, DR_bold_time,SBC_time],
+            ['DR confounds', 'DR networks','SBC networks'],
+            [YlOrRd_colors[2], Blues_colors[1],Purples_colors[1]],
             [0,-1,-1,-1]):
         if network_time is not None:
             # make sure the timecourses are normalized
@@ -628,17 +608,14 @@ def spatial_diagnosis_plot(common_anat_ref_file, common_mask_file, spatial_info,
     template_file = common_anat_ref_file
     dr_maps = spatial_info['DR_bold']
     SBC_maps = spatial_info['seed_map_list']
-    NPR_maps = spatial_info['NPR_maps']
 
     # convert to empty list to read len() of 0
     if SBC_maps is None:
         SBC_maps=[]
-    if NPR_maps is None:
-        NPR_maps=[]
     if dr_maps is None:
         dr_maps = np.zeros([0, 0])
 
-    nrows = 4+dr_maps.shape[0]+len(SBC_maps)+len(NPR_maps)
+    nrows = 4+dr_maps.shape[0]+len(SBC_maps)
 
     fig2, axes2 = plt.subplots(nrows=nrows, ncols=3, figsize=(12*3, 2*nrows))
     plt.tight_layout()
@@ -756,23 +733,5 @@ def spatial_diagnosis_plot(common_anat_ref_file, common_mask_file, spatial_info,
             cbar.ax.tick_params(labelsize=15)
         for ax in axes:
             ax.set_title(f'SBC network #{i+1}', fontsize=30, color='white')
-
-    for i in range(len(NPR_maps)):
-        axes = axes2[i+4+dr_maps.shape[0]+len(SBC_maps), :]
-
-        map = NPR_maps[i, :]
-        threshold = threshold_top_percent(map, top_percent=brainmap_percent_threshold)
-        mask=np.abs(map)>=threshold # taking absolute values to include negative weights
-        mask_img = recover_3D(common_mask_file,mask)        
-        sitk_img = recover_3D(
-            common_mask_file, map)
-        cbar_list = masked_plot(fig2,axes, sitk_img, scaled, mask_img=mask_img, vmax=None)
-
-        for cbar in cbar_list:
-            cbar.ax.get_yaxis().labelpad = 35
-            cbar.set_label("Beta \nCoefficient", fontsize=17, rotation=270, color='white')
-            cbar.ax.tick_params(labelsize=15)
-        for ax in axes:
-            ax.set_title(f'NPR network #{i+1}', fontsize=30, color='white')
 
     return fig2
