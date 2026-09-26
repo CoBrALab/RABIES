@@ -359,6 +359,20 @@ def HMC_derivatives(in_img, in_ref, motcorr_params_file, n_procs=1, get_R2=False
             extrapolator=False,
             max_workers=n_procs,
             )
+
+    # resample timeseries back to pre-correction, to generate a 'smoothed' version
+    # of the original timeseries so that interpolation does not bias the metrics below 
+    transforms_inverse = [tf.GetInverse() for tf in transforms]
+    ref_img_ = img_preHMC[:,:,:,0] # take a volume as reference grid
+    img_preHMC = framewise_resample_volume(
+            img_postHMC, 
+            ref_img_, 
+            transforms_inverse, 
+            interpolation=sitk.sitkLinear, 
+            clip_negative=True,
+            extrapolator=False,
+            max_workers=n_procs,
+            )
     
     df = pd.read_csv(motcorr_params_file)
     translations = np.array([df[par] for par in ['TransX', 'TransY', 'TransZ']]).T
