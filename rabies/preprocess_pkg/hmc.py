@@ -7,6 +7,17 @@ from nipype.interfaces.base import (
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
+HMC_METHODS=[
+    'sitk_level1',
+    'sitk_level2',
+    'sitk_level3',
+    'sitk_level4',
+    'mcflirt_coarse',
+    'mcflirt_fine',
+    'mcflirt_balanced',
+    'mcflirt_stringent',
+]
+
 def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     # hmc_wf_head_start
     """
@@ -45,14 +56,16 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
 
     # Head motion correction (hmc)
     n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
-    motion_estimation = pe.Node(sitkMotionCorr(level=opts.HMC_level,rabies_data_type=opts.data_type),
+    motion_estimation = pe.Node(MotionCorr(method=opts.HMC_method,template_mask_file=opts.brain_mask,rabies_data_type=opts.data_type),
                          name='motion_correction', mem_gb=1.1*opts.scale_min_memory, n_procs=n_procs)
     motion_estimation.plugin_args = {
         'qsub_args': f'-pe smp {str(3*opts.min_proc)}', 'overwrite': True}
     
     workflow.connect([
-        (inputnode, motion_estimation, [('ref_image', 'ref_file'),
-                                        ('bold_file', 'in_file')]),
+        (inputnode, motion_estimation, [
+            ('ref_image', 'ref_file'),
+            ('bold_file', 'in_file'),
+            ]),
         (motion_estimation, outputnode, [
          ('csv_params', 'motcorr_params')]),
     ])
@@ -77,48 +90,68 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     return workflow
 
 
-class sitkMotionCorrInputSpec(BaseInterfaceInputSpec):
+class MotionCorrInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc='input BOLD time series')
     ref_file = File(exists=True, mandatory=True,
                     desc='ref file to realignment time series')
-    level = traits.Int(desc="Select a level from 1 to 4, where each level is more stringent registration.")
+    template_mask_file = File(exists=True, mandatory=True,
+                    desc='Mask file used by MCFLIRT-like algorithm to estimate brain size.')
+    method = traits.Str(desc="")
     rabies_data_type = traits.Int(mandatory=True,
                                   desc="Integer specifying SimpleITK data type.")
 
 
-class sitkMotionCorrOutputSpec(TraitedSpec):
+class MotionCorrOutputSpec(TraitedSpec):
     csv_params = File(
         exists=True, desc="csv files with the 6-parameters rigid body transformations")
 
 
-class sitkMotionCorr(BaseInterface):
+class MotionCorr(BaseInterface):
     """
     This interface performs motion realignment using simpleitk_timeseries_motion_correction. It takes a reference volume to which
     EPI volumes from the input 4D file are realigned based on a Rigid registration.
     """
 
-    input_spec = sitkMotionCorrInputSpec
-    output_spec = sitkMotionCorrOutputSpec
+    input_spec = MotionCorrInputSpec
+    output_spec = MotionCorrOutputSpec
 
     def _run_interface(self, runtime):
 
         n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
         import SimpleITK as sitk
         from simpleitk_timeseries_motion_correction.motion import framewise_register_pair, write_transforms_to_csv
+        from .hmc_mcflirt_like import framewise_register_mcflirt_like
         moving = self.inputs.in_file
         ref_file = self.inputs.ref_file
-        level = self.inputs.level
         filename_split = pathlib.Path(moving).name.rsplit(".nii")
         output_prefix = os.path.abspath(
             f'{filename_split[0]}_')
 
-        transforms = framewise_register_pair(
-            moving, 
-            ref_file, 
-            level=level, 
-            interpolation=sitk.sitkBSpline5, 
-            max_workers=n_procs)
-        
+
+        method=self.inputs.method
+        if method not in HMC_METHODS:
+            raise ValueError(f"{method} is not among the available options: {HMC_METHODS}.")
+        elif 'sitk' in method:
+            level=int(method[-1])
+            transforms = framewise_register_pair(
+                moving, 
+                ref_file, 
+                level=level, 
+                interpolation=sitk.sitkBSpline5, 
+                max_workers=n_procs)
+        elif 'mcflirt' in method:
+            schedule = method.split('mcflirt_')[1]
+            transforms = framewise_register_mcflirt_like(
+                moving,
+                ref_file,
+                schedule=schedule,
+                brain_size_mask=self.inputs.template_mask_file,
+                parallel=False,
+                max_workers=os.cpu_count(),
+                backend="fsl_mcflirt",
+                verbose=False,
+            )
+
         csv_param_file = output_prefix + f"moco.csv"
         write_transforms_to_csv(transforms, csv_param_file)
         setattr(self, 'csv_params', csv_param_file)

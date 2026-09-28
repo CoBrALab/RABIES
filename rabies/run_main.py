@@ -270,6 +270,26 @@ def preprocess(opts, log):
         opts.generate_commonspace = False
         opts.generate_nativespace = True
 
+
+    # print out the registration schedule
+    if 'mcflirt' in opts.HMC_method:
+        import io
+        import contextlib
+        from .preprocess_pkg.hmc_mcflirt_like import framewise_register_mcflirt_like
+        schedule = opts.HMC_method.split('mcflirt_')[1]
+        # capture the print() outputs from the function to redirect them to the log
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            _ = framewise_register_mcflirt_like(
+                moving_img='',
+                ref_img='',
+                schedule=schedule,
+                brain_size_mask=opts.brain_mask,
+                verbose=True,
+                only_print_schedule=True,
+            )
+        log.info("HMC registration schedule:\n" + buffer.getvalue())
+
     # write boilerplate
     boilerplate_file = f'{opts.output_dir}/boilerplate.txt'
 

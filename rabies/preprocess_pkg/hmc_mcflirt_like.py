@@ -87,14 +87,18 @@ SCHEDULES = {
 
 def _as_float_image(img):
     if isinstance(img, sitk.Image):
-        pass
+        if img.GetPixelID() == sitk.sitkFloat32:
+            return img
+        if img.GetDimension() <= 3:
+            return sitk.Cast(img, sitk.sitkFloat32)
+        # sitk.Cast does not support 4D images: go through numpy
+        arr = sitk.GetArrayFromImage(img).astype(np.float32)
+        out = sitk.GetImageFromArray(arr, isVector=False)
+        out.CopyInformation(img)
+        return out
     elif os.path.isfile(img):
-        img = sitk.ReadImage(img, sitk.sitkFloat32)
-    else:
-        raise ValueError(f"{img} is neither a file nor an SITK image.")
-    if img.GetPixelID() != sitk.sitkFloat32:
-        img = sitk.Cast(img, sitk.sitkFloat32)
-    return img
+        return sitk.ReadImage(img, sitk.sitkFloat32)  # works for 4D
+    raise ValueError(f"{img} is neither a file nor an SITK image.")
 
 
 def _read_schedule(schedule):
@@ -293,6 +297,7 @@ def framewise_register_mcflirt_like(
     max_workers=os.cpu_count(),
     backend="fsl_mcflirt",
     verbose=True,
+    only_print_schedule=False,
 ):
     """Estimate rigid head motion for every volume of a 4D series against a
     fixed 3D reference, with MCFLIRT's multi-stage strategy.
@@ -343,6 +348,9 @@ def framewise_register_mcflirt_like(
         mimicking it).
     verbose : bool
         Print the scaled schedule and warnings.
+    only_print_schedule: bool
+        Utility to simply print the estimated schedule parameters without conducting
+        any registration.
 
     Returns
     -------
@@ -379,6 +387,9 @@ def framewise_register_mcflirt_like(
         print("-" * 54)
         for stage, (spacing, tol) in enumerate(schedule_scaled):
             print(f"{stage + 1:>5} | {spacing:>12.4f} | {np.rad2deg(tol[0]):>13.4f} | {tol[3]:>14.5f}")
+
+    if only_print_schedule:
+        return schedule_scaled
 
     if backend == "sitk_mcflirt":
         _register_pair = functools.partial(register_pair_sitk_mcflirt, metric=metric, sweeps=sweeps)

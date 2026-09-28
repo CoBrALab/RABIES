@@ -11,6 +11,8 @@ from nipype.interfaces import utility as niu
 from rabies.utils import copyInfo_3DImage, run_command
 from simpleitk_timeseries_motion_correction.motion import framewise_register_pair
 from simpleitk_timeseries_motion_correction.apply_transforms import framewise_resample_volume
+from .hmc_mcflirt_like import framewise_register_mcflirt_like
+from .hmc import HMC_METHODS
 
 def init_bold_reference_wf(opts, name='gen_bold_ref'):
     # gen_bold_ref_head_start
@@ -53,7 +55,7 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
         name='outputnode')
 
     n_procs=int(os.environ['RABIES_ITK_NUM_THREADS'])
-    gen_ref = pe.Node(EstimateReferenceImage(HMC_level=opts.HMC_level, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
+    gen_ref = pe.Node(EstimateReferenceImage(template_mask_file=opts.brain_mask, HMC_method=opts.HMC_method, detect_dummy=opts.detect_dummy, rabies_data_type=opts.data_type),
                       name='gen_ref', mem_gb=2*opts.scale_min_memory, n_procs=n_procs)
     gen_ref.plugin_args = {
         'qsub_args': f'-pe smp {str(2*opts.min_proc)}', 'overwrite': True}
@@ -70,7 +72,9 @@ def init_bold_reference_wf(opts, name='gen_bold_ref'):
 
 class EstimateReferenceImageInputSpec(BaseInterfaceInputSpec):
     in_file = File(exists=True, mandatory=True, desc="4D EPI file")
-    HMC_level = traits.Int(desc="Level for motion correction.")
+    template_mask_file = File(exists=True, mandatory=True,
+                    desc='Mask file used by MCFLIRT-like algorithm to estimate brain size.')
+    HMC_method = traits.Str(desc="")
     detect_dummy = traits.Bool(
         desc="specify if should detect and remove dummy scans, and use these volumes as reference image.")
     rabies_data_type = traits.Int(mandatory=True,
@@ -138,13 +142,30 @@ class EstimateReferenceImage(BaseInterface):
             ref_3d = copyInfo_3DImage(
                 sitk.GetImageFromArray(trimean_array, isVector=False), in_nii)
 
+            method=self.inputs.HMC_method
+            if method not in HMC_METHODS:
+                raise ValueError(f"{method} is not among the available options: {HMC_METHODS}.")
             for round in range(2): # conducted 2 rounds of motion correction and re-calculation of the 3D reference
-                transforms = framewise_register_pair(
-                    subset_img_4d, 
-                    ref_3d, 
-                    level=self.inputs.HMC_level, 
-                    interpolation=sitk.sitkBSpline5, 
-                    max_workers=n_procs)
+                if 'sitk' in method:
+                    level=int(method[-1])
+                    transforms = framewise_register_pair(
+                        subset_img_4d, 
+                        ref_3d, 
+                        level=level, 
+                        interpolation=sitk.sitkBSpline5, 
+                        max_workers=n_procs)
+                elif 'mcflirt' in method:
+                    schedule = method.split('mcflirt_')[1]
+                    transforms = framewise_register_mcflirt_like(
+                        subset_img_4d,
+                        ref_3d,
+                        schedule=schedule,
+                        brain_size_mask=self.inputs.template_mask_file,
+                        parallel=False,
+                        max_workers=os.cpu_count(),
+                        backend="fsl_mcflirt",
+                        verbose=False,
+                    )
                 
                 resampled_img = framewise_resample_volume(
                      subset_img_4d, 

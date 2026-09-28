@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
 from . import run_main
+from .preprocess_pkg.hmc import HMC_METHODS
 
 def get_parser():
     """Build parser object"""
@@ -455,10 +456,19 @@ def get_parser():
             "\n"
         )
     g_hmc.add_argument(
-        "--HMC_level", type=int, default=2,
-        choices=[1,2,3,4],
+        "--HMC_method", type=str, default='mcflirt_balanced',
+        choices=HMC_METHODS,
         help=
-            "Select a level of stringence for the framewise registration (the higher the level, the more stringent it is). \n"
+            "Select the algorithm for rigid-body head motion correction. \n"
+            "Built-in implementations include the 'sitk' family introduced in RABIES 0.6.0 with 4 levels of stringency (the higher \n"
+            "the level, the more stringent it is). \n"
+            "The second family of implementations are variants of FSL's MCFLIRT core algorithm, registration parameters that adapt \n"
+            "to the physical brain size defined by the --brain_mask file. There are four possible registration schedules: \n"
+            "   * mcflirt_coarse: applies 3 stages at relatively coarse spatial resolution. \n"
+            "   * mcflirt_fine: 3 stages at finer spatial resolution. \n"
+            "   * mcflirt_balanced: stage 1 is finer to provide more robust transform initialization, then stages 2 and 3 are coarse. \n"
+            "   * mcflirt_stringent: same as mcflirt_balanced, with an additional finer 4th stage. \n"
+            "FSL LICENSE: if using the MCFLIRT implementations, FSL's licensing agreement apply (i.e. only for non-commercial use).\n"
             "(default: %(default)s)\n"
             "\n"
         )
