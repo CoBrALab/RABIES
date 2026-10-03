@@ -26,8 +26,7 @@ def init_analysis_wf(analysis_opts, cr_opts, name="analysis_wf"):
         fields=['bold_file_list', 'commonspace_mask', 'commonspace_template', 'token']), name='group_inputnode')
     outputnode = pe.Node(niu.IdentityInterface(fields=['group_ICA_dir', 'IC_file', 'dual_regression_timecourse_csv',
                                                        'DR_nii_file', 'DR_nii_file_resampled', 'matrix_data_file', 'matrix_fig', 'corr_map_file_list', 'corr_map_file_resampled', 'seed_timecourse_csv_list',
-                                                       'sub_token', 'group_token','NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv',
-                                                       'NPR_prior_filename', 'NPR_extra_filename', 'NPR_optimize_report']), name='outputnode')
+                                                       'sub_token', 'group_token']), name='outputnode')
 
     # connect the nodes so that they exist even without running analysis
     workflow.connect([
@@ -40,11 +39,10 @@ def init_analysis_wf(analysis_opts, cr_opts, name="analysis_wf"):
         ])
 
     run_seed_FC = len(analysis_opts.seed_list) > 0
-    run_NPR = (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']
 
     # a single node loads every input this scan's FC analyses need exactly once, and
-    # computes whichever of seed-based FC/dual regression/FC matrix/NPR were requested
-    if run_seed_FC or analysis_opts.DR_ICA or analysis_opts.FC_matrix or run_NPR:
+    # computes whichever of seed-based FC/dual regression/FC matrix were requested
+    if run_seed_FC or analysis_opts.DR_ICA or analysis_opts.FC_matrix:
 
         FC_analysis_node = pe.Node(FCAnalysis(
             analysis_opts=analysis_opts, cr_opts=cr_opts,
@@ -126,23 +124,6 @@ def init_analysis_wf(analysis_opts, cr_opts, name="analysis_wf"):
                         ]),
                     ])
 
-        if run_NPR:
-            workflow.connect([
-                (FC_analysis_node, outputnode, [
-                    ("NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-                    ("NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-                    ("NPR_prior_filename", "NPR_prior_filename"),
-                    ("NPR_extra_filename", "NPR_extra_filename"),
-                    ]),
-                ])
-
-            if analysis_opts.optimize_NPR['apply']:
-                workflow.connect([
-                    (FC_analysis_node, outputnode, [
-                        ("NPR_optimize_report", "NPR_optimize_report"),
-                        ]),
-                    ])
-
         if analysis_opts.FC_matrix:
             workflow.connect([
                 (FC_analysis_node, outputnode, [
@@ -205,18 +186,13 @@ class FCAnalysisOutputSpec(TraitedSpec):
     dual_regression_timecourse_csv = traits.Any(desc=".csv with the dual regression timecourses.")
     matrix_data_file = traits.Any(desc=".csv with the FC matrix.")
     matrix_fig = traits.Any(desc="Figure of the FC matrix.")
-    NPR_prior_timecourse_csv = traits.Any(desc=".csv with timecourses from the fitted prior sources.")
-    NPR_extra_timecourse_csv = traits.Any(desc=".csv with timecourses from the scan-specific extra sources.")
-    NPR_prior_filename = traits.Any(desc=".nii file with spatial components from the fitted prior sources.")
-    NPR_extra_filename = traits.Any(desc=".nii file with spatial components from the scan-specific extra sources.")
-    NPR_optimize_report = traits.Any(desc="The NPR optimization report.")
 
 
 class FCAnalysis(BaseInterface):
     """
     Central per-scan FC analysis. Reads the raw RABIES outputs for one scan once,
     then computes every requested scan-level analysis -- seed-based FC, dual 
-    regression, FC matrix, NPR.
+    regression, FC matrix.
     """
 
     input_spec = FCAnalysisInputSpec
@@ -230,15 +206,14 @@ class FCAnalysis(BaseInterface):
 
         seed_dict = {seed_name: seed_file for seed_file, seed_name in zip(analysis_opts.seed_list, analysis_opts.seed_name_list)}
 
-        SBC_out, DR_out, FC_matrix_df, NPR_out = fc_analysis(
+        SBC_out, DR_out, FC_matrix_df = fc_analysis(
             self.inputs.cleaned_bold_file, self.inputs.name_source, self.inputs.mask_file, self.inputs.anat_ref_file, # minimal inputs
             seed_dict=seed_dict, # SBC options
             FC_matrix=analysis_opts.FC_matrix, atlas_file=analysis_opts.ROI_labels_file, ROI_type=analysis_opts.ROI_type, # FC matrix options
-            prior_maps=analysis_opts.prior_maps, prior_bold_idx=analysis_opts.prior_bold_idx, DR_ICA=analysis_opts.DR_ICA, network_weighting=analysis_opts.network_weighting, # prior/dual regression options
-            NPR_temporal_comp=analysis_opts.NPR_temporal_comp, NPR_spatial_comp=analysis_opts.NPR_spatial_comp, optimize_NPR_dict=analysis_opts.optimize_NPR, # NPR options
+            prior_maps=analysis_opts.prior_maps, DR_ICA=analysis_opts.DR_ICA, network_weighting=analysis_opts.network_weighting, # prior/dual regression options
             CR_data_dict=self.inputs.CR_data_dict, remove_EPI_avg=cr_opts.keep_EPI_average, # whether to remove the EPI average from the cleaned timeseries before analysis
             to_analysis_space_transform_list=self.inputs.to_analysis_space_transform_list, to_analysis_space_inverse_list=self.inputs.to_analysis_space_inverse_list, interpolation=analysis_opts.interpolation_sitk, # resampling to a different space
-            rabies_data_type=analysis_opts.data_type, figure_format=analysis_opts.figure_format,
+            rabies_data_type=analysis_opts.data_type,
             )
 
 
@@ -283,32 +258,6 @@ class FCAnalysis(BaseInterface):
             matrix_data_file = None
             matrix_fig = None
 
-        if NPR_out is not None:
-            NPR_C_fit, NPR_W_fit, NPR_C_extra, NPR_W_extra, NPR_optimize_report = NPR_out
-            NPR_prior_timecourse_csv = os.path.abspath(filename_split+'_NPR_prior_timecourse.csv')
-            pd.DataFrame(NPR_W_fit).to_csv(NPR_prior_timecourse_csv, header=False, index=False)
-
-            NPR_extra_timecourse_csv = os.path.abspath(filename_split+'_NPR_extra_timecourse.csv')
-            pd.DataFrame(NPR_W_extra).to_csv(NPR_extra_timecourse_csv, header=False, index=False)
-
-            NPR_prior_filename = os.path.abspath(filename_split+'_NPR_prior.nii.gz')
-            sitk.WriteImage(recover_4D(self.inputs.mask_file,NPR_C_fit.T, self.inputs.cleaned_bold_file), NPR_prior_filename)
-
-            if (analysis_opts.NPR_temporal_comp+analysis_opts.NPR_spatial_comp)>0:
-                NPR_extra_filename = os.path.abspath(filename_split+'_NPR_extra.nii.gz')
-                sitk.WriteImage(recover_4D(self.inputs.mask_file,NPR_C_extra.T, self.inputs.cleaned_bold_file), NPR_extra_filename)
-            else:
-                empty_img = sitk.GetImageFromArray(np.empty([1,1]))
-                empty_file = os.path.abspath('empty.nii.gz')
-                sitk.WriteImage(empty_img, empty_file)
-                NPR_extra_filename = empty_file
-        else:
-            NPR_prior_timecourse_csv = None
-            NPR_extra_timecourse_csv = None
-            NPR_prior_filename = None
-            NPR_extra_filename = None
-            NPR_optimize_report = None
-
 
         setattr(self, 'corr_map_file_list', corr_map_file_l)
         setattr(self, 'seed_timecourse_csv_list', seed_timecourse_csv_l)
@@ -316,12 +265,6 @@ class FCAnalysis(BaseInterface):
         setattr(self, 'dual_regression_timecourse_csv', dual_regression_timecourse_csv)
         setattr(self, 'matrix_data_file', matrix_data_file)
         setattr(self, 'matrix_fig', matrix_fig)
-        setattr(self, 'NPR_prior_timecourse_csv', NPR_prior_timecourse_csv)
-        setattr(self, 'NPR_extra_timecourse_csv', NPR_extra_timecourse_csv)
-        setattr(self, 'NPR_prior_filename', NPR_prior_filename)
-        setattr(self, 'NPR_extra_filename', NPR_extra_filename)
-        setattr(self, 'NPR_optimize_report', NPR_optimize_report)
-
 
         return runtime
 
@@ -334,11 +277,6 @@ class FCAnalysis(BaseInterface):
             'dual_regression_timecourse_csv': getattr(self, 'dual_regression_timecourse_csv', None),
             'matrix_data_file': getattr(self, 'matrix_data_file', None),
             'matrix_fig': getattr(self, 'matrix_fig', None),
-            'NPR_prior_timecourse_csv': getattr(self, 'NPR_prior_timecourse_csv', None),
-            'NPR_extra_timecourse_csv': getattr(self, 'NPR_extra_timecourse_csv', None),
-            'NPR_prior_filename': getattr(self, 'NPR_prior_filename', None),
-            'NPR_extra_filename': getattr(self, 'NPR_extra_filename', None),
-            'NPR_optimize_report': getattr(self, 'NPR_optimize_report', None),
         }
 
 
@@ -347,15 +285,14 @@ def fc_analysis(
     cleaned_bold_file, name_source, mask_file, anat_ref_file, # minimal inputs
     seed_dict={}, # SBC options
     FC_matrix=False, atlas_file=None, ROI_type='parcellated', # FC matrix options
-    prior_maps=None, prior_bold_idx=[], DR_ICA=False, network_weighting='absolute', # prior/dual regression options
-    NPR_temporal_comp=-1, NPR_spatial_comp=-1, optimize_NPR_dict={'apply': False}, # NPR options
+    prior_maps=None, DR_ICA=False, network_weighting='absolute', # prior/dual regression options
     CR_data_dict={}, remove_EPI_avg=False, # whether to remove the EPI average from the cleaned timeseries before analysis
     to_analysis_space_transform_list=[], to_analysis_space_inverse_list=[], interpolation=sitk.sitkLinear, # resampling to a different space
-    rabies_data_type=sitk.sitkFloat32, figure_format='png',
+    rabies_data_type=sitk.sitkFloat32,
     ):
     """
     Core function for computing scan-level FC analyses -- seed-based connectivity (SBC),
-    dual regression (DR), an FC matrix, and/or neural prior recovery (NPR) -- from a single
+    dual regression (DR), and/or an FC matrix -- from a single
     load of a scan's cleaned timeseries and reference maps. Each analysis is only run if
     its trigger parameters are set; otherwise its corresponding output is None.
 
@@ -391,27 +328,13 @@ def fc_analysis(
         Either 'parcellated' or 'voxelwise' FC matrix.
 
     prior_maps : filepath, default=None
-        4D file of network priors, required for DR_ICA and NPR.
-
-    prior_bold_idx : list, default=[]
-        Indices among prior_maps corresponding to BOLD sources, fitted during NPR.
+        4D file of network priors, required for DR_ICA.
 
     DR_ICA : bool, default=False
         Whether to compute dual regression against prior_maps.
 
     network_weighting : str, default='absolute'
-        Whether DR/NPR network maps are 'absolute' or 'relative' (variance-normalized).
-
-    NPR_temporal_comp : int, default=-1
-        Number of data-driven temporal components for NPR. If this and NPR_spatial_comp
-        are both <0 and optimize_NPR_dict['apply'] is False, NPR is skipped.
-
-    NPR_spatial_comp : int, default=-1
-        Number of data-driven spatial components for NPR.
-
-    optimize_NPR_dict : dict, default={'apply': False}
-        Options for automatically optimizing NPR convergence instead of using fixed
-        NPR_temporal_comp/NPR_spatial_comp counts.
+        Whether DR network maps are 'absolute' or 'relative' (variance-normalized).
 
     CR_data_dict : dict, default={}
         Confound correction info dict for this scan; only 'voxelwise_mean' is read from
@@ -435,9 +358,6 @@ def fc_analysis(
     rabies_data_type : SimpleITK pixel type, default=sitk.sitkFloat32
         Data type used for resampling.
 
-    figure_format : str, default='png'
-        File format for the NPR optimization report figure.
-
     Returns
     -------
 
@@ -451,22 +371,16 @@ def fc_analysis(
 
     FC_matrix_df : pd.DataFrame or None
         The FC matrix, or None if FC_matrix is False.
-
-    NPR_out : tuple or None
-        (C_fit, W_fit, C_extra, W_extra, optimize_report_file), the NPR fitted-prior and
-        extra components, or None if NPR wasn't requested.
     """
     from .analysis_math import dual_regression
-    from .analysis_functions import compute_seed_FC, parcellated_FC_matrix, compute_NPR
+    from .analysis_functions import compute_seed_FC, parcellated_FC_matrix
     from .utils import load_resample_analysis_maps
 
     filename_split = pathlib.Path(name_source).name.rsplit(".nii")[0]
 
     # prior_maps and atlas_file are replaced by None to skip the resampling step inside 
     # load_resample_analysis_maps() if they are not used by their respective analysis functions
-    run_NPR = (NPR_temporal_comp > -1) or (NPR_spatial_comp > -1) \
-          or optimize_NPR_dict['apply']
-    prior_maps = prior_maps if DR_ICA or run_NPR else None
+    prior_maps = prior_maps if DR_ICA else None
     atlas_file = atlas_file if FC_matrix else None
 
     loaded = load_resample_analysis_maps(
@@ -519,16 +433,5 @@ def fc_analysis(
         else:
             raise ValueError(f"Invalid --ROI_type provided: {ROI_type}. Must be either 'parcellated' or 'voxelwise.'")
 
-
-    run_NPR = (NPR_temporal_comp > -1) or (NPR_spatial_comp > -1) or optimize_NPR_dict['apply']
-    if run_NPR:
-        NPR_C_fit, NPR_W_fit, NPR_C_extra, NPR_W_extra, NPR_optimize_report = compute_NPR(
-            timeseries, prior_map_vectors, prior_bold_idx, optimize_NPR_dict, 
-            NPR_temporal_comp, NPR_spatial_comp, 
-            network_weighting, filename_split, figure_format,
-            )
-        NPR_out = (NPR_C_fit, NPR_W_fit, NPR_C_extra, NPR_W_extra, NPR_optimize_report)
-    else:
-        NPR_out = None
-    return SBC_out, DR_out, FC_matrix_df, NPR_out
+    return SBC_out, DR_out, FC_matrix_df
 

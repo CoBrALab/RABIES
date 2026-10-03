@@ -15,11 +15,6 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
         raise ValueError(
             'No --ROI_labels_file were provided to match the template --anat_template from preprocessing.')
 
-    if (analysis_opts.NPR_temporal_comp>-1) or (analysis_opts.NPR_spatial_comp>-1) or analysis_opts.optimize_NPR['apply']:
-        apply_NPR = True
-    else:
-        apply_NPR = False
-
     '''
     Check that --prior_maps parameters fit
     '''
@@ -27,7 +22,7 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
         if not os.path.isfile(analysis_opts.prior_maps):
             raise ValueError("The --prior_maps file doesn't exist.")
     else:
-        if analysis_opts.DR_ICA or apply_NPR:
+        if analysis_opts.DR_ICA:
             raise ValueError(
                 "No --prior_maps were provided for conducting the requested analyses.")
 
@@ -141,11 +136,6 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
             ("outputnode.seed_timecourse_csv_list", "seed_timecourse_csv"),
             ("outputnode.DR_nii_file", "dual_regression_nii"),
             ("outputnode.dual_regression_timecourse_csv", "dual_regression_timecourse_csv"),
-            ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-            ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-            ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
-            ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
-            ("outputnode.NPR_optimize_report", "NPR_optimize_report"),
             ]),
         ])
     
@@ -283,11 +273,10 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
         '''
         Here is created a shortcut dictionary to pass relevant outputs from analysis to the diagnosis workflow, without having to pass all output files individually.
         '''
-        def prep_analysis_files_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv, NPR_prior_timecourse_csv, NPR_extra_timecourse_csv, NPR_prior_filename, NPR_extra_filename):
-            return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv, 'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv, 
-                    'NPR_prior_timecourse_csv':NPR_prior_timecourse_csv, 'NPR_extra_timecourse_csv':NPR_extra_timecourse_csv, 
-                    'NPR_prior_filename':NPR_prior_filename, 'NPR_extra_filename':NPR_extra_filename}
-        prep_analysis_files_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv', 'NPR_prior_timecourse_csv', 'NPR_extra_timecourse_csv', 'NPR_prior_filename', 'NPR_extra_filename'],
+        def prep_analysis_files_dict(seed_map_files, seed_timecourse_csv, dual_regression_nii, dual_regression_timecourse_csv):
+            return {'seed_map_files':seed_map_files, 'seed_timecourse_csv':seed_timecourse_csv,
+                    'dual_regression_nii':dual_regression_nii, 'dual_regression_timecourse_csv':dual_regression_timecourse_csv}
+        prep_analysis_files_dict_node = pe.Node(Function(input_names=['seed_map_files', 'seed_timecourse_csv', 'dual_regression_nii', 'dual_regression_timecourse_csv'],
                                             output_names=[
                                                 'analysis_files_dict'],
                                         function=prep_analysis_files_dict),
@@ -360,21 +349,6 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
             prep_analysis_files_dict_node.inputs.dual_regression_nii = None
             prep_analysis_files_dict_node.inputs.dual_regression_timecourse_csv = None
 
-
-        if apply_NPR:
-            workflow.connect([
-                (analysis_wf, prep_analysis_files_dict_node, [
-                    ("outputnode.NPR_prior_timecourse_csv", "NPR_prior_timecourse_csv"),
-                    ("outputnode.NPR_extra_timecourse_csv", "NPR_extra_timecourse_csv"),
-                    ("outputnode.NPR_prior_filename", "NPR_prior_filename"),
-                    ("outputnode.NPR_extra_filename", "NPR_extra_filename"),
-                    ]),
-                ])
-        else:
-            prep_analysis_files_dict_node.inputs.NPR_prior_timecourse_csv = None
-            prep_analysis_files_dict_node.inputs.NPR_extra_timecourse_csv = None
-            prep_analysis_files_dict_node.inputs.NPR_prior_filename = None
-            prep_analysis_files_dict_node.inputs.NPR_extra_filename = None
 
         if len(analysis_opts.seed_list) > 0:
             workflow.connect([

@@ -903,6 +903,61 @@ def get_parser():
             "(default: %(default)s)\n"
             "\n"
         )
+    g_comad = confound_correction.add_argument_group(
+        title='CoMaD parameters', 
+        description=
+            "Parameters that regulate the application of Complementary Matrix Decomposition (CoMaD)\n"
+            "denoising. CoMaD is disabled by default (N_comad=0 in --comad_params). If it is enabled, \n"
+            "--comad_prior_maps and --comad_prior_idx must be set to a compatible set of network priors. \n"
+        )
+    g_comad.add_argument(
+        '--comad_params', type=str, default='N_comad=0,gen_report=false,optimize_N=false,min_prior_sim=0,Dc_W_thresh=0,Dc_C_thresh=0',
+        help=
+            "This controls the application and dimensionality of the CoMaD decomposition. \n"
+            "\n"
+            "* N_comad: Number of CoMaD components to derive. If N_comad=0, CoMaD is not applied.\n"
+            "*** Must provide an integer. \n"
+            "* gen_report: Whether to generate the CoMaD fitting report. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "* optimize_N: Whether to carry an automated dimensionality estimation for CoMaD, up to \n"
+            "               a maximal dimensionality defined by N_comad. \n"
+            "*** Specify 'true' or 'false'. \n"
+            "* min_prior_sim: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold between 0 and 1.0 for the similarity between \n"
+            "               the priors and the associated network maps derived from the CoMaD model.  \n"
+            "               No threshold is applied if the value is below 0. \n"
+            "*** Must provide a float. \n"
+            "* Dc_C_thresh: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold for the cosine distance of the resulting network maps \n"
+            "               after consecutive increments in CoMaD dimensionality. \n"
+            "*** Must provide a float. \n"
+            "* Dc_W_thresh: Parameter for automated dimensionality estimation (when optimize_N=True). \n"
+            "               Set a convergence threshold for the cosine distance of the resulting network timecourses \n"
+            "               after consecutive increments in CoMaD dimensionality. \n"
+            "*** Must provide a float. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_comad.add_argument(
+        '--comad_prior_maps', action='store', type=Path,
+        default=run_main.DSURQE_ICA,
+        help=
+            "A 4D nifti image that includes the network maps defining signal of interest to preserve \n"
+            "during CoMaD denoising (usually a group-ICA decomposition).\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    g_comad.add_argument(
+        '--comad_prior_idx', type=int,
+        nargs="*",  # 0 or more values expected => creates a list
+        default=[5, 12, 19],
+        help=
+            "Provide the indices that select the right set of network priors from the \n"
+            "--comad_prior_maps file (starting from 0 for the first index). \n"
+            "SYNTAX: '--comad_prior_idx 5 12 19', and not '--comad_prior_idx [5, 12, 19]'. \n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
 
 
     ####Analysis
@@ -965,8 +1020,8 @@ def get_parser():
             "Specify the indices for the confound components from --prior_maps. This is pertinent for \n" 
             "evaluating features in the --data_diagnosis outputs.\n"
             "IMPORTANT: index counting starts at 0 (i.e. the first component is selected with 0, not 1) \n"
-            "SYNTAX: Note that the syntax should follow the example of '--prior_bold_idx 5 12 19', and not \n" 
-            "'--prior_bold_idx [5, 12, 19]'. \n"
+            "SYNTAX: Note that the syntax should follow the example of '--prior_confound_idx 5 12 19', and not \n"
+            "'--prior_confound_idx [5, 12, 19]'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -995,11 +1050,11 @@ def get_parser():
         '--scan_QC_thresholds', type=str, default="{}",
         help=
             "Option to specify scan-level thresholds to remove scans from the dataset QC report.\n"
-            "This can be specified for a given set of network analyses among DR (dual regression), SBC (seed \n"
-            "connectivity), or NPR. For each analysis, the following QC parameters can be specified: \n"
+            "This can be specified for a given set of network analyses among DR (dual regression) or SBC (seed \n"
+            "connectivity). For each analysis, the following QC parameters can be specified: \n"
             "* Dice: Threshold for the minimum network detectability computed as Dice overlap with the prior. \n"
             "*** Specify a list of thresholds between 0 and 1. The order of thresholds provided within the list \n"
-            "    will be matched to the list of networks for the corresponding analysis (for DR/NPR, this \n"
+            "    will be matched to the list of networks for the corresponding analysis (for DR, this \n"
             "    will be matched to the --prior_bold_idx list, and for SBC it will be matched to --seed_list). \n"
             "    If the list is empty, no thresholding is applied, otherwise, the length of the lists for the  \n"
             "    thresholds and networks must match. \n"
@@ -1124,70 +1179,11 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
-        '--NPR_temporal_comp', type=int, default=-1,
-        help=
-            "Option for performing Neural Prior Recovery (NPR). Specify with this option how many extra \n"
-            "subject-specific sources will be computed to account for non-prior confounds. This options \n"
-            "specifies the number of temporal components to compute. After computing \n"
-            "these sources, NPR will provide a fit for each prior in --prior_maps indexed by --prior_bold_idx.\n"
-            "Specify at least 0 extra sources to run NPR.\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    analysis.add_argument(
-        '--NPR_spatial_comp', type=int, default=-1,
-        help=
-            "Same as --NPR_temporal_comp, but specify how many spatial components to compute (which are \n"
-            "additioned to the temporal components).\n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    analysis.add_argument(
-        '--optimize_NPR', type=str,
-        default='apply=false,window_size=5,min_prior_corr=0.5,diff_thresh=0.03,max_iter=20,compute_max=false',
-        help=
-            "This option handles the automated dimensionality estimation when carrying out NPR. NPR will be \n"
-            "carried out iteratively while incrementing the number of non-prior components fitted, until \n"
-            "convergence criteria are met (see below). A convergence report is generated to visualize the \n"
-            "results across iterations. \n"
-            "\n"
-            "Convergence criterion 1: Iterations continue until the correlation between the fitted component \n"
-            "and the prior does not reach the specified minimum.\n"
-            "\n"
-            "Convergence Criterion 2: At each iteration, the difference between the previous and new output \n"
-            "is evaluated (0=perfectly correlated; 1=uncorrelated). The forming set of successive iterations \n"
-            "(within a certain window length) is evaluated, and when a set respects the convergence threshold \n"
-            "for each iteration within the window, the iteration preceding that window is selected as optimal \n"
-            "output. We take the iteration preceding the  window, as this corresponds to the last iteration \n"
-            "which generated changes above threshold. The sliding-window approach is employed to prevent \n"
-            "falling within a local minima, when further ameliorations may be possible with further iterations.\n"
-            "\n"
-            "When multiple priors are fitted, they are all simultaneously subjected to the evaluation of \n"
-            "convergence, and as long as one prior fit does not meet the thresholds, iterations continue.\n"
-            "\n"
-            "* apply: select 'true' to apply this option. If selected, this option overrides --NPR_spatial_comp \n"
-            " and --NPR_spatial_comp. \n"
-            "*** Specify 'true' or 'false'. \n"
-            "* window_size: Window size for criterion 2. \n"
-            "*** Must provide an integer. \n"
-            "* min_prior_corr: Threshold for criterion 1. \n"
-            "*** Must provide a float. \n"
-            "* diff_thresh: Threshold for criterion 2. \n"
-            "*** Must provide a float. \n"
-            "* max_iter: Maximum number of iterations. \n"
-            "*** Must provide an integer. \n"
-            "* compute_max: select 'true' to visualize all iterations until max_iter in the report. \n"
-            "*** Specify 'true' or 'false'. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    analysis.add_argument(
         "--network_weighting", type=str, default='absolute',
         choices=['absolute', 'relative'],
         help=
-            "Whether to derive absolute or relative (variance-normalized) network maps, representing \n"
-            "respectively network amplitude + shape or network shape only. This option applies to both \n"
-            "dual regression (DR) and Neural Prior Recovery (NPR) analyses. \n"
+            "Whether to derive absolute or relative (variance-normalized) network maps with dual regression, representing \n"
+            "respectively network amplitude + shape or network shape only. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1302,16 +1298,18 @@ def read_parser(parser, args):
             defaults = {'apply':False,'dim':0,'random_seed':1},
             name='ica_aroma')
 
+        opts.comad_params = parse_argument(opt=opts.comad_params, 
+            key_value_pairs = {'N_comad':int, 'gen_report':['true', 'false'], 'optimize_N':['true', 'false'],
+                               'min_prior_sim':float, 'Dc_W_thresh':float, 'Dc_C_thresh':float},
+            defaults = {'N_comad':0, 'gen_report':False, 'optimize_N':False,
+                               'min_prior_sim':0, 'Dc_W_thresh':0, 'Dc_C_thresh':0},
+            name='comad_params')
+
     elif opts.rabies_stage == 'analysis':
         opts.group_ica = parse_argument(opt=opts.group_ica, 
             key_value_pairs = {'apply':['true', 'false'], 'dim':int, 'random_seed':int, 'disableMigp':['true', 'false']},
             defaults = {'apply':False,'dim':0,'random_seed':1, 'disableMigp':False},
             name='group_ica')
-        opts.optimize_NPR = parse_argument(opt=opts.optimize_NPR, 
-            key_value_pairs = {'apply':['true', 'false'], 'window_size':int, 'min_prior_corr':float,
-                               'diff_thresh':float, 'max_iter':int, 'compute_max':['true', 'false']},
-            defaults = {'apply':False,'window_size':5,'min_prior_corr':0.5,'diff_thresh':0.03,'max_iter':20,'compute_max':False},
-            name='optimize_NPR')
         opts.scan_QC_thresholds = parse_scan_QC_thresholds(opts.scan_QC_thresholds)
         opts.plot_seed_frequencies = parse_dict_str(opts.plot_seed_frequencies)
 
@@ -1354,7 +1352,7 @@ def parse_argument(opt, key_value_pairs, defaults, name):
 def parse_scan_QC_thresholds(opt):
 
     # we must add "" around each key manually, as they are not encoded from the parser
-    for key in ['SBC','DR','NPR','Dice','Conf','Amp']:
+    for key in ['SBC','DR','Dice','Conf','Amp']:
         s=''
         for s_ in opt.split(key):
             s+=s_+f'"{key}"'
@@ -1378,8 +1376,8 @@ def parse_scan_QC_thresholds(opt):
 
     keys = list(opt_dict.keys())
     for key in keys:
-        if not key in ['SBC','DR','NPR']:
-            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR','NPR'.")
+        if not key in ['SBC','DR']:
+            raise ValueError(f"The key '{key}' from --scan_QC_thresholds is invalid. Must be among 'SBC','DR'.")
         sub_dict = opt_dict[key]
         if not type(sub_dict) is dict:
             raise ValueError(f"The specification '{sub_dict}' for key '{key}' is not a valid dictionary.")
