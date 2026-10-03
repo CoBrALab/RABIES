@@ -175,10 +175,17 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     MATCHING INPUTS TO MAIN ITERABLES
     '''
     
+    # the original input BOLD file, used for naming outputs and for the datasink
     select_input_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
                                                 output_names=['selected_file'],
                                                 function=match_iterables),
                                         name='select_input_bold')
+    
+    # the BOLD file formatted by prep_input_wf (oblique correction, RAS, autobox), which is fed to preprocessing
+    format_bold_node = pe.Node(Function(input_names=['scan_info', 'run', 'joined_scan_info', 'joined_run', 'joined_file_list'],
+                                                output_names=['selected_file'],
+                                                function=match_iterables),
+                                        name='format_bold')
     
     workflow.connect([
         (prep_input_wf, select_input_bold_node, [
@@ -188,11 +195,20 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         (main_split, select_input_bold_node, [
             ("scan_info", "scan_info"),
             ]),
+        (prep_input_wf, format_bold_node, [
+            ("outputnode.prep_bold_list", "joined_file_list"),
+            ("outputnode.joined_scan_info", "joined_scan_info"),
+            ]),
+        (main_split, format_bold_node, [
+            ("scan_info", "scan_info"),
+            ]),
         ])
     
     if opts.bold_only:
         select_input_bold_node.inputs.run = None
         select_input_bold_node.inputs.joined_run = None
+        format_bold_node.inputs.run = None
+        format_bold_node.inputs.joined_run = None
     else:
         run_split = pe.Node(niu.IdentityInterface(fields=['run', 'split_name']),
                             name="run_split")
@@ -207,6 +223,12 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("outputnode.joined_run", "joined_run"),
                 ]),
             (run_split, select_input_bold_node, [
+                ("run", "run"),
+                ]),
+            (prep_input_wf, format_bold_node, [
+                ("outputnode.joined_run", "joined_run"),
+                ]),
+            (run_split, format_bold_node, [
                 ("run", "run"),
                 ]),
             ])
@@ -318,7 +340,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
 
     # MAIN WORKFLOW STRUCTURE #######################################################
     workflow.connect([
-        (select_input_bold_node, bold_main_wf, [
+        (format_bold_node, bold_main_wf, [
             ("selected_file", "inputnode.bold_file"),
             ]),
         (resample_template_node, template_diagnosis, [
@@ -468,7 +490,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("registration_template", "template_inputnode.template_anat"),
                 ("registration_mask", "template_inputnode.template_mask"),
                 ]),
-            (select_input_bold_node, inho_cor_bold_main_wf, [
+            (format_bold_node, inho_cor_bold_main_wf, [
                 ("selected_file", "inputnode.bold_file"),
                 ]),
             (EPI_target_buffer, inho_cor_bold_main_wf, [
