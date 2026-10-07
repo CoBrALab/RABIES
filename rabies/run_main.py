@@ -33,7 +33,6 @@ def execute_workflow(args=None, return_workflow=False):
 
     log = prep_logging(opts, opts.output_dir)
 
-
     from .__version__ import __version__
     log.info('Running RABIES - version: '+__version__)
 
@@ -371,7 +370,7 @@ def install_template_set(template_set):
 
     from rabies.utils import run_command
     script = templates.install_script(template_set)
-    rc,c_out = run_command(f'{script} {templates.rabies_path}', verbose=True)
+    run_command(f'{script} {templates.rabies_path}', verbose=True)
     return True
 
 
