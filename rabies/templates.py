@@ -112,8 +112,7 @@ TEMPLATE_SETS = {
 
 TEMPLATE_SET_NAMES = list(TEMPLATE_SETS.keys())
 
-# the fraction of an EPI voxel a coverage mask must fill for the voxel to be kept, the
-# rule scripts/gen_SIGMA_masks.py applies to build the rat functional CSF mask
+# the fraction of an EPI voxel a coverage mask must fill for the voxel to be kept
 MASK_COVERAGE = 0.5
 
 # the set used when --template_set is not given; RABIES does not detect the species of
