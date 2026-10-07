@@ -14,7 +14,7 @@ set -euo pipefail
 out_dir=$1
 mkdir -p "$out_dir"
 
-bundle_url="https://github.com/CoBrALab/RABIES/releases/download/SIGMA-1.0/SIGMA.zip"
+bundle_url="https://github.com/CoBrALab/RABIES/releases/download/SIGMA-0.1/SIGMA.zip"
 
 curl -L --retry 5 --fail --silent --show-error "${bundle_url}" -o "${out_dir}/SIGMA.zip"
 
