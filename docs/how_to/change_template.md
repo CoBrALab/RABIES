@@ -11,10 +11,12 @@ matching your species with `--template_set` at the `preprocess` stage. The defau
 rabies preprocess bids_inputs/ preprocess_outputs/ --template_set rat
 ```
 
-RABIES does not check which species your data comes from, so selecting the right set is
-up to you. Data registered to the template of another species does not stop the
-pipeline; it produces meaningless outputs. When no set is selected, RABIES logs a warning
-at the start of preprocessing; selecting `--template_set mouse` explicitly silences it.
+```{important}
+RABIES does not check which species your data comes from. Data registered to the
+template of another species does not stop the pipeline; it produces meaningless outputs.
+When no set is selected, RABIES logs a warning at the start of preprocessing; selecting
+`--template_set mouse` explicitly silences it.
+```
 
 The set chosen at preprocessing also decides the defaults of the analysis stage:
 `--ROI_labels_file`, `--prior_maps` and the pre-drawn seeds of `--seed_list` all come

@@ -26,71 +26,33 @@ shape are much more similar.
 
 ## The SIGMA rat atlas
 
-With `--template_set rat`, RABIES uses the *in vivo* templates of the SIGMA Wistar rat
-brain templates and atlases, version 2.0 {cite}`Barriere2019-sigma`, distributed under
-the CC-BY-4.0 licence. The structural template has an isotropic resolution of 0.15 mm.
-With `--bold_only`, the SIGMA *in vivo* functional template is used instead.
+With `--template_set rat`, RABIES uses the SIGMA Wistar rat brain templates and atlases {cite}`Barriere2019-sigma` - an *in vivo*
+structural MRI template of the rat brain at 0.15 mm, accompanied with the Waxholm Space atlas of the rat brain {cite}`Kleven2023-whs`
+registered into SIGMA space by the SIGMA authors. Unlike the mouse files, the rat files are not downloaded automatically, and must be
+installed with `rabies install rat`.
 
-The structural parcellation is the Waxholm Space atlas of the rat brain
-{cite}`Kleven2023-whs`, with 222 regions. The Waxholm atlas was built from Sprague Dawley
-rats, and the SIGMA authors registered it into SIGMA space. The functional template comes
-with the SIGMA functional parcellation of 59 regions.
+The white matter and CSF masks are built from the white matter structures and ventricles of the atlas. Since these are only a few voxels
+thick in the rat, the masks are not eroded, and an EPI voxel is kept in them when the mask covers at least half of it.
 
-The rat set does not provide every file of the mouse set:
+The rat set does not provide every file of the mouse set, and the operations that depend on a missing file are disabled:
 
 | File | Mouse | Rat |
 | --- | --- | --- |
-| Brain mask | yes | yes |
 | White matter mask | yes | structural template only |
-| CSF mask | yes | yes |
 | Vascular mask | yes | no |
-| Parcellation for `--ROI_labels_file` | 356 regions | 222 structural, 59 functional |
 | ICA priors for `--prior_maps` | yes | no |
 | Pre-drawn seeds for `--seed_list` | 13 seeds | no |
 
-A file that a set does not provide is never taken from another set, since it would not
-lie in the same space. The operations that depend on it are disabled instead, or stop
-with an error:
+Confound correction therefore cannot use `vascular_signal`, nor `WM_signal` or aCompCor with `--bold_only`, and dual regression and
+neural prior recovery require providing `--prior_maps`.
 
-- Confound correction cannot use `vascular_signal`. With `--bold_only`, it also cannot use
-  `WM_signal` or the aCompCor regressors. `CSF_signal` is always available.
-- Dual regression and neural prior recovery require `--prior_maps`. Seed-based
-  connectivity, `--FC_matrix`, group ICA and `--data_diagnosis` run without it.
-- `--seed_list` only accepts paths to your own seed images.
+## The SIGMA rat functional template
 
-### How the rat files are derived
+With `--bold_only`, the SIGMA *in vivo* functional template is used instead, with the SIGMA functional atlas. It has no white matter mask,
+and its CSF mask is derived from that of the structural template.
 
-The distributed rat files are built from the SIGMA release with
-`scripts/gen_SIGMA_masks.py`. The script is run once when the bundle is built, so that
-every installation gets identical files:
+Work using the rat set should cite both SIGMA {cite}`Barriere2019-sigma` and the Waxholm atlas {cite}`Kleven2023-whs`.
 
-- The white matter mask is the union of 14 white matter structures of the structural
-  parcellation, such as the corpus callosum, fimbria and anterior commissure. It is not
-  taken from the SIGMA probabilistic white matter map, whose high-probability voxels
-  include thalamus. It is not eroded, since rat white matter tracts are only a few voxels
-  thick at 0.15 mm. The functional parcellation has no white matter structures, so the
-  functional template has no white matter mask.
-- The CSF mask is the ventricular system of the structural parcellation (the ventricles,
-  the 4th ventricle and the central canal), as the mouse CSF mask is that of the DSURQE
-  atlas. It is not taken from the SIGMA probabilistic CSF map, whose high-probability
-  voxels cover the surface of the brainstem and cerebellum rather than the ventricles. It
-  is not eroded, since rat ventricles are only one or two voxels thick at 0.15 mm, and
-  eroding removes nearly all of the lateral ventricles. The functional parcellation has
-  no ventricles, so the functional CSF mask keeps the voxels of the functional template
-  that the structural CSF mask covers by at least half.
-- The brain masks are rebinarized at 0.5, and the label descriptions are converted to
-  CSV. The templates and parcellations are unmodified copies.
-
-Since the rat white matter and CSF masks are not eroded, they are resampled onto the EPI
-differently from the mouse masks. A mask sampled at the centre of each EPI voxel keeps
-every voxel the structure crosses at its centre, which for structures this thin keeps
-many voxels that are mostly other tissue. Instead, an EPI voxel is kept when the mask
-covers at least half of it, the rule used to build the functional CSF mask. A mask
-provided with `--WM_mask` or `--CSF_mask` is sampled at the voxel centres, as the mouse
-masks are.
-
-Work using the rat set should cite both SIGMA {cite}`Barriere2019-sigma` and the Waxholm
-atlas {cite}`Kleven2023-whs`.
 
 ```{seealso}
 [How to override the default common space template](../how_to/change_template.md) for
