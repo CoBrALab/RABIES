@@ -151,7 +151,9 @@ setup(
     scripts=[
         'scripts/rabies',
         'scripts/gen_DSURQE_masks.py',
+        'scripts/gen_SIGMA_masks.py',
         'scripts/install_DSURQE.sh',
+        'scripts/install_SIGMA.sh',
         'scripts/error_check_rabies.py',
         'scripts/zeropad',
         'scripts/preprocess_scripts/multistage_otsu_cor.py',

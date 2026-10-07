@@ -84,12 +84,16 @@ ENV FSLOUTPUTTYPE=NIFTI_GZ
 # adding 'agg' as default backend to avoid matplotlib errors
 ENV MPLBACKEND agg
 
-# pre-install the template defaults
+# pre-install the template sets, so that containers on nodes without network access
+# can use either species
 ENV XDG_DATA_HOME=${HOME}/.local/share
 
 RUN micromamba run -n base install_DSURQE.sh $XDG_DATA_HOME/rabies
+RUN micromamba run -n base install_SIGMA.sh $XDG_DATA_HOME/rabies
 
 # Run a basic test
 RUN micromamba run -n base error_check_rabies.py --complete
+# and the main tests again on token data drawn from the rat template set
+RUN micromamba run -n base error_check_rabies.py --template_set rat
 
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "rabies"]

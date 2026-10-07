@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 import pathos.multiprocessing as multiprocessing  # Better multiprocessing
-from . import run_main
+from . import templates
 
 def get_parser():
     """Build parser object"""
@@ -69,6 +69,27 @@ def get_parser():
             "Desrosiers-Gregoire et al. 2024.\n" 
             "\n",
         formatter_class=argparse.RawTextHelpFormatter)
+
+    install = subparsers.add_parser("install",
+        help=
+            "\n"
+            "Download and install a set of commonspace template files. The mouse set is \n"
+            "installed automatically the first time it is needed, but the rat set is not, \n"
+            "and must be installed with this command. Use it to populate the template cache \n"
+            "ahead of time when the machine running the pipeline has no network access. \n"
+            "The container image already includes both sets.\n"
+            "\n",
+        formatter_class=argparse.RawTextHelpFormatter)
+    install.add_argument(
+        'template_set', action='store', type=str,
+        choices=templates.TEMPLATE_SET_NAMES+['all'],
+        help=
+            "The template set to install, or 'all' to install every set.\n"
+            + templates.describe_sets() +
+            "Files are installed under $XDG_DATA_HOME/rabies, or ~/.local/share/rabies \n"
+            "when XDG_DATA_HOME is unset. Sets that are already complete are left alone.\n"
+            "\n"
+        )
 
     ####Execution
     g_execution = parser.add_argument_group(
@@ -578,59 +599,75 @@ def get_parser():
     g_commonspace = preprocess.add_argument_group(
         title='Commonspace Template Files', 
         description=
-            "Specify commonspace template and associated mask files. By default, RABIES\n"
-            "provides the mouse DSURQE atlas\n"
-            "https://www.mouseimaging.ca/repo/DSURQE_40micron/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/.\n"
+            "Select the commonspace template set matching the species under study, or specify\n"
+            "individual template and mask files. Files given individually override the\n"
+            "corresponding file from the selected --template_set.\n"
+        )
+    g_commonspace.add_argument(
+        '--template_set', action='store', type=str,
+        default=None, choices=templates.TEMPLATE_SET_NAMES,
+        help=
+            "Select the set of commonspace template files to use. Each set provides the\n"
+            "anatomical template together with the masks and atlas files aligned with it.\n"
+            + templates.describe_sets() +
+            "Outside the container image, the rat set is not installed together with RABIES; \n"
+            "run 'rabies install rat' before using it, in particular on compute nodes without \n"
+            "network access. \n"
+            f"(default: {templates.DEFAULT_TEMPLATE_SET}; a warning is logged when no set is selected)\n"
+            "\n"
         )
     g_commonspace.add_argument(
         '--anat_template', action='store', type=Path,
-        default=run_main.DSURQE_ANAT,
+        default=None,
         help=
             "Anatomical file for the commonspace atlas.\n"
-            "(default: %(default)s)\n"
+            "(default: the template provided by --template_set)\n"
             "\n"
         )
     g_commonspace.add_argument(
         '--brain_mask', action='store', type=Path,
-        default=run_main.DSURQE_MASK,
+        default=None,
         help=
             "Brain mask aligned with the template.\n"
-            "(default: %(default)s)\n"
+            "Required when --anat_template is provided, since the mask must match the \n"
+            "template it is used with. \n"
+            "(default: the brain mask provided by --template_set)\n"
             "\n"
         )
     g_commonspace.add_argument(
         '--WM_mask', action='store', type=Path,
-        default=run_main.DSURQE_WM,
+        default=None,
         help=
             "(OPTIONAL) White matter mask aligned with the template.\n"
-            "If no input is provided and the default --anat_template is not used, \n"
-            "the core pipeline will run, but downstream functions that rely on \n"
-            "this file will be disabled. \n"
-            "(default: %(default)s)\n"
+            "If no input is provided and --anat_template is used, or the selected \n"
+            "--template_set provides no white matter mask, the core pipeline will run, \n"
+            "but downstream functions that rely on this file will be disabled. \n"
+            "(default: the white matter mask provided by --template_set)\n"
             "\n"
         )
     g_commonspace.add_argument(
         '--CSF_mask', action='store', type=Path,
-        default=run_main.DSURQE_CSF,
+        default=None,
         help=
             "(OPTIONAL) CSF mask aligned with the template.\n"
-            "If no input is provided and the default --anat_template is not used, \n"
-            "the core pipeline will run, but downstream functions that rely on \n"
-            "this file will be disabled. \n"
-            "(default: %(default)s)\n"
+            "If no input is provided and --anat_template is used, or the selected \n"
+            "--template_set provides no CSF mask, the core pipeline will run, \n"
+            "but downstream functions that rely on this file will be disabled. \n"
+            "(default: the CSF mask provided by --template_set)\n"
             "\n"
         )
     g_commonspace.add_argument(
         '--vascular_mask', action='store', type=Path,
-        default=run_main.DSURQE_VASC,
+        default=None,
         help=
             "(OPTIONAL) Can provide a mask of major blood vessels to compute associated nuisance timeseries.\n"
-            "The default mask was generated by applying MELODIC ICA and selecting the resulting \n"
-            "component mapping onto major brain vessels.\n"
-            "If no input is provided and the default --anat_template is not used, \n"
-            "the core pipeline will run, but downstream functions that rely on \n"
-            "this file will be disabled. \n"
-            "(default: %(default)s)\n"
+            "The mouse default mask was generated by applying MELODIC ICA and selecting the resulting \n"
+            "component mapping onto major brain vessels. No vascular mask is available for the rat \n"
+            "template set. \n"
+            "If no input is provided and --anat_template is used, or the selected \n"
+            "--template_set provides no vascular mask, the core pipeline will run, \n"
+            "but downstream functions that rely on this file will be disabled. \n"
+            "(default: the vascular mask provided by --template_set)\n"
             "\n"
         )
 
@@ -929,18 +966,20 @@ def get_parser():
         )
     analysis.add_argument(
         '--prior_maps', action='store', type=Path,
-        default=run_main.DSURQE_ICA,
+        default=None,
         help=
             "Provide a 4D nifti image with a series of spatial priors representing common sources of\n"
             "signal (e.g. ICA components from a group-ICA run). This 4D prior map file will be used for \n"
             "Dual regression, Dual ICA and --data_diagnosis. The RABIES default corresponds to a MELODIC \n"
             "run on a combined group of anesthetized-ventilated and awake mice. Confound correction \n"
             "consisted of highpass at 0.01 Hz, FD censoring at 0.03mm, DVARS censoring, and \n"
-            "mot_6,WM_signal,CSF_signal as regressors. This default is only applied when the RABIES \n"
-            "default --anat_template (or its --bold_only counterpart) was used for preprocessing; \n"
-            "if a custom --anat_template was provided instead, --prior_maps is left empty, since the \n"
-            "default prior maps no longer match the template.\n"
-            "(default: %(default)s)\n"
+            "mot_6,WM_signal,CSF_signal as regressors. This default is only applied when the data was \n"
+            "registered to the template of its --template_set during preprocessing; if a custom \n"
+            "--anat_template was provided instead, --prior_maps is left empty, since the default \n"
+            "prior maps no longer match the template. No prior maps are available for the rat \n"
+            "template set, and this option must then be provided explicitly for Dual regression, \n"
+            "Dual ICA and neural prior recovery.\n"
+            "(default: the prior maps of the --template_set used during preprocessing)\n"
             "\n"
         )
     analysis.add_argument(
@@ -1040,12 +1079,14 @@ def get_parser():
         help=
             "This parameter manages the list of anatomical seeds for seed-based connectivity (e.g. --seed_list seed1 seed2 ...). \n"
             "A connectivity map is computed for each seed using pearson correlation with the mean seed timecourse across voxels. \n"
-            "The following list of pre-downloaded seeds can be selected with the following syntax: ACA_seed, \n"
+            "With the mouse --template_set, the following list of pre-downloaded seeds can be selected \n"
+            "with the following syntax: ACA_seed, \n"
             "ECT_AI_seed, HY_seed, ORB_limbic_seed, SS_frontal_seed, AMYG_seed, RSP_seed, THAL_seed, \n"
             "basal_ganglia_seed, HIP_seed, MO_seed, SS_dorsal_seed, VIS_seed. \n"
             "These seeds are accessible online https://zenodo.org/records/18611133/files/DSURQE_seeds.zip, \n"
             "were manually drawn on the left hemisphere of the DSURQE template and uses terminology from the \n"
             "Allen brain parcellation (see info_seeds.txt). \n"
+            "No pre-drawn seeds are available for the rat --template_set. \n"
             "Alternatively, it is possible to provide the path to an external Nifti file corresponding to a binary mask \n"
             "highlighting a seed region, but this image must overlap with the template provided with --anat_template.\n"
             "(default: %(default)s)\n"
@@ -1081,14 +1122,16 @@ def get_parser():
         )
     analysis.add_argument(
         '--ROI_labels_file', action='store', type=Path,
-        default=run_main.DSURQE_LABELS,
+        default=None,
         help=
             "Labels file providing the anatomical parcellation for --FC_matrix. \n"
             "The nifti file must overlap with the --anat_template file from preprocessing. \n"
-            "By default, RABIES uses the DSURQE atlas if using the default template.  \n"
-            "The parcellation includes 356 ROIs, and label annotations are documented in \n"
-            "https://github.com/CoBrALab/RABIES/releases/download/0.5.1/DSURQE_40micron_R_mapping.csv.\n"
-            "(default: %(default)s)\n"
+            "By default, RABIES uses the atlas of the --template_set used during preprocessing: \n"
+            "the DSURQE parcellation for mouse, which includes 356 ROIs and whose label \n"
+            "annotations are documented in \n"
+            "https://github.com/CoBrALab/RABIES/releases/download/0.5.1/DSURQE_40micron_R_mapping.csv, \n"
+            "and the SIGMA parcellation for rat.  \n"
+            "(default: the labels file of the --template_set used during preprocessing)\n"
             "\n"
         )    
     analysis.add_argument(
@@ -1221,6 +1264,12 @@ def read_parser(parser, args):
         opts = parser.parse_args(args)
 
     if opts.rabies_stage == 'preprocess':
+        # record whether the set was selected explicitly, which conflicts with inheriting
+        # the template files of a previous run, before filling in the default
+        opts.explicit_template_set = opts.template_set is not None
+        if opts.template_set is None:
+            opts.template_set = templates.DEFAULT_TEMPLATE_SET
+
         if not type(opts.bids_filter) is dict:
             # read as a json file
             import json

@@ -1,5 +1,10 @@
 # Built-in commonspace template and atlas
 
+RABIES ships two sets of commonspace template files, selected at the `preprocess` stage
+with `--template_set`: `mouse`, the default, and `rat`. Each set groups a structural
+template, an EPI template used with `--bold_only`, and the masks and atlas files aligned
+with them, so that every file used by a run lies in the same common space.
+
 ## The DSURQE mouse atlas
 
 By default, RABIES uses the DSURQE mouse atlas {cite}`Dorr2008-cc` - a high-resolution *ex vivo* structural MRI average of the mouse brain
@@ -19,7 +24,39 @@ Providing an EPI template as target greatly improves the robustness of EPI regis
 shape are much more similar. 
 
 
+## The SIGMA rat atlas
+
+With `--template_set rat`, RABIES uses the SIGMA Wistar rat brain templates and atlases {cite}`Barriere2019-sigma` - an *in vivo*
+structural MRI template of the rat brain at 0.15 mm, accompanied with the Waxholm Space atlas of the rat brain {cite}`Kleven2023-whs`
+registered into SIGMA space by the SIGMA authors. Unlike the mouse files, the rat files are not downloaded automatically, and must be
+installed with `rabies install rat`.
+
+The white matter and CSF masks are built from the white matter structures and ventricles of the atlas. Since these are only a few voxels
+thick in the rat, the masks are not eroded, and an EPI voxel is kept in them when the mask covers at least half of it.
+
+The rat set does not provide every file of the mouse set, and the operations that depend on a missing file are disabled:
+
+| File | Mouse | Rat |
+| --- | --- | --- |
+| White matter mask | yes | structural template only |
+| Vascular mask | yes | no |
+| ICA priors for `--prior_maps` | yes | no |
+| Pre-drawn seeds for `--seed_list` | 13 seeds | no |
+
+Confound correction therefore cannot use `vascular_signal`, nor `WM_signal` or aCompCor with `--bold_only`, and dual regression and
+neural prior recovery require providing `--prior_maps`.
+
+## The SIGMA rat functional template
+
+With `--bold_only`, the SIGMA *in vivo* functional template is used instead, with the SIGMA functional atlas. It has no white matter mask,
+and its CSF mask is derived from that of the structural template.
+
+Work using the rat set should cite both SIGMA {cite}`Barriere2019-sigma` and the Waxholm atlas {cite}`Kleven2023-whs`.
+
+
 ```{seealso}
 [How to override the default common space template](../how_to/change_template.md) for
-customising the input template and associated files.
+customising the input template and associated files, and
+[How to install RABIES](../how_to/install.md#install-the-template-files) for installing
+the rat files.
 ```
