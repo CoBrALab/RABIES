@@ -181,7 +181,7 @@ class DatasetDiagnosisInputSpec(BaseInterfaceInputSpec):
     rabies_data_type = traits.Int(
         desc="Integer specifying SimpleITK data type.")
     prior_bold_idx = traits.List(
-        desc="The index for the ICA components that correspond to bold sources, matching the DR/NPR network ordering.")
+        desc="The index for the ICA components that correspond to bold sources, matching the DR network ordering.")
 
 
 class DatasetDiagnosisOutputSpec(TraitedSpec):
@@ -257,12 +257,10 @@ class DatasetDiagnosis(BaseInterface):
 
         FC_maps_dict={}
         FC_maps_dict['DR']=[]
-        FC_maps_dict['NPR']=[]
         FC_maps_dict['SBC']=[]
         
         DR_conf_corr_dict={}
         DR_conf_corr_dict['DR']=[]
-        DR_conf_corr_dict['NPR']=[]
         DR_conf_corr_dict['SBC']=[]
 
         for scan_data in merged:
@@ -283,8 +281,6 @@ class DatasetDiagnosis(BaseInterface):
 
             if scan_data['DR_bold'] is not None:
                 FC_maps_dict['DR'].append(scan_data['DR_bold'])
-            if scan_data['NPR_maps'] is not None:
-                FC_maps_dict['NPR'].append(scan_data['NPR_maps'])
             if scan_data['seed_map_list'] is not None:
                 FC_maps_dict['SBC'].append(scan_data['seed_map_list'])
 
@@ -292,8 +288,8 @@ class DatasetDiagnosis(BaseInterface):
             DR_confound_time = scan_data['DR_confound_time']
             if DR_confound_time is not None:
                 for network_time,key in zip(
-                    [scan_data['DR_network_time'],scan_data['NPR_network_time'],scan_data['SBC_network_time']],
-                    ['DR','NPR','SBC']):
+                    [scan_data['DR_network_time'],scan_data['SBC_network_time']],
+                    ['DR','SBC']):
                     if network_time is not None:
                         # for each network, compute its confound correlation as mean across all DR confound components
                         corr_list = [np.abs(np.corrcoef(network_time[:,[i]].T,DR_confound_time.T)[0,1:]).mean() for i in range(network_time.shape[1])]
@@ -441,38 +437,6 @@ class DatasetDiagnosis(BaseInterface):
                     corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
 
                     generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='DR')
-
-        if len(FC_maps_dict['NPR'])>0:
-            NPR_maps_list=np.array(FC_maps_dict['NPR'])
-            if self.inputs.group_avg_prior:
-                num_priors = NPR_maps_list.shape[1]
-                prior_maps = np.median(NPR_maps_list,axis=0)[:,non_zero_voxels]
-            elif prior_map_vectors is None:
-                raise ValueError(f"prior_map_vectors is empty with group_avg_prior=False.")
-            else:
-                prior_maps = prior_map_vectors[:,non_zero_voxels]
-                num_priors = prior_maps.shape[0]
-
-            for i in range(num_priors):
-                if self.inputs.network_weighting=='relative':
-                    network_var=None
-                else:
-                    # network amplitude as L2-norm of a connectivity map
-                    network_var = np.sqrt((NPR_maps_list[:,i,:] ** 2).sum(axis=1))
-
-                NPR_i_scan_QC_thresholds=prep_QC_thresholds_i(scan_QC_thresholds, analysis='NPR', network_i=i, num_priors=num_priors)
-
-                FC_maps = NPR_maps_list[:,i,non_zero_voxels]
-                DR_conf_corr = np.array(DR_conf_corr_dict['NPR'])[:,i] if len(DR_conf_corr_dict['NPR'])>0 else None
-                QC_inclusion = distribution_network_i(i,prior_maps[i,:],FC_maps,network_var,DR_conf_corr,FD_DVARS_corr,total_CRsd, mean_FD_array, tdof_array, scan_name_list, self.inputs.outlier_threshold, out_dir_dist,scan_QC_thresholds=NPR_i_scan_QC_thresholds, analysis_prefix='NPR')
-
-                # compute group stats only if there is at least 3 scans
-                if QC_inclusion.sum()>2:
-                    # apply QC inclusion
-                    FC_maps_ = FC_maps[QC_inclusion,:]
-                    corr_variable_ = [var[QC_inclusion,:] for var in corr_variable]
-
-                    generate_dataset_QC_network_i(i,FC_maps_,prior_maps[i,:],non_zero_mask, corr_variable_, variable_name, template_file, out_dir_parametric, out_dir_non_parametric, analysis_prefix='NPR')
 
         if len(FC_maps_dict['SBC'])>0:
             seed_maps_list=np.array(FC_maps_dict['SBC'])
