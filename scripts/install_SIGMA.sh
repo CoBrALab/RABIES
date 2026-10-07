@@ -5,6 +5,11 @@ set -euo pipefail
 # and atlases (Barriere et al. 2019, CC-BY-4.0) with scripts/gen_SIGMA_masks.py.
 # Unlike the mouse set, this one is not installed automatically when a run needs it;
 # `rabies install rat` runs this script. The container image runs it at build time.
+#
+# The bundle is downloaded rather than the SIGMA archive itself
+# (https://zenodo.org/records/10635831) because the WM and CSF masks and the label CSV
+# are derived from it by gen_SIGMA_masks.py, so every installation gets identical files
+# without running the derivation.
 
 out_dir=$1
 mkdir -p "$out_dir"
