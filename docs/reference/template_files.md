@@ -81,6 +81,14 @@ every installation gets identical files:
 - The brain masks are rebinarized at 0.5, and the label descriptions are converted to
   CSV. The templates and parcellations are unmodified copies.
 
+Since the rat white matter and CSF masks are not eroded, they are resampled onto the EPI
+differently from the mouse masks. A mask sampled at the centre of each EPI voxel keeps
+every voxel the structure crosses at its centre, which for structures this thin keeps
+many voxels that are mostly other tissue. Instead, an EPI voxel is kept when the mask
+covers at least half of it, the rule used to build the functional CSF mask. A mask
+provided with `--WM_mask` or `--CSF_mask` is sampled at the voxel centres, as the mouse
+masks are.
+
 Work using the rat set should cite both SIGMA {cite}`Barriere2019-sigma` and the Waxholm
 atlas {cite}`Kleven2023-whs`.
 

@@ -122,6 +122,39 @@ class TestRegistry(unittest.TestCase):
             self.assertIn(name, description)
 
 
+class TestCoverageResampled(unittest.TestCase):
+    # the rat WM and CSF masks are not eroded, so sampling them at the centres of the EPI
+    # voxels keeps voxels that are mostly tissue
+
+    def test_the_rat_wm_and_csf_masks_are_resampled_by_coverage(self):
+        opts = preprocess_options(template_set='rat')
+        templates.resolve_options(opts, StubLog())
+        self.assertTrue(templates.coverage_resampled(opts, 'WM_mask'))
+        self.assertTrue(templates.coverage_resampled(opts, 'CSF_mask'))
+
+    def test_the_rat_epi_csf_mask_is_resampled_by_coverage(self):
+        opts = preprocess_options(template_set='rat', bold_only=True)
+        templates.resolve_options(opts, StubLog())
+        self.assertTrue(templates.coverage_resampled(opts, 'CSF_mask'))
+
+    def test_the_brain_mask_is_not(self):
+        opts = preprocess_options(template_set='rat')
+        templates.resolve_options(opts, StubLog())
+        self.assertFalse(templates.coverage_resampled(opts, 'brain_mask'))
+
+    def test_the_eroded_mouse_masks_are_not(self):
+        opts = preprocess_options(template_set='mouse')
+        templates.resolve_options(opts, StubLog())
+        self.assertFalse(templates.coverage_resampled(opts, 'WM_mask'))
+        self.assertFalse(templates.coverage_resampled(opts, 'CSF_mask'))
+
+    def test_a_mask_provided_by_the_user_is_not(self):
+        opts = preprocess_options(template_set='rat', CSF_mask='my_csf.nii.gz')
+        templates.resolve_options(opts, StubLog())
+        self.assertFalse(templates.coverage_resampled(opts, 'CSF_mask'))
+        self.assertTrue(templates.coverage_resampled(opts, 'WM_mask'))
+
+
 class TestResolveOptions(unittest.TestCase):
 
     def test_defaults_come_from_the_selected_set(self):

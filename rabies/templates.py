@@ -35,6 +35,9 @@ TEMPLATE_SETS = {
         'auto_install': True,
         'install_script': 'install_DSURQE.sh',
         'seed_names': MOUSE_SEED_NAMES,
+        # the WM and CSF masks are eroded, which keeps them inside the structures when
+        # they are sampled at the centres of the EPI voxels
+        'coverage_masks': [],
         'anat': {
             'anat_template': f"{rabies_path}/DSURQE_40micron_average.nii.gz",
             'brain_mask': f"{rabies_path}/DSURQE_40micron_mask.nii.gz",
@@ -66,6 +69,10 @@ TEMPLATE_SETS = {
         'auto_install': False,
         'install_script': 'install_SIGMA.sh',
         'seed_names': [],
+        # the WM and CSF masks are not eroded, and the structures are only a few mask
+        # voxels thick, so EPI voxels the structures merely cross would be kept if the masks
+        # were sampled at their centres
+        'coverage_masks': ['WM_mask', 'CSF_mask'],
         'anat': {
             'anat_template': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_template.nii.gz",
             'brain_mask': f"{rabies_path}/SIGMA/SIGMA_InVivo_Anatomical_Brain_mask.nii.gz",
@@ -104,6 +111,10 @@ TEMPLATE_SETS = {
     }
 
 TEMPLATE_SET_NAMES = list(TEMPLATE_SETS.keys())
+
+# the fraction of an EPI voxel a coverage mask must fill for the voxel to be kept, the
+# rule scripts/gen_SIGMA_masks.py applies to build the rat functional CSF mask
+MASK_COVERAGE = 0.5
 
 # the set used when --template_set is not given; RABIES does not detect the species of
 # the data, so falling back to it is logged as a warning
@@ -178,6 +189,17 @@ def install_script(template_set):
 def auto_install(template_set):
     """Return whether a template set is installed on demand when a run needs it."""
     return TEMPLATE_SETS[template_set]['auto_install']
+
+
+def coverage_resampled(opts, role):
+    """Return whether a mask is resampled onto the EPI by the fraction of each voxel it covers.
+
+    Only the set's own masks are, since a mask provided with --WM_mask or --CSF_mask
+    may be eroded already.
+    """
+    if role not in TEMPLATE_SETS[opts.template_set]['coverage_masks']:
+        return False
+    return str(getattr(opts, role)) == resolve(opts.template_set, role, bold_only=opts.bold_only)
 
 
 def seed_file(template_set, seed, bold_only=False):
