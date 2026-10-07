@@ -165,6 +165,19 @@ class TestResolveOptions(unittest.TestCase):
                 self.assertEqual(getattr(opts, role),
                                  templates.resolve(name, role))
 
+    def test_the_rat_set_resolves_to_the_sigma_files(self):
+        # compared against the install directory rather than resolve(), which would
+        # agree with resolve_options even if the rat set pointed at the mouse files
+        for bold_only in [False, True]:
+            opts = preprocess_options(template_set='rat', bold_only=bold_only)
+            templates.resolve_options(opts, StubLog())
+            for role in templates.PREPROCESS_ROLES:
+                path = getattr(opts, role)
+                if path is not None:
+                    self.assertTrue(path.startswith(f"{templates.rabies_path}/SIGMA/"),
+                                    f"{role} resolved to {path}")
+            self.assertIsNotNone(opts.anat_template)
+
     def test_bold_only_selects_the_epi_variant(self):
         opts = preprocess_options(template_set='rat', bold_only=True)
         templates.resolve_options(opts, StubLog())
