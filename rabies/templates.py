@@ -211,6 +211,7 @@ def seed_file(template_set, seed, bold_only=False):
 
 
 def _seed_path(variant, seed):
+    """Return the path of a seed within a variant of a set, or None if it ships no seeds."""
     if variant['seed_dir'] is None:
         return None
     return f"{variant['seed_dir']}/{seed}{variant['seed_suffix']}"
@@ -236,11 +237,13 @@ def missing_files(template_set):
 
 
 def resolve_options(opts, log):
-    # Fill in the template files that the user did not provide from the selected
-    # --template_set. A file given explicitly overrides the one from the set; a role
-    # that neither provides is left as None, which blocks the downstream operations
-    # depending on it while still allowing preprocessing to run.
-    # The roles the user provided are recorded first, since the loop below overwrites
+    """Fill in the template files the user did not provide from the selected --template_set.
+
+    A file given explicitly overrides the one from the set; a role that neither provides
+    is left as None, which blocks the downstream operations depending on it while still
+    allowing preprocessing to run.
+    """
+    # the roles the user provided are recorded first, since the loop below overwrites
     # them with the resolved files.
     provided = [role for role in PREPROCESS_ROLES if getattr(opts, role) is not None]
 
