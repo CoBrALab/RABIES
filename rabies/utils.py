@@ -756,6 +756,8 @@ def generate_token_data(tmppath, number_scans, template_set=None):
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
     
+    # two of the default --prior_bold_idx, the components of the mouse prior maps that
+    # are BOLD networks rather than confounds
     network_idx = [5, 19]
     if melodic_file is None:
         # the template set ships no prior maps, so token ones are built from the labels
