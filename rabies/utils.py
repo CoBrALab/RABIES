@@ -480,11 +480,16 @@ def resample_mask_by_coverage(transforms, inverses, mask_file, ref_file, output_
     size = ref_img.GetSize()
     coverage = fine_mask.reshape(size[2], subdivisions[2], size[1], subdivisions[1],
                                  size[0], subdivisions[0]).mean(axis=(1, 3, 5))
-    out_img = sitk.GetImageFromArray((coverage >= min_coverage).astype('int16'), isVector=False)
-    out_img.CopyInformation(ref_img)
-    sitk.WriteImage(out_img, output_filename)
     os.remove(fine_grid_file)
     os.remove(fine_mask_file)
+    kept = coverage >= min_coverage
+    # confound correction skips a regressor whose mask is empty with only a warning, so
+    # the run would finish without the WM_signal or CSF_signal the user asked for
+    if kept.sum() == 0:
+        raise ValueError(f"{mask_file} is empty once resampled onto {ref_file}.")
+    out_img = sitk.GetImageFromArray(kept.astype('int16'), isVector=False)
+    out_img.CopyInformation(ref_img)
+    sitk.WriteImage(out_img, output_filename)
 
 
 def antsApplyTransforms(transforms, inverses, input_image, ref_image, output_filename, interpolation, rabies_data_type=8, clip_negative=False):
