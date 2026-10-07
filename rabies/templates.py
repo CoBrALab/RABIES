@@ -120,6 +120,10 @@ MASK_COVERAGE = 0.5
 # the data, so falling back to it is logged as a warning
 DEFAULT_TEMPLATE_SET = 'mouse'
 
+# the set of runs preprocessed before --template_set existed, which were necessarily
+# run with the mouse files that were the only ones available
+LEGACY_TEMPLATE_SET = 'mouse'
+
 
 def describe_sets():
     """Return a help-text listing of the available template sets."""
@@ -129,9 +133,8 @@ def describe_sets():
 
 def get_template_set(preprocess_opts):
     """Return the template set a preprocessing run was registered to."""
-    # runs preprocessed before --template_set existed carry no such attribute, and
-    # were necessarily run with the mouse files that were the only ones available
-    return getattr(preprocess_opts, 'template_set', 'mouse')
+    # runs preprocessed before --template_set existed carry no such attribute
+    return getattr(preprocess_opts, 'template_set', LEGACY_TEMPLATE_SET)
 
 
 def get_variant(template_set, bold_only=False):
