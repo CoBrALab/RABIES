@@ -549,14 +549,6 @@ def get_parser():
             "\n"
         )
     g_stc.add_argument(
-        '--TR', type=str, default='auto',
-        help=
-            "Specify repetition time (TR) in seconds. (e.g. --TR 1.2). 'auto' will read the TR from \n"
-            "the nifti header. \n"
-            "(default: %(default)s)\n"
-            "\n"
-        )
-    g_stc.add_argument(
         '--args_3dTshift', type=str, default='-Fourier -tpattern alt-z',
         help=
             "Specify a string of custom parameters that is fed directly into the 3dTshift CLI. \n"
