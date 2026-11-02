@@ -86,6 +86,12 @@ removes the need for the `.pkl` file. This requires reproducing the RABIES
 [output structure and file naming](../reference/outputs.md) exactly, and is
 generally more work than running a SHAM preprocessing.
 
+Similarly, `rabies analysis --read_datasink` reads the confound correction outputs
+from the `confound_correction_datasink` folder, and the preprocessing outputs from the
+datasinks of the preprocessing folder used at the confound correction stage. This mode
+does not support `--data_diagnosis`, nor confound correction outputs generated with
+`--keep_EPI_average`, since these require information that is not saved in the datasinks.
+
 ## Still not covered?
 
 If your use case needs settings that are not exposed, open a

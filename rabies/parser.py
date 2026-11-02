@@ -920,6 +920,25 @@ def get_parser():
             "\n"
         )
     analysis.add_argument(
+        '--read_datasink', dest='read_datasink', action='store_true', default=False,
+        help=
+            "\n"
+            "Choose this option to read confound correction outputs (and the associated preprocessing \n"
+            "outputs) from datasinks instead of the saved workflow graphs. The preprocessing datasinks \n"
+            "are read from the preprocessing output folder registered at the confound correction stage. \n"
+            "The targetted datasink folders must follow the structure of RABIES outputs. \n"
+            "This option is not compatible with --data_diagnosis, or with confound correction outputs \n"
+            "generated with --keep_EPI_average, since these require information which is not saved \n"
+            "in the datasinks.\n"
+            "Required files/folders:\n"
+            "* From the preprocessing output folder: rabies_preprocess.pkl, bold_datasink/, motion_datasink/ \n"
+            "  and transforms_datasink/\n"
+            "* From the confound correction output folder: rabies_confound_correction.pkl and \n"
+            "  confound_correction_datasink/\n"
+            "(default: %(default)s)\n"
+            "\n"
+        )
+    analysis.add_argument(
         '--prior_maps', action='store', type=Path,
         default=run_main.DSURQE_ICA,
         help=

@@ -9,7 +9,16 @@ from rabies.analysis_pkg.analysis_wf import init_analysis_wf
 from rabies.utils import fill_split_dict, get_workflow_dict
 
 
-def init_main_analysis_wf(cr_opts, analysis_opts):
+def init_main_analysis_wf(preprocess_opts, cr_opts, analysis_opts):
+
+    if analysis_opts.read_datasink:
+        # the CR_data_dict and the diagnosis maps from confound correction are not saved in the datasinks
+        if analysis_opts.data_diagnosis:
+            raise ValueError(
+                '--data_diagnosis is not compatible with --read_datasink, since it requires confound correction outputs which are not saved in the datasinks.')
+        if cr_opts.keep_EPI_average:
+            raise ValueError(
+                '--read_datasink is not compatible with confound correction outputs generated with --keep_EPI_average, since the EPI average to remove before analysis is not saved in the datasinks.')
 
     if analysis_opts.ROI_labels_file is None and analysis_opts.FC_matrix and analysis_opts.ROI_type=='parcellated':
         raise ValueError(
@@ -35,7 +44,10 @@ def init_main_analysis_wf(cr_opts, analysis_opts):
 
     conf_output = os.path.abspath(str(analysis_opts.confound_correction_out))
 
-    split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts)
+    if analysis_opts.read_datasink:
+        split_dict, split_name_list, target_list = read_confound_datasinks(conf_output, preprocess_opts, cr_opts)
+    else:
+        split_dict, split_name_list, target_list = read_confound_workflow(conf_output, cr_opts)
 
     number_functional_scans = len(split_name_list)
     if number_functional_scans==0:
@@ -432,8 +444,6 @@ def to_analysis_space(atlas_file, anat_ref_file,
 
 
 def read_confound_workflow(conf_output, cr_opts):
-    from nipype import logging
-    log = logging.getLogger('nipype.workflow')
 
     conf_workflow_file = f'{conf_output}/rabies_confound_correction_workflow.pkl'
 
@@ -486,6 +496,64 @@ def read_confound_workflow(conf_output, cr_opts):
 
     target_list = list(match_targets.keys())
 
+    split_name = remove_empty_scans(split_dict, split_name)
+
+    return split_dict, split_name, target_list
+
+
+def read_confound_datasinks(conf_output, preprocess_opts, cr_opts):
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
+    from rabies.confound_correction_pkg.main_wf import read_preproc_datasinks, get_files_from_tree
+
+    # the preprocessing outputs are read from the preprocessing datasinks, as with confound_correction --read_datasink
+    preproc_output = os.path.abspath(str(cr_opts.preprocess_out))
+    split_dict, split_name, target_list = read_preproc_datasinks(preproc_output, nativespace_analysis=cr_opts.nativespace_analysis, preprocess_opts=preprocess_opts)
+
+    # match each target to its folder in the confound correction datasink
+    directory_dict = {'cleaned_path':'cleaned_timeseries'}
+    if cr_opts.nativespace_analysis and cr_opts.resample_to_commonspace:
+        directory_dict['cleaned_timeseries_commonspace'] = 'cleaned_timeseries_commonspace'
+
+    for target, folder in directory_dict.items():
+        target_dir = f'{conf_output}/confound_correction_datasink/{folder}'
+        if not os.path.isdir(target_dir):
+            raise ValueError(f"The directory {target_dir} does not exist. Make sure that all required "
+                "datasink outputs are available.")
+        target_list.append(target)
+        file_list = get_files_from_tree(target_dir)
+        for split in split_name:
+            for f in file_list:
+                if split in f:
+                    split_dict[split][target]=f
+                    break
+
+    # scans which were not part of the confound correction run have no cleaned timeseries
+    missing_list = [split for split in split_name if not 'cleaned_path' in split_dict[split]]
+    if len(missing_list)>0:
+        scan_list_str = ''
+        for name in missing_list:
+            scan_list_str += f'\n        - {name}'
+            del split_dict[name]
+        log.info(f"""
+        The following scans from preprocessing were not found in the confound correction datasink, and are not included for analysis: {scan_list_str}
+                    """)
+    split_name = [split for split in split_name if not split in missing_list]
+
+    # the CR_data_dict is not available from the datasinks; it is only needed with --keep_EPI_average or --data_diagnosis, which are prevented
+    target_list.append('data_dict')
+    for split in split_name:
+        split_dict[split]['data_dict'] = {}
+
+    split_name = remove_empty_scans(split_dict, split_name)
+
+    return split_dict, split_name, target_list
+
+
+def remove_empty_scans(split_dict, split_name):
+    from nipype import logging
+    log = logging.getLogger('nipype.workflow')
+
     # don't include scans that were removed during confound correction
     corrected_split_name=[]
     remove_list = []
@@ -508,7 +576,7 @@ def read_confound_workflow(conf_output, cr_opts):
         This is likely due to not having enough frames left after censoring (see --frame_censoring).
                     """)
 
-    return split_dict, split_name, target_list
+    return split_name
 
 
 def find_split(scan, split_name):

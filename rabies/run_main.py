@@ -381,7 +381,7 @@ def analysis(opts, log):
     opts.seed_name_list = seed_name_list # store for developing iterables later
 
     from rabies.analysis_pkg.main_wf import init_main_analysis_wf
-    workflow = init_main_analysis_wf(confound_correction_opts, opts)
+    workflow = init_main_analysis_wf(preprocess_opts, confound_correction_opts, opts)
 
     return workflow
 

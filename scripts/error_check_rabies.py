@@ -231,7 +231,7 @@ if opts.complete:
     repeat_attempts(command, number_attempts=3)
 
     ####ANALYSIS####
-    command = f"rabies --force --verbose 1 analysis {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 \
+    command = f"rabies --force --verbose 1 analysis --read_datasink {tmppath}/outputs {tmppath}/outputs --prior_maps {tmppath}/inputs/melodic_networks.nii.gz --prior_bold_idx 0 1 --prior_confound_idx 0 1 \
         --network_weighting relative --optimize_NPR apply=true,window_size=2,min_prior_corr=0.5,diff_thresh=0.03,max_iter=5,compute_max=false \
         --FC_matrix --ROI_type parcellated --ROI_labels_file {tmppath}/inputs/token_labels.nii.gz"
     process = subprocess.run(
