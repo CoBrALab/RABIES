@@ -25,7 +25,7 @@ apptainer run -B $PWD/input_BIDS:/input_BIDS:ro \
   -B $PWD/preprocess_outputs:/preprocess_outputs/ \
   /path_to_apptainer_image/rabies.sif \
   -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ \
-  --apply_STC --TR 1.2 \
+  --apply_STC \
   --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
 
@@ -80,7 +80,7 @@ docker run -it --rm --user $(id -u) \
   -v $PWD/preprocess_outputs:/preprocess_outputs/ \
   ghcr.io/cobralab/rabies:latest \
   -p MultiProc preprocess /input_BIDS/ /preprocess_outputs/ \
-  --apply_STC --TR 1.2 \
+  --apply_STC \
   --commonspace_reg masking=true,brain_extraction=false,template_registration=SyN,fast_commonspace=false
 ```
 
