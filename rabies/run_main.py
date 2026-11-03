@@ -301,6 +301,22 @@ def confound_correction(opts, log):
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
+    if opts.comad_params['N_comad']>0:
+        if not os.path.isfile(str(opts.comad_prior_maps)):
+            raise ValueError(f"--comad_prior_maps file {opts.comad_prior_maps} doesn't exist.")
+
+        if str(opts.comad_prior_maps)==DSURQE_ICA:
+            if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+                pass
+            elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+                file=EPICOMMON_ICA
+                opts.comad_prior_maps=file
+                log.info('With --bold_only, default --comad_prior_maps changed to '+file)
+            else:
+                opts.comad_prior_maps = None # a custom --anat_template was used, so the default prior maps (fit to the RABIES template) no longer apply
+        else:
+            opts.comad_prior_maps = os.path.abspath(str(opts.comad_prior_maps))
+
     boilerplate_file = f'{opts.output_dir}/boilerplate_confound_correction.txt'
     methods,ref_string = confound_correction_boilerplate(opts)
     txt_boilerplate="#######CONFOUND CORRECTION\n\n"+methods+ref_string+'\n\n'

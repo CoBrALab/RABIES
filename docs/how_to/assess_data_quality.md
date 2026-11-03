@@ -107,12 +107,12 @@ rabies -p MultiProc analysis confound_correction_outputs/ analysis_outputs/ \
 ```
 
 The value is a dictionary expression, quoted so the shell leaves it alone. Per
-analysis (`DR`, `SBC` or `NPR`) you can set:
+analysis (`DR` or `SBC`) you can set:
 
 `Dice`
 : Minimum network detectability, as Dice overlap with the prior. A list of
-  values between 0 and 1, matched in order to `--prior_bold_idx` for DR and
-  NPR, or to `--seed_list` for SBC. Either give an empty list, or give exactly
+  values between 0 and 1, matched in order to `--prior_bold_idx` for DR, 
+  or to `--seed_list` for SBC. Either give an empty list, or give exactly
   as many thresholds as there are networks.
 
 `Conf`

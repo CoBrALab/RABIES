@@ -27,3 +27,4 @@ dependencies:
   - pip:
       - qbatch
       - simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@8cc2b031c22df5cf8d01f75ec186570dd3ffb3e9
+      - comad @ git+https://github.com/CoBrALab/CoMaD@43e2b82b1c48fdcb080405b05021fe37ac25b70c

@@ -109,6 +109,7 @@ Files derived from motion estimation.
 - `frame_censoring_mask/`: CSV files recording, as a boolean vector, which timepoints were censored, if frame censoring was applied
 - `aroma_out/`: outputs from running ICA-AROMA if `--ica_aroma` is applied, including the MELODIC ICA outputs and the component classification results
 - `plot_CR_overfit/`: figures illustrating the variance explained by random regressors during confound correction, and the variance explained by the real regressors after subtracting the variance from random regressors
+- `comad_report/`: figures from the CoMaD fitting report, if `gen_report=true` within `--comad_params`. One figure is generated per network selected with `--comad_prior_idx` (`*_comad_report0`, `*_comad_report1`, ...), showing as a function of the number of CoMaD components: the network amplitude, the similarity between the fitted network map and its prior, the change in the network map and timecourse between consecutive numbers of components, and the redundancy between the CoMaD components and the network. The optimal dimensionality selected by the thresholds in `--comad_params` is marked with a star.
 
 ## Analysis outputs
 
@@ -139,10 +140,6 @@ commonspace alignment.
 - `seed_correlation_maps/`: NIfTI files for [seed-based connectivity](SBC_target), one voxelwise correlation map per seed provided in `--seed_list`
 - `dual_regression_nii/`: the spatial maps from [dual regression](DR_target), corresponding to the linear coefficients from the second regression. The 3D spatial maps are concatenated into a 4D NIfTI, with component order consistent with the priors provided in `--prior_maps`
 - `dual_regression_timecourse_csv/`: a CSV storing the outputs from the first linear regression during dual regression — one timecourse per prior component from `--prior_maps`
-- `NPR_prior_filename/`: spatial components fitted during NPR
-- `NPR_prior_timecourse_csv/`: timecourses associated with each component in `NPR_prior_filename/`
-- `NPR_extra_filename/`: the extra spatial components fitted during NPR which were not part of the priors
-- `NPR_extra_timecourse_csv/`: timecourses associated with each component in `NPR_extra_filename/`
 
 (diagnosis_datasink_target)=
 
