@@ -46,16 +46,12 @@ magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-17
 
         methods+=f"Temporal spikes were corrected for at each voxel (3dDespike, AFNI)[{references[afni]}]. "
 
-    # Detect dummy
-    if opts.detect_dummy:
+    # Remove dummy
+    if opts.remove_dummy:
         methods+="Dummy scans were automatically detected and removed from each EPI. "
-        detect_dummy="If dummy scans are detected, the median of these volumes provides a volumetric EPI image as reference, given their \
-higher anatomical contrast. Otherwise, a"
-    else:
-        detect_dummy="A"
 
     # Generate 3D EPI ref
-    methods+=f"{detect_dummy} volumetric EPI image was derived using a trimmed mean across the EPI frames, after an initial motion realignment step. "
+    methods+="A volumetric EPI image was derived using a trimmed mean across the EPI frames, after an initial motion realignment step. "
 
     # HMC
     methods+="Using this volumetric EPI as a target, the head motion parameters are estimated by realigning each EPI frame to the target using a rigid registration. "

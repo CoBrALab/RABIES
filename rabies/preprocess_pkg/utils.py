@@ -167,6 +167,33 @@ class BIDSDataGraber(BaseInterface):
         return {'out_file': getattr(self, 'out_file')}
 
 
+def remove_dummy(bold_file):
+    import SimpleITK as sitk
+    import pathlib
+    import os
+    from rabies.utils import copyInfo_4DImage
+    from nipype.algorithms.confounds import is_outlier
+
+    in_nii = sitk.ReadImage(bold_file)
+    data_array = sitk.GetArrayFromImage(in_nii)
+    # dummy scans are detected as outliers of the global signal among the first 50 volumes, using
+    # Modified Z-Scores (https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm)
+    global_signal = data_array[:50, :, :, :].mean(axis=(1, 2, 3))
+    n_volumes_to_discard = is_outlier(global_signal)
+    if (not n_volumes_to_discard == 0):
+        filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
+        out_bold_file = os.path.abspath(
+            f'{filename_split[0]}_cropped_dummy.nii.gz')
+        img_array = data_array[n_volumes_to_discard:, :, :, :]
+
+        image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
+            img_array, isVector=False), in_nii, in_nii)
+        sitk.WriteImage(image_4d, out_bold_file)
+    else:
+        out_bold_file = bold_file
+    return out_bold_file
+
+
 ###WRAPPERS FOR AFNI'S FUNCTIONS; NECESSARY TO PREVENT ISSUES WHEN READING INPUTS/OUTPUTS FROM WORKFLOW GRAPH
 
 def apply_despike(in_file):

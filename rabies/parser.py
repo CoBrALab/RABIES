@@ -264,10 +264,10 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        '--detect_dummy', dest='detect_dummy', action='store_true',
+        '--remove_dummy', dest='remove_dummy', action='store_true',
         help=
-            "Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on\n"
-            "these volumes if detected. Dummy volumes will be removed from the output preprocessed EPI.\n"
+            "Detect and remove initial dummy volumes (non-steady state) from the EPI. This is the first\n"
+            "preprocessing step, and dummy volumes are discarded from all downstream steps and outputs.\n"
             "(default: %(default)s)\n"
             "\n"
         )

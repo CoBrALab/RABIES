@@ -9,7 +9,7 @@ from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
-from .utils import apply_despike, log_transform_nii
+from .utils import apply_despike, log_transform_nii, remove_dummy
 from ..utils import ResampleMask
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
@@ -148,6 +148,43 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, nthreads_modelbuild=nthreads_modelbuild_bold, name="bold_inho_cor_wf")
 
 
+        # 1. dummy scan removal comes first, so that the dummy scans (large outliers) are discarded from
+        # every downstream step (despiking, reference EPI, HMC and the output timeseries)
+        if opts.remove_dummy:
+            remove_dummy_node = pe.Node(Function(input_names=['bold_file'],
+                                                            output_names=[
+                                                                'out_bold_file'],
+                                                            function=remove_dummy),
+                                                    name='remove_dummy')
+            workflow.connect([
+                (inputnode, remove_dummy_node, [('bold_file', 'bold_file')]),
+                ])
+            cropped_bold = (remove_dummy_node, 'out_bold_file')
+        else:
+            cropped_bold = (inputnode, 'bold_file')
+
+        # 2. despiking
+        if opts.apply_despiking:
+            despike = pe.Node(Function(input_names=['in_file'],
+                                                        output_names=['out_file'],
+                                                        function=apply_despike),
+                                            name='despike')
+            workflow.connect([
+                (cropped_bold[0], despike, [(cropped_bold[1], 'in_file')]),
+                (despike, boldbuffer, [('out_file', 'bold_file')]),
+                ])
+        else:
+            workflow.connect([
+                (cropped_bold[0], boldbuffer, [(cropped_bold[1], 'bold_file')]),
+                ])
+
+        workflow.connect([
+            (boldbuffer, transitionnode, [
+                ('bold_file', 'bold_file'),
+                ]),
+            ])
+
+        # 3. log transform, applied to the timeseries used for the reference EPI and HMC
         if opts.log_transform:
             log_bold_node = pe.Node(Function(input_names=['in_nii'],
                                                             output_names=[
@@ -170,64 +207,6 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             workflow.connect([
                 (boldbuffer, bold_reference_wf, [
                     ('bold_file', 'inputnode.bold_file'),
-                    ]),
-                ])
-
-        if opts.apply_despiking:
-            despike = pe.Node(Function(input_names=['in_file'],
-                                                        output_names=['out_file'],
-                                                        function=apply_despike),
-                                            name='despike')
-            workflow.connect([
-                (inputnode, despike, [('bold_file', 'in_file')]),
-                (despike, boldbuffer, [('out_file', 'bold_file')]),
-                ])
-        else:
-            workflow.connect([
-                (inputnode, boldbuffer, [('bold_file', 'bold_file')]),
-                ])
-
-        if opts.detect_dummy:
-            def remove_dummy(bold_file):
-                import SimpleITK as sitk
-                import pathlib
-                import os
-                from rabies.utils import copyInfo_4DImage
-                from rabies.preprocess_pkg.bold_ref import _get_vols_to_discard
-
-                in_nii = sitk.ReadImage(bold_file)
-                data_array = sitk.GetArrayFromImage(in_nii)
-                n_volumes_to_discard = _get_vols_to_discard(in_nii)
-                if (not n_volumes_to_discard == 0):
-                    filename_split = pathlib.Path(bold_file).name.rsplit(".nii")
-                    out_bold_file = os.path.abspath(
-                        f'{filename_split[0]}_cropped_dummy.nii.gz')
-                    img_array = data_array[n_volumes_to_discard:, :, :, :]
-
-                    image_4d = copyInfo_4DImage(sitk.GetImageFromArray(
-                        img_array, isVector=False), in_nii, in_nii)
-                    sitk.WriteImage(image_4d, out_bold_file)
-                else:
-                    out_bold_file = bold_file
-                return out_bold_file
-
-            remove_dummy_node = pe.Node(Function(input_names=['bold_file'],
-                                                            output_names=[
-                                                                'out_bold_file'],
-                                                            function=remove_dummy),
-                                                    name='remove_dummy')
-            workflow.connect([
-                (boldbuffer, remove_dummy_node, [
-                    ('bold_file', 'bold_file'),
-                    ]),
-                (remove_dummy_node, transitionnode, [
-                    ('out_bold_file', 'bold_file'),
-                    ]),
-                ])
-        else:
-            workflow.connect([
-                (boldbuffer, transitionnode, [
-                    ('bold_file', 'bold_file'),
                     ]),
                 ])
 
