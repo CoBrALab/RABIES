@@ -504,7 +504,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.init_denoise", "transitionnode.init_denoise"),
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
-                ("transitionnode.log_bold", "transitionnode.log_bold"),
+                ("transitionnode.epi_for_reg", "transitionnode.epi_for_reg"),
                 ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode.moving_image"),

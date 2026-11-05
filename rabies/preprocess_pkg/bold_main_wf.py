@@ -128,11 +128,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         ]),
                 name='outputnode')
 
-    boldbuffer = pe.Node(niu.IdentityInterface(fields=['bold_file']),
-                         name="boldbuffer")
 
     # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'log_bold']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'epi_for_reg']),
                              name="transitionnode")        
 
     if inho_cor_only or (not opts.bold_only):
@@ -148,6 +146,18 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         inho_cor_wf = init_inho_correction_wf(opts=opts, image_type='EPI', output_folder=output_folder, nthreads_modelbuild=nthreads_modelbuild_bold, name="bold_inho_cor_wf")
 
 
+        # The raw EPI timeseries is prepared through a sequence of optional steps (dummy scan removal, despiking,
+        # log transform), and is split into two versions, collected in this buffer node:
+        #   epi_for_bold: the timeseries which becomes the preprocessed output, after dummy scan removal and
+        #                 despiking. It retains the original intensity values.
+        #   epi_for_reg: the EPI used for its image contrast to generate the reference EPI and estimate head motion.
+        #                It is epi_for_bold, log transformed if --log_transform is selected.
+        prepare_epi_buffer = pe.Node(niu.IdentityInterface(fields=['epi_for_bold', 'epi_for_reg']),
+                                     name="prepare_epi_buffer")
+
+        # current_bold points to the output (node, field) of the latest step applied
+        current_bold = (inputnode, 'bold_file')
+
         # 1. dummy scan removal comes first, so that the dummy scans (large outliers) are discarded from
         # every downstream step (despiking, reference EPI, HMC and the output timeseries)
         if opts.remove_dummy:
@@ -157,11 +167,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                                                             function=remove_dummy),
                                                     name='remove_dummy')
             workflow.connect([
-                (inputnode, remove_dummy_node, [('bold_file', 'bold_file')]),
+                (current_bold[0], remove_dummy_node, [(current_bold[1], 'bold_file')]),
                 ])
-            cropped_bold = (remove_dummy_node, 'out_bold_file')
-        else:
-            cropped_bold = (inputnode, 'bold_file')
+            current_bold = (remove_dummy_node, 'out_bold_file')
 
         # 2. despiking
         if opts.apply_despiking:
@@ -170,45 +178,34 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                                                         function=apply_despike),
                                             name='despike')
             workflow.connect([
-                (cropped_bold[0], despike, [(cropped_bold[1], 'in_file')]),
-                (despike, boldbuffer, [('out_file', 'bold_file')]),
+                (current_bold[0], despike, [(current_bold[1], 'in_file')]),
                 ])
-        else:
-            workflow.connect([
-                (cropped_bold[0], boldbuffer, [(cropped_bold[1], 'bold_file')]),
-                ])
+            current_bold = (despike, 'out_file')
 
-        workflow.connect([
-            (boldbuffer, transitionnode, [
-                ('bold_file', 'bold_file'),
-                ]),
-            ])
-
-        # 3. log transform, applied to the timeseries used for the reference EPI and HMC
+        # 3. log transform, only applied to epi_for_reg
         if opts.log_transform:
             log_bold_node = pe.Node(Function(input_names=['in_nii'],
                                                             output_names=[
                                                                 'log_nii'],
                                                             function=log_transform_nii),
                                                     name='log_bold_node')
-
             workflow.connect([
-                (boldbuffer, log_bold_node, [
-                    ('bold_file', 'in_nii'),
-                    ]),
-                (log_bold_node, transitionnode, [
-                    ('log_nii', 'log_bold'),
-                    ]),
-                (log_bold_node, bold_reference_wf, [
-                    ('log_nii', 'inputnode.bold_file'),
-                    ]),
+                (current_bold[0], log_bold_node, [(current_bold[1], 'in_nii')]),
+                (log_bold_node, prepare_epi_buffer, [('log_nii', 'epi_for_reg')]),
                 ])
         else:
             workflow.connect([
-                (boldbuffer, bold_reference_wf, [
-                    ('bold_file', 'inputnode.bold_file'),
-                    ]),
+                (current_bold[0], prepare_epi_buffer, [(current_bold[1], 'epi_for_reg')]),
                 ])
+
+        workflow.connect([
+            (current_bold[0], prepare_epi_buffer, [(current_bold[1], 'epi_for_bold')]),
+            (prepare_epi_buffer, transitionnode, [
+                ('epi_for_bold', 'bold_file'),
+                ('epi_for_reg', 'epi_for_reg'),
+                ]),
+            (prepare_epi_buffer, bold_reference_wf, [('epi_for_reg', 'inputnode.bold_file')]),
+            ])
 
         workflow.connect([
             (inputnode, inho_cor_wf, [
@@ -397,16 +394,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ]),
         ])
 
-    if opts.log_transform:
-        workflow.connect([
-            (transitionnode, bold_hmc_wf, [
-                ('log_bold', 'inputnode.bold_file')]),
-            ])
-    else:
-        workflow.connect([
-            (transitionnode, bold_hmc_wf, [
-                ('bold_file', 'inputnode.bold_file')]),
-            ])
+    workflow.connect([
+        (transitionnode, bold_hmc_wf, [
+            ('epi_for_reg', 'inputnode.bold_file')]),
+        ])
 
     ####MANAGE GENERATING COMMON AND/OR NATIVESPACE OUTPUTS
     boldspace_brain_mask = pe.Node(ResampleMask(), name='boldspace_mask_resample')
