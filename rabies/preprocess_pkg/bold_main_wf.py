@@ -148,15 +148,12 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         # The raw EPI timeseries is prepared through a sequence of optional steps (dummy scan removal, despiking,
         # log transform), and is split into two versions, collected in this buffer node:
-        #   epi_for_bold: the timeseries which becomes the preprocessed output, after dummy scan removal and
-        #                 despiking. It retains the original intensity values.
+        #   epi_for_bold: the timeseries which becomes the preprocessed output, after dummy scan removal, and
+        #                 despiking unless --despiking for_reg_only=true. It retains the original intensity values.
         #   epi_for_reg: the EPI used for its image contrast to generate the reference EPI and estimate head motion.
-        #                It is epi_for_bold, log transformed if --log_transform is selected.
+        #                It is despiked if --despiking apply=true, and log transformed if --log_transform.
         prepare_epi_buffer = pe.Node(niu.IdentityInterface(fields=['epi_for_bold', 'epi_for_reg']),
                                      name="prepare_epi_buffer")
-
-        # current_bold points to the output (node, field) of the latest step applied
-        current_bold = (inputnode, 'bold_file')
 
         # 1. dummy scan removal comes first, so that the dummy scans (large outliers) are discarded from
         # every downstream step (despiking, reference EPI, HMC and the output timeseries)
@@ -167,20 +164,24 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                                                             function=remove_dummy),
                                                     name='remove_dummy')
             workflow.connect([
-                (current_bold[0], remove_dummy_node, [(current_bold[1], 'bold_file')]),
+                (inputnode, remove_dummy_node, [('bold_file', 'bold_file')]),
                 ])
-            current_bold = (remove_dummy_node, 'out_bold_file')
+            epi_for_bold = epi_for_reg = (remove_dummy_node, 'out_bold_file')
+        else:
+            epi_for_bold = epi_for_reg = (inputnode, 'bold_file')
 
-        # 2. despiking
-        if opts.apply_despiking:
+        # 2. despiking, applied to epi_for_reg, and to epi_for_bold unless for_reg_only=true
+        if opts.despiking['apply']:
             despike = pe.Node(Function(input_names=['in_file'],
                                                         output_names=['out_file'],
                                                         function=apply_despike),
                                             name='despike')
             workflow.connect([
-                (current_bold[0], despike, [(current_bold[1], 'in_file')]),
+                (epi_for_reg[0], despike, [(epi_for_reg[1], 'in_file')]),
                 ])
-            current_bold = (despike, 'out_file')
+            epi_for_reg = (despike, 'out_file')
+            if not opts.despiking['for_reg_only']:
+                epi_for_bold = epi_for_reg
 
         # 3. log transform, only applied to epi_for_reg
         if opts.log_transform:
@@ -191,16 +192,13 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                                                     name='log_bold_node')
             log_bold_node.inputs.rabies_data_type = opts.data_type
             workflow.connect([
-                (current_bold[0], log_bold_node, [(current_bold[1], 'in_nii')]),
-                (log_bold_node, prepare_epi_buffer, [('log_nii', 'epi_for_reg')]),
+                (epi_for_reg[0], log_bold_node, [(epi_for_reg[1], 'in_nii')]),
                 ])
-        else:
-            workflow.connect([
-                (current_bold[0], prepare_epi_buffer, [(current_bold[1], 'epi_for_reg')]),
-                ])
+            epi_for_reg = (log_bold_node, 'log_nii')
 
         workflow.connect([
-            (current_bold[0], prepare_epi_buffer, [(current_bold[1], 'epi_for_bold')]),
+            (epi_for_bold[0], prepare_epi_buffer, [(epi_for_bold[1], 'epi_for_bold')]),
+            (epi_for_reg[0], prepare_epi_buffer, [(epi_for_reg[1], 'epi_for_reg')]),
             (prepare_epi_buffer, transitionnode, [
                 ('epi_for_bold', 'bold_file'),
                 ('epi_for_reg', 'epi_for_reg'),

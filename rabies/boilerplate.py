@@ -39,12 +39,16 @@ magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-17
         methods+=autobox
 
     # Despiking
-    if opts.apply_despiking:
+    if opts.despiking['apply']:
         if not afni in references.keys():
             references[afni]=i
             i+=1
 
-        methods+=f"Temporal spikes were corrected for at each voxel (3dDespike, AFNI)[{references[afni]}]. "
+        if opts.despiking['for_reg_only']:
+            methods+=f"Temporal spikes were corrected for at each voxel (3dDespike, AFNI)[{references[afni]}] in a copy of the timeseries \
+used only for generating the reference EPI and estimating head motion, while the preprocessed timeseries was not despiked. "
+        else:
+            methods+=f"Temporal spikes were corrected for at each voxel (3dDespike, AFNI)[{references[afni]}]. "
 
     # Remove dummy
     if opts.remove_dummy:

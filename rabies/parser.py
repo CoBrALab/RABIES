@@ -257,9 +257,16 @@ def get_parser():
             "\n"
         )    
     preprocess.add_argument(
-        '--apply_despiking', dest='apply_despiking', action='store_true',
+        '--despiking', type=str,
+        default='apply=false,for_reg_only=false',
         help=
             "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"
+            "* apply: whether to apply despiking.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* for_reg_only: if true, the despiked timeseries is only used to generate the reference EPI and \n"
+            " estimate head motion, and the preprocessed output timeseries is not despiked. If false, the \n"
+            " output timeseries is also despiked.\n"
+            "*** Specify 'true' or 'false'. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1260,6 +1267,13 @@ def read_parser(parser, args):
             defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
+        opts.despiking = parse_argument(opt=opts.despiking, 
+            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false']},
+            defaults = {'apply':False,'for_reg_only':False},
+            name='despiking')
+        if opts.despiking['for_reg_only'] and not opts.despiking['apply']:
+            raise ValueError("--despiking for_reg_only=true requires apply=true.")
+
         opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report, 
             key_value_pairs = {'apply':['true', 'false'], 'fps':int},
             defaults = {'apply':False,'fps':10},
