@@ -347,11 +347,18 @@ def resample_template(structural_scan_list, bold_scan_list, template_file, mask_
     return registration_template, registration_mask, commonspace_template
 
 
-def log_transform_nii(in_nii):
+def log_transform_nii(in_nii, rabies_data_type):
     import pathlib
     import os
     import numpy as np
     import nibabel as nib
+    import SimpleITK as sitk
+
+    # the log transformed image has a narrow range of values (e.g. 0-5), which would be reduced to a handful of
+    # intensity levels if read downstream with an integer data type
+    if rabies_data_type not in [sitk.sitkFloat32, sitk.sitkFloat64]:
+        raise ValueError("--log_transform requires a float --data_type (float32 or float64). With an integer data "
+                         "type, the log transformed image would be rounded to a few intensity values.")
 
     split = pathlib.Path(in_nii).name.rsplit(".nii")[0]
     log_nii = os.path.abspath(f"{split}_log.nii.gz")

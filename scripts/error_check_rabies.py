@@ -11,7 +11,7 @@ import argparse
 '''PARAMETERS NOT TESTED
 preprocess:
     --bids_filter: requires creating a JSON
-    --log_transform: makes the token data crash
+    --log_transform: requires a float --data_type, while these tests use int16
 
 confound_correction:
     --highpass/lowpass/edge_cutoff; since filtering doesn't work with 3 timepoints

@@ -184,11 +184,12 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         # 3. log transform, only applied to epi_for_reg
         if opts.log_transform:
-            log_bold_node = pe.Node(Function(input_names=['in_nii'],
+            log_bold_node = pe.Node(Function(input_names=['in_nii', 'rabies_data_type'],
                                                             output_names=[
                                                                 'log_nii'],
                                                             function=log_transform_nii),
                                                     name='log_bold_node')
+            log_bold_node.inputs.rabies_data_type = opts.data_type
             workflow.connect([
                 (current_bold[0], log_bold_node, [(current_bold[1], 'in_nii')]),
                 (log_bold_node, prepare_epi_buffer, [('log_nii', 'epi_for_reg')]),
