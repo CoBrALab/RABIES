@@ -196,16 +196,6 @@ def remove_dummy(bold_file):
 
 ###WRAPPERS FOR AFNI'S FUNCTIONS; NECESSARY TO PREVENT ISSUES WHEN READING INPUTS/OUTPUTS FROM WORKFLOW GRAPH
 
-def apply_despike(in_file):
-    import pathlib
-    import os
-    from rabies.utils import run_command
-    split = pathlib.Path(in_file).name.rsplit(".nii")[0]
-    out_file = os.path.abspath(f"{split}_despike.nii.gz")
-    command = f'3dDespike -nomask -prefix {out_file} {in_file}'
-    rc,c_out = run_command(command)
-    return out_file
-
 def apply_autobox(in_file):
     import pathlib
     import os

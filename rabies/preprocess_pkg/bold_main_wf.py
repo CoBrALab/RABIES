@@ -9,7 +9,8 @@ from .stc import init_bold_stc_wf
 from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
-from .utils import apply_despike, log_transform_nii, remove_dummy
+from .utils import log_transform_nii, remove_dummy
+from .despiking import Despiking
 from ..utils import ResampleMask
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
@@ -172,10 +173,10 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
 
         # 2. despiking, applied to epi_for_reg, and to epi_for_bold unless for_reg_only=true
         if opts.despiking['apply']:
-            despike = pe.Node(Function(input_names=['in_file'],
-                                                        output_names=['out_file'],
-                                                        function=apply_despike),
-                                            name='despike')
+            despike = pe.Node(Despiking(smoothing_sigma=opts.despiking['smoothing_sigma'],
+                                        threshold=opts.despiking['threshold']),
+                              name='despike', mem_gb=4*opts.scale_min_memory,
+                              n_procs=int(os.environ['RABIES_ITK_NUM_THREADS']))
             workflow.connect([
                 (epi_for_reg[0], despike, [(epi_for_reg[1], 'in_file')]),
                 ])

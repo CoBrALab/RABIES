@@ -258,15 +258,30 @@ def get_parser():
         )    
     preprocess.add_argument(
         '--despiking', type=str,
-        default='apply=false,for_reg_only=false',
+        default='apply=false,for_reg_only=false,smoothing_sigma=None,threshold=4.0',
         help=
-            "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"
+            "Detects temporal spikes voxelwise using AFNI's 3dDespike spike score \n"
+            "(https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html), and replaces the flagged \n"
+            "voxel-frames by linear interpolation in time. Optionally, data is spatially-smoothed before \n"
+            "before spike detection, while the correction is always applied to the original data. \n"
             "* apply: whether to apply despiking.\n"
             "*** Specify 'true' or 'false'. \n"
             "* for_reg_only: if true, the despiked timeseries is only used to generate the reference EPI and \n"
             " estimate head motion, and the preprocessed output timeseries is not despiked. If false, the \n"
             " output timeseries is also despiked.\n"
             "*** Specify 'true' or 'false'. \n"
+            "* smoothing_sigma: standard deviation (in mm) of an in-plane Gaussian smoothing applied before spike \n"
+            " detection (no smoothing across slices, i.e. the axis with the largest voxel dimension). \n"
+            "*** Provide a number above 0, or 'None' for no smoothing. \n"
+            "* threshold: voxel-frames with a spike score (deviation from a smooth fit of the voxel timecourse, \n"
+            " in standard deviations) at or above this threshold are replaced. \n"
+            "*** Provide a number above 0. \n"
+            "The default (smoothing_sigma=None,threshold=4.0) is a voxelwise correction close to 3dDespike's \n"
+            "default settings. Alternative recipe: smoothing_sigma=1,threshold=2.0 (developed for fUSI flash \n"
+            "artefacts). The combination of smoothing and stringent despiking removes spatially broad spikes  \n"
+            "(e.g. intensity flashes) without removing local displacement, i.e. motion that should be measured  \n"
+            "in later steps of the pipeline. The original data is repaired after spike detection, so the output \n"
+            "is not blurred. See rabies.preprocess_pkg.despiking.Despiking for more details.\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1268,9 +1283,13 @@ def read_parser(parser, args):
             name='bold_robust_inho_cor')
         
         opts.despiking = parse_argument(opt=opts.despiking, 
-            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false']},
-            defaults = {'apply':False,'for_reg_only':False},
+            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false'], 'smoothing_sigma':float_or_none, 'threshold':float},
+            defaults = {'apply':False,'for_reg_only':False,'smoothing_sigma':None,'threshold':4.0},
             name='despiking')
+        if opts.despiking['smoothing_sigma'] is not None and not opts.despiking['smoothing_sigma'] > 0:
+            raise ValueError("--despiking smoothing_sigma must be above 0, or 'None'.")
+        if not opts.despiking['threshold'] > 0:
+            raise ValueError("--despiking threshold must be above 0.")
         if opts.despiking['for_reg_only'] and not opts.despiking['apply']:
             raise ValueError("--despiking for_reg_only=true requires apply=true.")
 
@@ -1323,6 +1342,12 @@ def read_parser(parser, args):
 
     return opts
 
+def float_or_none(value):
+    # converter for parse_argument, for parameters accepting either a number or 'None'
+    if value == 'None':
+        return None
+    return float(value)
+
 def parse_argument(opt, key_value_pairs, defaults, name):
     key_list = list(key_value_pairs.keys())
     l = opt.split(',')
@@ -1336,8 +1361,12 @@ def parse_argument(opt, key_value_pairs, defaults, name):
         [key,value] = s
         if not key in key_list:
             raise ValueError(f"The provided key {key} is not part of the available options {key_list} for --{name}.")
-        if key_value_pairs[key] in [int,float,str]:
-            value = key_value_pairs[key](value)
+        if callable(key_value_pairs[key]): # a type (e.g. int, float, str) or function converting the string
+            try:
+                value = key_value_pairs[key](value)
+            except ValueError:
+                raise ValueError(f"The provided value {value} for the key {key} for --{name} could not be converted to "
+                                 f"{key_value_pairs[key].__name__}.") from None
         else:
             if not value in key_value_pairs[key]:
                 raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key} for --{name}.")
