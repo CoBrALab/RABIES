@@ -61,8 +61,10 @@ def init_bold_hmc_wf(opts, output_folder, name='bold_hmc_wf'):
          # multiply mem_gb 20X because there is massive RAM overload with this node
         hmc_qc_node = pe.Node(HMC_QC(fps=opts.hmc_qc_report['fps'], figure_format=opts.figure_format),
                             name='hmc_qc_node', mem_gb=1.1*opts.scale_min_memory*20, n_procs=n_procs)
-        # the figure and video are written directly in the QC report folder
-        hmc_qc_node.inputs.out_dir = output_folder+'/preprocess_QC_report/motion_QC/'
+        # the figure and video are written directly in the QC report folder, with a README describing them
+        motion_QC_dir = output_folder+'/preprocess_QC_report/motion_QC/'
+        hmc_qc_node.inputs.out_dir = motion_QC_dir
+        write_hmc_qc_readme(opts, motion_QC_dir)
 
         workflow.connect([
             (inputnode, hmc_qc_node, [('ref_image', 'ref_file'),
@@ -301,6 +303,83 @@ class HMC_QC(BaseInterface):
 
 
 #############FUNCTIONS FOR HMC QC
+def write_hmc_qc_readme(opts, out_dir):
+    '''
+    Writes a README.txt in out_dir describing the HMC QC outputs, including the preprocessing steps which determine
+    the EPI timeseries evaluated (the EPI used for registration). Called when building the workflow.
+    '''
+    steps = []
+    if opts.remove_dummy:
+        steps.append("dummy scans were detected and removed (--remove_dummy)")
+    if opts.despiking['apply']:
+        if opts.despiking['smoothing_sigma'] is None:
+            detection = "detected voxelwise"
+        else:
+            detection = f"detected on timeseries smoothed in-plane (sigma={opts.despiking['smoothing_sigma']}mm)"
+        steps.append(f"temporal spikes were {detection}, and voxel-frames deviating by\n"
+                     f"    {opts.despiking['threshold']} standard deviations or more were replaced by linear interpolation\n"
+                     "    in time (--despiking)")
+    if opts.log_transform:
+        steps.append("intensities were log transformed, log10(x+1) (--log_transform)")
+    if len(steps) == 0:
+        steps_text = "  - none: the EPI is the input timeseries, after the initial input formatting\n"
+    else:
+        steps_text = ''.join([f"  - {step}\n" for step in steps])
+
+    if opts.despiking['apply'] and opts.despiking['for_reg_only']:
+        output_note = ("Since --despiking for_reg_only=true, the preprocessed output timeseries were NOT despiked, unlike the\n"
+                       "EPI shown here.\n")
+    else:
+        output_note = ""
+    if opts.log_transform:
+        intensity_note = ("Intensities are in log units: the preprocessed output timeseries retain the original intensities,\n"
+                          "and DVARS, mean square error and standard deviation values are in log units.\n")
+    else:
+        intensity_note = ""
+
+    readme = f"""Head motion correction (HMC) QC report
+=====================================
+
+Generated with --hmc_qc_report apply=true (HMC_level={opts.HMC_level}). One file per scan in each subfolder.
+
+EPI evaluated
+-------------
+The report evaluates the EPI timeseries used for head motion estimation (the same timeseries used to generate the
+reference EPI), which may differ from the preprocessed output timeseries. The following preprocessing steps were
+applied to it, in this order:
+{steps_text}{output_note}{intensity_note}
+"Before correction" timeseries: to avoid biasing the comparison with interpolation smoothing, the timeseries is not
+the raw EPI. It is the corrected timeseries resampled back to the original frame positions, with the inverse of the
+estimated transforms, so that both the "before" and "after" timeseries went through interpolation.
+"After correction" timeseries: each frame resampled onto the reference EPI with the estimated rigid transform.
+
+hmc_qc_video/
+-------------
+A .webp video per scan, showing orthogonal slices (sagittal, coronal, axial) through the center of mass of the first
+frame, at {opts.hmc_qc_report['fps']} frames per second. Top row: before correction; bottom row: after correction.
+The frame number is shown at the bottom right. All frames and rows share a single intensity scale (from the 1st to
+99th percentiles of the displayed voxels, with values outside clipped), so that intensity changes across frames,
+such as signal spikes, remain visible.
+
+hmc_qc_fig/
+-----------
+A figure per scan, with:
+  - Translations: the 3 estimated translations (mm) at each frame
+  - Rotations: the 3 estimated Euler angles (radians) at each frame
+  - DVARS: root mean square of the voxelwise intensity change between consecutive frames, before and after
+    correction
+  - Difference relative to reference volume: mean square error between each frame and the reference EPI, before and
+    after correction
+  - Reference image: the reference EPI targeted by the realignment
+  - Temporal standard deviation: voxelwise standard deviation over time, before and after correction. Residual motion
+    appears as high values along tissue edges.
+
+The DVARS and mean square error timecourses are also saved as a CSV in motion_datasink/hmc_qc_csv/.
+"""
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, 'README.txt'), 'w') as f:
+        f.write(readme)
+
 import numpy as np
 import SimpleITK as sitk
 from rabies.utils import copyInfo_3DImage
