@@ -490,7 +490,8 @@ def get_parser():
         help=
             "This option manages the generation of a quality report on the head motion correction registration step. \n"
             "The report includes registration error across frames, standard deviation and a video of the \n"
-            "timeseries each before and after applying the correction. \n"
+            "timeseries each before and after applying the correction. The figure and video are written to \n"
+            "preprocess_QC_report/motion_QC/, and the derivatives CSV to motion_datasink/hmc_qc_csv/. \n"
             "* apply: whether to generate the report or not.\n"
             "*** Specify 'true' or 'false'. \n"
             "* fps: frames per second for the video generated.\n"

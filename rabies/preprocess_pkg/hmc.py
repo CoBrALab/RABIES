@@ -7,7 +7,7 @@ from nipype.interfaces.base import (
 from nipype.pipeline import engine as pe
 from nipype.interfaces import utility as niu
 
-def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
+def init_bold_hmc_wf(opts, output_folder, name='bold_hmc_wf'):
     # hmc_wf_head_start
     """
     This workflow estimates motion during fMRI acquisition. To do so, each EPI frame is registered to a volumetric 
@@ -36,11 +36,11 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
     # hmc_wf_head_end
 
     workflow = pe.Workflow(name=name)
-    inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image']),
+    inputnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'ref_image', 'name_source']),
                         name='inputnode')
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['motcorr_params', 'hmc_qc_figure', 'hmc_qc_csv', 'hmc_qc_video']),
+            fields=['motcorr_params', 'hmc_qc_csv']),
         name='outputnode')
 
     # Head motion correction (hmc)
@@ -61,16 +61,17 @@ def init_bold_hmc_wf(opts, name='bold_hmc_wf'):
          # multiply mem_gb 20X because there is massive RAM overload with this node
         hmc_qc_node = pe.Node(HMC_QC(fps=opts.hmc_qc_report['fps'], figure_format=opts.figure_format),
                             name='hmc_qc_node', mem_gb=1.1*opts.scale_min_memory*20, n_procs=n_procs)
+        # the figure and video are written directly in the QC report folder
+        hmc_qc_node.inputs.out_dir = output_folder+'/preprocess_QC_report/motion_QC/'
 
         workflow.connect([
             (inputnode, hmc_qc_node, [('ref_image', 'ref_file'),
-                                            ('bold_file', 'in_file')]),
+                                            ('bold_file', 'in_file'),
+                                            ('name_source', 'name_source')]),
             (motion_estimation, hmc_qc_node, [
             ('csv_params', 'csv_params')]),
             (hmc_qc_node, outputnode, [
-                ('out_figure', 'hmc_qc_figure'),
                 ('out_csv', 'hmc_qc_csv'),
-                ('video_file', 'hmc_qc_video'),
             ]),
         ])
 
@@ -228,6 +229,9 @@ class HMC_QCInputSpec(BaseInterfaceInputSpec):
         desc="Frames per second for the video.")
     figure_format = traits.Str(default='png',
         mandatory=True, exists=True, desc="png or svg")
+    name_source = File(exists=True, mandatory=True, desc='Reference file for naming the outputs.')
+    out_dir = traits.Str(mandatory=True,
+        desc="Folder where the QC figure and video are written, in the hmc_qc_fig/ and hmc_qc_video/ subfolders.")
 
 
 class HMC_QCOutputSpec(TraitedSpec):
@@ -248,9 +252,15 @@ class HMC_QC(BaseInterface):
     def _run_interface(self, runtime):
         import pandas as pd
         from simpleitk_timeseries_motion_correction.create_animation import main
-        filename = pathlib.Path(self.inputs.in_file).name.rsplit(".nii")[0]
-        figure_path = os.path.abspath(f'{filename}_HMC_QC.{self.inputs.figure_format}')
-        csv_path = os.path.abspath(f'{filename}_derivatives.csv')
+        filename = pathlib.Path(self.inputs.name_source).name.rsplit(".nii")[0]
+        fig_dir = os.path.join(self.inputs.out_dir, 'hmc_qc_fig')
+        video_dir = os.path.join(self.inputs.out_dir, 'hmc_qc_video')
+        os.makedirs(fig_dir, exist_ok=True)
+        os.makedirs(video_dir, exist_ok=True)
+        figure_path = os.path.join(fig_dir, f'{filename}_HMC_QC.{self.inputs.figure_format}')
+        video_file = os.path.join(video_dir, f'{filename}_HMC.webp')
+        # the CSV stays in the node directory, and is saved by the motion datasink
+        csv_path = os.path.abspath(f'{pathlib.Path(self.inputs.in_file).name.rsplit(".nii")[0]}_derivatives.csv')
 
         n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
 
@@ -259,7 +269,6 @@ class HMC_QC(BaseInterface):
 
         print('Creating video pre/post HMC...')
         # write .webp file
-        video_file = os.path.abspath(f'{filename}_HMC.webp')
         main(input_img=img_preHMC, 
              output_file=video_file, 
              additional_input_imgs=[img_postHMC], 

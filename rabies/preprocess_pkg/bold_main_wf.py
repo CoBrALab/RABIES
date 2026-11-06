@@ -125,7 +125,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                         'boldspace_brain_mask',
-                        'hmc_qc_figure','hmc_qc_csv','hmc_qc_video',
+                        'hmc_qc_csv',
                         ]),
                 name='outputnode')
 
@@ -236,7 +236,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
     bold_stc_wf = init_bold_stc_wf(opts=opts)
 
     # HMC on the BOLD
-    bold_hmc_wf = init_bold_hmc_wf(opts=opts)
+    bold_hmc_wf = init_bold_hmc_wf(opts=opts, output_folder=output_folder)
 
     estimate_motion_node = pe.Node(EstimateMotionParams(),
                                 name='estimate_motion_node', mem_gb=2.3*opts.scale_min_memory)
@@ -370,11 +370,12 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         (transitionnode, bold_hmc_wf, [
             ('bold_ref', 'inputnode.ref_image'),
             ]),
+        (inputnode, bold_hmc_wf, [
+            ('bold_file', 'inputnode.name_source'),
+            ]),
         (bold_hmc_wf, outputnode, [
             ('outputnode.motcorr_params', 'motcorr_params'),
-            ('outputnode.hmc_qc_figure', 'hmc_qc_figure'),
             ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
-            ('outputnode.hmc_qc_video', 'hmc_qc_video'),
             ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),
