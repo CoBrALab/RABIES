@@ -264,8 +264,10 @@ class HMC_QC(BaseInterface):
              output_file=video_file, 
              additional_input_imgs=[img_postHMC], 
              labels=['Before correction', 'After correction'], 
-             scale=2.0, 
-             fps=self.inputs.fps)
+             scale=2.0,
+             fps=self.inputs.fps,
+             percentile_range=(1, 99),
+             framewise_scaling=False) # a single intensity range across frames and rows, so that intensity changes remain visible
         del img_preHMC, img_postHMC
 
         # save some outputs to .csv

@@ -26,4 +26,4 @@ dependencies:
   - git # necessary for installing the simpleitk_timeseries_motion_correction package from GitHub
   - pip:
       - qbatch
-      - simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@8cc2b031c22df5cf8d01f75ec186570dd3ffb3e9
+      - simpleitk_timeseries_motion_correction @ git+https://github.com/Gab-D-G/simpleitk_timeseries_motion_correction@85c96dc29ab8dc52bf5d8d72f4bdabccc48b23a6
