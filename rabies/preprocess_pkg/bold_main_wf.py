@@ -10,7 +10,7 @@ from .inho_correction import init_inho_correction_wf
 from .registration import init_cross_modal_reg_wf
 from nipype.interfaces.utility import Function
 from .utils import log_transform_nii, remove_dummy
-from .despiking import Despiking
+from .despiking import Despiking, write_despiking_readme
 from ..utils import ResampleMask
 
 def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_only=False, name='bold_main_wf'):
@@ -125,14 +125,14 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                         'boldspace_brain_mask',
-                        'hmc_qc_csv',
+                        'hmc_qc_csv', 'despiking_csv',
                         ]),
                 name='outputnode')
 
 
     # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'epi_for_reg']),
-                             name="transitionnode")        
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'epi_for_reg', 'despiking_csv']),
+                             name="transitionnode")
 
     if inho_cor_only or (not opts.bold_only):
         template_inputnode = pe.Node(niu.IdentityInterface(fields=['template_anat', 'template_mask']),
@@ -180,11 +180,15 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             workflow.connect([
                 (epi_for_reg[0], despike, [(epi_for_reg[1], 'in_file')]),
                 ])
-            if opts.despiking['gen_video']:
-                despike.inputs.video_dir = output_folder+'/preprocess_QC_report/despiking_video/'
+            if opts.despiking['gen_report']:
+                despiking_QC_dir = output_folder+'/preprocess_QC_report/despiking_QC/'
+                despike.inputs.report_dir = despiking_QC_dir
                 despike.inputs.fps = opts.despiking['fps']
+                despike.inputs.figure_format = opts.figure_format
+                write_despiking_readme(opts, despiking_QC_dir)
                 workflow.connect([
                     (inputnode, despike, [('bold_file', 'name_source')]),
+                    (despike, transitionnode, [('spike_csv', 'despiking_csv')]),
                     ])
             epi_for_reg = (despike, 'out_file')
             if not opts.despiking['for_reg_only']:
@@ -382,6 +386,9 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
         (bold_hmc_wf, outputnode, [
             ('outputnode.motcorr_params', 'motcorr_params'),
             ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
+            ]),
+        (transitionnode, outputnode, [
+            ('despiking_csv', 'despiking_csv'),
             ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),

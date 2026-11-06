@@ -100,6 +100,7 @@ Files derived from motion estimation.
 - `FD_csv/`: a CSV with timecourses for either the mean or maximal [framewise displacement](FD_target) estimations
 - `FD_voxelwise/`: a NIfTI image containing framewise displacement evaluated at each voxel
 - `pos_voxelwise/`: a NIfTI image tracking the displacement of each voxel across time, derived from the head motion realignment parameters
+- `despiking_csv/`: with `--despiking apply=true,gen_report=true`, a CSV with the percentage of voxels flagged as spikes at each frame, and the mean signal before and after despiking
 - `hmc_qc_csv/`: with `--hmc_qc_report apply=true`, a CSV with the registration error (DVARS and mean square error) of each frame before and after head motion realignment. The figure and video of this report are in `preprocess_QC_report/motion_QC/`
 
 ## Confound correction outputs

@@ -43,8 +43,8 @@ prefix, and which commonspace folders exist depends on `--bold_only`,
   - `--bold_robust_inho_cor apply=true`
 * - `EPI2Anat/`
   - structural scans are used, i.e. not `--bold_only`
-* - `despiking_video/`
-  - `--despiking apply=true,gen_video=true`
+* - `despiking_QC/`
+  - `--despiking apply=true,gen_report=true`
 * - `motion_QC/`
   - `--hmc_qc_report apply=true`
 * - `template_files/`
@@ -132,9 +132,14 @@ Volumetric EPI (top) against the structural image (bottom). The red lining on ea
 image is the automated edge-detection computed from the other image.
 ```
 
-## `despiking_video/`
+## `despiking_QC/`
 
-A `.webp` video per scan showing the EPI timeseries before (top row) and after (bottom row) despiking, generated with `--despiking apply=true,gen_video=true`.
+Quality of the despiking, generated with `--despiking apply=true,gen_report=true`.
+
+- `despiking_video/`: a `.webp` video per scan showing the EPI timeseries before (top row) and after (bottom row) despiking, with a single intensity scale across frames and rows
+- `despiking_fig/`: a figure per scan with the percentage of voxels flagged at each frame, the mean signal before and after despiking, and a map of the percentage of frames flagged at each voxel
+
+Percentages are computed over the whole field of view, including background voxels. The per-frame values are also saved as a CSV in `motion_datasink/despiking_csv/`.
 
 ## `motion_QC/`
 

@@ -505,6 +505,7 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                 ("transitionnode.denoise_mask", "transitionnode.denoise_mask"),
                 ("transitionnode.corrected_EPI", "transitionnode.corrected_EPI"),
                 ("transitionnode.epi_for_reg", "transitionnode.epi_for_reg"),
+                ("transitionnode.despiking_csv", "transitionnode.despiking_csv"),
                 ]),
             (inho_cor_bold_main_wf, commonspace_reg_wf, [
                 ("transitionnode.corrected_EPI", "inputnode.moving_image"),
@@ -544,6 +545,14 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
         (bold_main_wf, motion_datasink, [
             ('outputnode.hmc_qc_csv', 'hmc_qc_csv'),
             ]),
+        ])
+    if opts.despiking['gen_report']:
+        workflow.connect([
+            (bold_main_wf, motion_datasink, [
+                ('outputnode.despiking_csv', 'despiking_csv'),
+                ]),
+            ])
+    workflow.connect([
         (outputnode, bold_datasink, [
             ("initial_bold_ref", "initial_bold_ref"),  # inspect initial bold ref
             ("inho_cor_bold", "inho_cor_bold"),  # inspect bias correction

@@ -258,7 +258,7 @@ def get_parser():
         )    
     preprocess.add_argument(
         '--despiking', type=str,
-        default='apply=false,for_reg_only=false,smoothing_sigma=None,threshold=4.0,gen_video=false,fps=10',
+        default='apply=false,for_reg_only=false,smoothing_sigma=None,threshold=4.0,gen_report=false,fps=10',
         help=
             "Detects temporal spikes voxelwise using AFNI's 3dDespike spike score \n"
             "(https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html), and replaces the flagged \n"
@@ -276,10 +276,9 @@ def get_parser():
             "* threshold: voxel-frames with a spike score (deviation from a smooth fit of the voxel timecourse, \n"
             " in standard deviations) at or above this threshold are replaced. \n"
             "*** Provide a number above 0. \n"
-            "* gen_video: whether to generate a video of the timeseries before and after despiking, in \n"
-            " preprocess_QC_report/despiking_video/. \n"
+            "* gen_report: whether to generate a QC report of the despiking step in preprocess_QC_report/despiking_QC/\n"
             "*** Specify 'true' or 'false'. \n"
-            "* fps: frames per second for the video generated with gen_video=true. \n"
+            "* fps: frames per second for the video generated with gen_report=true. \n"
             "*** Provide an integer of 1 or above. \n"
             "The default (smoothing_sigma=None,threshold=4.0) is a voxelwise correction close to 3dDespike's \n"
             "default settings. Alternative recipe: smoothing_sigma=1,threshold=2.0 (developed for fUSI flash \n"
@@ -1289,8 +1288,8 @@ def read_parser(parser, args):
             name='bold_robust_inho_cor')
         
         opts.despiking = parse_argument(opt=opts.despiking, 
-            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false'], 'smoothing_sigma':float_or_none, 'threshold':float, 'gen_video':['true', 'false'], 'fps':int},
-            defaults = {'apply':False,'for_reg_only':False,'smoothing_sigma':None,'threshold':4.0,'gen_video':False,'fps':10},
+            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false'], 'smoothing_sigma':float_or_none, 'threshold':float, 'gen_report':['true', 'false'], 'fps':int},
+            defaults = {'apply':False,'for_reg_only':False,'smoothing_sigma':None,'threshold':4.0,'gen_report':False,'fps':10},
             name='despiking')
         if opts.despiking['smoothing_sigma'] is not None and not opts.despiking['smoothing_sigma'] > 0:
             raise ValueError("--despiking smoothing_sigma must be above 0, or 'None'.")
@@ -1298,8 +1297,8 @@ def read_parser(parser, args):
             raise ValueError("--despiking threshold must be above 0.")
         if opts.despiking['for_reg_only'] and not opts.despiking['apply']:
             raise ValueError("--despiking for_reg_only=true requires apply=true.")
-        if opts.despiking['gen_video'] and not opts.despiking['apply']:
-            raise ValueError("--despiking gen_video=true requires apply=true.")
+        if opts.despiking['gen_report'] and not opts.despiking['apply']:
+            raise ValueError("--despiking gen_report=true requires apply=true.")
         if opts.despiking['fps'] < 1:
             raise ValueError("--despiking fps must be >= 1.")
 
