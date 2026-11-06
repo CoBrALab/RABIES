@@ -16,6 +16,11 @@ class DespikingInputSpec(BaseInterfaceInputSpec):
     threshold = traits.Float(4.0, usedefault=True,
         desc="Voxel-frames with a spike score at or above this threshold (in units of each voxel's standard "
              "deviation, as estimated by AFNI's 3dDespike) are flagged as spikes.")
+    video_dir = traits.Any(None, usedefault=True,
+        desc="If provided, a video of the timeseries before and after despiking is written in this folder.")
+    name_source = traits.Any(None, usedefault=True,
+        desc="Reference file for naming the video. If None, in_file is used.")
+    fps = traits.Float(10, usedefault=True, desc="Frames per second for the video.")
 
 
 class DespikingOutputSpec(TraitedSpec):
@@ -53,6 +58,9 @@ class Despiking(BaseInterface):
     coherent artefacts survive, so a lower threshold can be used to remove artefacts aggressively while
     preserving the signature of real motion. Since flagged voxel-frames are repaired from the original data,
     voxel by voxel, the output is not blurred.
+
+    Optionally (video_dir), a video of the timeseries before and after despiking is generated, with a single
+    intensity scale across frames and rows (1st to 99th percentiles) so that the removed spikes remain visible.
     """
 
     input_spec = DespikingInputSpec
@@ -114,6 +122,22 @@ class Despiking(BaseInterface):
         flags_img = sitk.GetImageFromArray(flags.astype(np.uint8), isVector=False)
         flags_img.CopyInformation(img)
         sitk.WriteImage(flags_img, flags_file)
+
+        # 3. optional video before/after despiking
+        if self.inputs.video_dir is not None:
+            from simpleitk_timeseries_motion_correction.create_animation import main as create_animation
+            name_source = self.inputs.in_file if self.inputs.name_source is None else self.inputs.name_source
+            video_name = pathlib.Path(name_source).name.rsplit(".nii")[0]
+            os.makedirs(self.inputs.video_dir, exist_ok=True)
+            # a single intensity range across frames and rows, so that spikes remain visible
+            create_animation(input_img=img,
+                             output_file=os.path.join(self.inputs.video_dir, f'{video_name}_despiking.webp'),
+                             additional_input_imgs=[out_img],
+                             labels=['Before despiking', 'After despiking'],
+                             scale=2.0,
+                             fps=self.inputs.fps,
+                             percentile_range=(1, 99),
+                             framewise_scaling=False)
 
         setattr(self, 'out_file', out_file)
         setattr(self, 'spike_flags', flags_file)

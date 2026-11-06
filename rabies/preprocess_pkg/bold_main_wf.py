@@ -180,6 +180,12 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             workflow.connect([
                 (epi_for_reg[0], despike, [(epi_for_reg[1], 'in_file')]),
                 ])
+            if opts.despiking['gen_video']:
+                despike.inputs.video_dir = output_folder+'/preprocess_QC_report/despiking_video/'
+                despike.inputs.fps = opts.despiking['fps']
+                workflow.connect([
+                    (inputnode, despike, [('bold_file', 'name_source')]),
+                    ])
             epi_for_reg = (despike, 'out_file')
             if not opts.despiking['for_reg_only']:
                 epi_for_bold = epi_for_reg

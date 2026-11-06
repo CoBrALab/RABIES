@@ -43,6 +43,8 @@ prefix, and which commonspace folders exist depends on `--bold_only`,
   - `--bold_robust_inho_cor apply=true`
 * - `EPI2Anat/`
   - structural scans are used, i.e. not `--bold_only`
+* - `despiking_video/`
+  - `--despiking apply=true,gen_video=true`
 * - `motion_QC/`
   - `--hmc_qc_report apply=true`
 * - `template_files/`
@@ -129,6 +131,10 @@ susceptibility distortions through non-linear registration.
 Volumetric EPI (top) against the structural image (bottom). The red lining on each 
 image is the automated edge-detection computed from the other image.
 ```
+
+## `despiking_video/`
+
+A `.webp` video per scan showing the EPI timeseries before (top row) and after (bottom row) despiking, generated with `--despiking apply=true,gen_video=true`.
 
 ## `motion_QC/`
 
