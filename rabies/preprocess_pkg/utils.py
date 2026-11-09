@@ -211,6 +211,7 @@ def convert_to_RAS(img_file, out_dir=None):
     # convert the input image to the RAS orientation convention
     import os
     import nibabel as nb
+    import numpy as np
     img = nb.load(img_file)
     if nb.aff2axcodes(img.affine) == ('R', 'A', 'S'):
         return img_file
@@ -223,7 +224,25 @@ def convert_to_RAS(img_file, out_dir=None):
             out_file = out_dir+'/'+split[0]+'_RAS.nii.gz'
             if not os.path.isdir(out_dir):
                 os.makedirs(out_dir)
-        nb.as_closest_canonical(img).to_filename(out_file)
+        canonical = nb.as_closest_canonical(img)
+
+        # If a matching RAS file was already written (e.g. in {output_dir}/template_files
+        # from a previous launch), leave it untouched. Re-writing it would update its
+        # modification time, which nipype uses to hash file inputs, and needlessly
+        # invalidate the cache of all downstream nodes.
+        if os.path.isfile(out_file):
+            try:
+                prev = nb.load(out_file)
+                if (prev.shape == canonical.shape
+                        # affines are stored as float32 in the header
+                        and np.allclose(prev.affine, canonical.affine, atol=1e-5)
+                        and np.array_equal(np.asanyarray(prev.dataobj),
+                                           np.asanyarray(canonical.dataobj))):
+                    return out_file
+            except Exception:
+                pass # unreadable previous file: re-write it
+
+        canonical.to_filename(out_file)
         return out_file
 
 
