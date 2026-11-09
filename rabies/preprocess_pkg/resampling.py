@@ -3,6 +3,7 @@ from nipype.interfaces import utility as niu
 import os
 from .bold_ref import init_bold_reference_wf
 from ..utils import ResampleVolumes,ResampleMask
+from ..templates import coverage_resampled, MASK_COVERAGE
 
 def init_bold_preproc_trans_wf(opts, resampling_dim, name='bold_native_trans_wf'):
     # bold_resampling_head_start
@@ -146,6 +147,8 @@ def init_mask_preproc_trans_wf(opts, name='mask_native_trans_wf'):
             mask_to_EPI = pe.Node(ResampleMask(), name=opt_key+'_resample')
             mask_to_EPI.inputs.name_suffix = opt_key+'_resampled'
             mask_to_EPI.inputs.mask_file = str(opt_file)
+            if coverage_resampled(opts, opt_key):
+                mask_to_EPI.inputs.min_coverage = MASK_COVERAGE
 
             workflow.connect([
                 (inputnode, mask_to_EPI, [

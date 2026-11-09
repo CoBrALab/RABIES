@@ -399,6 +399,9 @@ class ResampleMaskInputSpec(BaseInterfaceInputSpec):
     name_suffix = traits.Str(desc="Suffix added at the output file.")
     name_source = File(exists=True, mandatory=True,
                        desc='Reference file for prefix of the output file.')
+    min_coverage = traits.Float(
+        desc="If defined, a voxel of the reference is kept when the mask covers at least this fraction of it, "
+             "rather than when the mask is found at its centre.")
 
 
 class ResampleMaskOutputSpec(TraitedSpec):
@@ -427,14 +430,66 @@ class ResampleMask(BaseInterface):
         transforms = self.inputs.transforms if isdefined(self.inputs.transforms) else []
         inverses = self.inputs.inverses if isdefined(self.inputs.inverses) else []
 
-        antsApplyTransforms(transforms = transforms, inverses = inverses, 
-                        input_image = self.inputs.mask_file, ref_image = self.inputs.ref_file, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+        if isdefined(self.inputs.min_coverage):
+            resample_mask_by_coverage(transforms = transforms, inverses = inverses,
+                            mask_file = self.inputs.mask_file, ref_file = self.inputs.ref_file, output_filename = new_mask_path, min_coverage = self.inputs.min_coverage)
+        else:
+            antsApplyTransforms(transforms = transforms, inverses = inverses, 
+                            input_image = self.inputs.mask_file, ref_image = self.inputs.ref_file, output_filename = new_mask_path, interpolation='GenericLabel', rabies_data_type=sitk.sitkInt16, clip_negative=False)
 
         setattr(self, 'resampled_file', new_mask_path)
         return runtime
 
     def _list_outputs(self):
         return {'resampled_file': getattr(self, 'resampled_file')}
+
+
+def resample_mask_by_coverage(transforms, inverses, mask_file, ref_file, output_filename, min_coverage):
+    # GenericLabel samples the mask at the centre of each voxel of the reference, so a
+    # structure only a few mask voxels thick keeps every voxel it crosses at the centre,
+    # however little of the voxel it fills. The mask is instead sampled with nearest
+    # neighbour at the points of a grid dividing each voxel of the reference into
+    # subdivisions half the size of the mask voxels, and a voxel is kept when the mask
+    # covers at least min_coverage of its subdivisions. Subdivisions the size of the mask
+    # voxels would place the points on the boundaries between mask voxels whenever the
+    # reference spacing is a multiple of the mask spacing, as in commonspace.
+    mask_img = sitk.ReadImage(mask_file)
+    ref_img = sitk.ReadImage(ref_file)
+    ref_spacing = np.array(ref_img.GetSpacing())
+    # rounded first, so that a spacing ratio of 2.0000001 does not become 3
+    subdivisions = 2*np.maximum(np.ceil(np.round(
+        ref_spacing/np.array(mask_img.GetSpacing()), 3)), 1).astype(int)
+    fine_spacing = ref_spacing/subdivisions
+    direction = np.array(ref_img.GetDirection()).reshape(3, 3)
+
+    fine_grid = sitk.Image([int(n) for n in np.array(ref_img.GetSize())*subdivisions], sitk.sitkUInt8)
+    fine_grid.SetSpacing(fine_spacing.tolist())
+    fine_grid.SetDirection(ref_img.GetDirection())
+    # the first subdivision is centred inside the corner of the first voxel of the reference
+    fine_grid.SetOrigin((np.array(ref_img.GetOrigin()) + direction @ ((fine_spacing-ref_spacing)/2)).tolist())
+    split = output_filename.rsplit(".nii")[0]
+    fine_grid_file = f'{split}_coverage_grid.nii.gz'
+    fine_mask_file = f'{split}_coverage_mask.nii.gz'
+    sitk.WriteImage(fine_grid, fine_grid_file)
+
+    antsApplyTransforms(transforms=transforms, inverses=inverses, input_image=mask_file, ref_image=fine_grid_file,
+                        output_filename=fine_mask_file, interpolation='NearestNeighbor', rabies_data_type=sitk.sitkInt16, clip_negative=False)
+
+    fine_mask = sitk.GetArrayFromImage(sitk.ReadImage(fine_mask_file)) > 0
+    # image arrays are ordered z,y,x, the reverse of the sitk size and spacing
+    size = ref_img.GetSize()
+    coverage = fine_mask.reshape(size[2], subdivisions[2], size[1], subdivisions[1],
+                                 size[0], subdivisions[0]).mean(axis=(1, 3, 5))
+    os.remove(fine_grid_file)
+    os.remove(fine_mask_file)
+    kept = coverage >= min_coverage
+    # confound correction skips a regressor whose mask is empty with only a warning, so
+    # the run would finish without the WM_signal or CSF_signal the user asked for
+    if kept.sum() == 0:
+        raise ValueError(f"{mask_file} is empty once resampled onto {ref_file}.")
+    out_img = sitk.GetImageFromArray(kept.astype('int16'), isVector=False)
+    out_img.CopyInformation(ref_img)
+    sitk.WriteImage(out_img, output_filename)
 
 
 def antsApplyTransforms(transforms, inverses, input_image, ref_image, output_filename, interpolation, rabies_data_type=8, clip_negative=False):
@@ -651,16 +706,39 @@ def fill_node_dict(d, key_l, e):
 #DEBUGGING
 ######################
 
-def generate_token_data(tmppath, number_scans):
+def token_prior_maps(labels_img, number_maps):
+    # builds a 4D file of spatial priors by taking one parcel each, for template sets
+    # that ship no group ICA priors; these stand in for real networks in testing only
+    labels_array = sitk.GetArrayFromImage(labels_img)
+    present, counts = np.unique(labels_array[labels_array > 0], return_counts=True)
+    if len(present)==0:
+        raise ValueError("The labels file of this template set is empty.")
+    # the largest parcels come first, so that each map keeps voxels once it is masked
+    present = present[np.argsort(counts)[::-1]]
+    maps = []
+    for i in range(number_maps):
+        # cycle through the parcels when the atlas holds fewer than number_maps
+        array = (labels_array==present[i % len(present)]).astype('float32')
+        img = sitk.GetImageFromArray(array, isVector=False)
+        img.CopyInformation(labels_img)
+        maps.append(img)
+    return sitk.JoinSeries(maps)
+
+
+def generate_token_data(tmppath, number_scans, template_set=None):
     # this function generates fake scans at low resolution for quick testing and debugging
+    # the template set the scans are derived from sets their size, so that each set can be
+    # tested with data of the size it expects
 
     os.makedirs(tmppath+'/inputs', exist_ok=True)
 
-    from . import run_main
-    template = run_main.DSURQE_ANAT
-    mask = run_main.DSURQE_MASK
-    labels_file = run_main.DSURQE_LABELS
-    melodic_file = run_main.DSURQE_ICA
+    from . import templates
+    if template_set is None:
+        template_set = templates.DEFAULT_TEMPLATE_SET
+    template = templates.resolve(template_set, 'anat_template')
+    mask = templates.resolve(template_set, 'brain_mask')
+    labels_file = templates.resolve(template_set, 'labels')
+    melodic_file = templates.resolve(template_set, 'prior_maps')
 
     spacing = (float(1), float(1), float(1))  # resample to 1mmx1mmx1mm
     resampled_template = resample_image_spacing(sitk.ReadImage(template), spacing)
@@ -683,9 +761,21 @@ def generate_token_data(tmppath, number_scans):
     array = sitk.GetArrayFromImage(resampled_template)
     array_4d = np.repeat(array[np.newaxis, :, :, :], 15, axis=0)
     
-    melodic_img = sitk.ReadImage(melodic_file)
+    # two of the default --prior_bold_idx, the components of the mouse prior maps that
+    # are BOLD networks rather than confounds
+    network_idx = [5, 19]
+    if melodic_file is None:
+        # the template set ships no prior maps, so token ones are built from the labels
+        # to keep the analysis stage testable, as many as the networks kept below need.
+        # The labels are resampled with nearest neighbour rather than taken from
+        # token_labels, whose interpolated values each cover a voxel or two.
+        labels_img = sitk.Resample(sitk.ReadImage(labels_file), resampled_template,
+                                   sitk.Transform(), sitk.sitkNearestNeighbor)
+        melodic_img = token_prior_maps(labels_img, number_maps=max(network_idx)+1)
+    else:
+        melodic_img = sitk.ReadImage(melodic_file)
     # create a new melodic with just 2 networks for low-dimensional dual regression
-    melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,5],melodic_img[:,:,:,19]]) 
+    melodic_networks = sitk.JoinSeries([melodic_img[:,:,:,i] for i in network_idx])
     sitk.WriteImage(melodic_networks, tmppath+'/inputs/melodic_networks.nii.gz')
     
     dim = melodic_img.GetSize()[-1]
