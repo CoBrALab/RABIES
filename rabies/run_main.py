@@ -254,16 +254,34 @@ def preprocess(opts, log):
             check_template_overlap(opts.anat_template, opt_file)
             setattr(opts, opt_key, opt_file)
 
-    if opts.log_transform['template']:
-        # the log transformed template is written alongside the RAS-converted template files
-        opts.anat_template = log_transform_nii(
-            str(opts.anat_template), opts.data_type, out_dir=opts.output_dir+'/template_files')
-        log.info(f'With --log_transform template=true, --anat_template was log transformed: {opts.anat_template}')
-
     if not opts.inherit_unbiased_template=='none':
         opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
         if not os.path.isdir(opts.inherit_unbiased_template):
             raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exist.")
+
+        # each scan is registered to the inherited unbiased template, which was generated from the structural 
+        # images of the previous run (or the EPIs with --bold_only), so the log transform of these images must match
+        cli_file = f'{opts.inherit_unbiased_template}/rabies_preprocess.pkl'
+        with open(cli_file, 'rb') as handle:
+            inherit_preprocess_opts = pickle.load(handle)
+        key = 'bold' if opts.bold_only else 'anat'
+        if not opts.log_transform[key]==inherit_preprocess_opts.log_transform[key]:
+            raise ValueError(f"--inherit_unbiased_template: the unbiased template from the previous run was generated with "
+                             f"--log_transform {key}={str(inherit_preprocess_opts.log_transform[key]).lower()}, but "
+                             f"{key}={str(opts.log_transform[key]).lower()} was provided for this run. The --log_transform "
+                             "parameters must match the previous run, otherwise images are registered to a template of "
+                             "different contrast.")
+
+    if opts.log_transform['template']:
+        if not opts.inherit_unbiased_template=='none':
+            # --anat_template is replaced by the template inherited from the previous run
+            log.info('With --inherit_unbiased_template, the template files are inherited from the previous run, so '
+                     '--log_transform template=true is not applied to --anat_template.')
+        else:
+            # the log transformed template is written alongside the RAS-converted template files
+            opts.anat_template = log_transform_nii(
+                str(opts.anat_template), opts.data_type, out_dir=opts.output_dir+'/template_files')
+            log.info(f'With --log_transform template=true, --anat_template was log transformed: {opts.anat_template}')
 
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)

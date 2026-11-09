@@ -450,6 +450,8 @@ def get_parser():
             "By selecting this option, the following preprocessing parameters will be overriden to enforce \n"
             "consistency with the previous run: --anatomical_resampling, --commonspace_reg, --anat_template, \n"
             "--brain_mask, --WM_mask, --CSF_mask, --vascular_mask \n"
+            "The --log_transform parameters must also match the previous run (anat, or bold with --bold_only), \n"
+            "since the inherited template has the contrast of the images it was generated from. \n"
             "(default: %(default)s)\n"
             "\n"
         )
