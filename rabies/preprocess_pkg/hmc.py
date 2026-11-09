@@ -319,7 +319,7 @@ def write_hmc_qc_readme(opts, out_dir):
         steps.append(f"temporal spikes were {detection}, and voxel-frames deviating by\n"
                      f"    {opts.despiking['threshold']} standard deviations or more were replaced by linear interpolation\n"
                      "    in time (--despiking)")
-    if opts.log_transform:
+    if opts.log_transform['bold']:
         steps.append("intensities were log transformed, log10(x+1) (--log_transform)")
     if len(steps) == 0:
         steps_text = "  - none: the EPI is the input timeseries, after the initial input formatting\n"
@@ -331,7 +331,7 @@ def write_hmc_qc_readme(opts, out_dir):
                        "EPI shown here.\n")
     else:
         output_note = ""
-    if opts.log_transform:
+    if opts.log_transform['bold']:
         intensity_note = ("Intensities are in log units: the preprocessed output timeseries retain the original intensities,\n"
                           "and DVARS, mean square error and standard deviation values are in log units.\n")
     else:

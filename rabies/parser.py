@@ -298,11 +298,26 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        '--log_transform', dest='log_transform', action='store_true',
+        '--log_transform', type=str, nargs='?',
+        const='apply=true', default='apply=false',
         help=
-            "The functional and structural image intensity will be log transformed before registration. \n"
-            "The preprocessed functional timeseries will retain the original intensity values. \n"
-            "This parameter can support registration of fUSI images.\n"
+            "Image intensities are log transformed, log10(x+1), before registration. The preprocessed \n"
+            "functional timeseries will retain the original intensity values. This parameter can support \n"
+            "registration of fUSI images. Providing --log_transform without arguments applies the transform \n"
+            "to all images (equivalent to apply=true). The images to transform can be selected with the \n"
+            "following options:\n"
+            "* apply: whether to apply the log transform.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* anat: whether to log transform the structural images (ignored with --bold_only).\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* bold: whether to log transform the functional images used for registration and head \n"
+            " motion estimation.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* template: whether to log transform the --anat_template. The --anat_template should then be \n"
+            " provided with its original intensities. Set to false if the provided template was already \n"
+            " log transformed.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "e.g. --log_transform apply=true,template=false\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -1302,7 +1317,18 @@ def read_parser(parser, args):
         if opts.despiking['fps'] < 1:
             raise ValueError("--despiking fps must be >= 1.")
 
-        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report, 
+        opts.log_transform = parse_argument(opt=opts.log_transform,
+            key_value_pairs = {'apply':['true', 'false'], 'anat':['true', 'false'], 'bold':['true', 'false'], 'template':['true', 'false']},
+            defaults = {'apply':False,'anat':True,'bold':True,'template':True},
+            name='log_transform')
+        if not opts.log_transform['apply']:
+            # downstream code only checks the individual images, which are all off without apply=true
+            for key in ['anat','bold','template']:
+                opts.log_transform[key] = False
+        elif not (opts.log_transform['anat'] or opts.log_transform['bold'] or opts.log_transform['template']):
+            raise ValueError("--log_transform apply=true was provided, but anat, bold and template are all set to false.")
+
+        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report,
             key_value_pairs = {'apply':['true', 'false'], 'fps':int},
             defaults = {'apply':False,'fps':10},
             name='hmc_qc_report')

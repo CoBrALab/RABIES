@@ -5,7 +5,7 @@ from nipype import logging, config
 import pathlib
 from .boilerplate import *
 from .parser import get_parser,read_parser
-from .preprocess_pkg.utils import convert_to_RAS
+from .preprocess_pkg.utils import convert_to_RAS, log_transform_nii
 
 # setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -249,6 +249,12 @@ def preprocess(opts, log):
                 check_binary_masks(opt_file)
             check_template_overlap(opts.anat_template, opt_file)
             setattr(opts, opt_key, opt_file)
+
+    if opts.log_transform['template']:
+        # the log transformed template is written alongside the RAS-converted template files
+        opts.anat_template = log_transform_nii(
+            str(opts.anat_template), opts.data_type, out_dir=opts.output_dir+'/template_files')
+        log.info(f'With --log_transform template=true, --anat_template was log transformed: {opts.anat_template}')
 
     if not opts.inherit_unbiased_template=='none':
         opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)

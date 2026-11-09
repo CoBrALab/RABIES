@@ -195,7 +195,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 epi_for_bold = epi_for_reg
 
         # 3. log transform, only applied to epi_for_reg
-        if opts.log_transform:
+        if opts.log_transform['bold']:
             log_bold_node = pe.Node(Function(input_names=['in_nii', 'rabies_data_type'],
                                                             output_names=[
                                                                 'log_nii'],

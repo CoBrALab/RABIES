@@ -207,11 +207,37 @@ def apply_autobox(in_file):
     return out_file
 
 
+def nii_matches_file(img, nii_file):
+    '''
+    Returns True if nii_file already exists and holds the same image (shape, affine and voxel values)
+    as would be obtained by writing the nibabel image img to disk.
+
+    This is used to avoid re-writing files to a persistent directory (e.g. {output_dir}/template_files)
+    at every launch of RABIES. Re-writing a file updates its modification time, which nipype uses to
+    hash file inputs, and would needlessly invalidate the cache of all downstream nodes.
+    '''
+    import os
+    import numpy as np
+    import nibabel as nb
+    if not os.path.isfile(nii_file):
+        return False
+    try:
+        prev = nb.load(nii_file)
+        # round-trip img through its on-disk representation, so that the comparison accounts for
+        # the header data type and intensity scaling applied when writing
+        new = img.__class__.from_bytes(img.to_bytes())
+        return (prev.shape == new.shape
+                and np.allclose(prev.affine, new.affine, atol=1e-5)
+                and np.array_equal(np.asanyarray(prev.dataobj), np.asanyarray(new.dataobj)))
+    except Exception:
+        return False # e.g. unreadable previous file: it will be re-written
+
+
 def convert_to_RAS(img_file, out_dir=None):
     # convert the input image to the RAS orientation convention
     import os
     import nibabel as nb
-    import numpy as np
+    from rabies.preprocess_pkg.utils import nii_matches_file
     img = nb.load(img_file)
     if nb.aff2axcodes(img.affine) == ('R', 'A', 'S'):
         return img_file
@@ -225,24 +251,10 @@ def convert_to_RAS(img_file, out_dir=None):
             if not os.path.isdir(out_dir):
                 os.makedirs(out_dir)
         canonical = nb.as_closest_canonical(img)
-
-        # If a matching RAS file was already written (e.g. in {output_dir}/template_files
-        # from a previous launch), leave it untouched. Re-writing it would update its
-        # modification time, which nipype uses to hash file inputs, and needlessly
-        # invalidate the cache of all downstream nodes.
-        if os.path.isfile(out_file):
-            try:
-                prev = nb.load(out_file)
-                if (prev.shape == canonical.shape
-                        # affines are stored as float32 in the header
-                        and np.allclose(prev.affine, canonical.affine, atol=1e-5)
-                        and np.array_equal(np.asanyarray(prev.dataobj),
-                                           np.asanyarray(canonical.dataobj))):
-                    return out_file
-            except Exception:
-                pass # unreadable previous file: re-write it
-
-        canonical.to_filename(out_file)
+        # if a matching file was already written (e.g. in {output_dir}/template_files from a
+        # previous launch), leave it untouched to preserve nipype's cache
+        if not nii_matches_file(canonical, out_file):
+            canonical.to_filename(out_file)
         return out_file
 
 
@@ -356,12 +368,13 @@ def resample_template(structural_scan_list, bold_scan_list, template_file, mask_
     return registration_template, registration_mask, commonspace_template
 
 
-def log_transform_nii(in_nii, rabies_data_type):
+def log_transform_nii(in_nii, rabies_data_type, out_dir=None):
     import pathlib
     import os
     import numpy as np
     import nibabel as nib
     import SimpleITK as sitk
+    from rabies.preprocess_pkg.utils import nii_matches_file
 
     # the log transformed image has a narrow range of values (e.g. 0-5), which would be reduced to a handful of
     # intensity levels if read downstream with an integer data type
@@ -370,7 +383,11 @@ def log_transform_nii(in_nii, rabies_data_type):
                          "type, the log transformed image would be rounded to a few intensity values.")
 
     split = pathlib.Path(in_nii).name.rsplit(".nii")[0]
-    log_nii = os.path.abspath(f"{split}_log.nii.gz")
+    if out_dir is None:
+        log_nii = os.path.abspath(f"{split}_log.nii.gz")
+    else:
+        os.makedirs(out_dir, exist_ok=True)
+        log_nii = os.path.join(out_dir, f"{split}_log.nii.gz")
 
     img = nib.load(in_nii)
     img_data = img.get_fdata()
@@ -378,6 +395,9 @@ def log_transform_nii(in_nii, rabies_data_type):
     img_data = np.nan_to_num(img_data, posinf=0, neginf=0, nan=0)
     img_data[img_data<0] = 0 # clip all negative values to 0
     nifti_log = nib.Nifti1Image(img_data, affine = img.affine, header = img.header)
-    nib.save(nifti_log, log_nii)
-    
+    # if a matching file was already written (e.g. in {output_dir}/template_files from a
+    # previous launch), leave it untouched to preserve nipype's cache
+    if not nii_matches_file(nifti_log, log_nii):
+        nib.save(nifti_log, log_nii)
+
     return log_nii
