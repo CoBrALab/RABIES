@@ -262,7 +262,7 @@ class HMC_QC(BaseInterface):
         figure_path = os.path.join(fig_dir, f'{filename}_HMC_QC.{self.inputs.figure_format}')
         video_file = os.path.join(video_dir, f'{filename}_HMC.webp')
         # the CSV stays in the node directory, and is saved by the motion datasink
-        csv_path = os.path.abspath(f'{pathlib.Path(self.inputs.in_file).name.rsplit(".nii")[0]}_derivatives.csv')
+        csv_path = os.path.abspath(f'{filename}_derivatives.csv')
 
         n_procs = int(os.environ['RABIES_ITK_NUM_THREADS']) if "RABIES_ITK_NUM_THREADS" in os.environ else os.cpu_count() # default to number of CPUs
 
