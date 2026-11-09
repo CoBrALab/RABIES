@@ -298,14 +298,13 @@ def get_parser():
             "\n"
         )
     preprocess.add_argument(
-        '--log_transform', type=str, nargs='?',
-        const='apply=true', default='apply=false',
+        '--log_transform', type=str,
+        default='apply=false',
         help=
             "Image intensities are log transformed, log10(x+1), before registration. The preprocessed \n"
             "functional timeseries will retain the original intensity values. This parameter can support \n"
-            "registration of fUSI images. Providing --log_transform without arguments applies the transform \n"
-            "to all images (equivalent to apply=true). The images to transform can be selected with the \n"
-            "following options:\n"
+            "registration of fUSI images. The images to transform can be selected with the following \n"
+            "options:\n"
             "* apply: whether to apply the log transform.\n"
             "*** Specify 'true' or 'false'. \n"
             "* anat: whether to log transform the structural images (ignored with --bold_only).\n"
