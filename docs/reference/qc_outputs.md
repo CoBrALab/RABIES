@@ -139,7 +139,7 @@ Quality of the despiking, generated with `--despiking apply=true,gen_report=true
 - `despiking_video/`: a `.webp` video per scan showing the EPI timeseries before (top row) and after (bottom row) despiking, with a single intensity scale across frames and rows
 - `despiking_fig/`: a figure per scan with the percentage of voxels flagged at each frame, the mean signal before and after despiking, and a map of the percentage of frames flagged at each voxel
 
-Percentages are computed over the whole field of view, including background voxels. The per-frame values are also saved as a CSV in `motion_datasink/despiking_csv/`.
+Percentages are computed over the whole field of view, including background voxels. The per-frame values are also saved as a CSV in `motion_datasink/despiking_csv/`, and the 4D mask of flagged voxel-frames in `motion_datasink/despiking_flags/`.
 
 ## `motion_QC/`
 

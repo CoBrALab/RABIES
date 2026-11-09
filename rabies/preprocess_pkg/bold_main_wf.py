@@ -125,13 +125,13 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                         'motion_params_csv', 'FD_voxelwise', 'pos_voxelwise', 'FD_csv', 'commonspace_bold', 'commonspace_mask',
                         'commonspace_WM_mask', 'commonspace_CSF_mask', 'commonspace_vascular_mask',
                         'boldspace_brain_mask',
-                        'hmc_qc_csv', 'despiking_csv',
+                        'hmc_qc_csv', 'despiking_csv', 'despiking_flags',
                         ]),
                 name='outputnode')
 
 
     # this node will serve as a relay of outputs from the inho_cor main_wf to the inputs for the rest of the main_wf for bold_only
-    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'epi_for_reg', 'despiking_csv']),
+    transitionnode = pe.Node(niu.IdentityInterface(fields=['bold_file', 'isotropic_bold_file', 'bold_ref', 'init_denoise', 'denoise_mask', 'corrected_EPI', 'epi_for_reg', 'despiking_csv', 'despiking_flags']),
                              name="transitionnode")
 
     if inho_cor_only or (not opts.bold_only):
@@ -188,7 +188,8 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
                 write_despiking_readme(opts, despiking_QC_dir)
                 workflow.connect([
                     (inputnode, despike, [('bold_file', 'name_source')]),
-                    (despike, transitionnode, [('spike_csv', 'despiking_csv')]),
+                    (despike, transitionnode, [('spike_csv', 'despiking_csv'),
+                                               ('spike_flags', 'despiking_flags')]),
                     ])
             epi_for_reg = (despike, 'out_file')
             if not opts.despiking['for_reg_only']:
@@ -389,6 +390,7 @@ def init_bold_main_wf(opts, output_folder, number_functional_scans, inho_cor_onl
             ]),
         (transitionnode, outputnode, [
             ('despiking_csv', 'despiking_csv'),
+            ('despiking_flags', 'despiking_flags'),
             ]),
         (transitionnode, outputnode, [
             ('bold_ref', 'bold_ref'),

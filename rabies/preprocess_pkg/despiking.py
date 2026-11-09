@@ -226,7 +226,7 @@ despiking_fig/
     the smoothing sigma may help preserve motion and only despike spatially broad artefacts.
 
 The per-frame values (percentage of voxels flagged, mean signal before and after) are also saved as a CSV in
-motion_datasink/despiking_csv/.
+motion_datasink/despiking_csv/, and the 4D mask of flagged voxel-frames in motion_datasink/despiking_flags/.
 """
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, 'README.txt'), 'w') as f:
