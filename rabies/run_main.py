@@ -235,6 +235,10 @@ def preprocess(opts, log):
                 setattr(opts, opt_key, EPI_file)
                 log.info(f'With --bold_only, default --{opt_key} changed to {EPI_file}')
 
+    # record the template choice before any conversion (RAS, log transform) changes the file path,
+    # since analysis() relies on it to identify the default templates
+    opts.anat_template_source = str(opts.anat_template)
+
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
                                     [False,True,True,True,True]):
@@ -329,11 +333,14 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
+    # the original template choice, unaffected by RAS conversion/log transform of the template file
+    template_source = str(preprocess_opts.anat_template_source)
+
     labels_file = opts.ROI_labels_file
     if str(labels_file)==DSURQE_LABELS:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+        if template_source==DSURQE_ANAT:
             pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+        elif template_source==EPICOMMON_ANAT:
             file=EPICOMMON_LABELS
             opts.ROI_labels_file=EPICOMMON_LABELS
             log.info('With --bold_only, default --ROI_labels_file changed to '+file)
@@ -352,9 +359,9 @@ def analysis(opts, log):
         raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exist.")
 
     if str(opts.prior_maps)==DSURQE_ICA:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+        if template_source==DSURQE_ANAT:
             pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+        elif template_source==EPICOMMON_ANAT:
             file=EPICOMMON_ICA
             opts.prior_maps=file
             log.info('With --bold_only, default --prior_maps changed to '+file)
