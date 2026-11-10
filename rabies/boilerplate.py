@@ -48,13 +48,15 @@ magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-17
             references[afni]=i
             i+=1
 
+        afni_note = ""
         if opts.despiking['smoothing_sigma'] is None:
-            detection = f"at each voxel (3dDespike with the -localedit option, AFNI)[{references[afni]}]"
+            detection = f"at each voxel (3dDespike, AFNI)[{references[afni]}]"
+            afni_note = " (close to running 3dDespike with '-nomask -localedit')"
         else:
             detection = f"at each voxel, on timeseries smoothed in-plane with a Gaussian kernel (sigma={opts.despiking['smoothing_sigma']}mm) \
-(3dDespike with the -localedit option, AFNI)[{references[afni]}]"
+(3dDespike, AFNI)[{references[afni]}]"
         methods+=f"Temporal spikes were detected {detection}, and voxel-frames deviating by {opts.despiking['threshold']} standard deviations \
-or more from a smooth fit of the voxel timecourse were replaced by linear interpolation in time from the original timeseries. "
+or more from a smooth fit of the voxel timecourse were replaced by linear interpolation in time from the original timeseries{afni_note}. "
         if opts.despiking['for_reg_only']:
             methods+="The despiked timeseries was only used for generating the reference EPI and estimating head motion, while the preprocessed \
 timeseries was not despiked. "
