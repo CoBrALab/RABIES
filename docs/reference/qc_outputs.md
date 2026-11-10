@@ -43,6 +43,10 @@ prefix, and which commonspace folders exist depends on `--bold_only`,
   - `--bold_robust_inho_cor apply=true`
 * - `EPI2Anat/`
   - structural scans are used, i.e. not `--bold_only`
+* - `despiking_QC/`
+  - `--despiking apply=true,gen_report=true`
+* - `motion_QC/`
+  - `--hmc_qc_report apply=true`
 * - `template_files/`
   - always
 * - `temporal_features/`
@@ -127,6 +131,24 @@ susceptibility distortions through non-linear registration.
 Volumetric EPI (top) against the structural image (bottom). The red lining on each 
 image is the automated edge-detection computed from the other image.
 ```
+
+## `despiking_QC/`
+
+Quality of the despiking, generated with `--despiking apply=true,gen_report=true`.
+
+- `despiking_video/`: a `.webp` video per scan showing the EPI timeseries before (top row) and after (bottom row) despiking, with a single intensity scale across frames and rows
+- `despiking_fig/`: a figure per scan with the percentage of voxels flagged at each frame, the mean signal before and after despiking, and a map of the percentage of frames flagged at each voxel
+
+Percentages are computed over the whole field of view, including background voxels. The per-frame values are also saved as a CSV in `motion_datasink/despiking_csv/`, and the 4D mask of flagged voxel-frames in `motion_datasink/despiking_flags/`.
+
+## `motion_QC/`
+
+Quality of the head motion realignment, generated with `--hmc_qc_report apply=true`.
+
+- `hmc_qc_fig/`: a figure per scan showing the realignment parameters, and the registration error to the reference EPI (mean square error and DVARS) and the temporal standard deviation, before and after realignment
+- `hmc_qc_video/`: a `.webp` video per scan showing the EPI timeseries before and after realignment. All frames share a single intensity scale, so that changes in intensity across frames remain visible
+
+The derivatives plotted in the figure are also saved as a CSV in `motion_datasink/hmc_qc_csv/`.
 
 ## `template_files/`
 

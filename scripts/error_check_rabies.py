@@ -11,7 +11,6 @@ import argparse
 '''PARAMETERS NOT TESTED
 preprocess:
     --bids_filter: requires creating a JSON
-    --log_transform: makes the token data crash
 
 confound_correction:
     --highpass/lowpass/edge_cutoff; since filtering doesn't work with 3 timepoints
@@ -161,10 +160,12 @@ def repeat_attempts(command, number_attempts=3):
                 raise ValueError("All retries failed. Crashing now.")
             
 
-command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+# float32 is required by --log_transform
+command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token1_bold.nii.gz --verbose 1 --force --data_type float32 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
     --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
     --bold2anat_coreg registration=no_reg,masking=true,brain_extraction=true,keep_mask_after_extract=false,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 --commonspace_reg masking=true,brain_extraction=true,keep_mask_after_extract=false,fast_commonspace=true,template_registration=no_reg,winsorize_lower_bound=0.005,winsorize_upper_bound=0.995 \
-    --HMC_level 2 --no_HMC --apply_despiking --anat_autobox --bold_autobox --oblique2card affine --resampling_space both --hmc_qc_report apply=true,fps=5"
+    --HMC_level 2 --no_HMC --despiking apply=true,for_reg_only=true,smoothing_sigma=1,threshold=2,gen_report=true,fps=5 \
+    --log_transform apply=true --anat_autobox --bold_autobox --oblique2card affine --resampling_space both --hmc_qc_report apply=true,fps=5"
 process = subprocess.run(
     command,
     check=True,
@@ -188,7 +189,7 @@ process = subprocess.run(
 if opts.complete:
     command = f"rabies --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
-        --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --detect_dummy \
+        --commonspace_reg fast_commonspace=true,template_registration=no_reg --bold_only --remove_dummy \
         --apply_STC --args_3dTshift='-linear -tpattern alt-z' --nativespace_resampling 1x1x1 --commonspace_resampling 1x1x1 --anatomical_resampling 1x1x1 --oblique2card 3dWarp --resampling_space both --bold_nativespace"
     process = subprocess.run(
         command,

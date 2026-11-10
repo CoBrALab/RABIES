@@ -38,24 +38,31 @@ magnetic resonance neuroimages. Computers and Biomedical research, 29(3), 162-17
             autobox="For the anatomical images, "+autobox
         methods+=autobox
 
+    # Remove dummy
+    if opts.remove_dummy:
+        methods+="Dummy scans were automatically detected and removed from each EPI. "
+
     # Despiking
-    if opts.apply_despiking:
+    if opts.despiking['apply']:
         if not afni in references.keys():
             references[afni]=i
             i+=1
 
-        methods+=f"Temporal spikes were corrected for at each voxel (3dDespike, AFNI)[{references[afni]}]. "
-
-    # Detect dummy
-    if opts.detect_dummy:
-        methods+="Dummy scans were automatically detected and removed from each EPI. "
-        detect_dummy="If dummy scans are detected, the median of these volumes provides a volumetric EPI image as reference, given their \
-higher anatomical contrast. Otherwise, a"
-    else:
-        detect_dummy="A"
+        afni_note = ""
+        if opts.despiking['smoothing_sigma'] is None:
+            detection = f"at each voxel (3dDespike, AFNI)[{references[afni]}]"
+            afni_note = " (close to running 3dDespike with '-nomask -localedit')"
+        else:
+            detection = f"at each voxel, on timeseries smoothed in-plane with a Gaussian kernel (sigma={opts.despiking['smoothing_sigma']}mm) \
+(3dDespike, AFNI)[{references[afni]}]"
+        methods+=f"Temporal spikes were detected {detection}, and voxel-frames deviating by {opts.despiking['threshold']} standard deviations \
+or more from a smooth fit of the voxel timecourse were replaced by linear interpolation in time from the original timeseries{afni_note}. "
+        if opts.despiking['for_reg_only']:
+            methods+="The despiked timeseries was only used for generating the reference EPI and estimating head motion, while the preprocessed \
+timeseries was not despiked. "
 
     # Generate 3D EPI ref
-    methods+=f"{detect_dummy} volumetric EPI image was derived using a trimmed mean across the EPI frames, after an initial motion realignment step. "
+    methods+="A volumetric EPI image was derived using a trimmed mean across the EPI frames, after an initial motion realignment step. "
 
     # HMC
     methods+="Using this volumetric EPI as a target, the head motion parameters are estimated by realigning each EPI frame to the target using a rigid registration. "

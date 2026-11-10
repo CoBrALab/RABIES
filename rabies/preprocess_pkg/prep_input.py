@@ -161,12 +161,13 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
                                             name="format_anat_buffer")
 
 
-        if opts.log_transform:
-            log_anat_node = pe.Node(Function(input_names=['in_nii'],
+        if opts.log_transform['anat']:
+            log_anat_node = pe.Node(Function(input_names=['in_nii', 'rabies_data_type'],
                                                             output_names=[
                                                                 'log_nii'],
                                                             function=log_transform_nii),
                                                     name='log_anat_node')
+            log_anat_node.inputs.rabies_data_type = opts.data_type
 
         if opts.anat_autobox: # apply AFNI's 3dAutobox
             anat_autobox = pe.Node(Function(input_names=['in_file'],
@@ -178,7 +179,7 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
                     ('RAS_file', 'in_file'),
                     ]),
                 ])
-            if opts.log_transform:
+            if opts.log_transform['anat']:
                 workflow.connect([
                     (anat_autobox, log_anat_node, [
                         ("out_file", "in_nii"),
@@ -194,7 +195,7 @@ def init_prep_input_wf(data_dir_path, split_name, scan_info, run_iter, opts, nam
                         ]),
                     ])
         else:
-            if opts.log_transform:
+            if opts.log_transform['anat']:
                 workflow.connect([
                     (anat_convert_to_RAS_node, log_anat_node, [
                         ("RAS_file", "in_nii"),

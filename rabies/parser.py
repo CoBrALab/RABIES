@@ -257,26 +257,66 @@ def get_parser():
             "\n"
         )    
     preprocess.add_argument(
-        '--apply_despiking', dest='apply_despiking', action='store_true',
+        '--despiking', type=str,
+        default='apply=false,for_reg_only=false,smoothing_sigma=None,threshold=4.0,gen_report=false,fps=10',
         help=
-            "Applies AFNI's 3dDespike https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html.\n"
+            "Detects temporal spikes voxelwise using AFNI's 3dDespike spike score \n"
+            "(https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDespike.html), and replaces the flagged \n"
+            "voxel-frames by linear interpolation in time. Optionally, data is spatially-smoothed before \n"
+            "spike detection, while the correction is always applied to the original data. \n"
+            "* apply: whether to apply despiking.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* for_reg_only: if true, the despiked timeseries is only used to generate the reference EPI and \n"
+            " estimate head motion, and the preprocessed output timeseries is not despiked. If false, the \n"
+            " output timeseries is also despiked.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* smoothing_sigma: standard deviation (in mm) of an in-plane Gaussian smoothing applied before spike \n"
+            " detection (no smoothing across slices, i.e. the axis with the largest voxel dimension). \n"
+            "*** Provide a number above 0, or 'None' for no smoothing. \n"
+            "* threshold: voxel-frames with a spike score (deviation from a smooth fit of the voxel timecourse, \n"
+            " in standard deviations) at or above this threshold are replaced. \n"
+            "*** Provide a number above 0. \n"
+            "* gen_report: whether to generate a QC report of the despiking step in preprocess_QC_report/despiking_QC/\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* fps: frames per second for the video generated with gen_report=true. \n"
+            "*** Provide an integer of 1 or above. \n"
+            "The default (smoothing_sigma=None,threshold=4.0) is a voxelwise correction close to running \n"
+            "3dDespike with '-nomask -localedit'. \n"
+            "Alternative recipe smoothing_sigma=1,threshold=2.0: The combination of smoothing and stringent \n"
+            "despiking removes spatially broad spikes (e.g. intensity flashes) without removing local \n"
+            "displacement, i.e. motion that should be measured in later steps of the pipeline. \n"
+            "See rabies.preprocess_pkg.despiking.Despiking for more details.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     preprocess.add_argument(
-        '--detect_dummy', dest='detect_dummy', action='store_true',
+        '--remove_dummy', dest='remove_dummy', action='store_true',
         help=
-            "Detect and remove initial dummy volumes from the EPI, and generate a reference EPI based on\n"
-            "these volumes if detected. Dummy volumes will be removed from the output preprocessed EPI.\n"
+            "Detect and remove initial dummy volumes (non-steady state) from the EPI. This is the first\n"
+            "preprocessing step, and dummy volumes are discarded from all downstream steps and outputs.\n"
             "(default: %(default)s)\n"
             "\n"
         )
     preprocess.add_argument(
-        '--log_transform', dest='log_transform', action='store_true',
+        '--log_transform', type=str,
+        default='apply=false',
         help=
-            "The functional and structural image intensity will be log transformed before registration. \n"
-            "The preprocessed functional timeseries will retain the original intensity values. \n"
-            "This parameter can support registration of fUSI images.\n"
+            "Image intensities are log transformed, log10(x+1), before registration. The preprocessed \n"
+            "functional timeseries will retain the original intensity values. This parameter can support \n"
+            "registration of fUSI images. The images to transform can be selected with the following \n"
+            "options:\n"
+            "* apply: whether to apply the log transform.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* anat: whether to log transform the structural images (ignored with --bold_only).\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* bold: whether to log transform the functional images used for registration and head \n"
+            " motion estimation.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* template: whether to log transform the --anat_template. The --anat_template should then be \n"
+            " provided with its original intensities. Set to false if the provided template was already \n"
+            " log transformed.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "e.g. --log_transform apply=true,template=false\n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -410,6 +450,8 @@ def get_parser():
             "By selecting this option, the following preprocessing parameters will be overriden to enforce \n"
             "consistency with the previous run: --anatomical_resampling, --commonspace_reg, --anat_template, \n"
             "--brain_mask, --WM_mask, --CSF_mask, --vascular_mask \n"
+            "The --log_transform parameters must also match the previous run (anat, or bold with --bold_only), \n"
+            "since the inherited template has the contrast of the images it was generated from. \n"
             "(default: %(default)s)\n"
             "\n"
         )
@@ -468,7 +510,8 @@ def get_parser():
         help=
             "This option manages the generation of a quality report on the head motion correction registration step. \n"
             "The report includes registration error across frames, standard deviation and a video of the \n"
-            "timeseries each before and after applying the correction. \n"
+            "timeseries each before and after applying the correction. The figure and video are written to \n"
+            "preprocess_QC_report/motion_QC/, and the derivatives CSV to motion_datasink/hmc_qc_csv/. \n"
             "* apply: whether to generate the report or not.\n"
             "*** Specify 'true' or 'false'. \n"
             "* fps: frames per second for the video generated.\n"
@@ -1260,7 +1303,33 @@ def read_parser(parser, args):
             defaults = {'apply':False,'stages':'rigid-affine-nlin','masking':False,'brain_extraction':False,'keep_mask_after_extract':False,'template_registration':'SyN','winsorize_lower_bound':0.0,'winsorize_upper_bound':1.0},
             name='bold_robust_inho_cor')
         
-        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report, 
+        opts.despiking = parse_argument(opt=opts.despiking, 
+            key_value_pairs = {'apply':['true', 'false'], 'for_reg_only':['true', 'false'], 'smoothing_sigma':float_or_none, 'threshold':float, 'gen_report':['true', 'false'], 'fps':int},
+            defaults = {'apply':False,'for_reg_only':False,'smoothing_sigma':None,'threshold':4.0,'gen_report':False,'fps':10},
+            name='despiking')
+        if opts.despiking['smoothing_sigma'] is not None and not opts.despiking['smoothing_sigma'] > 0:
+            raise ValueError("--despiking smoothing_sigma must be above 0, or 'None'.")
+        if not opts.despiking['threshold'] > 0:
+            raise ValueError("--despiking threshold must be above 0.")
+        if opts.despiking['for_reg_only'] and not opts.despiking['apply']:
+            raise ValueError("--despiking for_reg_only=true requires apply=true.")
+        if opts.despiking['gen_report'] and not opts.despiking['apply']:
+            raise ValueError("--despiking gen_report=true requires apply=true.")
+        if opts.despiking['fps'] < 1:
+            raise ValueError("--despiking fps must be >= 1.")
+
+        opts.log_transform = parse_argument(opt=opts.log_transform,
+            key_value_pairs = {'apply':['true', 'false'], 'anat':['true', 'false'], 'bold':['true', 'false'], 'template':['true', 'false']},
+            defaults = {'apply':False,'anat':True,'bold':True,'template':True},
+            name='log_transform')
+        if not opts.log_transform['apply']:
+            # downstream code only checks the individual images, which are all off without apply=true
+            for key in ['anat','bold','template']:
+                opts.log_transform[key] = False
+        elif not (opts.log_transform['anat'] or opts.log_transform['bold'] or opts.log_transform['template']):
+            raise ValueError("--log_transform apply=true was provided, but anat, bold and template are all set to false.")
+
+        opts.hmc_qc_report = parse_argument(opt=opts.hmc_qc_report,
             key_value_pairs = {'apply':['true', 'false'], 'fps':int},
             defaults = {'apply':False,'fps':10},
             name='hmc_qc_report')
@@ -1309,6 +1378,12 @@ def read_parser(parser, args):
 
     return opts
 
+def float_or_none(value):
+    # converter for parse_argument, for parameters accepting either a number or 'None'
+    if value == 'None':
+        return None
+    return float(value)
+
 def parse_argument(opt, key_value_pairs, defaults, name):
     key_list = list(key_value_pairs.keys())
     l = opt.split(',')
@@ -1322,8 +1397,12 @@ def parse_argument(opt, key_value_pairs, defaults, name):
         [key,value] = s
         if not key in key_list:
             raise ValueError(f"The provided key {key} is not part of the available options {key_list} for --{name}.")
-        if key_value_pairs[key] in [int,float,str]:
-            value = key_value_pairs[key](value)
+        if callable(key_value_pairs[key]): # a type (e.g. int, float, str) or function converting the string
+            try:
+                value = key_value_pairs[key](value)
+            except ValueError:
+                raise ValueError(f"The provided value {value} for the key {key} for --{name} could not be converted to "
+                                 f"{key_value_pairs[key].__name__}.") from None
         else:
             if not value in key_value_pairs[key]:
                 raise ValueError(f"The provided value {value} is not part of the available options {key_value_pairs[key]} for the key {key} for --{name}.")

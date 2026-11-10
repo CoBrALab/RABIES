@@ -5,7 +5,7 @@ from nipype import logging, config
 import pathlib
 from .boilerplate import *
 from .parser import get_parser,read_parser
-from .preprocess_pkg.utils import convert_to_RAS
+from .preprocess_pkg.utils import convert_to_RAS, log_transform_nii
 
 # setting all default template files
 if 'XDG_DATA_HOME' in os.environ.keys():
@@ -235,6 +235,10 @@ def preprocess(opts, log):
                 setattr(opts, opt_key, EPI_file)
                 log.info(f'With --bold_only, default --{opt_key} changed to {EPI_file}')
 
+    # record the template choice before any conversion (RAS, log transform) changes the file path,
+    # since analysis() relies on it to identify the default templates
+    opts.anat_template_source = str(opts.anat_template)
+
     # final check of template file formats
     for opt_key,check_binary in zip(['anat_template', 'brain_mask', 'WM_mask','CSF_mask','vascular_mask'],
                                     [False,True,True,True,True]):
@@ -254,6 +258,30 @@ def preprocess(opts, log):
         opts.inherit_unbiased_template = os.path.abspath(opts.inherit_unbiased_template)
         if not os.path.isdir(opts.inherit_unbiased_template):
             raise ValueError(f"--inherit_unbiased_template path {opts.inherit_unbiased_template} doesn't exist.")
+
+        # each scan is registered to the inherited unbiased template, which was generated from the structural 
+        # images of the previous run (or the EPIs with --bold_only), so the log transform of these images must match
+        cli_file = f'{opts.inherit_unbiased_template}/rabies_preprocess.pkl'
+        with open(cli_file, 'rb') as handle:
+            inherit_preprocess_opts = pickle.load(handle)
+        key = 'bold' if opts.bold_only else 'anat'
+        if not opts.log_transform[key]==inherit_preprocess_opts.log_transform[key]:
+            raise ValueError(f"--inherit_unbiased_template: the unbiased template from the previous run was generated with "
+                             f"--log_transform {key}={str(inherit_preprocess_opts.log_transform[key]).lower()}, but "
+                             f"{key}={str(opts.log_transform[key]).lower()} was provided for this run. The --log_transform "
+                             "parameters must match the previous run, otherwise images are registered to a template of "
+                             "different contrast.")
+
+    if opts.log_transform['template']:
+        if not opts.inherit_unbiased_template=='none':
+            # --anat_template is replaced by the template inherited from the previous run
+            log.info('With --inherit_unbiased_template, the template files are inherited from the previous run, so '
+                     '--log_transform template=true is not applied to --anat_template.')
+        else:
+            # the log transformed template is written alongside the RAS-converted template files
+            opts.anat_template = log_transform_nii(
+                str(opts.anat_template), opts.data_type, out_dir=opts.output_dir+'/template_files')
+            log.info(f'With --log_transform template=true, --anat_template was log transformed: {opts.anat_template}')
 
     check_resampling_syntax(opts.nativespace_resampling)
     check_resampling_syntax(opts.commonspace_resampling)
@@ -323,11 +351,14 @@ def analysis(opts, log):
     with open(cli_file, 'rb') as handle:
         preprocess_opts = pickle.load(handle)
 
+    # the original template choice, unaffected by RAS conversion/log transform of the template file
+    template_source = str(preprocess_opts.anat_template_source)
+
     labels_file = opts.ROI_labels_file
     if str(labels_file)==DSURQE_LABELS:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+        if template_source==DSURQE_ANAT:
             pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+        elif template_source==EPICOMMON_ANAT:
             file=EPICOMMON_LABELS
             opts.ROI_labels_file=EPICOMMON_LABELS
             log.info('With --bold_only, default --ROI_labels_file changed to '+file)
@@ -346,9 +377,9 @@ def analysis(opts, log):
         raise ValueError(f"--prior_maps file {opts.prior_maps} doesn't exist.")
 
     if str(opts.prior_maps)==DSURQE_ICA:
-        if str(preprocess_opts.anat_template)==DSURQE_ANAT:
+        if template_source==DSURQE_ANAT:
             pass
-        elif str(preprocess_opts.anat_template)==EPICOMMON_ANAT:
+        elif template_source==EPICOMMON_ANAT:
             file=EPICOMMON_ICA
             opts.prior_maps=file
             log.info('With --bold_only, default --prior_maps changed to '+file)

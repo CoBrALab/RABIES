@@ -58,7 +58,7 @@ downstream will not correspond to your data.
 A SHAM preprocessing is a minimal pass, not a strictly non-modifying one.
 
 Operations which alter the data but are off by default stay off, and should not
-be added: `--apply_STC`, `--apply_despiking`, `--detect_dummy`,
+be added: `--apply_STC`, `--despiking`, `--remove_dummy`,
 `--log_transform`, `--anat_autobox`, `--bold_autobox` and `--oblique2card`.
 
 The timeseries are still resampled onto the output grid, using the identity
