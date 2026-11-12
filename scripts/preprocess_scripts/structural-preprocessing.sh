@@ -90,16 +90,40 @@ rm -f ${tmpdir}/originput.clamp.mnc
 input=${tmpdir}/originput.mnc
 
 if [ "$apply_inho_cor" = false ]; then
-  # Inhomogeneity correction is skipped: a brain mask is derived in a single step (no iterations), either through
-  # Otsu thresholding (no_reg) or registration of the template mask, and the uncorrected input is returned.
-  if [ $reg_option == 'no_reg' ]; then
-    ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
-    ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
-    ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
-    iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
-    ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
-    iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
-  else
+  # Inhomogeneity correction is skipped: only the brain mask is derived and output, following the same masking 
+  # steps as the default pipeline (Otsu thresholding for no_reg, or registration of the template mask refined 
+  # with Otsu thresholding), but computed on the uncorrected image.
+
+  # same initial Otsu masking and cropping as in the default pipeline (here, ${input} is ${tmpdir}/originput.mnc).
+  ImageMath 3 ${input} PadImage ${input} 20
+
+  ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+  ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
+  ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
+  iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+  ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+  iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
+  ExtractRegionFromImageByMask 3 ${input} ${tmpdir}/repad.mnc ${tmpdir}/weight.mnc 1 10
+  mv -f ${tmpdir}/repad.mnc ${input}
+  ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+  mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
+  mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
+
+  # denoising, as in the default pipeline (no inhomogeneity correction)
+  minc_anlm --clobber --mt $(nproc) ${input} ${tmpdir}/denoise.mnc
+  reg_input=${tmpdir}/denoise.mnc
+
+  # second iteration generating Otsu mask based on the denoised image (final mask with no_reg)
+  ThresholdImage 3 ${reg_input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
+  ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
+  iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+  ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+  iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
+  mincresample -like ${input} -keep -near -labels ${tmpdir}/weight.mnc ${tmpdir}/weight2.mnc
+  mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
+
+  if [ $reg_option != 'no_reg' ]; then
+    # register the cropped uncorrected image to derive the template mask, then refine it with Otsu thresholding
     transforms="-t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ]"
     if [ $reg_option == 'Rigid' ]; then
       reg_type="--linear-type rigid --skip-nonlinear"
@@ -113,10 +137,20 @@ if [ "$apply_inho_cor" = false ]; then
       exit 1
     fi
     antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} $reg_type \
-      ${input} ${modelfile} ${tmpdir}/tomodel
+      ${reg_input} ${modelfile} ${tmpdir}/tomodel
 
     antsApplyTransforms -d 3 -i ${modelmask} ${transforms} \
-      -o ${tmpdir}/weight.mnc -n GenericLabel -r ${input} --verbose
+      -o ${tmpdir}/newmask.mnc -n GenericLabel -r ${reg_input} --verbose
+
+    # same mask refinement as in the default pipeline, but the Otsu thresholding is done on the uncorrected image
+    iMath 3 ${tmpdir}/newmask.mnc MD ${tmpdir}/newmask.mnc 1 1 ball 1
+    ThresholdImage 3 ${reg_input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/newmask.mnc
+    ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
+
+    ImageMath 3 ${tmpdir}/weight.mnc m ${tmpdir}/newmask.mnc ${tmpdir}/weight.mnc
+    iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+    ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+    iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
   fi
 
   # only the mask is output (the uncorrected input is carried forward directly by RABIES).
