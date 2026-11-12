@@ -328,7 +328,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--anat_inho_cor", type=str, 
-        default='method=SyN,otsu_thresh=2,multiotsu=false',
+        default='method=SyN,otsu_thresh=2,multiotsu=false,apply_inho_cor=true',
         help=
             "Select options for the inhomogeneity correction of the structural image.\n"
             "* method: specify which registration strategy is employed for providing a brain mask.\n"
@@ -346,6 +346,10 @@ def get_parser():
             " lower intensities are initially corrected, then higher intensities are iteratively \n"
             " included to eventually correct the whole image. This technique may help with images with \n"
             " particularly strong inhomogeneity gradients and very low intensities.\n"
+            "*** Specify 'true' or 'false'. \n"
+            "* apply_inho_cor: if this is set to false, no inhomogeneity correction is applied, but a brain \n"
+            " mask is still derived and can be used downstreams (e.g. for --commonspace_reg, or --bold2anat_coreg). \n"
+            " --anat_robust_inho_cor inherits this setting. \n"
             "*** Specify 'true' or 'false'. \n"
             "(default: %(default)s)\n"
             "\n"
@@ -389,7 +393,7 @@ def get_parser():
         )
     g_registration.add_argument(
         "--bold_inho_cor", type=str, 
-        default='method=Rigid,otsu_thresh=2,multiotsu=false',
+        default='method=Rigid,otsu_thresh=2,multiotsu=false,apply_inho_cor=true',
         help=
             "Same as --anat_inho_cor, but for the EPI images.\n"
             "(default: %(default)s)\n"
@@ -1269,14 +1273,14 @@ def read_parser(parser, args):
 
         opts.anat_inho_cor = parse_argument(opt=opts.anat_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
-                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
-            defaults = {'method': 'SyN', 'otsu_thresh': '2', 'multiotsu': False},
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false'], 'apply_inho_cor':['true', 'false']},
+            defaults = {'method': 'SyN', 'otsu_thresh': '2', 'multiotsu': False, 'apply_inho_cor': True},
             name='anat_inho_cor')
 
         opts.bold_inho_cor = parse_argument(opt=opts.bold_inho_cor, 
             key_value_pairs = {'method':['Rigid', 'Affine', 'SyN', 'no_reg', 'N4_reg', 'disable'], 
-                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false']},
-            defaults = {'method': 'Rigid', 'otsu_thresh': '2', 'multiotsu': False},
+                'otsu_thresh':['0','1','2','3','4'], 'multiotsu':['true', 'false'], 'apply_inho_cor':['true', 'false']},
+            defaults = {'method': 'Rigid', 'otsu_thresh': '2', 'multiotsu': False, 'apply_inho_cor': True},
             name='bold_inho_cor')
 
         opts.commonspace_reg = parse_argument(opt=opts.commonspace_reg, 
@@ -1335,6 +1339,15 @@ def read_parser(parser, args):
             name='hmc_qc_report')
         if opts.hmc_qc_report['fps'] < 1:
             raise ValueError("--hmc_qc_report fps must be >= 1.")
+
+        # inhomogeneity correction can only be skipped (while keeping masking) with the shell-script methods
+        for name,opt in zip(['--anat_inho_cor','--bold_inho_cor'], [opts.anat_inho_cor, opts.bold_inho_cor]):
+            if not opt['apply_inho_cor']:
+                if opt['method']=='N4_reg':
+                    raise ValueError(f"For {name}, 'apply_inho_cor=false' is not compatible with method=N4_reg.")
+                if opt['multiotsu']:
+                    raise ValueError(f"For {name}, 'apply_inho_cor=false' is not compatible with 'multiotsu=true', "
+                                     "since multiotsu is a correction strategy.")
 
         # check that masking/extraction options are well set
         for name,opt in zip(['--commonspace_reg','--bold2anat_coreg','--anat_robust_inho_cor','--bold_robust_inho_cor'],

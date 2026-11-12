@@ -127,6 +127,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, nthreads_modelbuild
     if image_type=='EPI':
         inho_cor_method=opts.bold_inho_cor['method']
         otsu_threshold=int(opts.bold_inho_cor['otsu_thresh'])
+        apply_inho_cor=opts.bold_inho_cor.get('apply_inho_cor', True)
         if opts.bold_inho_cor['multiotsu']:
             multistage_otsu='true'
         if opts.bold_robust_inho_cor['apply']:
@@ -141,6 +142,7 @@ def init_inho_correction_wf(opts, image_type, output_folder, nthreads_modelbuild
     elif image_type=='structural':
         inho_cor_method=opts.anat_inho_cor['method']
         otsu_threshold=int(opts.anat_inho_cor['otsu_thresh'])
+        apply_inho_cor=opts.anat_inho_cor.get('apply_inho_cor', True)
         if opts.anat_inho_cor['multiotsu']:
             multistage_otsu='true'
         if opts.anat_robust_inho_cor['apply']:
@@ -151,11 +153,11 @@ def init_inho_correction_wf(opts, image_type, output_folder, nthreads_modelbuild
     else:
         raise
 
-    inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+    inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, apply_inho_cor=apply_inho_cor, rabies_data_type=opts.data_type),
                            name='InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
     if robust_inho_cor:
-        init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, rabies_data_type=opts.data_type),
+        init_inho_cor_node = pe.Node(InhoCorrection(image_type=image_type, inho_cor_method=inho_cor_method, otsu_threshold=otsu_threshold, multistage_otsu=multistage_otsu, apply_inho_cor=apply_inho_cor, rabies_data_type=opts.data_type),
                             name='init_InhoCorrection', mem_gb=0.6*opts.scale_min_memory)
 
         robust_inho_cor_opts['fast_commonspace'] = False # this option is added manually since it is not part of the parser
@@ -223,6 +225,8 @@ class InhoCorrectionInputSpec(BaseInterfaceInputSpec):
         desc="Should be 'true' if multistage otsu is used.")
     otsu_threshold = traits.Int(
         desc="")
+    apply_inho_cor = traits.Bool(True, usedefault=True,
+        desc="If False, the inhomogeneity correction is skipped and only a brain mask is derived.")
     rabies_data_type = traits.Int(mandatory=True,
         desc="Integer specifying SimpleITK data type.")
 
@@ -284,11 +288,17 @@ class InhoCorrection(BaseInterface):
                 processing_script='structural-preprocessing.sh'
             else:
                 raise ValueError(f"Image type must be 'EPI' or 'structural', {self.inputs.image_type}")
-            command = f'{processing_script} {target_img} {corrected} {self.inputs.anat_ref} {self.inputs.anat_mask} {self.inputs.inho_cor_method} {self.inputs.multistage_otsu} {str(self.inputs.otsu_threshold)}'
+            command = f'{processing_script} {target_img} {corrected} {self.inputs.anat_ref} {self.inputs.anat_mask} {self.inputs.inho_cor_method} {self.inputs.multistage_otsu} {str(self.inputs.otsu_threshold)} {str(self.inputs.apply_inho_cor).lower()}'
             rc,c_out = run_command(command)
 
             resampled_mask = corrected.split('.nii.gz')[0]+'_mask.nii.gz'
             init_denoise = corrected.split('.nii.gz')[0]+'_init_denoise.nii.gz'
+
+            if not self.inputs.apply_inho_cor:
+                # equivalent to 'disable' for the image (outputs correspond to the inputs), but keep the mask
+                # (the script resamples it onto the grid of target_img)
+                corrected=target_img
+                init_denoise=corrected
         elif self.inputs.inho_cor_method in ['N4_reg']:
             if self.inputs.image_type=='EPI':
 

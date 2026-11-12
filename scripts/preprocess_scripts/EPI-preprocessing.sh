@@ -13,12 +13,14 @@ calc(){ awk "BEGIN { print "$*" }"; }
 tmpdir=$(mktemp -d)
 
 input=$1
+input_nii=$1 # keep the path to the original input file
 output=$2
 modelfile=$3
 modelmask=$4
 reg_option=$5
 multi_otsu=$6
 otsu_thresh=$7
+apply_inho_cor=${8:-true} # if 'false', skip inhomogeneity correction and only compute a brain mask
 
 # convert inputs to mnc
 nii2mnc ${input} ${tmpdir}/input.mnc
@@ -74,6 +76,48 @@ ImageMath 3 ${tmpdir}/originput.mnc RescaleImage ${tmpdir}/originput.mnc 0 65535
 
 #Construct Otsu Mask of entire image
 input=${tmpdir}/originput.mnc
+
+if [ "$apply_inho_cor" = false ]; then
+  # Inhomogeneity correction is skipped: a brain mask is derived in a single step (no iterations), either through
+  # Otsu thresholding (no_reg) or registration of the template mask, and the uncorrected input is returned.
+  if [ $reg_option == 'no_reg' ]; then
+    ThresholdImage 3 ${input} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+    ThresholdImage 3 ${input} ${tmpdir}/weight.mnc Otsu 4 ${tmpdir}/bgmask.mnc
+    ThresholdImage 3 ${tmpdir}/weight.mnc ${tmpdir}/weight.mnc $otsu_thresh Inf 1 0
+    iMath 3 ${tmpdir}/weight.mnc ME ${tmpdir}/weight.mnc 1 1 ball 1
+    ImageMath 3 ${tmpdir}/weight.mnc GetLargestComponent ${tmpdir}/weight.mnc
+    iMath 3 ${tmpdir}/weight.mnc MD ${tmpdir}/weight.mnc 1 1 ball 1
+  else
+    transforms="-t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ]"
+    if [ $reg_option == 'Rigid' ]; then
+      reg_type="--linear-type rigid --skip-nonlinear"
+    elif [ $reg_option == 'Affine' ]; then
+      reg_type="--linear-type affine --skip-nonlinear"
+    elif [ $reg_option == 'SyN' ]; then
+      reg_type="--linear-type affine"
+      transforms="${transforms} -t ${tmpdir}/tomodel1_inverse_NL.xfm"
+    else
+      echo "Invalid registration option ${reg_option}."
+      exit 1
+    fi
+    antsRegistration_affine_SyN.sh --convergence 1e-7 $reg_type \
+      ${input} ${modelfile} ${tmpdir}/tomodel
+
+    antsApplyTransforms -d 3 -i ${modelmask} ${transforms} \
+      -o ${tmpdir}/weight.mnc -n GenericLabel -r ${input} --verbose
+  fi
+
+  # only the mask is output (the uncorrected input is carried forward directly by RABIES).
+  # reconvert the mask to .nii and resample it exactly onto the grid of the original input file
+  mnc2nii ${tmpdir}/weight.mnc ${tmpdir}/weight_mnc.nii
+  gzip ${tmpdir}/weight_mnc.nii
+  antsApplyTransforms -d 3 -i ${tmpdir}/weight_mnc.nii.gz -r ${input_nii} -t identity \
+    -o ${tmpdir}/weight.nii.gz -n GenericLabel --verbose
+  cp ${tmpdir}/weight.nii.gz $(dirname ${output})/$(basename ${output} .nii.gz)_mask.nii.gz
+
+  rm -rf ${tmpdir}
+  exit 0
+fi
 
 #Construct Otsu Mask of entire image
 if [ "$multi_otsu" = true ]; then
