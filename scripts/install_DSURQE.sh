@@ -66,10 +66,29 @@ fi
 # create regional masks
 gen_DSURQE_masks.py ${out_dir}/DSURQE_40micron_labels.nii.gz ${out_dir}/DSURQE_40micron_R_mapping.csv ${out_dir}/DSURQE_40micron
 
-curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/19069284/files/melodic_IC.nii.gz" -o "${out_dir}/melodic_IC.nii.gz"
-curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/19069284/files/vascular_mask.nii.gz" -o "${out_dir}/vascular_mask.nii.gz"
-curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/19069284/files/EPICOMMON.zip" -o "${out_dir}/EPICOMMON.zip"
-curl -L --retry 5 --fail --silent --show-error "https://zenodo.org/records/19069284/files/DSURQE_seeds.zip" -o "${out_dir}/DSURQE_seeds.zip"
+# RABIES_extras: try Zenodo first, then a GitHub release mirror.
+# Zenodo returns 403 to some clients (e.g. GitHub Actions runners), so the
+# same files are mirrored as assets of a GitHub release.
+extras_zenodo="https://zenodo.org/records/19069284/files"
+extras_github="https://github.com/CoBrALab/RABIES/releases/download/RABIES_extras_19069284"
+
+fetch_extra() {
+    local name=$1
+    for base in "$extras_zenodo" "$extras_github"; do
+        echo "Downloading ${base}/${name}"
+        if curl -L --retry 5 --retry-all-errors --fail --silent --show-error \
+            -o "${out_dir}/${name}" "${base}/${name}"; then
+            return 0
+        fi
+        echo "  failed: ${base}/${name}" >&2
+    done
+    echo "ERROR: could not download ${name} from any source" >&2
+    exit 1
+}
+
+for f in melodic_IC.nii.gz vascular_mask.nii.gz EPICOMMON.zip DSURQE_seeds.zip; do
+    fetch_extra "$f"
+done
 
 unzip "${out_dir}/EPICOMMON.zip" -d "${out_dir}"
 unzip "${out_dir}/DSURQE_seeds.zip" -d "${out_dir}"
