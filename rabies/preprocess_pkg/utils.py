@@ -401,3 +401,37 @@ def log_transform_nii(in_nii, rabies_data_type, out_dir=None):
         nib.save(nifti_log, log_nii)
 
     return log_nii
+
+
+def copy_inherited_file(in_file, subdir):
+    # copy a file inherited from a previous run (--inherit_unbiased_template) into the working directory of the
+    # current node, so that the new run is self-contained and does not depend on the location of the previous run.
+    # Each file is put in its own sub-directory to prevent name conflicts while keeping the original filename.
+    import os
+    import shutil
+    if not isinstance(in_file, str) or not os.path.isfile(in_file):
+        return in_file  # e.g. 'NULL' for absent warps, or None for an absent mask
+    out_dir = os.path.abspath(subdir)
+    os.makedirs(out_dir, exist_ok=True)
+    out_file = os.path.join(out_dir, os.path.basename(in_file))
+    shutil.copyfile(in_file, out_file)
+    return out_file
+
+
+# the arguments default to None, since nipype does not pass inputs that are undefined (e.g. no unbiased_mask without masking)
+def copy_inherited_template(registration_template=None, registration_mask=None, commonspace_template=None):
+    from rabies.preprocess_pkg.utils import copy_inherited_file
+    return (copy_inherited_file(registration_template, 'registration_template'),
+            copy_inherited_file(registration_mask, 'registration_mask'),
+            copy_inherited_file(commonspace_template, 'commonspace_template'))
+
+
+def copy_inherited_unbiased_files(unbiased_template=None, unbiased_mask=None, unbiased_to_atlas_affine=None, unbiased_to_atlas_warp=None,
+                                  unbiased_to_atlas_inverse_warp=None, warped_unbiased=None):
+    from rabies.preprocess_pkg.utils import copy_inherited_file
+    return (copy_inherited_file(unbiased_template, 'unbiased_template'),
+            copy_inherited_file(unbiased_mask, 'unbiased_mask'),
+            copy_inherited_file(unbiased_to_atlas_affine, 'unbiased_to_atlas_affine'),
+            copy_inherited_file(unbiased_to_atlas_warp, 'unbiased_to_atlas_warp'),
+            copy_inherited_file(unbiased_to_atlas_inverse_warp, 'unbiased_to_atlas_inverse_warp'),
+            copy_inherited_file(warped_unbiased, 'warped_unbiased'))

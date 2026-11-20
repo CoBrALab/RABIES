@@ -352,7 +352,8 @@ def analysis(opts, log):
         preprocess_opts = pickle.load(handle)
 
     # the original template choice, unaffected by RAS conversion/log transform of the template file
-    template_source = str(preprocess_opts.anat_template_source)
+    # preprocessing outputs from RABIES <= 0.6.3 do not have anat_template_source; anat_template was then unchanged
+    template_source = str(getattr(preprocess_opts, 'anat_template_source', preprocess_opts.anat_template))
 
     labels_file = opts.ROI_labels_file
     if str(labels_file)==DSURQE_LABELS:
