@@ -20,3 +20,9 @@ for downstream RABIES stages, as there is currently no way to fully merge togeth
 Also note that by selecting this option, the following preprocessing parameters will be overriden to enforce consistency with 
 the previous run: `--anatomical_resampling`, `--commonspace_reg`, `--anat_template`, `--brain_mask`, `--WM_mask`, `--CSF_mask`, `--vascular_mask`. 
 
+
+The template files inherited from the previous run are copied into the new output directory, so the downstream stages
+(`confound_correction` and `analysis`) only need the new output directory. With RABIES 0.6.4 and older, the new run
+instead refers to the files of the previous run: for these runs, the previous output directory must stay available at the same
+absolute path as during preprocessing (with containers, at the same location inside the container), or you can run
+`confound_correction` with `--read_datasink`.

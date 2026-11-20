@@ -815,7 +815,8 @@ def inherit_unbiased_files(RABIES_output_path, opts):
     opts.anatomical_resampling = inherit_preprocess_opts.anatomical_resampling
     opts.commonspace_reg = inherit_preprocess_opts.commonspace_reg
     opts.anat_template = inherit_preprocess_opts.anat_template
-    opts.anat_template_source = inherit_preprocess_opts.anat_template_source
+    # previous runs from RABIES <= 0.6.3 do not have anat_template_source; anat_template was then unchanged
+    opts.anat_template_source = getattr(inherit_preprocess_opts, 'anat_template_source', inherit_preprocess_opts.anat_template)
     opts.brain_mask = inherit_preprocess_opts.brain_mask
     opts.WM_mask = inherit_preprocess_opts.WM_mask
     opts.CSF_mask = inherit_preprocess_opts.CSF_mask
