@@ -450,60 +450,11 @@ def get_files_from_tree(startpath):
     return file_list
 
 
-def get_inherited_resample_template(preprocess_opts):
-    # With RABIES <= 0.6.4, a run with --inherit_unbiased_template used an IdentityInterface node for
-    # 'main_wf.resample_template', which nipype removes from the executed workflow graph. For these runs, the
-    # node is read from the workflow graph of the previous run instead (the previous run may itself be inherited).
-    from nipype import logging
-    log = logging.getLogger('nipype.workflow')
-
-    inherit_path = getattr(preprocess_opts, 'inherit_unbiased_template', 'none')
-    visited = []
-    while inherit_path != 'none':
-        workflow_file = f'{inherit_path}/rabies_preprocess_workflow.pkl'
-        cli_file = f'{inherit_path}/rabies_preprocess.pkl'
-        if not (os.path.isfile(workflow_file) and os.path.isfile(cli_file)):
-            raise ValueError(
-                f"The preprocessing run was done with --inherit_unbiased_template {inherit_path}, and the template files "
-                f"must be read from that previous run, but {workflow_file} was not found. Make the previous preprocessing "
-                "outputs available at the same absolute path as during preprocessing (with containers, mount the previous "
-                "output directory at the same location inside the container).")
-        if inherit_path in visited:
-            break
-        visited.append(inherit_path)
-        node_dict = get_workflow_dict(workflow_file)
-        if 'main_wf.resample_template' in node_dict:
-            log.warning(f"The resampled template is read from the previous preprocessing run at {inherit_path}, "
-                        "which was inherited with --inherit_unbiased_template. These outputs must stay available.")
-            return node_dict['main_wf.resample_template']
-        import pickle
-        with open(cli_file, 'rb') as handle:
-            inherit_path = getattr(pickle.load(handle), 'inherit_unbiased_template', 'none')
-
-    raise ValueError("The node 'main_wf.resample_template' was not found in the preprocessing workflow graph.")
-
-
 def read_preproc_workflow(preproc_output, nativespace_analysis, preprocess_opts):
 
     preproc_workflow_file = f'{preproc_output}/rabies_preprocess_workflow.pkl'
 
-    try:
-        node_dict = get_workflow_dict(preproc_workflow_file)
-    except Exception as e:
-        # loading the workflow graph checks that input files exist; with RABIES <= 0.6.4, a run with
-        # --inherit_unbiased_template refers to files from the previous run
-        inherit_path = getattr(preprocess_opts, 'inherit_unbiased_template', 'none')
-        if inherit_path != 'none' and not os.path.isdir(inherit_path):
-            raise ValueError(
-                f"The workflow graph {preproc_workflow_file} could not be loaded. The preprocessing run was done with "
-                f"--inherit_unbiased_template {inherit_path}, and it refers to files from that previous run, which is not "
-                "available. Make the previous preprocessing outputs available at the same absolute path as during "
-                "preprocessing (with containers, mount the previous output directory at the same location inside the "
-                "container), or use --read_datasink.") from e
-        raise
-
-    if not 'main_wf.resample_template' in node_dict:
-        node_dict['main_wf.resample_template'] = get_inherited_resample_template(preprocess_opts)
+    node_dict = get_workflow_dict(preproc_workflow_file)
 
     match_targets = {'input_bold':['main_wf.select_input_bold', 'selected_file'],
                     'commonspace_mask':['main_wf.bold_main_wf.mask_commonspace_trans_wf.brain_mask_resample', 'resampled_file'],

@@ -153,15 +153,6 @@ if opts.test_registration:
         shell=True,
         )
 
-    # the inherited run must not depend on the location of the previous run
-    shutil.rmtree(f'{tmppath}/outputs')
-    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs_inherit {tmppath}/outputs_inherit --nuisance_regressors mot_6"
-    process = subprocess.run(
-        command,
-        check=True,
-        shell=True,
-        )
-
     # testing only inhomogeneity correction
     command = f"rabies -p MultiProc --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false --bold_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
