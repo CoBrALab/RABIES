@@ -6,7 +6,7 @@ from nipype.interfaces.utility import Function
 from .inho_correction import init_inho_correction_wf
 from .commonspace_reg import init_commonspace_reg_wf,inherit_unbiased_files
 from .bold_main_wf import init_bold_main_wf
-from .utils import prep_bids_iter, resample_template
+from .utils import prep_bids_iter, resample_template, copy_inherited_template, copy_inherited_unbiased_files
 from . import preprocess_visual_QC
 from .prep_input import init_prep_input_wf,match_iterables
 
@@ -292,11 +292,25 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
     else: # inherit the atlas files from previous run
         inherit_unbiased=True
         opts, inherit_dict = inherit_unbiased_files(opts.inherit_unbiased_template, opts)
-        resample_template_node = pe.Node(niu.IdentityInterface(fields=['registration_template', 'registration_mask', 'commonspace_template']),
-                                            name="resample_template")
+        # The inherited files are copied into this run with Function nodes (not IdentityInterface nodes, which nipype
+        # removes from the executed graph). This keeps 'main_wf.resample_template' in the saved workflow graph, which
+        # is read by confound_correction, and makes this run independent from the location of the previous run.
+        resample_template_node = pe.Node(Function(input_names=['registration_template', 'registration_mask', 'commonspace_template'],
+                                                output_names=['registration_template', 'registration_mask', 'commonspace_template'],
+                                                function=copy_inherited_template),
+                                        name='resample_template', mem_gb=1*opts.scale_min_memory)
         resample_template_node.inputs.registration_template = inherit_dict['registration_template']
         resample_template_node.inputs.registration_mask = inherit_dict['registration_mask']
         resample_template_node.inputs.commonspace_template = inherit_dict['commonspace_template']
+
+        inherit_unbiased_fields = ['unbiased_template', 'unbiased_mask', 'unbiased_to_atlas_affine', 'unbiased_to_atlas_warp',
+                                   'unbiased_to_atlas_inverse_warp', 'warped_unbiased']
+        inherit_unbiased_node = pe.Node(Function(input_names=inherit_unbiased_fields,
+                                                output_names=inherit_unbiased_fields,
+                                                function=copy_inherited_unbiased_files),
+                                        name='inherit_unbiased_files', mem_gb=1*opts.scale_min_memory)
+        for key in inherit_unbiased_fields:
+            setattr(inherit_unbiased_node.inputs, key, inherit_dict[key])
 
 
     EPI_target_buffer = pe.Node(niu.IdentityInterface(fields=['EPI_template', 'EPI_mask']),
@@ -306,12 +320,11 @@ def init_main_wf(data_dir_path, output_folder, opts, name='main_wf'):
                                                  output_folder=output_folder, transforms_datasink=transforms_datasink, nthreads_modelbuild=nthreads_modelbuild_anat, output_datasinks=True, 
                                                  joinsource_list=['main_split'], name='commonspace_reg_wf')
     if inherit_unbiased:
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_template = inherit_dict['unbiased_template']
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_mask = inherit_dict['unbiased_mask']
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_affine = inherit_dict['unbiased_to_atlas_affine']
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_warp = inherit_dict['unbiased_to_atlas_warp']
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.unbiased_to_atlas_inverse_warp = inherit_dict['unbiased_to_atlas_inverse_warp']
-        commonspace_reg_wf.inputs.inherit_unbiased_inputnode.warped_unbiased = inherit_dict['warped_unbiased']
+        workflow.connect([
+            (inherit_unbiased_node, commonspace_reg_wf, [
+                (key, f"inherit_unbiased_inputnode.{key}") for key in inherit_unbiased_fields
+                ]),
+            ])
 
     bold_main_wf = init_bold_main_wf(opts=opts, output_folder=output_folder, number_functional_scans=number_functional_scans)
 

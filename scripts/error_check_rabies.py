@@ -128,6 +128,31 @@ if opts.test_registration:
         shell=True,
         )
 
+    # testing --inherit_unbiased_template: the left-out scan is registered to the unbiased template of the run above,
+    # and the downstream stages must run on the new outputs
+    command = f"rabies --inclusion_ids {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs_inherit \
+        --anat_inho_cor method=disable,otsu_thresh=2,multiotsu=false --bold_inho_cor method=disable,otsu_thresh=2,multiotsu=false \
+        --bold2anat_coreg registration=Rigid --nativespace_resampling 1x1x1 --inherit_unbiased_template {tmppath}/outputs"
+    process = subprocess.run(
+        command,
+        check=True,
+        shell=True,
+        )
+
+    command = f"rabies --force --verbose 1 --data_type int16 confound_correction {tmppath}/outputs_inherit {tmppath}/outputs_inherit --nuisance_regressors mot_6"
+    process = subprocess.run(
+        command,
+        check=True,
+        shell=True,
+        )
+
+    command = f"rabies --force --verbose 1 --data_type int16 analysis {tmppath}/outputs_inherit {tmppath}/outputs_inherit --seed_list {tmppath}/inputs/token_mask_half.nii.gz"
+    process = subprocess.run(
+        command,
+        check=True,
+        shell=True,
+        )
+
     # testing only inhomogeneity correction
     command = f"rabies -p MultiProc --exclusion_ids {tmppath}/inputs/sub-token2_bold.nii.gz {tmppath}/inputs/sub-token3_bold.nii.gz --force --verbose 1 --data_type int16 preprocess {tmppath}/inputs {tmppath}/outputs --anat_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false --bold_inho_cor method=Rigid,otsu_thresh=2,multiotsu=false \
         --anat_template {tmppath}/inputs/sub-token1_T1w.nii.gz --brain_mask {tmppath}/inputs/token_mask.nii.gz --WM_mask {tmppath}/inputs/token_mask.nii.gz --CSF_mask {tmppath}/inputs/token_mask.nii.gz --vascular_mask {tmppath}/inputs/token_mask.nii.gz \
